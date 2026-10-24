@@ -385,6 +385,10 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTINGS_CARDS, "if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];", "",
           expect=RULES + "put the claims switch, the models and the prices in their own place, basic first, the rest "
                          "under Advanced")
+@mutation(SETTINGS_CARDS, '"prices", "costs"] as const', '"prices"] as const',
+          expect=RULES + "put the costs in their own place beside the prices")
+@mutation(SETTINGS_CARDS, '(input.label === "points" ? "cost" : `${input.label} cost`)', "input.label",
+          expect=RULES + "put the costs in their own place beside the prices")
 @mutation(SETTINGS_CARDS, '.filter((k) => names.includes(k.split("@")[0]!))', ".filter((k) => names.includes(k))",
           expect=RULES + "find a model's prices by its id or an alias, a tier after @, and the keys no model has")
 @mutation(SETTINGS_CARDS, '/^\\d+$/.test(text.trim()) ? Number(text.trim()) : text', "Number(text)",

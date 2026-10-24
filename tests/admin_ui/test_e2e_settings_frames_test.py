@@ -609,7 +609,8 @@ def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_an
     page.set_viewport_size({"width": 1440, "height": 900})
     open_tab(page, "Prompt frames")
     strip = page.get_by_role("navigation", name="Provider")
-    kinds = {"dola": ["video", "image"], "meta": ["video", "image"], "vibes": ["video", "image"], "flow": ["video", "image"]}
+    kinds = {"dola": ["video", "image"], "meta": ["video", "image"], "vibes": ["video", "image"],
+             "flow": ["video", "image"]}
     for name, drawn in kinds.items():
         if name == "dola":
             for listed in kinds:

@@ -15,6 +15,7 @@ import {
 import * as shell from "@/api/shell";
 import {
   cardsOf,
+  costLabel,
   fieldLabel,
   otherPrices,
   priceInputs,
@@ -441,6 +442,21 @@ describe("the card rules", () => {
     ]);
     expect(priceInputs(models()[1]!, table)).toEqual([]);
     expect(otherPrices(models(), table).map((p) => p.key)).toEqual(["old-model"]);
+  });
+
+  it("put the costs in their own place beside the prices, a cost input labelled by its tier", () => {
+    const costs = setting({
+      key: "dola.costs",
+      value: { "seedance_v2.5@5s": 2, "seedream-4.5": 1 },
+      type: "dict",
+      description: "Upstream cost per job.",
+    });
+    const dola = cardsOf([...items(), costs])[1]!;
+    expect(Object.keys(dola.own).sort()).toEqual(["claims_enabled", "costs", "disabled_models", "prices"]);
+    expect(dola.advanced.map((i) => i.key)).toEqual(["dola.render_deadline_s"]);
+    const table = costs.value as Record<string, unknown>;
+    expect(priceInputs(models()[0]!, table).map(costLabel)).toEqual(["5 s cost"]);
+    expect(priceInputs(models()[2]!, table).map(costLabel)).toEqual(["cost"]);
   });
 
   it("send a whole price as a number and anything else as typed", () => {

@@ -8,6 +8,7 @@ import { providerClass } from "@/lib/providers";
 import SettingField from "./SettingField.vue";
 import {
   type Card,
+  costLabel,
   otherPrices,
   pausedModels,
   priceInputs,
@@ -20,7 +21,8 @@ import { valueText } from "./settings-value";
 // One card of the Settings page (final.html "settings cards"): a provider's, or General ("core", the relay-wide
 // settings). A provider's header carries its tile, how it sends and how many models it offers, and the "Taking jobs"
 // switch (`<p>.claims_enabled`); "Models & prices" has a row per model of the catalog with its switch
-// (`<p>.disabled_models`) and its price inputs (`<p>.prices`); then the basic settings, the rest folded under
+// (`<p>.disabled_models`), its price inputs (`<p>.prices`, points) and its cost inputs (`<p>.costs`, what one job
+// costs the upstream account); then the basic settings, the rest folded under
 // Advanced. Every control edits a draft: the card says how many settings changed, Discard puts the stored values back
 // and Save sends each changed one.
 const props = defineProps<{
@@ -67,6 +69,8 @@ const prices = computed(() =>
   own.value.prices ? priceTable(props.drafts[own.value.prices.key], own.value.prices) : {},
 );
 const others = computed(() => otherPrices(props.models, prices.value));
+const costs = computed(() => (own.value.costs ? priceTable(props.drafts[own.value.costs.key], own.value.costs) : {}));
+const otherCosts = computed(() => otherPrices(props.models, costs.value));
 const onCount = computed(() => props.models.filter((m) => !paused.value.has(m.id)).length);
 const kindOf = (m: CatalogModel) => (typeof m.kind === "string" ? m.kind : "");
 
@@ -89,8 +93,14 @@ function setPrice(key: string, text: string): void {
   const item = own.value.prices;
   if (item) emit("draft", item.key, withPrice(props.drafts[item.key], item, key, text));
 }
+function setCost(key: string, text: string): void {
+  const item = own.value.costs;
+  if (item) emit("draft", item.key, withPrice(props.drafts[item.key], item, key, text));
+}
 // the settings drawn in the Models block: their edited marks, their errors and their Reset
-const modelItems = computed(() => [own.value.disabled_models, own.value.prices].filter((i): i is SettingItem => !!i));
+const modelItems = computed(() =>
+  [own.value.disabled_models, own.value.prices, own.value.costs].filter((i): i is SettingItem => !!i),
+);
 const changedWord = computed(() =>
   changed.value.length ? `${changed.value.length} ${changed.value.length === 1 ? "change" : "changes"} not saved` : "",
 );
@@ -162,6 +172,35 @@ const changedWord = computed(() =>
               :disabled="busy"
               autocomplete="off"
               @input="setPrice(p.key, ($event.target as HTMLInputElement).value)"
+          /></label>
+        </span>
+        <span v-if="own.costs && priceInputs(m, costs).length" class="mrow__prices mrow__costs">
+          <label v-for="c in priceInputs(m, costs)" :key="c.key"
+            >{{ costLabel(c)
+            }}<input
+              class="cost"
+              :value="c.text"
+              inputmode="numeric"
+              :aria-label="`${m.id} ${costLabel(c)}`"
+              :disabled="busy"
+              autocomplete="off"
+              @input="setCost(c.key, ($event.target as HTMLInputElement).value)"
+          /></label>
+        </span>
+      </div>
+      <div v-if="own.costs && otherCosts.length" class="mrow" data-model="">
+        <span class="mrow__name">Other costs<small>keys no model of the catalog has</small></span>
+        <span class="mrow__prices mrow__costs">
+          <label v-for="c in otherCosts" :key="c.key"
+            ><span class="mono">{{ c.label }}</span
+            ><input
+              class="cost"
+              :value="c.text"
+              inputmode="numeric"
+              :aria-label="`${c.key} cost`"
+              :disabled="busy"
+              autocomplete="off"
+              @input="setCost(c.key, ($event.target as HTMLInputElement).value)"
           /></label>
         </span>
       </div>
@@ -403,7 +442,8 @@ const changedWord = computed(() =>
   color: var(--rl-muted);
   font-size: 12px;
 }
-.price {
+.price,
+.cost {
   box-sizing: border-box;
   width: 44px;
   height: 26px;
@@ -416,7 +456,8 @@ const changedWord = computed(() =>
   text-align: center;
 }
 /* the focus ring hugs the box, clear of its label */
-.price:focus-visible {
+.price:focus-visible,
+.cost:focus-visible {
   outline-offset: 0;
 }
 .mrow.is-off .mrow__name,
@@ -579,7 +620,8 @@ const changedWord = computed(() =>
     height: 44px;
     font-size: 14px;
   }
-  .price {
+  .price,
+  .cost {
     width: 52px;
     height: 36px;
     font-size: 14px;

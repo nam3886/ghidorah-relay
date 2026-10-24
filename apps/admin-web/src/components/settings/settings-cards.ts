@@ -1,13 +1,14 @@
 // Pure rules of the Settings cards (final.html "settings cards"): which setting goes where on a card, and how the model
-// switches and the price inputs of a provider edit the text draft of `<p>.disabled_models` and `<p>.prices`.
+// switches and the price and cost inputs of a provider edit the text draft of `<p>.disabled_models`, `<p>.prices` and
+// `<p>.costs`.
 import type { SettingItem } from "@/api/settings";
 import type { CatalogModel } from "@/api/shell";
 import { byProviderOrder } from "@/lib/providers";
 import { valueText } from "./settings-value";
 
-// The three settings a provider card draws in its own place: the header's "Taking jobs" switch, the model switches
-// and the price inputs. They are never plain fields.
-export const OWN_PLACE = ["claims_enabled", "disabled_models", "prices"] as const;
+// The settings a provider card draws in its own place: the header's "Taking jobs" switch, the model switches, the
+// price inputs (points) and the cost inputs (what one job costs the upstream account). They are never plain fields.
+export const OWN_PLACE = ["claims_enabled", "disabled_models", "prices", "costs"] as const;
 type Own = (typeof OWN_PLACE)[number];
 
 // The name of a setting inside its group: `dola.render_deadline_s` is `render_deadline_s`.
@@ -63,7 +64,7 @@ function parsed<T>(draft: string | undefined, item: SettingItem): T {
 export interface PriceInput {
   // the price table's key: "seedance_v2.5@5s", "seedream-4.5"
   key: string;
-  // "5 s", or "points" for a model with one price
+  // "5 s", or "points" for a model with one price (a cost input says "cost" instead: `costLabel`)
   label: string;
   // what the input shows
   text: string;
@@ -83,6 +84,9 @@ export function priceInputs(
       return { key, label: tier ? tier.replace(/^(\d+)s$/, "$1 s") : "points", text: String(table[key]) };
     });
 }
+
+// A cost input's label: "5 s cost", or "cost" for a model with one option.
+export const costLabel = (input: PriceInput): string => (input.label === "points" ? "cost" : `${input.label} cost`);
 
 // The keys of the table that name no model of the catalog (a model since retired): drawn on a row of their own.
 export function otherPrices(models: readonly CatalogModel[], table: Record<string, unknown>): PriceInput[] {
