@@ -426,9 +426,11 @@ def test_the_breakpoint_composable():
 
 @mutation(f"{SRC}/main.ts", "manrope/latin-500.css", "manrope/latin-300.css",
           expect=FONTS + "load the latin and vietnamese subsets of the weights the design uses, and nothing else")
-@mutation(f"{SRC}/components/layout/BrandLogo.vue", 'ui.theme === "dark" ? logoDark : logoLight',
-          'ui.theme === "dark" ? logoLight : logoDark',
-          expect=LOGO + "shows the logo with light letters in the dark theme and dark letters in the light theme")
+@mutation(f"{SRC}/components/layout/BrandLogo.vue", '<span class="brand__word">Ghidorah</span>',
+          '<span class="brand__word"></span>',
+          expect=LOGO + "is the design's mark and the word Ghidorah: the word names it, the mark is decoration")
+@mutation(f"{SRC}/components/layout/BrandLogo.vue", "  fill: var(--rl-brand);", "  fill: #6a35e8;",
+          expect=LOGO + "takes its colours from the theme tokens")
 # package.json, vite.config.ts and index.html are baked into the web image, not mounted, so a mutant there would never
 # reach the run: their pins (exact font versions, assetsInlineLimit, the title) are plain assertions in the specs.
 @pytest.mark.web_unit

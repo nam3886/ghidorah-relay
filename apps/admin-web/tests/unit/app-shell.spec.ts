@@ -687,7 +687,7 @@ describe("the top bar", () => {
     const { wrapper, router } = await open("/accounts");
     const home = wrapper.find('a[aria-label="Ghidorah admin home"]');
     expect(home.exists()).toBe(true);
-    expect(home.find("img").attributes("alt")).toBe("Ghidorah");
+    expect(home.text()).toBe("Ghidorah");
     await home.trigger("click");
     await until(() => expect(router.currentRoute.value.name).toBe("jobs"));
   });
@@ -864,9 +864,10 @@ describe("the login page", () => {
     await submit(wrapper, "owner", "nope");
     const box = wrapper.find("#loginError");
     expect(box.attributes("role")).toBe("alert");
-    expect(box.text()).toBe("Wrong username or password");
+    expect(box.text()).toBe("Wrong username or password.");
     expect(pass.attributes("aria-invalid")).toBe("true");
-    expect(pass.attributes("aria-describedby")).toBe("loginError");
+    expect(pass.attributes("aria-describedby")).toBe("login-pass-err");
+    expect(wrapper.find("#login-pass-err").text()).toBe("Check the password and try again.");
     expect(pass.classes()).toContain("field-input--invalid");
   });
 

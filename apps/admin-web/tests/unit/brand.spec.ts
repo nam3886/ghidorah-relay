@@ -28,26 +28,26 @@ describe("the brand logo", () => {
     document.documentElement.classList.remove("dark");
   });
 
-  const wide = (w: ReturnType<typeof mount>) => w.find("img.brand__full");
-
-  it("shows the logo with light letters in the dark theme and dark letters in the light theme", async () => {
+  it("is the design's mark and the word Ghidorah: the word names it, the mark is decoration", async () => {
     const w = mount(BrandLogo);
-    expect(wide(w).attributes("src")).toContain("ghidorah-logo-light");
+    expect(w.text()).toBe("Ghidorah");
+    expect(w.find(".brand__word").text()).toBe("Ghidorah");
+    const mark = w.find("svg.brand__mark");
+    expect(mark.attributes()).toMatchObject({ viewBox: "50 20 510 520", width: "24", height: "24" });
+    expect(mark.attributes("aria-hidden")).toBe("true");
+    expect(mark.findAll("path")).toHaveLength(2);
+    expect(w.findAll("img")).toHaveLength(0);
+    // one drawing for both themes: the colours are the tokens, so a theme switch changes nothing in the markup
+    const before = w.html();
     useUiStore().setTheme("dark");
     await w.vm.$nextTick();
-    expect(wide(w).attributes("src")).toContain("ghidorah-logo-dark");
-    useUiStore().setTheme("light");
-    await w.vm.$nextTick();
-    expect(wide(w).attributes("src")).toContain("ghidorah-logo-light");
+    expect(w.html()).toBe(before);
   });
 
-  it("names itself Ghidorah and is only the wide logo, whatever the width", () => {
-    for (const variant of ["header", "login"] as const) {
-      const w = mount(BrandLogo, { props: { variant } });
-      expect(wide(w).attributes("alt")).toBe("Ghidorah");
-      expect(w.findAll("img")).toHaveLength(1);
-      expect(w.text()).toBe("");
-    }
+  it("takes its colours from the theme tokens: the mark the brand purple, the word the text colour", () => {
+    const source = read("src/components/layout/BrandLogo.vue");
+    expect(source).toContain("fill: var(--rl-brand);");
+    expect(source).toContain("color: var(--rl-fg);");
   });
 
   it("never says Relay: no source file of the shell or the login page carries the word as a brand", () => {

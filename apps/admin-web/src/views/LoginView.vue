@@ -29,7 +29,7 @@ async function submit(): Promise<void> {
     await auth.login(username.value, password.value);
     await router.replace({ name: "jobs" });
   } catch (err) {
-    error.value = err instanceof ApiError && err.status === 401 ? "Wrong username or password" : errorText(err);
+    error.value = err instanceof ApiError && err.status === 401 ? "Wrong username or password." : errorText(err);
   } finally {
     // the password never outlives the request, whatever the answer: not in reactive state, not in the field
     password.value = "";
@@ -67,7 +67,7 @@ onMounted(async () => {
       <form class="login-card" aria-labelledby="login-title" @submit.prevent="submit">
         <div class="login-brand">
           <span class="login-mark">
-            <svg viewBox="50 20 510 520" width="30" height="30" role="img" aria-label="Ghidorah">
+            <svg viewBox="50 20 510 520" width="30" height="30" aria-hidden="true">
               <g>
                 <path
                   d="M369 64L353 24L406 49Q437 61 453 81L500 104L490 131L447 123L406 125Q391 125 382 113C247 98 123 169 104 287C98 327 108 364 128 390C61 361 49 296 67 233C105 110 239 52 369 64Z"
@@ -117,7 +117,7 @@ onMounted(async () => {
               autocomplete="current-password"
               maxlength="256"
               :aria-invalid="error ? 'true' : undefined"
-              :aria-describedby="error ? 'loginError' : undefined"
+              :aria-describedby="error ? 'login-pass-err' : undefined"
             />
             <button
               type="button"
@@ -129,7 +129,7 @@ onMounted(async () => {
               <IconEye :size="18" />
             </button>
           </span>
-          <span v-if="error" class="field-error">Check the password and try again.</span>
+          <span v-if="error" id="login-pass-err" class="field-error">Check the password and try again.</span>
         </div>
 
         <button type="submit" class="submit" :disabled="busy">{{ busy ? "Signing in…" : "Sign in" }}</button>

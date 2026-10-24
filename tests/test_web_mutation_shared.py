@@ -149,10 +149,9 @@ BRAND = "apps/admin-web/src/components/layout/BrandLogo.vue"
 BRAND_SPEC = "tests/unit/brand.spec.ts"
 
 
-@mutation(BRAND, 'ui.theme === "dark" ? logoDark : logoLight', 'ui.theme === "dark" ? logoLight : logoDark',
-          expect="shows the logo with light letters in the dark theme")
+@mutation(BRAND, 'aria-hidden="true"', 'aria-hidden="false"', expect="the word names it, the mark is decoration")
 @pytest.mark.web_unit
-def test_the_brand_logo_follows_the_theme_and_the_tokens_are_the_kits():
+def test_the_brand_logo_is_the_designs_and_the_tokens_are_the_kits():
     vitest(BRAND_SPEC)
 
 
