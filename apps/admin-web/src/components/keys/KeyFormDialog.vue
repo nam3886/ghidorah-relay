@@ -740,7 +740,12 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
   flex: 1 1 0;
   min-width: 0;
   height: 44px;
+  padding: 0;
   font-weight: 700;
+}
+/* the primary has a transparent edge, so both buttons are the same size to the flex algorithm */
+.kf__buttons.is-phone .kf__btn--primary {
+  border: 1px solid transparent;
 }
 .kf__buttons.is-phone .kf__btn--link {
   border: 1px solid var(--rl-line-strong);

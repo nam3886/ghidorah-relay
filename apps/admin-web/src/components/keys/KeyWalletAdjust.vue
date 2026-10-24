@@ -144,10 +144,12 @@ const arrowStyle = computed(() => ({ left: `${at.value.arrow}px` }));
       </label>
     </form>
     <template #footer>
-      <button type="button" class="wa__btn wa__btn--line" :disabled="busy" @click="emit('close')">Cancel</button>
-      <button type="button" class="wa__btn wa__btn--primary" :disabled="busy || !plan.body" @click="send">
-        {{ primaryText }}
-      </button>
+      <div class="wa__sheetfoot">
+        <button type="button" class="wa__btn wa__btn--line" :disabled="busy" @click="emit('close')">Cancel</button>
+        <button type="button" class="wa__btn wa__btn--primary" :disabled="busy || !plan.body" @click="send">
+          {{ primaryText }}
+        </button>
+      </div>
     </template>
   </BottomSheet>
 
@@ -493,11 +495,17 @@ const arrowStyle = computed(() => ({ left: `${at.value.arrow}px` }));
 .wa--sheet .wa__suffix {
   padding: 0 12px;
 }
+/* the two footer buttons share one row, equal, at the touch height (KeyWalletPhone) */
+.wa__sheetfoot {
+  display: flex;
+  gap: 8px;
+}
 .rl-sheet .wa__btn {
   flex: 1 1 0;
   min-width: 0;
   height: 44px;
-  padding: 0 16px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 10px;
   font-weight: 700;
 }

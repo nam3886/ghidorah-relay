@@ -110,7 +110,7 @@ async function createOne(leaves = false) {
 const markupOf = (el: Element | null): string => (el ? new XMLSerializer().serializeToString(el) : "");
 const pageMarkup = (): string => markupOf(document.body);
 const secretBox = () => document.body.querySelector('[data-testid="new-key"]');
-const callout = () => document.body.querySelector<HTMLInputElement>('[data-testid="new-key"] input');
+const callout = () => document.body.querySelector<HTMLTextAreaElement>('[data-testid="new-key"] textarea');
 
 // Everything a page can hold the key in besides the modal's own field.
 function whereTheKeyIs(): string[] {

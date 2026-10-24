@@ -66,8 +66,9 @@ def goto_keys(app, page, width=1440, height=900):
 
 
 def form(page):
-    """The key form drawer (a discard question is an alertdialog, the one-time key a modal of its own)."""
-    return page.get_by_test_id("key-drawer")
+    """The key form drawer while it is shown (a closed drawer keeps its hidden frame in the page; a discard question is
+    an alertdialog, the one-time key a dialog of its own name)."""
+    return page.get_by_role("dialog", name=re.compile(r"^(New API key|Edit key · )"))
 
 
 def done_with_secret(page):

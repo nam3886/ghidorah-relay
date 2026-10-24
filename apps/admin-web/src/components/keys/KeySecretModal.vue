@@ -14,7 +14,7 @@ const props = defineProps<{ rawKey: string; label: string }>();
 const emit = defineEmits<{ dismiss: []; copied: [outcome: CopyOutcome] }>();
 const { isPhone } = useBreakpoint();
 
-const field = ref<HTMLInputElement | null>(null);
+const field = ref<HTMLTextAreaElement | null>(null);
 // Puts the cursor in the key's field (the view calls it once the form drawer is gone).
 function reveal(): void {
   field.value?.focus({ preventScroll: true });
@@ -75,16 +75,18 @@ function closed(open: boolean): void {
         <div class="ks__field">
           <label class="ks__label" for="new-key-field">API key</label>
           <div class="ks__row">
-            <input
+            <!-- a text area, so a long key wraps on a phone instead of being cut -->
+            <textarea
               id="new-key-field"
               ref="field"
               class="ks__secret mono"
+              :rows="isPhone ? 2 : 1"
               readonly
               autocomplete="off"
               spellcheck="false"
               @focus="field?.select()"
               @copy="unlocked = true"
-            />
+            ></textarea>
             <button type="button" class="ks__copy" @click="copy">
               <IconCopy :size="15" />{{ copied ? "Copied" : isPhone ? "Copy key" : "Copy" }}
             </button>
@@ -156,13 +158,19 @@ function closed(open: boolean): void {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
-  height: 44px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 11px 12px;
   border: 1px solid var(--rl-brand);
   border-radius: 10px;
   background: var(--rl-head);
   color: var(--rl-fg);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 20px;
+  resize: none;
+  overflow: hidden;
+  word-break: break-all;
+  /* as tall as the key needs: one line when it fits, two when it wraps */
+  field-sizing: content;
   box-shadow: 0 0 0 3px var(--rl-focus-halo);
   outline: none;
 }
