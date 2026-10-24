@@ -76,7 +76,7 @@ def test_a_charge_takes_its_billing_day_from_the_pinned_timezone(db):
     # whichever of UTC+14 and UTC-12 has another calendar date than UTC right now
     now = datetime.now(UTC)
     tz = next(z for z in ("Pacific/Kiritimati", "Etc/GMT+12") if now.astimezone(ZoneInfo(z)).date() != now.date())
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     job = db.job(key)
     with db.connect() as c:
         c.execute("DELETE FROM billing_pin")           # the session database was pinned to UTC by its migrate
@@ -86,7 +86,7 @@ def test_a_charge_takes_its_billing_day_from_the_pinned_timezone(db):
         pool = await open_pool(db.dsn)
         try:
             async with tx(pool) as conn:
-                return (await billing.charge(conn, key, "p1", "video", 0, job)).billing_day
+                return (await billing.charge(conn, key, "p1", 0, job)).billing_day
         finally:
             await pool.close()
 

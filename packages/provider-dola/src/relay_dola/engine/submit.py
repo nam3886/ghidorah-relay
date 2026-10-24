@@ -47,7 +47,6 @@ from relay_core.providers import (
     Fail,
     NotTaken,
     ProxyBad,
-    Rest,
     Retry,
     SubmitResult,
     Success,
@@ -451,11 +450,6 @@ def conversation_id_of(request: str) -> str | None:
     """The conversation a chain read asked for, from its request body."""
     m = _CONV_ID.search(request or "")
     return m.group(1) if m else None
-
-
-def next_pool_reset(now: datetime) -> datetime:
-    """The next pool day boundary: dola's pool day is UTC (a spec constant)."""
-    return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def network_failure(text: str) -> bool:
@@ -1581,15 +1575,13 @@ class _Run:
         """The balance dola reported. Only for video: `credits_left` counts VIDEO credits, never image ones."""
         if self.spec.kind != "video" or verdict.credits_left is None:
             return []
-        return [Balance("video", verdict.credits_left, "reported")]
+        return [Balance("video", verdict.credits_left)]
 
     async def _video_result(self, conversation: str, reply: str, verdict, said: str = "") -> SubmitResult:
         outcome = verdict.outcome
         if outcome is classify.SubmitOutcome.OK:
             facts, warnings = self._facts(reply, verdict)
-            effects = [Success(), *self._balance(verdict)]
-            if verdict.credits_left == 0:
-                effects.append(self._rest("out of credit: the last order took the last credit"))
+            effects = [Success(), *self._balance(verdict)]     # a reported 0 rests the pool until its refill (the core)
             return _outcome(Accepted(conversation, facts=facts, taken=True), *effects, warnings=warnings)
         if verdict.decided:
             return await self._refused(verdict, reply)
@@ -1603,8 +1595,6 @@ class _Run:
                             "known of it, the poll decides", "submit", "engine")
         await self._ui_error_evidence("unclear-reply")
         effects = self._balance(verdict)
-        if verdict.credits_left == 0:
-            effects.append(self._rest("out of credit: dola reports 0 credits left"))
         # The admin hears the reply relay could not classify: dola's own reply to the last send, as the engine read it
         # (`reply` is API text only, never the page's). The core takes the customer's echoed words out of it.
         return _outcome(Accepted(conversation, taken=False, unclear=reply), *effects)
@@ -1632,14 +1622,10 @@ class _Run:
         job's KIND: dola says "daily limit for VIDEO generation" for images too (measured 260920)."""
         spec = self.spec
         if spec.kind == "video" and (credits_left or 0) > 0:
-            return _outcome(NotTaken(POOL_CANNOT_AFFORD), Balance("video", credits_left, "reported"))
-        effects = [self._rest("out of credit")]
-        if spec.kind == "video" and credits_left is not None:
-            effects.append(Balance("video", credits_left, "reported"))
-        return _outcome(NotTaken(POOL_OUT_OF_POINTS), *effects)
-
-    def _rest(self, reason: str) -> Rest:
-        return Rest(self.spec.kind, next_pool_reset(self.deps.now()), reason)
+            return _outcome(NotTaken(POOL_CANNOT_AFFORD), Balance("video", credits_left))
+        # out: the pool of this job's kind reports 0, and the core rests it until its next refill whatever its counter
+        # says (dola's "reached today's image limit" is as final as a zero video balance)
+        return _outcome(NotTaken(POOL_OUT_OF_POINTS), Balance(spec.kind, 0))
 
     # ---- images: the session holds until the images are there ----
     async def _image_result(self, conversation: str, reply: str, verdict) -> SubmitResult:

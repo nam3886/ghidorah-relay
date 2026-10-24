@@ -37,11 +37,11 @@ BILLING = "America/New_York"               # a billing day pinned elsewhere, whi
 
 
 class Switching(FakeSpec):
-    """A browser provider whose live setting `sw.send_path` says how it sends now, with a pool counted in points."""
+    """A browser provider whose live setting `sw.send_path` says how it sends now, with a pool counted in credits."""
 
     def __init__(self):
         super().__init__("sw", execution="browser")
-        self.caps = dataclasses.replace(self.caps, pools=(PoolSpec("video", "UTC", "sw.video_budget", "points"),))
+        self.caps = dataclasses.replace(self.caps, pools=(PoolSpec("video", "credits"),))
         self.execution_setting = "sw.send_path"
 
     def settings(self):
@@ -117,7 +117,7 @@ def test_each_registered_provider_gets_its_open_jobs_today_accounts_pools_and_li
     assert sw_card["accounts"] == {"usable": 1, "total": 1}, "accounts"
     assert fake["pools"] == [{"pool": "video", "unit": "jobs", "left": 5, "budget": 8},
                              {"pool": "image", "unit": "jobs", "left": 0, "budget": 0}], "pools: available accounts"
-    assert sw_card["pools"] == [{"pool": "video", "unit": "points", "left": 1, "budget": 4}], "pools: unit"
+    assert sw_card["pools"] == [{"pool": "video", "unit": "credits", "left": 1, "budget": 4}], "pools: unit"
     assert (fake["execution"], sw_card["execution"]) == ("http", "http"), "execution: the live setting wins"
     assert by_name(second)["sw"]["execution"] == "browser", "execution: read live"
     assert (fake["claims_enabled"], by_name(second)["fake"]["claims_enabled"]) == (True, False)
@@ -185,11 +185,11 @@ def test_an_execution_setting_the_spec_does_not_declare_is_refused_at_registrati
     assert "execution_setting names fake.nope, which the spec does not declare" in str(seen.value), "does not declare"
 
 
-@mutation(PROVIDERS, 'if self.unit not in ("points", "jobs"):', "if False:", expect="DID NOT RAISE")
-def test_a_pool_counts_points_or_jobs_and_nothing_else():
+@mutation(PROVIDERS, 'if self.unit not in ("credits", "jobs", "uses"):', "if False:", expect="DID NOT RAISE")
+def test_a_pool_counts_credits_jobs_or_uses_and_nothing_else():
     with pytest.raises(ValueError) as seen:
-        PoolSpec("video", "UTC", None, "credits")      # type: ignore[arg-type]
-    assert "points or jobs" in str(seen.value), "a pool counts points or jobs"
+        PoolSpec("video", "points")      # type: ignore[arg-type]
+    assert "credits, jobs or uses" in str(seen.value), "a pool counts credits, jobs or uses"
 
 
 @pytest.mark.parametrize("setting", [

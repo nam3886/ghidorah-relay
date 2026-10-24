@@ -46,7 +46,7 @@ def row(db, lease_id):
 
 
 def submitting_job(db):
-    job = db.job(db.key(("p1", "video", None, None)))
+    job = db.job(db.key(("p1", None, None)))
     db.run("UPDATE jobs SET status = 'submitting' WHERE id = %s", job)
     return job
 
@@ -480,7 +480,7 @@ def test_the_checker_reports_a_lease_that_runs_past_its_bound(db):
           expect="assert len(found) == 1 and \"queued\" in found[0], found")
 def test_the_checker_reports_a_live_job_lease_on_a_job_that_is_not_submitting(db):
     acct = account(db)
-    job = db.job(db.key(("p1", "video", None, None)))               # queued
+    job = db.job(db.key(("p1", None, None)))               # queued
     found = planted(db, "INSERT INTO leases (account_id, job_id, purpose, owner, until, hard_until) "
                         "VALUES (%s, %s, 'job', 'w', now() + interval '1 h', now() + interval '1 h')", acct, job)
     assert len(found) == 1 and "queued" in found[0], found

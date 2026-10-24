@@ -142,7 +142,7 @@ def test_a_poll_failure_beside_the_failure_of_a_charged_job_takes_the_account_be
     j1, j2, out = run(db, scenario)
     assert not _errors(out), out
     assert (row(db, j1, "status"), row(db, j2, "status")) == (("failed",), ("failed",))
-    assert db.one("SELECT count(*) FROM ledger WHERE entry = 'refund'")[0] == 2
+    assert db.one("SELECT count(*) FROM ledger WHERE scope = '*' AND entry = 'refund'")[0] == 2
 
 
 @pytest.mark.parametrize("p2_path", ["submit_fail", "poll_failed_not_taken"])

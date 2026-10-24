@@ -6,6 +6,7 @@ import pytest
 from kit_a import settings
 
 from relay_core.limits import caps_limits, fixed_limits
+from relay_core.pool import day_pool
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Registry, SettingsError, is_boot_only
 from relay_core.testing.mutation import mutation
@@ -18,8 +19,7 @@ CORE_SETTINGS = "packages/relay-core/src/relay_core/settings.py"
 
 LIVE_KEYS = {
     "dola.claims_enabled", "dola.render_deadline_s", "dola.prices", "dola.costs",
-    "dola.video_budget",
-    "dola.image_budget", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
+    "dola.pools", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
     "dola.alert_content_refused_rate", "dola.browser_slots", "dola.send_path", "dola.signer_alarm_accounts",
     "dola.signer_alarm_window_s", "dola.disabled_models"}
 
@@ -40,7 +40,8 @@ def test_the_live_keys_are_exactly_the_contract_list_all_namespaced():
 
 def test_the_defaults_are_the_contract_values_and_pass_their_own_validators():
     d = {k: s.default for k, s in SPEC.settings().items()}
-    assert (d["dola.render_deadline_s"], d["dola.video_budget"], d["dola.image_budget"]) == (9000, 4, 40)
+    assert d["dola.render_deadline_s"] == 9000
+    assert d["dola.pools"] == {"video": day_pool({"free": 4}), "image": day_pool({"free": 40})}
     assert d["dola.master_quality"] is True and d["dola.claims_enabled"] is True
     assert (d["dola.alert_duration_mismatch_rate"], d["dola.alert_watermark_only_rate"],
             d["dola.alert_content_refused_rate"]) == (0.2, 0.2, 0.5)
@@ -131,8 +132,8 @@ def test_the_alert_rates_are_between_zero_and_one():
         assert s.allowed == "0\u20131"
 
 
-def test_the_deadline_and_the_budgets_are_positive_whole_numbers():
-    for key, floor in (("dola.render_deadline_s", 60), ("dola.video_budget", 1), ("dola.image_budget", 1)):
+def test_the_deadline_is_a_positive_whole_number():
+    for key, floor in (("dola.render_deadline_s", 60),):
         s = spec_of(key)
         assert s.validate(floor) == floor
         with pytest.raises(SettingsError, match="at least %d" % floor):
@@ -149,17 +150,16 @@ def test_the_settings_a_worker_reloads_each_tick_exist_with_the_core_names():
     keys = set(SPEC.settings())
     assert {"dola.claims_enabled", "dola.render_deadline_s", "dola.browser_slots"} <= keys, (
         "the core reads these three on every tick")
-    for pool in SPEC.caps.pools:
-        assert pool.budget_setting in keys, pool
-    assert [(p.name, p.tz, p.budget_setting) for p in SPEC.caps.pools] == [
-        ("video", "UTC", "dola.video_budget"), ("image", "UTC", "dola.image_budget")]
+    assert "dola.pools" in keys, "the core reads each pool's windows from it"
+    assert [(p.name, p.unit) for p in SPEC.caps.pools] == [("video", "credits"), ("image", "uses")]
 
 
 # ---- what the admin sees: allowed text and fixed limits -------------------------------------------------------------
 def test_every_dola_setting_states_what_it_allows():
     assert {k: s.allowed for k, s in SPEC.settings().items()} == {
         "dola.claims_enabled": "true or false", "dola.master_quality": "true or false",
-        "dola.render_deadline_s": "at least 60", "dola.video_budget": "at least 1", "dola.image_budget": "at least 1",
+        "dola.render_deadline_s": "at least 60",
+        "dola.pools": "an object of pool -> {combine, windows: [{name, kind: day, tz, budget: {tier: units}}]}",
         "dola.prices": "each entry: an option key of this provider and a whole number of points, 0 or more",
         "dola.costs": "each entry: an option key of this provider and a whole number of credits or image units, 0 or "
                       "more",

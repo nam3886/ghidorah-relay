@@ -12,10 +12,10 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core.admin.routes_common import ms, pool_point
+from relay_core.admin.routes_common import ms, pool_budget
 from relay_core.api.deps import get_pool, get_registry, get_settings
 from relay_core.db import tx
-from relay_core.pool import pool_configs
+from relay_core.pool import pool_configs, pool_states
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Settings
 
@@ -53,7 +53,7 @@ _USABLE = (
     # state (account-model.ts `asleepLines`). Both on the database clock, like the list; one account can be both.
     "count(*) FILTER (WHERE EXISTS (SELECT 1 FROM leases WHERE account_id = a.id AND until > clock_timestamp())), "
     "count(*) FILTER (WHERE cooldown_until > clock_timestamp() "
-    "OR EXISTS (SELECT 1 FROM account_capacity c WHERE c.account_id = a.id AND c.rest_until > clock_timestamp())) "
+    "OR EXISTS (SELECT 1 FROM account_pools c WHERE c.account_id = a.id AND c.rest_until > clock_timestamp())) "
     "FROM accounts a GROUP BY provider")
 
 
@@ -162,18 +162,10 @@ async def stats_hourly(provider: str | None = None, pool: AsyncConnectionPool = 
 
 
 # The Accounts screen's pool panel. Only accounts that are `available` count toward points: a dead or a disabled
-# account hands out nothing. Budgets come from the providers' settings, not from the database.
+# account hands out nothing. Budgets come from the providers' `<p>.pools` settings and each account's tier, not from the
+# database.
 _POOL_ACCOUNTS = (
-    "SELECT id, provider FROM accounts WHERE state = 'available' AND (%(p)s::text IS NULL OR provider = %(p)s)")
-_POOL_CAPACITY = (
-    "SELECT c.account_id, c.pool, c.left_n, c.source, c.day_anchor FROM account_capacity c "
-    "JOIN accounts a ON a.id = c.account_id WHERE a.state = 'available' AND "
-    "(%(p)s::text IS NULL OR a.provider = %(p)s)")
-_POOL_SPENT = (
-    "SELECT c.account_id, c.pool, sum(c.amount) FROM account_charges c "
-    "JOIN account_capacity k ON k.account_id = c.account_id AND k.pool = c.pool AND k.day_anchor = c.account_day "
-    "JOIN accounts a ON a.id = c.account_id WHERE c.refunded_at IS NULL AND a.state = 'available' AND "
-    "(%(p)s::text IS NULL OR a.provider = %(p)s) GROUP BY 1, 2")
+    "SELECT id, provider, tier FROM accounts WHERE state = 'available' AND (%(p)s::text IS NULL OR provider = %(p)s)")
 _POOL_PROXY = (
     "SELECT count(*) FROM accounts WHERE (%(p)s::text IS NULL OR provider = %(p)s) AND "
     "state = 'available' AND proxy_ok = false")
@@ -183,41 +175,31 @@ _POOL_CHECK = (
 
 
 def _zero() -> dict[str, int]:
-    return {"left": 0, "budget": 0, "unknown": 0, "drift": 0}
+    return {"left": 0, "budget": 0, "unknown": 0}
 
 
 async def _pool_points(conn, settings: Settings, registry: ProviderRegistry,
                        provider: str | None) -> dict[str, dict[str, dict[str, int]]]:
-    """Per provider, per pool (spec order): points left over the budget of the accounts that know their points, the
-    accounts that do not, and the counted values that disagree with the ledger (the accounts list's own drift rule).
-    A pool with no budget has every account unknown."""
-    args = {"p": provider}
-    accounts = await (await conn.execute(_POOL_ACCOUNTS, args)).fetchall()
-    rows = {(a, p): (left, source, anchor) for a, p, left, source, anchor in await (
-        await conn.execute(_POOL_CAPACITY, args)).fetchall()}
-    spent = {(a, p): n for a, p, n in await (await conn.execute(_POOL_SPENT, args)).fetchall()}
-    now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
-    configs = {name: pool_configs(registry.spec(name).caps, settings.get) for name in registry.names()}
+    """Per provider, per pool (spec order): what is left over the budget of the accounts that know it (the account
+    list's own figure: reported, else computed from the charges), and the accounts that do not (no budget for their
+    tier, or no window). Never summed across providers: a unit means one thing per provider."""
+    accounts = await (await conn.execute(_POOL_ACCOUNTS, {"p": provider})).fetchall()
+    configs = {name: pool_configs(name, registry.spec(name).caps, settings.get) for name in registry.names()}
+    _, states = await pool_states(conn, {a: (tier, configs.get(prov, {})) for a, prov, tier in accounts})
     per: dict[str, dict[str, dict[str, int]]] = {}
     for name, cfgs in configs.items():
         for pool_name in cfgs if provider in (None, name) else ():
             per.setdefault(name, {})[pool_name] = _zero()
-    for account_id, account_provider in accounts:
-        for pool_name, cfg in configs.get(account_provider, {}).items():
+    for account_id, account_provider, _tier in accounts:
+        for pool_name in configs.get(account_provider, {}):
             total = per.setdefault(account_provider, {}).setdefault(pool_name, _zero())
-            row = rows.get((account_id, pool_name))
-            if cfg.budget is None or row is None:
+            state = states[(account_id, pool_name)]
+            budget = pool_budget(state)
+            if state.standing.left is None or budget is None:
                 total["unknown"] += 1
                 continue
-            left_n, source, anchor = row
-            # the accounts list's own rule for a row: a day that is over is the budget, drift is a counted mismatch
-            _, left_today, drift = pool_point(cfg, left_n, source, anchor, now, spent.get((account_id, pool_name), 0))
-            if left_today is None:
-                total["unknown"] += 1
-                continue
-            total["budget"] += cfg.budget
-            total["left"] += left_today
-            total["drift"] += bool(drift)
+            total["budget"] += budget
+            total["left"] += state.standing.left
     return per
 
 
@@ -225,20 +207,17 @@ async def _pool_points(conn, settings: Settings, registry: ProviderRegistry,
 async def stats_pool(provider: str | None = None, pool: AsyncConnectionPool = Depends(get_pool),
                      settings: Settings = Depends(get_settings),
                      registry: ProviderRegistry = Depends(get_registry)) -> dict:
-    """Per pool (video, image, ...), summed over the providers: the figures of `_pool_points`; plus the proxy checks
-    that failed and when the last `check_all` finished."""
+    """Per provider and pool (video, image, ...) with the pool's unit, the figures of `_pool_points`; never summed
+    across providers (credits, jobs and uses are not one thing). Plus the proxy checks that failed and when the last
+    `check_all` finished."""
     args = {"p": provider}
     async with tx(pool) as conn:
         per = await _pool_points(conn, settings, registry, provider)
         proxy_failed = (await (await conn.execute(_POOL_PROXY, args)).fetchone())[0]
         last_check = (await (await conn.execute(_POOL_CHECK, args)).fetchone())[0]
-    totals: dict[str, dict[str, int]] = {}
-    for pools in per.values():
-        for pool_name, figures in pools.items():
-            into = totals.setdefault(pool_name, _zero())
-            for field, n in figures.items():
-                into[field] += n
-    return {"pools": [{"pool": name, **total} for name, total in totals.items()],
+    units = {name: {p.name: p.unit for p in registry.spec(name).caps.pools} for name in per}
+    return {"pools": [{"provider": name, "pool": pool_name, "unit": units[name][pool_name], **figures}
+                      for name, pools in per.items() for pool_name, figures in pools.items()],
             "proxy_failed": proxy_failed, "last_full_check_ms": ms(last_check)}
 
 

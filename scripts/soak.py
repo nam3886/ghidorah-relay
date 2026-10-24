@@ -500,15 +500,15 @@ class World:
 
 # ---- one seed ---------------------------------------------------------------------------------------------------
 async def seed_data(owner_dsn: str, rng: random.Random, n_accounts: int) -> uuid.UUID:
-    """The key with open wallets and the accounts (checked, available, some with a known balance)."""
+    """The key with open wallets (the points wallet and the provider's cap) and the accounts (checked, available, some
+    with a reported balance)."""
     async with await psycopg.AsyncConnection.connect(owner_dsn, autocommit=True,
                                                      options="-c search_path=relay") as c:
         key_id = uuid.uuid4()
         await c.execute("INSERT INTO api_keys (id, key_hash, key_prefix, enabled) VALUES (%s, %s, 'rk-soak', true)",
                         (key_id, key_id.hex))
-        for kind in ("video", "image"):
-            await c.execute("INSERT INTO key_wallets (key_id, provider, kind) VALUES (%s, %s, %s)",
-                            (key_id, PROVIDER, kind))
+        for scope in ("*", PROVIDER):
+            await c.execute("INSERT INTO key_wallets (key_id, scope) VALUES (%s, %s)", (key_id, scope))
         for _ in range(n_accounts):
             account_id = uuid.uuid4()
             await c.execute("INSERT INTO accounts (id, provider, credential_enc, state, last_checked_at) "
@@ -516,9 +516,8 @@ async def seed_data(owner_dsn: str, rng: random.Random, n_accounts: int) -> uuid
                             (account_id, PROVIDER, b"\x01"))
             left = rng.choice((None, None, 3, 6, 12))
             if left is not None:
-                await c.execute("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) "
-                                "VALUES (%s, 'video', %s, 'reported', (clock_timestamp() AT TIME ZONE 'UTC')::date)",
-                                (account_id, left))
+                await c.execute("INSERT INTO account_pools (account_id, pool, reported_left, reported_at) "
+                                "VALUES (%s, 'video', %s, clock_timestamp())", (account_id, left))
     return key_id
 
 
@@ -564,7 +563,7 @@ async def verify(w: World, owner_dsn: str, crashed: list[str]) -> list[str]:
             problems.append("%d done job(s) were never proven taken" % n)
     for (n,) in await w.sql(
             "SELECT count(*) FROM account_charges c JOIN jobs j ON j.id = c.job_id WHERE j.status = 'failed' "
-            "AND c.refunded_at IS NULL AND c.account_day = (clock_timestamp() AT TIME ZONE 'UTC')::date"):
+            "AND c.refunded_at IS NULL"):
         if n:
             problems.append("I7 %d failed job(s) kept an unrefunded account charge" % n)
     if w.budget is not None and w.engine.peak > SLOTS:

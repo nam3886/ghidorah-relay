@@ -7,6 +7,7 @@ from geminikit import PSID, PSIDTS, export
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
+from relay_core.pool import day_pool
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -54,9 +55,8 @@ def refusal(model=MODEL, prompt="a lighthouse at dawn", **kw):
 # ---- caps, settings, catalog, codes --------------------------------------------------------------------------------
 def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
-    assert SPEC.name == "gemini" and c.execution == "http" and c.wallet_kinds == ("image", "video")
-    assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [("image", "UTC", "gemini.image_budget"),
-                                                                  ("video", "UTC", "gemini.video_budget")]
+    assert SPEC.name == "gemini" and c.execution == "http"
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("video", "uses")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -72,7 +72,8 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
     assert s["gemini.render_deadline_s"].default == 900 and s["gemini.prices"].default == {MODEL: 1, VIDEO + "@10s": 2}
     assert s["gemini.costs"].default == {MODEL: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
-    assert s["gemini.video_budget"].default == 15 and s["gemini.video_limit_rest_s"].default == 5 * 3600
+    assert s["gemini.pools"].default == {"image": day_pool({"free": 100}), "video": day_pool({"free": 15})}
+    assert s["gemini.video_limit_rest_s"].default == 5 * 3600
     assert all(s[k].description for k in s) and _problems(SPEC) == []
 
 
@@ -107,7 +108,7 @@ def test_a_text_job_draws_with_its_ratio_or_none_and_an_image_job_edits_held_in_
     p = plan()
     assert dict(p.params) == {} and p.operation == "text_to_image"
     assert (p.media_type, p.completion, p.after_sent) == ("image", Completion.HOLD, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price_key, p.submit_timeout_s) == ("image", "image", MODEL, 300)
+    assert (p.pool, p.price_key, p.submit_timeout_s) == ("image", MODEL, 300)
     assert (priced().price, priced().account_cost) == (1, 1)
     edit = plan(images=(IMG,))
     assert edit.operation == "image_to_image" and dict(edit.params) == {}
@@ -147,7 +148,7 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert (p.operation, p.media_type, p.model) == ("text_to_video", "video", VIDEO), "a video planned as an image"
     assert dict(p.params) == {"ratio": "16:9", "duration": 10}
     assert (p.completion, p.after_sent) == (Completion.DETACH, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price_key) == ("video", "video", VIDEO + "@10s")
+    assert (p.pool, p.price_key) == ("video", VIDEO + "@10s")
     assert (priced(VIDEO).price, priced(VIDEO).account_cost) == (2, 1), "2 points, one use of the video budget"
     assert plan(VIDEO, duration=10, ratio="16:9").params == p.params
     assert plan(VIDEO, images=(IMG,)).operation == "image_to_video", "an image to video planned from text"

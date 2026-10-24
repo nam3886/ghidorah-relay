@@ -128,7 +128,7 @@ def test_a_drained_provider_still_fails_refunds_and_notifies_a_job_past_its_rend
 
     job_id = run(db, scenario)
     assert row(db, job_id, "status, callback_status") == ("failed", "pending")
-    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id) == (1,)
+    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id) == (1,)
     assert db.one("SELECT count(*) FROM account_charges WHERE job_id = %s AND refunded_at IS NOT NULL",
                   job_id) == (1,), "the account charge is refunded with the key"
 

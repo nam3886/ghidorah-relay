@@ -1,6 +1,6 @@
 """meta end-to-end run against the live service: `relay e2e --provider meta`.
 
-It makes a temporary API key with a small image wallet, draws one `meta-image` from a text prompt through the running
+It makes a temporary API key with a small points wallet, draws one `meta-image` from a text prompt through the running
 API, waits for it, checks the first delivered file is a real image (WebP, PNG or JPEG), and disables the key
 afterwards. It SPENDS a meta account's daily image job (a real generation) and so refuses unless
 `RELAY_E2E_SPEND=yes`. Environment: `DATABASE_URL` (a role that may create keys), `RELAY_E2E_URL` (the API, default
@@ -43,8 +43,7 @@ async def run(env: Mapping[str, str]) -> int:
     try:
         async with tx(pool) as conn:
             made = await keys.create_key(conn, label="e2e-meta", models=[IMAGE_MODEL], max_unfinished=1,
-                                         declared=[("meta", "image"), ("meta", "video")],
-                                         wallets={("meta", "image"): (5, 5)})
+                                         declared=["meta"], wallets={"*": (5, 5), "meta": (5, 5)})
         try:
             return await _generate(base, made.raw)
         finally:

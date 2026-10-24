@@ -24,8 +24,6 @@ worker) never both act:
   restarted stack come first), and never while a read of it is in flight. A job no read will ever reach
   (no poll or no reconcile for it) fails at the deadline as before.
 - a `waiting` or `fetching` job nobody can see (`next_poll_at` NULL) is made visible again.
-- every `drift_s` (300 s) the pool counters of the provider's accounts are compared with their charges and corrected
-  (`pool.check_drift`).
 
 Failing always goes through `fail_in_tx`: status, error and refunds in one transaction (I21). The settings are read
 live on every pass.
@@ -34,7 +32,6 @@ live on every pass.
 import asyncio
 import contextlib
 import logging
-import time
 from collections import Counter
 from typing import Any
 
@@ -52,7 +49,6 @@ from relay_core.providers import ProviderSpec
 log = logging.getLogger(__name__)
 
 INTERVAL_S = 30.0
-DRIFT_S = 300.0
 DEADLINE_CODE = "render.deadline"
 NEVER_STARTED = "queue.never_started"
 OWNER_GONE_S = 45.0          # 3 x the worker heartbeat (engine.BEAT_S); `Worker` passes 3 x its own beat
@@ -134,18 +130,17 @@ _LAST_TEXT = ("SELECT text FROM job_events WHERE job_id = %s AND source = 'upstr
 
 class Reaper:
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, settings: Any, *, interval_s: float = INTERVAL_S,
-                 drift_s: float = DRIFT_S, owner_gone_s: float = OWNER_GONE_S, grace: StartupGrace | None = None):
+                 owner_gone_s: float = OWNER_GONE_S, grace: StartupGrace | None = None):
         self.db, self.spec, self.settings, self.interval_s = db, spec, settings, interval_s
-        self.drift_s, self.owner_gone_s = drift_s, owner_gone_s
+        self.owner_gone_s = owner_gone_s
         self.grace = grace or StartupGrace(0)    # no grace unless the worker passes its own
-        self._drift_at: float | None = None      # monotonic time of the last drift pass
         self._stop = asyncio.Event()
 
     def stop(self) -> None:
         self._stop.set()
 
     def _pools(self) -> dict[str, pool.PoolConfig]:
-        return pool.pool_configs(self.spec.caps, self.settings.get)
+        return pool.pool_configs(self.spec.name, self.spec.caps, self.settings.get)
 
     # ---- one pass ----------------------------------------------------------------------------------------------
     async def tick(self) -> Counter:
@@ -155,7 +150,7 @@ class Reaper:
         for name, step in (("submit_lease", self._submit_leases), ("other_lease", self._other_leases),
                            ("stalled_command", self._stalled_commands),
                            ("never_started", self._never_started), ("render_deadline", self._render_deadline),
-                           ("visibility", self._visibility), ("pool_drift", self._pool_drift)):
+                           ("visibility", self._visibility)):
             try:
                 done[name] += await step()
             except Exception:
@@ -306,14 +301,3 @@ class Reaper:
                 "WHERE provider = %s AND status IN ('waiting', 'fetching') AND next_poll_at IS NULL",
                 (self.spec.name,))
             return cur.rowcount
-
-    # ---- pool counters -----------------------------------------------------------------------------------------
-    async def _pool_drift(self) -> int:
-        """Every `drift_s`: correct the pool counters that disagree with their charges. Returns the corrections."""
-        now = time.monotonic()
-        if self._drift_at is not None and now - self._drift_at < self.drift_s:
-            return 0
-        async with tx(self.db) as conn:
-            fixed = await pool.check_drift(conn, self.spec.name, self._pools())
-        self._drift_at = now
-        return len(fixed)

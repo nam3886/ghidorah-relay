@@ -303,7 +303,7 @@ def test_housekeeping_applies_the_retention_setting_and_expires_input_links(db):
 def test_the_ledger_loop_stores_a_drift_alert(db):
     async def scenario(env):
         key = await env.new_key()
-        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND kind = 'video'", key.id)
+        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND scope = '*'", key.id)
         rn = runners.start_runners(env.pool, env.settings, env.store, **{**SLOW, "ledger_every_s": 3600},
                                    resolver=resolver)
         try:
@@ -311,7 +311,7 @@ def test_the_ledger_loop_stores_a_drift_alert(db):
                                                "AND key_id = %s", key.id)[0])
         finally:
             await rn.stop()
-            db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND kind = 'video'",
+            db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND scope = '*'",
                    key.id)
         return found
 

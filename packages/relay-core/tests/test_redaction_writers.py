@@ -83,7 +83,7 @@ def where_it_is(db, secret: str) -> list[str]:
            expect="db.one(\"SELECT last_error FROM accounts WHERE id = %s\", account) == (marker % len(account_text),)")
 @mutation(WEBHOOKS, ANSWER_REDACTED, ANSWER_RAW, expect="'[omitted len=2486]' == 'HTTP 500: [omitted len=2476]'")
 def test_a_long_value_is_stored_as_an_omitted_marker_by_every_writer(db):
-    k = db.key(("fake", "video", None, None))
+    k = db.key(("fake", None, None))
     event_job, failed_job, hook_target = db.job(k, provider="fake"), db.job(k, provider="fake"), hook_job(db, k)
     account = new_account(db, checked=True)
     event_text, event_secret = long_value("e")

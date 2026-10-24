@@ -61,8 +61,8 @@ def run_delete(db, store, *, engine=None):
 def fill(db, store, account):
     """An account with every by-product a delete has to clean up."""
     shot = put_shot(db, store, account)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", account)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'image', 'reported')", account)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", account)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'image')", account)
     db.run("INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now() - interval '1 h')",
            account)
     old = [new_command(db, "check", account_id=account), new_command(db, "wake", account_id=account)]
@@ -97,14 +97,14 @@ def test_delete_of_an_account_that_is_already_gone_ends_done(db, store):
 # ---- delete: a used account ---------------------------------------------------------------------------------------
 def make_used(db, account, how):
     if how == "job":
-        job = db.job(db.key(("fake", "video", None, None)), provider="fake")
+        job = db.job(db.key(("fake", None, None)), provider="fake")
         db.run("UPDATE jobs SET account_id = %s, status = 'failed', error = 'x', finished_at = now() WHERE id = %s",
                account, job)
     elif how == "charge":
-        job = db.job(db.key(("fake", "video", None, None)), provider="fake")
+        job = db.job(db.key(("fake", None, None)), provider="fake")
         db.run("UPDATE jobs SET taken_at = now() WHERE id = %s", job)
-        db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-               "VALUES (%s, %s, 'video', 1, current_date)", account, job)
+        db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) "
+               "VALUES (%s, %s, 'video', 1)", account, job)
     else:
         db.run("INSERT INTO leases (account_id, purpose, owner, until, hard_until) VALUES (%s, 'command', 'x', "
                "clock_timestamp() + interval '5 min', clock_timestamp() + interval '5 min')", account)
@@ -205,8 +205,8 @@ def test_a_crash_after_the_objects_went_but_before_the_commit_is_finished_by_a_r
 def test_wake_clears_the_cooldown_and_every_rest_as_the_worker_role(db):
     a = new_account(db, checked=True)
     db.run("UPDATE accounts SET cooldown_until = now() + interval '1 h', cooldown_reason = 'busy' WHERE id = %s", a)
-    db.run("INSERT INTO account_capacity (account_id, pool, source, rest_until, rest_reason) "
-           "VALUES (%s, 'video', 'reported', now() + interval '1 h', 'out')", a)
+    db.run("INSERT INTO account_pools (account_id, pool, rest_until, rest_reason) "
+           "VALUES (%s, 'video', now() + interval '1 h', 'out')", a)
     cid = new_command(db, "wake", args={"account_id": str(a)})
 
     async def scenario(p):
@@ -215,13 +215,13 @@ def test_wake_clears_the_cooldown_and_every_rest_as_the_worker_role(db):
     worker(db, scenario)
     assert command(db, cid)["status"] == "done"
     assert account_row(db, a)["cooldown_until"] is None
-    assert db.one("SELECT rest_until FROM account_capacity WHERE account_id = %s", a)[0] is None
+    assert db.one("SELECT rest_until FROM account_pools WHERE account_id = %s", a)[0] is None
 
 
 POOL_SRC = "packages/relay-core/src/relay_core/pool.py"
 ACCOUNTS = "packages/relay-core/src/relay_core/db/accounts.py"
 WAKE_LOCK = "    if not await lock_account(conn, account_id):\n        return False\n"
-WAKE_CAPACITY_FIRST = ('    await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = %s ORDER BY pool '
+WAKE_CAPACITY_FIRST = ('    await conn.execute("SELECT 1 FROM account_pools WHERE account_id = %s ORDER BY pool '
                        'FOR UPDATE", (account_id,))\n')
 
 
@@ -231,8 +231,8 @@ def test_the_wake_command_beside_a_claim_holding_the_account_row_does_not_deadlo
     """A claim locks the account row, then a capacity row. The wake command takes them in the same order: taking a
     capacity row first deadlocks with that claim and Postgres aborts one of them."""
     a = new_account(db, checked=True)
-    db.run("INSERT INTO account_capacity (account_id, pool, source, rest_until, rest_reason) "
-           "VALUES (%s, 'video', 'reported', now() + interval '1 h', 'out')", a)
+    db.run("INSERT INTO account_pools (account_id, pool, rest_until, rest_reason) "
+           "VALUES (%s, 'video', now() + interval '1 h', 'out')", a)
     cid = new_command(db, "wake", args={"account_id": str(a)})
 
     async def scenario(p):
@@ -242,16 +242,16 @@ def test_the_wake_command_beside_a_claim_holding_the_account_row_does_not_deadlo
                 waking = asyncio.create_task(run_one(make_env(p, KitEngine())))
                 await asyncio.sleep(0.5)       # the wake command is now waiting on a lock; under Postgres's 1 s
                                                # deadlock_timeout, so it, not the claim, is the deadlock victim
-                await claim.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
+                await claim.execute("SELECT 1 FROM account_pools WHERE account_id = %s FOR UPDATE", (a,))
             await waking
 
     worker(db, scenario)
     assert command(db, cid)["status"] == "done", command(db, cid)
-    assert db.one("SELECT rest_until FROM account_capacity WHERE account_id = %s", a)[0] is None
+    assert db.one("SELECT rest_until FROM account_pools WHERE account_id = %s", a)[0] is None
 
 
 DELETE_LOCK = "    if not await lock_account(conn, account_id, delete=True):\n"
-DELETE_CAPACITY_FIRST = ('    await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = %s ORDER BY pool '
+DELETE_CAPACITY_FIRST = ('    await conn.execute("SELECT 1 FROM account_pools WHERE account_id = %s ORDER BY pool '
                          'FOR UPDATE", (account_id,))\n'
                          "    if not await lock_account(conn, account_id, delete=True):\n")
 
@@ -261,7 +261,7 @@ def test_the_delete_command_beside_a_claim_holding_the_account_row_does_not_dead
     """A claim locks the account row, then a capacity row. The delete takes the account row before the capacity rows
     too: taking a capacity row first deadlocks with that claim and Postgres aborts one of them."""
     a = new_account(db, checked=True)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reset')", a)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", a)
     cid = delete_command(db, a)
 
     async def scenario(p):
@@ -270,7 +270,7 @@ def test_the_delete_command_beside_a_claim_holding_the_account_row_does_not_dead
                 await claim.execute("SELECT 1 FROM accounts WHERE id = %s FOR NO KEY UPDATE", (a,))
                 deleting = asyncio.create_task(run_one(make_env(p, KitEngine())))
                 await asyncio.sleep(1.5)                       # the delete command is now waiting on a lock
-                await claim.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
+                await claim.execute("SELECT 1 FROM account_pools WHERE account_id = %s FOR UPDATE", (a,))
             await deleting
 
     worker(db, scenario)
@@ -405,7 +405,7 @@ def test_a_failed_proxy_recheck_rests_the_account_on_every_pool(db):
 
     assert worker(db, scenario) is None, "no claim goes to an account behind a dead proxy"
     assert command(db, cid)["status"] == "done"
-    assert db.all("SELECT pool FROM account_capacity WHERE account_id = %s AND rest_until > clock_timestamp() "
+    assert db.all("SELECT pool FROM account_pools WHERE account_id = %s AND rest_until > clock_timestamp() "
                   "+ interval '800 s' ORDER BY pool", a) == [("image",), ("video",)]
 
 

@@ -4,6 +4,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
@@ -90,6 +91,12 @@ def _send_path(v: str) -> None:
         raise ValueError("must be one of %s" % ", ".join(SEND_PATHS))
 
 
+# video counts dola credits (dola reports its own balance and that wins; 4 a day measured on one free account 24/10);
+# image counts units (owner 24/10: 40 a day, Seedream 4.x 1 each, 5.0 Pro 4; our 21/09 read was 21 jobs). dola's own
+# "reached today's image limit" rests the pool whatever the counter says.
+POOLS = (PoolSpec("video", "credits"), PoolSpec("image", "uses"))
+POOL_DEFAULTS = {"video": day_pool({"free": 4}), "image": day_pool({"free": 40})}
+
 SEND_PATHS = ("browser", "http")
 SEND_PATH_RULE = Rule("browser or http", _send_path, SEND_PATHS)   # the choices: execution_setting needs them
 
@@ -112,11 +119,7 @@ _SETTINGS = dict((
         PROVIDER + ".costs", "What one job costs the dola account: video in dola credits, an image in units of the "
         "image budget (Seedream 4.5 1, 5.0 Pro 4). An option missing here is refused (model.uncosted).",
         C.PRICE_KEYS, C.DEFAULT_COSTS, unit="credits or image units")),
-    _setting("video_budget", int, 4, "Video credits each dola account gets per day (dola reports its own number and "
-             "that wins).", min=1, basic=True),
-    _setting("image_budget", int, 40, "Image units each dola account has per day (owner 24/10: 40 Seedream 4.x jobs "
-             "or 10 of 5.0 Pro; our 21/09 read was 21 jobs). dola's own \"reached today's image limit\" rests the "
-             "account whatever this says.", min=1, basic=True),
+    (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     _setting("master_quality", bool, True,
              "Deliver the H.264 master (720p, about 12 Mbps, no watermark) instead of the light HEVC rendition; falls "
              "back to the rendition when the master cannot be fetched.", basic=True),
@@ -152,8 +155,7 @@ class DolaSpec:
     max_prompt_chars = PROMPT_MAX_CHARS
     execution_setting = PROVIDER + ".send_path"      # the admin shows the live send path, not caps.execution
     caps = Caps(
-        execution="browser", wallet_kinds=("video", "image"),
-        pools=(PoolSpec("video", "UTC", "dola.video_budget", "points"), PoolSpec("image", "UTC", "dola.image_budget")),
+        execution="browser", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=True, titles=True,
         catalog_refresh_s=CATALOG_REFRESH_S, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

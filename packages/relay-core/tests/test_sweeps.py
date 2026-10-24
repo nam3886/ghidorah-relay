@@ -167,43 +167,43 @@ def test_housekeeping_runs_every_step_and_survives_a_failing_one(db, store):
 # ---- ledger check --------------------------------------------------------------------------------------------------
 async def charged_wallet(p, db):
     k = key(db)
-    await create(p, k, "one")                                      # a video job: price 10 on the key's wallet
+    await create(p, k, "one")                                      # a video job: price 10 on the key's wallets
     return k
 
 
 @mutation(SRC, TOTAL_CHECK, "if used_day != ledger_total:",
-           expect="found == [sweeps.Drift(k, \"fake\", \"video\", \"used_total\", 13, 10)]")
+           expect="found == [sweeps.Drift(k, \"*\", \"used_total\", 13, 10)]")
 def test_ledger_check_finds_a_planted_total_drift(db):
     async def scenario(p):
         k = await charged_wallet(p, db)
         assert await sweeps.ledger_check(p) == []
-        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND scope = '*'", k)
         found = await sweeps.ledger_check(p)
-        db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND scope = '*'", k)
         return k, found
 
     k, found = run(db, scenario)
-    assert found == [sweeps.Drift(k, "fake", "video", "used_total", 13, 10)]
+    assert found == [sweeps.Drift(k, "*", "used_total", 13, 10)]
 
 
 @mutation(SRC, DAY_CHECK, "if used_total != ledger_day:",
-           expect="found == [sweeps.Drift(k, \"fake\", \"video\", \"used_day\", 6, 10)]")
+           expect="found == [sweeps.Drift(k, \"*\", \"used_day\", 6, 10)]")
 def test_ledger_check_finds_a_planted_day_drift(db):
     async def scenario(p):
         k = await charged_wallet(p, db)
-        db.run("UPDATE key_wallets SET used_day = used_day - 4 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_day = used_day - 4 WHERE key_id = %s AND scope = '*'", k)
         found = await sweeps.ledger_check(p)
-        db.run("UPDATE key_wallets SET used_day = used_day + 4 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_day = used_day + 4 WHERE key_id = %s AND scope = '*'", k)
         return k, found
 
     k, found = run(db, scenario)
-    assert found == [sweeps.Drift(k, "fake", "video", "used_day", 6, 10)]
+    assert found == [sweeps.Drift(k, "*", "used_day", 6, 10)]
 
 
 LEDGER_TIMEOUT = ('        await conn.execute("SET LOCAL statement_timeout = \'%s\'" % SWEEP_STATEMENT_TIMEOUT)\n'
                   '        rows = await')
 LEDGER_NO_TIMEOUT = "        rows = await"
-SLOW_LEDGER = ("SELECT NULL::uuid, 'p', 'k', 0, 0, 0, 0 FROM generate_series(1, 1) g "
+SLOW_LEDGER = ("SELECT NULL::uuid, '*', 0, 0, 0, 0 FROM generate_series(1, 1) g "
                "WHERE (SELECT pg_sleep(6)) IS NOT NULL")
 
 
@@ -238,17 +238,17 @@ DEDUPE = "AND at > clock_timestamp() - make_interval(hours => %(h)s))"
 
 
 @mutation(SRC, DEDUPE, "AND false)",
-           expect="rows == [(\"drift\", k, \"fake\", \"video\", None, 3, 13, \"used_total is 13")
+           expect="rows == [(\"drift\", k, \"*\", None, 3, 13, \"used_total is 13")
 def test_a_drift_is_stored_as_an_alert_row_once_per_day(db):
     async def scenario(p):
         k = await charged_wallet(p, db)
-        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_total = used_total + 3 WHERE key_id = %s AND scope = '*'", k)
         first = await sweeps.ledger_check(p)
         again = await sweeps.ledger_check(p)
-        db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND kind = 'video'", k)
+        db.run("UPDATE key_wallets SET used_total = used_total - 3 WHERE key_id = %s AND scope = '*'", k)
         return k, first, again
 
     k, first, again = run(db, scenario)
     assert first == again and len(first) == 1
-    rows = db.all("SELECT alert, key_id, provider, kind, ledger_id, amount, used_total, detail FROM billing_alerts")
-    assert rows == [("drift", k, "fake", "video", None, 3, 13, "used_total is 13, the ledger says 10")]
+    rows = db.all("SELECT alert, key_id, scope, ledger_id, amount, used_total, detail FROM billing_alerts")
+    assert rows == [("drift", k, "*", None, 3, 13, "used_total is 13, the ledger says 10")]

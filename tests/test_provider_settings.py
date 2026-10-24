@@ -1,5 +1,5 @@
 """Every provider pauses its models with `<p>.disabled_models` (its own catalog ids, nothing else) and marks as basic
-the settings its admin changes often: the switch, the prices, the budgets, the pause list, a
+the settings its admin changes often: the switch, the prices, the pause list, a
 browser provider's slots and flow's captcha source."""
 
 import pytest
@@ -13,13 +13,13 @@ from relay_qwen.spec import SPEC as QWEN
 from relay_vibes.spec import SPEC as VIBES
 
 BASIC = {
-    "dola": {"claims_enabled", "prices", "video_budget", "image_budget", "master_quality", "disabled_models",
+    "dola": {"claims_enabled", "prices", "master_quality", "disabled_models",
              "browser_slots"},
-    "flow": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models", "captcha_provider"},
-    "gemini": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
-    "meta": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models", "browser_slots"},
-    "vibes": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
-    "qwen": {"claims_enabled", "prices", "image_budget", "video_budget", "disabled_models"},
+    "flow": {"claims_enabled", "prices", "disabled_models", "captcha_provider"},
+    "gemini": {"claims_enabled", "prices", "disabled_models"},
+    "meta": {"claims_enabled", "prices", "disabled_models", "browser_slots"},
+    "vibes": {"claims_enabled", "prices", "disabled_models"},
+    "qwen": {"claims_enabled", "prices", "disabled_models"},
 }
 
 

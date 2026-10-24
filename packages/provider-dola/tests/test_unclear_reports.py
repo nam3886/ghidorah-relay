@@ -83,7 +83,7 @@ async def test_a_bare_zero_balance_is_reported_and_still_rests_the_account():
     scene = Scene(replies={1: ["You have 0 video credits left today."]})
     res = await scene.run()
     assert res.job == Accepted(CONV, taken=False, unclear="You have 0 video credits left today.")
-    assert Balance("video", 0, "reported") in res.account and len(effects_of(res)) == 2
+    assert Balance("video", 0) in res.account and len(effects_of(res)) == 1
 
 
 @mutation(SUBMIT, UNCLEAR_DROPPED, UNCLEAR_FROM_PAGE, expect="page text was reported as dola's reply")

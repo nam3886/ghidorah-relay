@@ -31,12 +31,12 @@ _USED = (
 
 
 async def lock_account(conn: AsyncConnection, account_id, *, skip_locked: bool = False, delete: bool = False) -> bool:
-    """The account row lock, taken after the job/lease rows and before capacity, charges and the key wallet
+    """The account row lock, taken after the job/lease rows and before the pool rows, charges and the key wallet
     (lock order):
     `FOR NO KEY UPDATE` for a writer, `FOR UPDATE` for the delete that removes the row. With `skip_locked` (a claim,
     which never waits) False also means another transaction holds the row; without it False means the account is
-    gone. Capacity rows are locked or created after this, in any order: everything is serialised per account.
-    The order of every transaction: lease, job, account, capacity rows, account charge, key wallet; a command row
+    gone. Pool rows are locked or created after this, in any order: everything is serialised per account.
+    The order of every transaction: lease, job, account, pool rows, account charge, key wallet; a command row
     comes after its lease. A path that holds nothing before the account (a claim, a wake, a delete, a check's lease
     insert) may take it first; a claim only ever skips."""
     mode = "FOR UPDATE" if delete else "FOR NO KEY UPDATE"
@@ -76,6 +76,6 @@ async def delete_unused_account(conn: AsyncConnection, account_id, own_leases: C
     keys = [r[0] for r in await (await conn.execute(
         "DELETE FROM account_shots WHERE account_id = %s RETURNING object_key", (account_id,))).fetchall()]
     await conn.execute("DELETE FROM commands WHERE account_id = %s", (account_id,))
-    await conn.execute("DELETE FROM account_capacity WHERE account_id = %s", (account_id,))
+    await conn.execute("DELETE FROM account_pools WHERE account_id = %s", (account_id,))
     await conn.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
     return sorted(keys)

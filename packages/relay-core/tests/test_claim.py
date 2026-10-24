@@ -6,7 +6,7 @@ import dataclasses
 from contextvars import Context
 
 import pytest
-from jobkit import PROVIDER, SETTINGS, account, claim, create, key, new_job, run
+from jobkit import POOLS, PROVIDER, SETTINGS, account, claim, create, key, new_job, run
 
 from relay_core import failpoints, leases, pool
 from relay_core.db import tx
@@ -58,8 +58,8 @@ def test_a_claim_moves_the_job_to_submitting_and_inserts_its_lease_in_the_same_t
     assert 40 + margin < hard_left.total_seconds() <= 45 + margin, \
         "the job lease's hard bound is the submit timeout plus the apply margin"
     assert db.one("SELECT last_used_at IS NOT NULL FROM accounts WHERE id = %s", acct)[0]
-    assert db.one("SELECT left_n, source FROM account_capacity WHERE account_id = %s AND pool = 'video'", acct) == (
-        4, "reset")                                                  # created from the pool budget; charged later
+    assert db.one("SELECT reported_left, rest_until FROM account_pools WHERE account_id = %s AND pool = 'video'",
+                  acct) == (None, None)                              # created by the claim; charged later
 
 
 def test_nothing_to_claim_and_nothing_claimable(db):
@@ -81,9 +81,8 @@ def test_accounts_that_may_not_be_used_are_skipped(db, kind):
     acct = account(db, state=kind if kind in ("dead", "disabled") else "available", checked=kind != "unchecked",
                    cooldown_s=60 if kind == "cooling" else None)
     if kind == "pool_resting":
-        db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor, rest_until) VALUES "
-               "(%s, 'video', 4, 'reset', (clock_timestamp() AT TIME ZONE 'UTC')::date, "
-               "clock_timestamp() + interval '1 hour')", acct)
+        db.run("INSERT INTO account_pools (account_id, pool, rest_until) VALUES "
+               "(%s, 'video', clock_timestamp() + interval '1 hour')", acct)
 
     async def scenario(p):
         await create(p, k, "x")
@@ -95,9 +94,8 @@ def test_accounts_that_may_not_be_used_are_skipped(db, kind):
 def test_a_resting_pool_does_not_stop_another_pool_of_the_same_account(db):
     k = key(db)
     acct = account(db)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor, rest_until) VALUES "
-           "(%s, 'video', 4, 'reset', (clock_timestamp() AT TIME ZONE 'UTC')::date, clock_timestamp() + interval '1h')",
-           acct)
+    db.run("INSERT INTO account_pools (account_id, pool, rest_until) VALUES "
+           "(%s, 'video', clock_timestamp() + interval '1h')", acct)
 
     async def scenario(p):
         await create(p, k, "v")
@@ -149,9 +147,7 @@ WAITS_MUTATED = '    skip = ""\n'
 @mutation(ACCOUNTS, WAITS, WAITS_MUTATED, expect="the claim waited for the account a wake holds")
 def test_a_claim_skips_an_account_a_wake_holds_instead_of_waiting_and_runs_once_the_wake_is_over(db):
     k, acct = key(db), account(db)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) VALUES "
-           "(%s, 'video', 4, 'reset', (clock_timestamp() AT TIME ZONE 'UTC')::date), "
-           "(%s, 'image', NULL, 'reset', (clock_timestamp() AT TIME ZONE 'UTC')::date)", acct, acct)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video'), (%s, 'image')", acct, acct)
 
     async def scenario(p):
         reached, gate = asyncio.Event(), asyncio.Event()
@@ -193,7 +189,7 @@ def test_two_claims_on_one_account_never_wait_for_each_other_the_second_skips(db
     async def scenario(p):
         await create(p, k, "x")
         async with tx(p) as first:                          # the first claim holds the account and its capacity row
-            await pool.lock_capacity(first, acct, pool.PoolConfig("video", "UTC", 4))
+            await pool.lock_capacity(first, acct, POOLS["video"])
             second = asyncio.create_task(claim(p), context=Context())
             done, _ = await asyncio.wait([second], timeout=2)
             if not done:
@@ -244,17 +240,17 @@ def test_no_browser_token_is_taken_when_no_account_can_afford_any_head(db):
 
 
 @mutation(K, UNKNOWN_IS_ZERO, "afford = 0 if cap.left_n is None else cap.left_n - held",
-          expect="assert got is not None and db.one(\"SELECT left_n FROM account_capacity WHERE poo")
+          expect="assert got is not None and db.one(\"SELECT reported_left FROM account_pools WHERE pool")
 def test_an_unknown_balance_allows_any_cost(db):
     k = key(db)
-    account(db, pool_name="image")                                     # the image pool has no budget: left_n NULL
+    account(db, pool_name="image")                                     # the image pool has no window: unknown
 
     async def scenario(p):
         await create(p, k, "big", model=PROVIDER + "-image", account_cost=1000)
         return await claim(p)
 
     got = run(db, scenario)
-    assert got is not None and db.one("SELECT left_n FROM account_capacity WHERE pool = 'image'")[0] is None
+    assert got is not None and db.one("SELECT reported_left FROM account_pools WHERE pool = 'image'")[0] is None
 
 
 def test_a_reservation_counts_against_the_account_until_its_job_is_charged(db):
@@ -346,9 +342,9 @@ def test_a_browser_provider_skips_an_account_whose_unknown_job_is_due_for_a_reco
     k = key(db)
     busy, free = account(db), account(db, used_ago_s=50)
     db.run("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, completion,"
-           " after_sent, submit_timeout_s, wallet_kind, price, account_id, next_poll_at) VALUES "
+           " after_sent, submit_timeout_s, price_key, price, account_id, next_poll_at) VALUES "
            "(gen_random_uuid(), %s, %s, 'generate', 'video', 'm', 'x', 'm', 'unknown', 'detach', 'reconcile', 60, "
-           "'video', 0, %s, clock_timestamp() - interval '1 second')", PROVIDER, k, busy)
+           "'fake-video', 0, %s, clock_timestamp() - interval '1 second')", PROVIDER, k, busy)
 
     async def scenario(p):
         await create(p, k, "a")

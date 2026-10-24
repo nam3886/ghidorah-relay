@@ -13,7 +13,7 @@ from typing import Any
 
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import crypto, leases
+from relay_core import crypto, leases, pool
 from relay_core.db import tx
 from relay_core.jobs.claim import Claim
 from relay_core.jobs.events import add_event
@@ -71,18 +71,19 @@ class LeaseCtx:
         return await self._renewal(blob, merge)
 
 
-async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: Iterable[str]) -> AccountView:
-    """The decrypted credential, proxy and capacity of an account, for a worker (the only process that holds the
-    private key). A blob that cannot be opened raises `crypto.CryptoError`. The view keeps the ciphertext it read
-    (the compare-and-swap of a renewal) and how to read the account again (`reload`, for a renewal that lost it)."""
+async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: Iterable[str],
+                            pools: Mapping[str, pool.PoolConfig]) -> AccountView:
+    """The decrypted credential, proxy and capacity of an account (each pool's effective balance, as `pool.left_of`
+    reads it now), for a worker (the only process that holds the private key). A blob that cannot be opened raises
+    `crypto.CryptoError`. The view keeps the ciphertext it read (the compare-and-swap of a renewal) and how to read
+    the account again (`reload`, for a renewal that lost it)."""
     async with tx(db) as conn:
         row = await (await conn.execute(
             "SELECT label, credential_enc, credential_gen, proxy_host, proxy_port, proxy_auth_enc, provider_state "
             "FROM accounts WHERE id = %s", (account_id,))).fetchone()
         if row is None:
             raise LookupError("no account %s" % account_id)
-        caps = await (await conn.execute("SELECT pool, left_n FROM account_capacity WHERE account_id = %s",
-                                         (account_id,))).fetchall()
+        capacity = await pool.left_map(conn, account_id, pools)
     keys = list(private_keys)
     label, credential, gen, host, port, auth, state = row
     proxy = None
@@ -90,8 +91,8 @@ async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: I
         proxy = Proxy(host, port, crypto.open_blob(bytes(auth), keys).decode() if auth is not None else None)
     sealed = bytes(credential)
     return AccountView(str(account_id), label, crypto.open_blob(sealed, keys), gen, proxy, state,
-                       {pool: left for pool, left in caps}, crypto.sealing_key(sealed, keys), sealed,
-                       functools.partial(load_account_view, db, account_id, keys))
+                       capacity, crypto.sealing_key(sealed, keys), sealed,
+                       functools.partial(load_account_view, db, account_id, keys, pools))
 
 
 class Renewal:

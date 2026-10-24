@@ -45,14 +45,14 @@ def test_i15_creation_over_the_cap_is_429_on_every_door_with_no_charge_and_no_jo
         first = await env.client.post("/v1/video/generations", json={"model": VIDEO, "prompt": "one"},
                                       headers=key.headers)
         assert first.status_code == 200, first.text
-        before = (jobs(db, key.id), charges(db, key_id=key.id), used(db, key.id, kind="video"),
-                  used(db, key.id, kind="image"))
+        before = (jobs(db, key.id), charges(db, key_id=key.id), used(db, key.id),
+                  used(db, key.id, "fake"))
         for path, body in attempts:
             r = await env.client.post(path, json=body, headers=key.headers)
             assert error_of(r)[:2] == (429, "quota.too_many_queued"), "over the cap is 429: %s %s" % (
                 path, r.text[:200])
-            assert (jobs(db, key.id), charges(db, key_id=key.id), used(db, key.id, kind="video"),
-                    used(db, key.id, kind="image")) == before, "no job row and no charge: %s" % path
+            assert (jobs(db, key.id), charges(db, key_id=key.id), used(db, key.id),
+                    used(db, key.id, "fake")) == before, "no job row and no charge: %s" % path
         assert len(before[0]) == 1 and before[1] == 1
         logged = [r["status_code"] for r in request_logs(db)]
         assert logged.count(429) == len(attempts), "each refusal is a request-log row"

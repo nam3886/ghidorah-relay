@@ -93,7 +93,7 @@ def test_bulk_regenerate_makes_new_jobs_and_lists_the_ones_it_could_not(db):
     assert body["failed"] == {str(old): "input.invalid", str(ghost): "resource.not_found"}
     made = {c["id"] for c in body["created"]}
     assert {str(r[0]) for r in db.all("SELECT id FROM jobs WHERE status = 'queued'")} == made
-    charges = db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND job_id = ANY(%s)",
+    charges = db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND scope = '*' AND job_id = ANY(%s)",
                      [uuid.UUID(i) for i in made])
     assert charges == (2,)
 

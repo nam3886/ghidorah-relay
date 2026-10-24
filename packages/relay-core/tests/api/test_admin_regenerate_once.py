@@ -44,7 +44,7 @@ async def post(env, path: str, body=None):
 
 
 def charges(db, job_ids) -> int:
-    return db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND job_id = ANY(%s)",
+    return db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND scope = '*' AND job_id = ANY(%s)",
                   [uuid.UUID(str(j)) for j in job_ids])[0]
 
 

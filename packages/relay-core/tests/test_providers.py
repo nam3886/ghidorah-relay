@@ -4,6 +4,7 @@ model ids and aliases are unique across providers."""
 import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,7 @@ class Stub:
     settings_keys: tuple = ()
     caps: pv.Caps = field(default_factory=lambda: caps())
     bare: bool = False          # True: none of the settings the core reads
+    pools_named: tuple | None = None    # the pools its `<name>.pools` default names (None: every pool of its caps)
     frames: pv.FrameRules | None = None
     max_prompt_chars: int = 1000
 
@@ -32,12 +34,16 @@ class Stub:
         if not self.bare:
             keys |= {self.name + "." + n
                      for n in ("claims_enabled", "render_deadline_s", "browser_slots", "disabled_models", "prices",
-                               "costs")}
-        return {k: object() for k in keys}
+                               "costs", "pools")}
+        out = {k: object() for k in keys}
+        if self.name + ".pools" in out:
+            named = [p.name for p in self.caps.pools] if self.pools_named is None else self.pools_named
+            out[self.name + ".pools"] = SimpleNamespace(default={n: {} for n in named})
+        return out
 
 
 def caps(**kw):
-    base = dict(execution="http", wallet_kinds=("video",), pools=(pv.PoolSpec("video", "UTC"),), account_slots=1,
+    base = dict(execution="http", pools=(pv.PoolSpec("video", "jobs"),), account_slots=1,
                 max_attempts=3, suspect_threshold=3, strike_effect=pv.Dead("signed_out"))
     return pv.Caps(**{**base, **kw})
 
@@ -92,17 +98,25 @@ def test_settings_must_live_in_the_providers_namespace():
         pv.ProviderRegistry().register(Stub("one", settings_keys=("one.ok", "other.bad")))
 
 
-def test_a_pool_budget_setting_must_be_declared():
-    c = caps(pools=(pv.PoolSpec("video", "UTC", "one.budget"),))
-    with pytest.raises(pv.RegistryError, match="one.budget"):
-        pv.ProviderRegistry().register(Stub("one", caps=c))
-    pv.ProviderRegistry().register(Stub("one", caps=c, settings_keys=("one.budget",)))
+@mutation(SRC, "        if undeclared:", "        if False:", expect="DID NOT RAISE RegistryError")
+def test_every_pool_must_appear_in_the_pools_default():
+    c = caps(pools=(pv.PoolSpec("video", "jobs"), pv.PoolSpec("image", "jobs")))
+    pv.ProviderRegistry().register(Stub("one", caps=c))
+    with pytest.raises(pv.RegistryError, match="the one.pools default does not name the pools: image"):
+        pv.ProviderRegistry().register(Stub("one", caps=c, pools_named=("video",)))
+
+
+@pytest.mark.parametrize("bad", ["points", "", "uses "])
+def test_a_pool_counts_credits_jobs_or_uses_and_nothing_else(bad):
+    with pytest.raises(ValueError, match="credits, jobs or uses"):
+        pv.PoolSpec("video", bad)
+    assert [pv.PoolSpec("p", u).unit for u in ("credits", "jobs", "uses")] == ["credits", "jobs", "uses"]
 
 
 @pytest.mark.parametrize("kw", [
-    dict(execution="gpu"), dict(wallet_kinds=()), dict(account_slots=0), dict(max_attempts=0),
+    dict(execution="gpu"), dict(account_slots=0), dict(max_attempts=0),
     dict(suspect_threshold=0), dict(strike_effect="dead"),
-    dict(pools=(pv.PoolSpec("a", "UTC"), pv.PoolSpec("a", "UTC"))),
+    dict(pools=(pv.PoolSpec("a", "jobs"), pv.PoolSpec("a", "jobs"))),
     dict(proxy_rest_s=0), dict(check_interval_s=0),
 ])
 def test_caps_refuse_nonsense(kw):
@@ -110,16 +124,12 @@ def test_caps_refuse_nonsense(kw):
         caps(**kw)
 
 
-def test_a_pool_with_an_unknown_timezone_refuses_at_construction():
-    with pytest.raises(Exception):  # noqa: B017  (ZoneInfoNotFoundError or ValueError, depending on the platform)
-        pv.PoolSpec("video", "Mars/Olympus")
-
-
 def test_results_validate_what_the_core_relies_on():
     with pytest.raises(ValueError):
         pv.Rest("video", datetime(2030, 1, 1), "naive time")
     with pytest.raises(ValueError):
-        pv.Balance("video", 3, "guessed")
+        pv.Balance("video", 3, datetime(2030, 1, 1))              # a refill with no time zone
+    assert pv.Balance("video", 3, datetime(2030, 1, 1, tzinfo=UTC)).refill_at is not None
     with pytest.raises(ValueError):
         pv.Completed(outputs=())
     with pytest.raises(ValueError):
@@ -139,10 +149,11 @@ def test_the_spec_constants_default_to_the_contract_values():
 def test_a_spec_must_declare_the_settings_the_core_reads():
     bare = Stub("one", bare=True)
     with pytest.raises(pv.RegistryError, match="one.claims_enabled.*one.render_deadline_s.*one.disabled_models"
-                                               ".*one.prices.*one.costs"):
+                                               ".*one.prices.*one.costs.*one.pools"):
         pv.ProviderRegistry().register(bare)
     # browser_slots is only needed by a browser provider
-    read = ("one.claims_enabled", "one.render_deadline_s", "one.disabled_models", "one.prices", "one.costs")
+    read = ("one.claims_enabled", "one.render_deadline_s", "one.disabled_models", "one.prices", "one.costs",
+            "one.pools")
     only_two = Stub("one", bare=True, settings_keys=read)
     pv.ProviderRegistry().register(only_two)
     with pytest.raises(pv.RegistryError, match="one.browser_slots"):

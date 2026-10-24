@@ -120,7 +120,7 @@ def test_a_worker_killed_before_mark_sent_leaves_a_job_the_reaper_requeues_and_o
     mid, engine = run(db, recover)
     assert mid == ("queued", 1, True), "never sent: back in the queue, the lost claim counted as one attempt"
     assert len(submits(engine)) == 1 and claims(db, job_id) == died_at + 1
-    assert db.wallet(k, "fake", "video") == (10, 10)
+    assert db.wallet(k) == (10, 10)
     assert db.all("SELECT amount FROM account_charges") == [(1,)], "the account is charged once, by the second send"
     assert strict(db) == []
 
@@ -155,10 +155,10 @@ def test_a_worker_killed_right_after_mark_sent_leaves_an_unknown_job_that_is_nev
     assert submits(engine) == [] and claims(db, job_id) == died_at, "the recovering workers never claim it"
     if ending == "found":
         assert job_status(db, job_id) == "waiting"
-        assert db.all("SELECT amount FROM account_charges") == [(1,)] and db.wallet(k, "fake", "video") == (10, 10)
+        assert db.all("SELECT amount FROM account_charges") == [(1,)] and db.wallet(k) == (10, 10)
     else:
         assert db.one("SELECT status, error_code FROM jobs WHERE id = %s", job_id) == ("failed", "render.deadline")
-        assert db.wallet(k, "fake", "video") == (0, 0) and db.all("SELECT amount FROM account_charges") == []
+        assert db.wallet(k) == (0, 0) and db.all("SELECT amount FROM account_charges") == []
     assert strict(db) == []
 
 
@@ -203,7 +203,7 @@ def test_a_worker_killed_between_the_media_rows_and_done_leaves_the_outputs_and_
     assert db.one("SELECT status FROM jobs WHERE id = %s", job_id) == ("done",)
     assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND role = 'output'", job_id) == (2,)
     assert again == stored, "the rerun overwrote the same keys"
-    assert db.wallet(k, "fake", "video") == (10, 10) and db.all("SELECT amount FROM account_charges") == [(1,)]
+    assert db.wallet(k) == (10, 10) and db.all("SELECT amount FROM account_charges") == [(1,)]
     assert strict(db) == []
 
 
@@ -233,7 +233,7 @@ def test_a_lease_lost_before_the_second_send_stops_the_gate_and_the_job_ends_unk
     job_id, engine = run(db, scenario)
     assert sends == ["first"] and len(submits(engine)) == 1
     assert db.one("SELECT status, claims, attempts FROM jobs WHERE id = %s", job_id) == ("unknown", 1, 0)
-    assert db.one("SELECT count(*) FROM leases") == (0,) and db.wallet(k, "fake", "video") == (10, 10)
+    assert db.one("SELECT count(*) FROM leases") == (0,) and db.wallet(k) == (10, 10)
     assert strict(db) == []
 
 
@@ -278,7 +278,7 @@ def test_a_stalled_event_loop_expires_the_leases_and_the_jobs_end_unknown_never_
     assert sends == Counter({str(j): 1 for j in ids}), "each job is sent exactly once"
     for j in ids:
         assert db.one("SELECT status, attempts FROM jobs WHERE id = %s", j) == ("unknown", 0)
-    assert db.one("SELECT count(*) FROM leases") == (0,) and db.wallet(k, "fake", "video") == (20, 20)
+    assert db.one("SELECT count(*) FROM leases") == (0,) and db.wallet(k) == (20, 20)
     assert strict(db) == []
 
 

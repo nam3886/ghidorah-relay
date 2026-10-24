@@ -253,7 +253,7 @@ def test_the_window_bounds_the_rows_and_the_total_on_every_page(db):
 
 TO_INCLUSIVE_UNSARGABLE = '_TO = " AND j.created_at + interval \'0\' < %(to)s"'
 JOB_COLUMNS = ("id, provider, key_id, operation, media_type, model, prompt, marker, status, completion, after_sent, "
-               "submit_timeout_s, wallet_kind, price")
+               "submit_timeout_s, price_key, price")
 BASE_MS = 1_759_996_800_000                         # the newest seeded job; the window sits 10 days before it
 SEED_SPREAD = 259                                   # seconds between seeded jobs: 10 000 of them cover 30 days
 
@@ -265,7 +265,7 @@ def test_an_hour_window_is_served_by_the_created_at_index_on_a_realistic_table(d
     either bound or both, must range-scan jobs_created_at_idx for the page and for the count."""
     seed = db.job(key(db), provider="fake")
     db.run("INSERT INTO jobs (" + JOB_COLUMNS + ", created_at) SELECT gen_random_uuid(), provider, key_id, operation, "
-           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, wallet_kind, "
+           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, price_key, "
            "price, to_timestamp(%s::double precision / 1000) - g * %s * interval '1 second' "
            "FROM jobs, generate_series(1, 10000) g WHERE id = %s", BASE_MS, SEED_SPREAD, seed)
     db.run("ANALYZE jobs")
@@ -518,7 +518,7 @@ def test_the_day_totals_query_is_served_by_the_created_at_index_on_a_realistic_t
     """10 000 jobs over 30 days, ANALYZEd, nothing forced: the one-day totals range-scan jobs_created_at_idx."""
     seed = db.job(key(db), provider="fake")
     db.run("INSERT INTO jobs (" + JOB_COLUMNS + ", created_at) SELECT gen_random_uuid(), provider, key_id, operation, "
-           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, wallet_kind, "
+           "media_type, model, prompt, 'seed-' || g, status, completion, after_sent, submit_timeout_s, price_key, "
            "price, to_timestamp(%s::double precision / 1000) - g * %s * interval '1 second' "
            "FROM jobs, generate_series(1, 10000) g WHERE id = %s", BASE_MS, SEED_SPREAD, seed)
     db.run("ANALYZE jobs")
@@ -849,7 +849,7 @@ def test_regenerate_makes_a_new_job_at_todays_price_keeping_the_prompt_title_and
     assert db.one("SELECT %s FROM jobs WHERE id = %%s" % cols, new) == (
         k, PROVIDER, "a cat", "my title", "fake-video", 10, "queued", marker_for(new)), "today's price, a new marker"
     assert db.one("SELECT price, status FROM jobs WHERE id = %s", old) == (3, "failed")
-    assert db.one("SELECT amount FROM ledger WHERE job_id = %s AND entry = 'charge'", new) == (10,)
+    assert db.one("SELECT amount FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'charge'", new) == (10,)
     assert db.one("SELECT count(*) FROM job_events WHERE job_id = %s AND stage = 'regenerated'", old) == (1,)
 
 
@@ -858,7 +858,7 @@ def test_regenerate_goes_through_the_gate_the_allow_list_the_key_the_wallet_and_
     k = key(db)
     account(db)
     old = run(db, lambda p: failed_job(p, k, "a cat"))
-    day_limit = "UPDATE key_wallets SET day_limit = %s WHERE key_id = %s AND kind = 'video'"
+    day_limit = "UPDATE key_wallets SET day_limit = %s WHERE key_id = %s AND scope = '*'"
 
     async def scenario(env):
         h = await env.admin_headers()

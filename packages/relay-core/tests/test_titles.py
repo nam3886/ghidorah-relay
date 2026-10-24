@@ -43,7 +43,7 @@ def title_of(db, job):
 
 
 def make_key(db):
-    return db.key(("fake", "video", None, None))
+    return db.key(("fake", None, None))
 
 
 @mutation(SRC, "AND external_ref IS NOT NULL AND account_id IS NOT NULL ",

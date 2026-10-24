@@ -4,6 +4,7 @@ import pytest
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
+from relay_core.pool import day_pool
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -48,9 +49,8 @@ def refused(model="meta-image", prompt="a lighthouse at dawn", **kw) -> InputErr
 # ---- caps, settings, catalog -----------------------------------------------------------------------------------------
 def test_the_caps_say_a_browser_provider_with_two_pools_that_reconciles_and_polls_what_it_found():
     c = SPEC.caps
-    assert SPEC.name == "meta" and c.execution == "browser" and c.wallet_kinds == ("image", "video")
-    assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [
-        ("image", "UTC", "meta.image_budget"), ("video", "UTC", "meta.video_budget")]
+    assert SPEC.name == "meta" and c.execution == "browser"
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "jobs")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
@@ -62,7 +62,7 @@ def test_the_caps_say_a_browser_provider_with_two_pools_that_reconciles_and_poll
 def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads():
     s = SPEC.settings()
     assert s["meta.claims_enabled"].default is False, "meta must stay drained until it can submit"
-    assert s["meta.image_budget"].default == 40 and s["meta.video_budget"].default == 20
+    assert s["meta.pools"].default == {"image": day_pool({"free": 40}), "video": day_pool({"free": 20})}
     assert s["meta.prices"].default == {"meta-image": 1, "meta-video": 1}
     assert s["meta.costs"].default == {"meta-image": 1, "meta-video": 1}, "one job of the daily budget each"
     for key in ("meta.image_submit_timeout_s", "meta.video_submit_timeout_s"):
@@ -104,8 +104,7 @@ def test_an_image_plan_is_held_in_the_session_and_priced_from_the_settings():
     p = plan()
     assert (p.operation, p.media_type, p.model, dict(p.params)) == ("text_to_image", "image", "meta-image",
                                                                      {"kind": "image"})
-    assert (p.completion, p.after_sent, p.wallet_kind, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image",
-                                                                   "image")
+    assert (p.completion, p.after_sent, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image")
     assert (p.price_key, p.submit_timeout_s, p.warnings) == ("meta-image", 240, ())
     assert (priced().price, priced().account_cost) == (1, 1)
 
@@ -114,15 +113,15 @@ def test_an_image_plan_is_held_in_the_session_and_priced_from_the_settings():
           '            operation = "text_to_video"', expect="a video from an image")
 def test_a_video_plan_takes_one_image_and_an_optional_motion_text():
     p = plan("meta-video", "", images=(IMG,))
-    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s) == (
-        "image_to_video", "video", "video", "video", 420), "a video from an image: %r" % (p.operation,)
+    assert (p.operation, p.media_type, p.pool, p.submit_timeout_s) == (
+        "image_to_video", "video", "video", 420), "a video from an image: %r" % (p.operation,)
     assert plan("meta-video", "slow pan to the left", images=(IMG,)).completion == Completion.HOLD
 
 
 def test_a_video_plan_from_text_alone_is_text_to_video_held_and_priced_like_one_from_an_image():
     p = plan("meta-video", "a red fox trotting through snow")
-    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s, p.price_key) == (
-        "text_to_video", "video", "video", "video", 420, "meta-video")
+    assert (p.operation, p.media_type, p.pool, p.submit_timeout_s, p.price_key) == (
+        "text_to_video", "video", "video", 420, "meta-video")
     assert priced("meta-video", images=(IMG,)).price == priced("meta-video", "a red fox").price == 1
     assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "video"})
 
@@ -143,8 +142,8 @@ def test_a_video_with_neither_an_image_nor_a_visible_text_is_refused():
           '            operation = "text_to_image"', expect="an edit of the input image")
 def test_an_image_plan_with_one_input_image_is_an_edit_and_still_needs_a_visible_text():
     p = plan(images=(IMG,))
-    assert (p.operation, p.media_type, p.wallet_kind, p.pool, p.submit_timeout_s) == (
-        "image_to_image", "image", "image", "image", 240), "an edit of the input image: %r" % (p.operation,)
+    assert (p.operation, p.media_type, p.pool, p.submit_timeout_s) == (
+        "image_to_image", "image", "image", 240), "an edit of the input image: %r" % (p.operation,)
     assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "image"})
     with pytest.raises(InputError) as caught:
         plan(prompt=" ", images=(IMG,))

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
@@ -55,6 +56,11 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
+# vibes' daily quota is not measured yet: the budgets start far above any real day, and the account check reads the
+# used-up banner instead (a used-up account reports 0 and rests until the pool's next day).
+POOLS = (PoolSpec("video", "jobs"), PoolSpec("image", "jobs"))
+POOL_DEFAULTS = {"video": day_pool({"free": 1000}), "image": day_pool({"free": 1000})}
+
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
              "Drain mode off: when false vibes claims no new job. Off until the owner turns vibes on.", basic=True),
@@ -80,12 +86,7 @@ _SETTINGS = dict((
         PROVIDER + ".costs", "What one job costs the vibes account: one job of its daily budget (vibes shows only "
         "a used-up flag). An option missing here is refused (model.uncosted).",
         C.PRICE_KEYS, C.DEFAULT_COSTS, unit="jobs")),
-    # vibes' daily quota is not measured yet: the budgets start far above any real day, and the account check reads
-    # the used-up banner instead.
-    _setting("image_budget", int, 1000, "Image jobs each vibes account may take per day (not measured yet).", min=1,
-             basic=True),
-    _setting("video_budget", int, 1000, "Videos each vibes account may make per day (not measured yet).", min=1,
-             basic=True),
+    (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -103,8 +104,7 @@ class VibesSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("video", "image"),
-        pools=(PoolSpec("video", "UTC", "vibes.video_budget"), PoolSpec("image", "UTC", "vibes.image_budget")),
+        execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

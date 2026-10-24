@@ -8,6 +8,7 @@ from flowkit import PSID, PSIDTS, export
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
+from relay_core.pool import day_pool
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -55,9 +56,8 @@ def refusal(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", **kw):
 # ---- caps, settings, catalog, codes --------------------------------------------------------------------------------
 def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
-    assert SPEC.name == "flow" and c.execution == "http" and c.wallet_kinds == ("image", "video")
-    assert [(p.name, p.tz, p.budget_setting, p.unit) for p in c.pools] == [
-        ("image", "UTC", "flow.image_budget", "jobs"), ("video", "UTC", "flow.video_budget", "points")]
+    assert SPEC.name == "flow" and c.execution == "http"
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "credits")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -74,7 +74,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
     assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2}
     assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, **FC.TABLE_ONLY_COSTS}
-    assert s["flow.video_budget"].default == 50
+    assert s["flow.pools"].default == {"image": {"combine": "sum", "windows": []},
+                                       "video": day_pool({"free": 50, "pro": 50})}
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
 
@@ -126,7 +127,7 @@ def test_each_model_and_ratio_maps_to_flows_own_keys_and_the_image_is_held():
     assert p.params["ratio"] == "16:9" and p.params["aspect"] == 3
     assert (p.operation, p.media_type, p.completion, p.after_sent) == (
         "text_to_image", "image", Completion.HOLD, AfterSent.RECONCILE)
-    assert (p.wallet_kind, p.pool, p.price_key, p.submit_timeout_s) == ("image", "image", "flow-nano-banana-2.1", 900)
+    assert (p.pool, p.price_key, p.submit_timeout_s) == ("image", "flow-nano-banana-2.1", 900)
     p = priced()
     assert (p.price, p.account_cost) == (1, 1), "an image costs no Flow credit, counts one job and sells at 1"
 
@@ -290,9 +291,8 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
                               "credits": 10}, "credits"
     assert priced(VIDEO).account_cost == 10, "the account cost of a video is its Flow credits"
     assert p.completion == Completion.DETACH, "a video is polled"
-    assert (p.operation, p.media_type, p.after_sent, p.wallet_kind, p.pool, priced(VIDEO).price, p.price_key,
-            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", "video", 2,
-                                    VIDEO + "@8s", 900)
+    assert (p.operation, p.media_type, p.after_sent, p.pool, priced(VIDEO).price, p.price_key,
+            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 2, VIDEO + "@8s", 900)
     assert dict(plan(VIDEO).params) == dict(p.params)
     assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
     cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
@@ -310,4 +310,4 @@ def test_what_the_video_capture_did_not_prove_is_refused():
         assert refusal(VIDEO, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
     assert refusal(VIDEO, n=2) == ("input.invalid", "n")
     with pytest.raises(pricing.TooCostly):           # more credits than a day's budget: no account could take it
-        priced(VIDEO, cfg=FakeSettings(SPEC, flow__video_budget=9))
+        priced(VIDEO, cfg=FakeSettings(SPEC, flow__pools={"video": day_pool({"free": 9})}))

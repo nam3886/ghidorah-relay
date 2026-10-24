@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from relay_core import failpoints
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     Accepted,
@@ -58,6 +59,8 @@ class FakeSpec:
     applies) unless a test passes rules, for instance `FAKE_FRAMES`. `unclear` is the text `unclear_at_deadline` reports
     (None: the fake explains nothing)."""
 
+    pools = (PoolSpec("video", "jobs"), PoolSpec("image", "jobs"))     # video: 4 a day per account; images: no window
+
     def __init__(self, name: str = "fake", *, execution: str = "http", account_slots: int | None = 1,
                  max_attempts: int = 3, has_reconcile: bool = True, frames: FrameRules | None = None,
                  unclear: str | None = None,
@@ -67,8 +70,7 @@ class FakeSpec:
         self.max_prompt_chars = max_prompt_chars
         self.unclear = unclear
         self.caps = Caps(
-            execution=execution, wallet_kinds=("video", "image"),
-            pools=(PoolSpec("video", "UTC", name + ".video_budget"), PoolSpec("image", "UTC")),
+            execution=execution, pools=self.pools,
             account_slots=account_slots, max_attempts=max_attempts, suspect_threshold=3,
             strike_effect=Dead("error_threshold"), has_poll=True, has_reconcile=has_reconcile)
         self.limits = (FixedLimit(name + ".demo_bound", 7, "A bound of the fake provider, for tests.", "items"),)
@@ -101,7 +103,8 @@ class FakeSpec:
     def settings(self) -> dict[str, Any]:
         n = self.name
         return {n + ".claims_enabled": Spec(n + ".claims_enabled", bool, True, "Drain mode off."),
-                n + ".video_budget": Spec(n + ".video_budget", int, 4, "Daily video jobs per account."),
+                n + ".pools": pools_setting(n, self.pools, {"video": day_pool({"free": 4}),
+                                                           "image": {"combine": "sum", "windows": []}}),
                 n + ".render_deadline_s": Spec(n + ".render_deadline_s", int, 9000, "Render deadline."),
                 n + ".alert_drift_rate": Spec(n + ".alert_drift_rate", float, 0.5, "Drift alert (warning)."),
                 n + ".alert_deadline_rate": Spec(n + ".alert_deadline_rate", float, 0.5, "Drift alert (deadline)."),

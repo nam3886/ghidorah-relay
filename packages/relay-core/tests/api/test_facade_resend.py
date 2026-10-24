@@ -267,4 +267,4 @@ def test_a_refunded_job_that_a_recheck_charged_again_is_not_refunded_in_status(d
     status = run_app(db, second)
     assert status["status"] == "running" and status["refunded"] is False, (
         "refunded must be false once the job was charged again: %s" % status)
-    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id) == (1,)
+    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id) == (1,)

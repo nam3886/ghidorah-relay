@@ -60,7 +60,7 @@ def media(db, job_id):
 
 
 def refunds(db, job_id) -> int:
-    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id)[0]
+    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id)[0]
 
 
 async def hold_fetching(p, db, k, n=1, model="fake-video"):
@@ -222,7 +222,7 @@ def test_an_order_upstream_completed_keeps_its_account_charge_after_a_recheck_an
     assert db.all("SELECT refunded_at IS NULL FROM account_charges WHERE job_id = %s", job_id) == [(True,)], \
         "the order upstream completed keeps its account charge whichever path fails the job"
     assert db.one("SELECT sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END) FROM ledger "
-                  "WHERE job_id = %s", job_id) == (0,), "the key is refunded for every charge"
+                  "WHERE job_id = %s AND scope = '*'", job_id) == (0,), "the key is refunded for every charge"
 
 
 def test_a_file_that_does_not_probe_fails_the_job_at_once_with_the_refund(db, objects):

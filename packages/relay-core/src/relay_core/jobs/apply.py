@@ -6,9 +6,9 @@ Each function is one transaction on a fresh pooled connection. Submit results ar
 timeout and shields them from cancellation: a result that was received is applied or lost to the reaper, never
 half-applied.
 
-The account is charged only when the order is proven taken, and a `Balance(reported)` effect of the same result is
-applied after that charge so it wins. Facts are stored only when taken. A job that leaves `submitting` releases its
-lease in the same transaction.
+The account is charged only when the order is proven taken, and a `Balance` effect of the same result is
+applied after that charge, so the report is stamped later than the charge and wins (the charge is already in it).
+Facts are stored only when taken. A job that leaves `submitting` releases its lease in the same transaction.
 """
 
 import logging

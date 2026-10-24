@@ -4,11 +4,12 @@ proven taken, and a failed job refunded in one transaction."""
 
 import asyncio
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from jobkit import CAPS, POOLS, account, claim, create, events, key, run, status, submit
 
-from relay_core import errors, failpoints, leases
+from relay_core import errors, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.jobs import apply, store
 from relay_core.providers import (
@@ -70,7 +71,16 @@ def charges(db, job_id):
 
 
 def left(db, pool_name="video"):
-    return db.one("SELECT left_n, source FROM account_capacity WHERE pool = %s", pool_name)
+    """(what is left, where that comes from) of the one account's pool, as the next claim reads it."""
+    async def read(p):
+        async with tx(p) as conn:
+            account_id = (await (await conn.execute("SELECT id FROM accounts")).fetchone())[0]
+            _, states = await pool.pool_states(conn, {account_id: (None, POOLS)})
+            return states[(account_id, pool_name)].standing
+
+    with ThreadPoolExecutor(1) as executor:      # a scenario calls this inside its loop: read on a thread of its own
+        standing = executor.submit(run, db, read).result()
+    return standing.left, standing.source
 
 
 def lease_count(db) -> int:
@@ -78,7 +88,7 @@ def lease_count(db) -> int:
 
 
 def wallet(db, k):
-    return db.one("SELECT used_day, used_total FROM key_wallets WHERE key_id = %s AND kind = 'video'", k)
+    return db.one("SELECT used_day, used_total FROM key_wallets WHERE key_id = %s AND scope = '*'", k)
 
 
 async def start(p, k, prompt="x", **opts):
@@ -119,7 +129,7 @@ def test_a_job_reaches_fetching_in_either_completion_mode_charged_once_with_its_
 
     got, outcome = run(db, scenario)
     assert outcome == "fetching" and status(db, got.job_id) == "fetching"
-    assert charges(db, got.job_id) == [(2, False)] and left(db) == (2, "counted")
+    assert charges(db, got.job_id) == [(2, False)] and left(db) == (2, "computed")
     model = "up-model" if mode == "detach" else None
     assert cols(db, got.job_id, "taken_at IS NOT NULL, poll_token IS NULL, upstream_model") == (True, True, model)
     outputs = db.one("SELECT provider_state -> 'outputs' FROM jobs WHERE id = %s", got.job_id)[0]
@@ -152,7 +162,7 @@ def test_an_order_not_yet_proven_taken_charges_no_account_and_stores_no_facts(db
         got = await start(p, k, account_cost=2)
         engine = engine_with(sent(SubmitResult(Accepted("ref", taken=False, facts=Facts(9, "m")))))
         assert await submit(p, got, engine) == "waiting"
-        assert charges(db, got.job_id) == [] and left(db) == (4, "reset")
+        assert charges(db, got.job_id) == [] and left(db) == (4, "computed")
         assert cols(db, got.job_id, "taken_at, upstream_price, upstream_model") == (None, None, None)
         db.run("UPDATE jobs SET poll_token = %s WHERE id = %s", token, got.job_id)
         await store.apply_poll(p, got.job_id, token, PollResult(Done((Output("u", "video/mp4", 0),), Facts(9, "m"))),
@@ -160,7 +170,7 @@ def test_an_order_not_yet_proven_taken_charges_no_account_and_stores_no_facts(db
         return got
 
     got = run(db, scenario)
-    assert charges(db, got.job_id) == [(2, False)] and left(db) == (2, "counted")     # charged on the proof
+    assert charges(db, got.job_id) == [(2, False)] and left(db) == (2, "computed")     # charged on the proof
 
 
 def test_a_reported_balance_in_the_same_result_wins_over_the_counted_charge(db):
@@ -181,13 +191,14 @@ def test_a_poll_that_fails_the_job_refunds_key_and_account(db):
     async def scenario(p):
         got = await start(p, k, account_cost=2, price=7)
         await submit(p, got, FakeEngine())
-        assert wallet(db, k) == (7, 7) and left(db) == (2, "counted")
+        assert wallet(db, k) == (7, 7) and left(db) == (2, "computed")
         db.run("UPDATE jobs SET poll_token = %s", token)
         return await store.apply_poll(p, got.job_id, token, PollResult(Failed("account.dead_session", "gone")),
                                       caps=CAPS, pools=POOLS)
 
     assert run(db, scenario) == "failed"
-    assert wallet(db, k) == (0, 0) and left(db) == (4, "counted") and charges(db, db.one("SELECT id FROM jobs")[0]) == [
+    assert wallet(db, k) == (0, 0) and left(db) == (4, "computed") and charges(
+            db, db.one("SELECT id FROM jobs")[0]) == [
         (2, True)]
 
 
@@ -322,7 +333,8 @@ def test_fail_refunds_the_key_stores_the_redacted_detail_and_shows_the_rule_mess
     assert "[omitted len=" in error or "[redacted]" in error
     text = db.all("SELECT text FROM job_events WHERE job_id = %s AND stage = 'failed'", got.job_id)[0][0]
     assert "the upstream order does not match this job" in text and "sessionid" not in text
-    assert db.all("SELECT entry FROM ledger WHERE job_id = %s ORDER BY id", got.job_id) == [("charge",), ("refund",)]
+    assert db.all("SELECT entry FROM ledger WHERE job_id = %s AND scope = '*' ORDER BY id", got.job_id) == [
+        ("charge",), ("refund",)]
 
 
 def test_a_long_engine_text_is_stored_as_an_omitted_marker(db):
@@ -337,7 +349,7 @@ def test_a_long_engine_text_is_stored_as_an_omitted_marker(db):
 
 
 @mutation(F, "    if not order_completed:\n        await pool.refund_job(conn, job_id, pools)",
-          "    if True:\n        pass", expect="assert wallet(db, k) == (0, 0) and left(db) == (4, \"counted\")")
+          "    if True:\n        pass", expect="assert wallet(db, k) == (0, 0) and left(db) == (4, \"computed\")")
 def test_failing_a_taken_job_refunds_the_exact_account_charge_and_sets_the_callback(db):
     k, _ = key(db), account(db)
 
@@ -350,10 +362,10 @@ def test_failing_a_taken_job_refunds_the_exact_account_charge_and_sets_the_callb
         return got
 
     got = run(db, scenario)
-    assert wallet(db, k) == (0, 0) and left(db) == (4, "counted") and charges(db, got.job_id) == [(3, True)]
+    assert wallet(db, k) == (0, 0) and left(db) == (4, "computed") and charges(db, got.job_id) == [(3, True)]
     assert cols(db, got.job_id, "status, callback_status, callback_attempts, callback_for IS NOT NULL, "
                                 "poll_token IS NULL") == ("failed", "pending", 0, True, True)
-    assert db.one("SELECT count(*) FROM ledger WHERE entry = 'refund'")[0] == 1          # the second call did nothing
+    assert db.one("SELECT count(*) FROM ledger WHERE scope = '*' AND entry = 'refund'")[0] == 1   # 2nd call: nothing
 
 
 @mutation(F, REFUND_IN_TX, REFUND_AFTER_COMMIT,
@@ -405,7 +417,7 @@ def test_a_result_cannot_be_applied_after_the_lease_expired(db):
 
     got = run(db, scenario)
     assert cols(db, got.job_id, "status, external_ref, taken_at") == ("submitting", None, None)
-    assert charges(db, got.job_id) == [] and left(db) == (4, "reset")
+    assert charges(db, got.job_id) == [] and left(db) == (4, "computed")
 
 
 @mutation(A, FENCED, OWNER_FENCE, expect="Failed: DID NOT RAISE LeaseLost")
@@ -625,13 +637,13 @@ def test_the_checker_names_each_broken_job_rule(db):
     sent_queued, failed_charged, uncharged_taken, facts_only, done_empty, waiting_no_ref = (db.job(k) for _ in range(6))
     db.run("UPDATE jobs SET sent_at = clock_timestamp() WHERE id = %s", sent_queued)
     db.run("UPDATE jobs SET status = 'failed' WHERE id = %s", failed_charged)
-    db.run("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
-           "VALUES (%s, %s, 'fake', 'video', 'charge', 5, current_date)", k, failed_charged)
+    db.run("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day) "
+           "VALUES (%s, '*', %s, 'fake', 'charge', 5, current_date)", k, failed_charged)
     db.run("UPDATE key_wallets SET used_day = 5, used_total = 5, day_anchor = current_date WHERE key_id = %s "
-           "AND kind = 'video'", k)
+           "AND scope = '*'", k)
     db.run("UPDATE jobs SET status = 'waiting', external_ref = 'r' WHERE id = %s", uncharged_taken)
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) VALUES (%s, %s, 'video', 1, "
-           "current_date)", acct, uncharged_taken)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) VALUES (%s, %s, 'video', 1)",
+           acct, uncharged_taken)
     db.run("UPDATE jobs SET upstream_price = 3 WHERE id = %s", facts_only)
     db.run("UPDATE jobs SET status = 'done' WHERE id = %s", done_empty)
     db.run("UPDATE jobs SET status = 'waiting' WHERE id = %s", waiting_no_ref)

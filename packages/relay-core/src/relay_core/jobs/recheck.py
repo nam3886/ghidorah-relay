@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 # What a revived job forgets of its terminal event: the error, the finish time and the webhook state.
 _CLEAR_CALLBACK = ("callback_status = NULL, callback_attempts = 0, callback_next_at = NULL, callback_for = NULL")
 _NET = ("SELECT COALESCE(sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END), 0) FROM ledger "
-        "WHERE job_id = %s AND entry IN ('charge', 'refund')")
+        "WHERE job_id = %s AND scope = '*' AND entry IN ('charge', 'refund')")
 
 
 class JobRefused(Exception):
@@ -46,16 +46,18 @@ class Skipped(Exception):
     """A bulk Re-check left this job alone because its provider flagged it (`provider_state.no_recheck`)."""
 
 
-async def _recharge(conn: AsyncConnection, job_id, key_id, provider: str, kind: str, price: int) -> int:
-    """After a refund the key pays again: a new charge row for the price. Nothing is charged when the job was not
-    refunded (its net charge is still the price) or is free. A refusal is logged and the job is revived anyway."""
+async def _recharge(conn: AsyncConnection, job_id, key_id, provider: str, price: int) -> int:
+    """After a refund the key pays again: new charge rows for the price (the points wallet and the provider's cap).
+    Nothing is charged when the job was not refunded (its net charge on the points wallet is still the price) or is
+    free. A refusal is logged and the job is revived anyway; the charge's own savepoint has undone whatever the
+    refused statement moved, so the points wallet is never left half charged."""
     if price <= 0:
         return 0
     net = (await (await conn.execute(_NET, (job_id,))).fetchone())[0]
     if net >= price:
         return 0
     try:
-        await billing.charge(conn, key_id, provider, kind, price, job_id)
+        await billing.charge(conn, key_id, provider, price, job_id)
     except (billing.QuotaExceeded, billing.KeyDisabled) as e:     # a missing wallet is a bug: it propagates
         log.warning("job %s revived without a new charge: %s", job_id, e)
         return 0
@@ -64,7 +66,7 @@ async def _recharge(conn: AsyncConnection, job_id, key_id, provider: str, kind: 
 
 async def _locked(conn: AsyncConnection, job_id) -> tuple:
     row = await (await conn.execute(
-        "SELECT status, external_ref, key_id, provider, wallet_kind, price, provider_state FROM jobs "
+        "SELECT status, external_ref, key_id, provider, price, provider_state FROM jobs "
         "WHERE id = %s FOR UPDATE", (job_id,))).fetchone()
     if row is None:
         raise JobRefused("resource.not_found", "no job %s" % job_id)
@@ -82,7 +84,7 @@ async def recheck_job(db: AsyncConnectionPool, job_id, *, bulk: bool = False) ->
     `job.busy` (submitting or fetching: a run is working on it), `job.not_submitted` (no reference, or still
     queued). `bulk=True` raises Skipped for a job its provider flagged `no_recheck`."""
     async with tx(db) as conn:
-        status, ref, key_id, provider, kind, price, state = await _locked(conn, job_id)
+        status, ref, key_id, provider, price, state = await _locked(conn, job_id)
         if status == "done":
             raise JobRefused("job.already_finished", "the job already finished")
         if status in ("submitting", "fetching"):
@@ -91,7 +93,7 @@ async def recheck_job(db: AsyncConnectionPool, job_id, *, bulk: bool = False) ->
             raise JobRefused("job.not_submitted", "the job was never sent upstream")
         if bulk and state.get("no_recheck") is True:
             raise Skipped("the provider flagged this job as not re-checkable")
-        recharged = await _recharge(conn, job_id, key_id, provider, kind, price)
+        recharged = await _recharge(conn, job_id, key_id, provider, price)
         await conn.execute(
             "UPDATE jobs SET status = 'waiting', render_since = clock_timestamp(), error = NULL, error_code = NULL, "
             "finished_at = NULL, poll_token = gen_random_uuid(), next_poll_at = clock_timestamp(), "
@@ -161,7 +163,7 @@ async def recover_in_tx(conn: AsyncConnection, job_id, outputs: Sequence[StoredO
     from. A job with a webhook gets a fresh pending delivery: the latest terminal event is the one delivered (I16)."""
     if not outputs or any(not o.upstream_id for o in outputs):
         raise ValueError("recovered outputs need an upstream id each")
-    status, _ref, key_id, provider, kind, price, _state = await _locked(conn, job_id)
+    status, _ref, key_id, provider, price, _state = await _locked(conn, job_id)
     if status not in ("done", "failed"):
         raise JobRefused("job.busy", "only a finished job can be recovered")
     have = {r[0] for r in await (await conn.execute(
@@ -179,7 +181,7 @@ async def recover_in_tx(conn: AsyncConnection, job_id, outputs: Sequence[StoredO
             (job_id, nxt + attached, out.object_key, out.mime, out.size, out.width, out.height, out.duration_s,
              out.upstream_id, storage.new_share_token()))
         attached += 1
-    recharged = await _recharge(conn, job_id, key_id, provider, kind, price) if status == "failed" else 0
+    recharged = await _recharge(conn, job_id, key_id, provider, price) if status == "failed" else 0
     await conn.execute(
         "UPDATE jobs SET status = 'done', error = NULL, error_code = NULL, "
         "finished_at = COALESCE(finished_at, clock_timestamp()), "

@@ -15,8 +15,8 @@ SPEC = FakeSpec()
 CAPS = SPEC.caps
 PROVIDER = SPEC.name
 SETTINGS = FakeSettings(SPEC)
-POOLS = pool.pool_configs(CAPS, SETTINGS.get)
-WALLETS = ((PROVIDER, "video", None, None), (PROVIDER, "image", None, None))
+POOLS = pool.pool_configs(PROVIDER, CAPS, SETTINGS.get)
+WALLETS = ((PROVIDER, None, None),)         # the cap of the fake provider; the key's points wallet is unlimited
 
 
 def run(db, scenario, max_size=10):
@@ -39,16 +39,17 @@ def key(db, *, wallets=WALLETS, max_unfinished=None) -> uuid.UUID:
 
 def account(db, *, left=None, pool_name="video", state="available", checked=True, used_ago_s=None,
             cooldown_s=None) -> uuid.UUID:
-    """An account of the fake provider. `left` pins the pool's remaining capacity (None = no capacity row yet, so
-    the claim creates it from the budget); `used_ago_s` sets last_used_at for the LRU order."""
+    """An account of the fake provider. `left` pins what the pool has left as a balance the upstream reported just now
+    (None = no pool row yet, so the claim creates it and the budget applies); `used_ago_s` sets last_used_at for the
+    LRU order."""
     account_id = uuid.uuid4()
     db.run("INSERT INTO accounts (id, provider, credential_enc, state, last_checked_at, last_used_at, cooldown_until) "
            "VALUES (%s, %s, '\\x01', %s, CASE WHEN %s THEN clock_timestamp() END, "
            "clock_timestamp() - make_interval(secs => %s), clock_timestamp() + make_interval(secs => %s))",
            account_id, PROVIDER, state, checked, used_ago_s, cooldown_s)
     if left is not None:
-        db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) "
-               "VALUES (%s, %s, %s, 'reported', (clock_timestamp() AT TIME ZONE 'UTC')::date)",
+        db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) "
+               "VALUES (%s, %s, %s, clock_timestamp(), clock_timestamp() + interval '2 days')",
                account_id, pool_name, left)
     return account_id
 

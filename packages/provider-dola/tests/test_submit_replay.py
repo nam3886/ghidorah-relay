@@ -217,7 +217,7 @@ async def test_t2v_dola_gates_and_accepts_in_one_reply_so_nothing_is_sent_again(
     )
     assert res.job.ref == cap["conversation_id"] and res.job.taken is True
     assert (res.job.facts.upstream_price, res.job.facts.upstream_model) == (2, "Dreamina Seedance 2.5")
-    assert res.account == (Success(), Balance("video", 2, "reported"))
+    assert res.account == (Success(), Balance("video", 2))
     assert scene.ctx.refs == [(cap["conversation_id"], {})]
 
 

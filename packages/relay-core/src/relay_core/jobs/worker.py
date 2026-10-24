@@ -42,7 +42,7 @@ from psycopg.errors import LockNotAvailable
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import cgroup, crypto, leases
+from relay_core import cgroup, crypto, leases, pool
 from relay_core.billing import BillingTzMismatch, verify_billing_tz
 from relay_core.budget import BrowserBudget
 from relay_core.db import open_pool, tx
@@ -64,7 +64,6 @@ from relay_core.storage import ObjectStore
 log = logging.getLogger(__name__)
 
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
-DRIFT_CHECK_S = 300.0
 REGISTER_RETRY_S = 1.0         # between tries of the first heartbeat write while a restore mark holds its table
 DEFAULT_GRACE_S = 720.0        # below the container's stop grace period (compose: 780 s) so Docker never kills first
 
@@ -85,7 +84,7 @@ class Worker:
                  tick_s: float = 1.0, lease_ttl_s: float = leases.LEASE_TTL_S,
                  lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = BEAT_S,
                  reaper_interval_s: float = INTERVAL_S, housekeeping_s: float = SWEEP_EVERY_S,
-                 drift_check_s: float = DRIFT_CHECK_S, worker_id: str | None = None,
+                 worker_id: str | None = None,
                  startup_grace_s: float = STARTUP_GRACE_S):
         self.db, self.spec, self.owner, self.grace_s, self.billing_tz = db, spec, owner, grace_s, billing_tz
         self.tick_s, self._housekeeping_s = tick_s, housekeeping_s
@@ -104,7 +103,7 @@ class Worker:
         self.reconciler = Reconciler(db, spec, engine, settings, budget=budget, tick_s=tick_s,
                                      lease_ttl_s=lease_ttl_s, lease_beat_s=lease_beat_s, **common) \
             if caps.has_reconcile else None
-        self.reaper = Reaper(db, spec, settings, interval_s=reaper_interval_s, drift_s=drift_check_s,
+        self.reaper = Reaper(db, spec, settings, interval_s=reaper_interval_s,
                              owner_gone_s=3 * beat_s, grace=grace)
         env = Env(db=db, spec=spec, engine=engine, settings=settings, owner=owner, keeper=self.keeper,
                   load_account=load_account, store=store, budget=budget, ttl_s=lease_ttl_s)
@@ -306,7 +305,7 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
             budget = BrowserBudget(settings.get(spec.name + ".browser_slots"))
 
         async def load_account(account_id) -> AccountView:
-            return await load_account_view(db, account_id, keys)
+            return await load_account_view(db, account_id, keys, pool.pool_configs(spec.name, spec.caps, settings.get))
 
         worker = Worker(db, spec, build_engine(spec, settings), settings, worker_id=worker_id,
                         owner=boot_owner(worker_id), load_account=load_account, store=store,

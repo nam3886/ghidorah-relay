@@ -1,5 +1,5 @@
-"""What the accounts table shows beyond the basic list: videos and images made per account, and the
-drift flag of a counted value that disagrees with the budget minus the day's unrefunded charges."""
+"""What the accounts table shows beyond the basic list: videos and images made per account, and each pool's windows
+with the budget of the account's tier and what its unrefunded charges spent in the window."""
 
 import pytest
 from accountkit import done_job, new_account
@@ -9,14 +9,13 @@ from jobkit import key
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_accounts.py"
-COMMON = "packages/relay-core/src/relay_core/admin/routes_common.py"       # the per-row pool rule lives here
-DRIFT_ON = "if counted else None"
-DRIFT_OFF = "if False else None"
+POOL = "packages/relay-core/src/relay_core/pool.py"                         # what the list reads is computed here
+SPENT = '"AND refunded_at IS NULL AND at >= %s ORDER BY at", (ids, since))'
+SPENT_REFUNDED = '"AND at >= %s ORDER BY at", (ids, since))'
 COMPOSER = "a.provider_state->>'composer'"
 NO_COMPOSER = "NULL::text"
 MADE = 'by_id[str(account_id)]["made"][media_type] = count'
 MADE_ZERO = 'by_id[str(account_id)]["made"][media_type] = 0'
-TODAY = "(clock_timestamp() AT TIME ZONE 'UTC')::date"
 
 
 async def listed(env):
@@ -42,34 +41,35 @@ def test_each_account_shows_how_many_videos_and_images_it_made(db):
     assert rows["idle"]["made"] == {"video": 0, "image": 0} and idle
 
 
-@mutation(COMMON, DRIFT_ON, DRIFT_OFF, expect="drift")
+@mutation(POOL, SPENT, SPENT_REFUNDED, expect="a refunded charge does not count as spent")
 @pytest.mark.fabricated_rows("plants account charges that are not the job account_cost", "account_cost")
-def test_a_counted_value_that_disagrees_with_the_charges_is_flagged_and_a_reported_one_never_is(db):
+def test_each_pool_lists_its_window_with_the_tiers_budget_and_what_the_unrefunded_charges_spent(db):
     k = key(db)
-    names = ("exact", "off", "reported", "refunded")
-    exact, off, reported, refunded = (new_account(db, label=n, checked=True) for n in names)
-    for who, left, source in ((exact, 3, "counted"), (off, 2, "counted"), (reported, 1, "reported"),
-                              (refunded, 4, "reset")):
-        db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) VALUES "
-               "(%s, 'video', %s, %s, " + TODAY + ")", who, left, source)
-    for i, who in enumerate((exact, off, reported)):          # fake.video_budget = 4, one point spent today
-        job = done_job(db, k, who, ref="c%d" % i)
-        db.run("UPDATE jobs SET taken_at = clock_timestamp() WHERE id = %s", job)
-        db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) VALUES "
-               "(%s, %s, 'video', 1, " + TODAY + ")", who, job)
+    spent, refunded, pro = (new_account(db, label=n, checked=True) for n in ("spent", "refunded", "pro"))
+    db.run("UPDATE accounts SET tier = 'pro', cycle_start = '2030-01-15' WHERE id = %s", pro)
+    job = done_job(db, k, spent, ref="c0")
+    db.run("UPDATE jobs SET taken_at = clock_timestamp() WHERE id = %s", job)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) VALUES (%s, %s, 'video', 1)", spent, job)
     job = done_job(db, k, refunded, ref="c-refunded")      # a refunded charge is not spent
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day, refunded_at) VALUES "
-           "(%s, %s, 'video', 1, " + TODAY + ", clock_timestamp())", refunded, job)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, refunded_at) "
+           "VALUES (%s, %s, 'video', 1, clock_timestamp())", refunded, job)
 
     async def scenario(env):
         return await listed(env)
 
     rows = run_app(db, scenario)
-    cap = {name: rows[name]["capacity"][0] for name in rows}
-    assert cap["exact"]["drift"] is False and cap["exact"]["budget"] == 4
-    assert cap["off"]["drift"] is True, "drift: 2 left but the charges say 3"
-    assert cap["reported"]["drift"] is None, "the upstream's own number is never called drift"
-    assert cap["refunded"]["drift"] is False, "a refunded charge does not count as spent"
+    video = {name: next(c for c in rows[name]["capacity"] if c["pool"] == "video") for name in rows}
+    window = {name: video[name]["windows"][0] for name in video}
+    assert (window["spent"]["name"], window["spent"]["kind"], window["spent"]["budget"], window["spent"]["spent"]) == (
+        "day", "day", 4, 1)
+    assert video["spent"]["left_today"] == 3 and video["spent"]["budget"] == 4 and video["spent"]["unit"] == "jobs"
+    assert window["refunded"]["spent"] == 0, "a refunded charge does not count as spent"
+    assert video["refunded"]["left_today"] == 4
+    assert isinstance(window["spent"]["refill_ms"], int)
+    assert (video["pro"]["left_today"], video["pro"]["source"], window["pro"]["budget"]) == (None, "unknown", None), (
+        "the fake provider names a budget for the free tier only: a pro account is unknown, which allows")
+    assert (rows["pro"]["tier"], rows["pro"]["tier_read"], rows["pro"]["cycle_start"]) == ("pro", False, "2030-01-15")
+    assert all(c["drift"] is None for r in rows.values() for c in r["capacity"]), "drift is gone"
 
 
 @mutation(ROUTES, COMPOSER, NO_COMPOSER, expect="composer")

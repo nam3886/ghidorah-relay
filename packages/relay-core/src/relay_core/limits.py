@@ -25,7 +25,6 @@ from relay_core.jobs import (
     sweeps,
     titles,
     webhooks,
-    worker,
 )
 from relay_core.providers import FixedLimit, ProviderRegistry
 
@@ -64,7 +63,6 @@ CORE: tuple[FixedLimit, ...] = (
     _c(reaper, "COMMAND_STALL_S", "bound of a command that takes no lease and has no hard bound of its own", "s"),
     _c(reaper, "COMMAND_STALL_MARGIN_S", "room for a command to record its own outcome before it counts as stalled",
        "s"),
-    _c(worker, "DRIFT_CHECK_S", "pool counters are compared with their charges, and corrected, this often", "s"),
     _c(routes_stats, "HEARTBEAT_STALE_S", "a worker silent for %g beats of %g s shows stale"
        % (routes_stats.HEARTBEAT_STALE_S / engine.BEAT_S, engine.BEAT_S), "s"),
     # ---- job timing -------------------------------------------------------------------------------------------

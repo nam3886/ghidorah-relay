@@ -31,16 +31,15 @@ LOOKUP_AFTER_CAP = ("limit = await _lock_key(conn, new, settings)\n        await
 # The second lookup, taken under the key lock, is what makes a concurrent duplicate replay instead of fail.
 LOOKUP_UNDER_LOCK = ("            hit = await _replay(conn, new)     # a creator that held the lock "
                      "may have made it while we waited")
-CHARGE = "await billing.charge(conn, new.key_id, new.provider, new.plan.wallet_kind, new.plan.price, new.job_id)"
+CHARGE = "await billing.charge(conn, new.key_id, new.provider, new.plan.price, new.job_id)"
 CHARGE_OUTSIDE_TX = ("async with pool.connection() as other:\n            await other.execute("
                      "\"UPDATE key_wallets SET used_total = used_total + %s, used_day = used_day + %s "
-                     "WHERE key_id = %s AND provider = %s AND kind = %s\", (new.plan.price, new.plan.price, "
-                     "new.key_id, new.provider, new.plan.wallet_kind))")
+                     "WHERE key_id = %s AND scope = '*'\", (new.plan.price, new.plan.price, new.key_id))")
 COUNT_ALL = "AND status NOT IN ('done', 'failed')"
 
 
 def wallet_rows(db, key_id):
-    return db.one("SELECT used_day, used_total FROM key_wallets WHERE key_id = %s AND kind = 'video'", key_id)
+    return db.one("SELECT used_day, used_total FROM key_wallets WHERE key_id = %s AND scope = '*'", key_id)
 
 
 def job_count(db, key_id) -> int:
@@ -60,10 +59,11 @@ def test_a_new_job_is_charged_queued_and_has_its_rows(db):
     assert (first.status, first.queue_position, first.replayed) == ("queued", 1, False)
     assert second.queue_position == 2
     assert wallet_rows(db, k) == (14, 14)
-    row = db.one("SELECT status, price, marker, wallet_kind, pool, account_cost, submit_timeout_s, completion "
+    row = db.one("SELECT status, price, marker, price_key, pool, account_cost, submit_timeout_s, completion "
                  "FROM jobs WHERE id = %s", first.job_id)
-    assert row == ("queued", 7, marker_for(first.job_id), "video", "video", 1, 60, "detach")
-    assert db.one("SELECT entry, amount FROM ledger WHERE job_id = %s", first.job_id) == ("charge", 7)
+    assert row == ("queued", 7, marker_for(first.job_id), PROVIDER + "-video", "video", 1, 60, "detach")
+    assert db.all("SELECT scope, entry, amount FROM ledger WHERE job_id = %s ORDER BY id", first.job_id) == [
+        ("*", "charge", 7), (PROVIDER, "charge", 7)], "one charge row on the points wallet, one on the provider's cap"
     assert events(db, first.job_id) == ["queued"]
     inputs = db.all("SELECT idx, object_key, share_token IS NOT NULL, share_expires_at > clock_timestamp() "
                     "+ interval '6 days' FROM job_media WHERE job_id = %s AND role = 'input' ORDER BY idx",
@@ -92,7 +92,7 @@ def test_same_key_and_body_replays_the_job_without_a_second_charge(db):
     assert [g.replayed for g in got] == [False, True, True]
     assert len({g.job_id for g in got}) == 1
     assert job_count(db, k) == 1 and wallet_rows(db, k) == (5, 5)
-    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s", k)[0] == 1
+    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s AND scope = '*'", k)[0] == 1
 
 
 def test_same_key_with_another_body_is_a_conflict_and_charges_nothing(db):
@@ -158,7 +158,7 @@ def test_eight_concurrent_creates_with_one_key_make_one_job_and_one_charge(db):
     got = run(db, scenario)
     assert len({g.job_id for g in got}) == 1 and sum(not g.replayed for g in got) == 1
     assert job_count(db, k) == 1 and wallet_rows(db, k) == (5, 5)
-    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s", k)[0] == 1
+    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s AND scope = '*'", k)[0] == 1
 
 
 def test_eight_concurrent_creates_with_two_bodies_keep_the_winners_body_only(db):
@@ -191,9 +191,9 @@ def test_a_unique_violation_from_a_writer_without_the_lock_replays_the_winner(db
 
     async def plant():
         db.run("INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, "
-               "prompt, marker, status, completion, after_sent, submit_timeout_s, wallet_kind, price) VALUES "
+               "prompt, marker, status, completion, after_sent, submit_timeout_s, price_key, price) VALUES "
                "(%s, %s, %s, 'K', %s, 'generate', 'video', 'm', 'x', 'm', 'queued', 'detach', 'reconcile', 60, "
-               "'video', 5)", winner, PROVIDER, k, body)
+               "'fake-video', 5)", winner, PROVIDER, k, body)
 
     async def scenario(p):
         failpoints.arm("job.create.charged", plant)
@@ -220,7 +220,7 @@ def test_over_the_cap_is_refused_with_no_charge_and_no_job(db):
 
     assert run(db, scenario) == "quota.too_many_queued"
     assert job_count(db, k) == 2 and wallet_rows(db, k) == (2 * 10, 2 * 10)
-    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s", k)[0] == 2
+    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s AND scope = '*'", k)[0] == 2
 
 
 @mutation(C, COUNT_ALL, "AND status NOT IN ('failed')", expect="relay_core.jobs.create.TooManyQueued")
@@ -290,7 +290,7 @@ async def _raise():
 
 
 def test_a_refused_charge_leaves_no_job_row(db):
-    k = key(db, wallets=((PROVIDER, "video", 5, None), (PROVIDER, "image", None, None)))
+    k = key(db, wallets=((PROVIDER, 5, None),))
 
     async def scenario(p):
         await create(p, k, "1", price=5)

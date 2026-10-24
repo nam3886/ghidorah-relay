@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
@@ -60,6 +61,12 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
+# Images count jobs and have no window (nothing measured: unknown allows; the pacing rest stays). Video counts Flow
+# credits: an account showed 50 (a Veo 3.1 Lite video takes 10). Before each video the account's own balance is read
+# too: too few credits and the job goes to another account, nothing sent.
+POOLS = (PoolSpec("image", "jobs"), PoolSpec("video", "credits"))
+POOL_DEFAULTS = {"image": {"combine": "sum", "windows": []}, "video": day_pool({"free": 50, "pro": 50})}
+
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
              "Drain mode off: when false flow claims no new job; its account checks go on and keep the Google "
@@ -94,12 +101,7 @@ _SETTINGS = dict((
         PROVIDER + ".costs", "What one job costs the flow account: an image counts one job of the image budget, a "
         "video its Flow credits. An option missing here is refused (model.uncosted).", C.PRICE_KEYS, C.DEFAULT_COSTS,
         unit="jobs or Flow credits")),
-    _setting("image_budget", int, 1000, "Images each flow account may make per day (not measured yet).", min=1,
-             basic=True),
-    _setting("video_budget", int, 50,
-             "Flow credits each account may spend on videos per day (the account showed 50; a Veo 3.1 Lite video "
-             "takes 10). Before each video the account's own balance is read too: too few credits and the job "
-             "goes to another account, nothing sent.", min=1, basic=True),
+    (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -117,8 +119,7 @@ class FlowSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("image", "video"),
-        pools=(PoolSpec("image", "UTC", "flow.image_budget"), PoolSpec("video", "UTC", "flow.video_budget", "points")),
+        execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

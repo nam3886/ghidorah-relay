@@ -85,13 +85,13 @@ class Env:
         self.settings._registry.register(*spec.settings().values())
 
     async def new_key(self, *, enabled: bool = True, models=(keys.ANY_MODEL,), unlimited: bool = True) -> NewApiKey:
-        """A key with a wallet per declared (provider, kind): unlimited by default so a test is not stopped by a
-        limit it did not ask about."""
-        declared = [(s.name, kind) for s in map(self.registry.spec, self.registry.names())
-                    for kind in s.caps.wallet_kinds]
+        """A key with its points wallet and a cap per declared provider: unlimited by default so a test is not stopped
+        by a limit it did not ask about."""
+        declared = self.registry.names()
         async with tx(self.pool) as conn:
-            made = await keys.create_key(conn, models=models, declared=declared,
-                                         wallets={d: (None, None) for d in declared} if unlimited else None)
+            made = await keys.create_key(
+                conn, models=models, declared=declared,
+                wallets={scope: (None, None) for scope in ("*", *declared)} if unlimited else None)
             if not enabled:
                 await keys.set_enabled(conn, made.id, False)
         return NewApiKey(made.id, made.raw)

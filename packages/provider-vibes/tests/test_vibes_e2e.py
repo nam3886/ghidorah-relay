@@ -68,7 +68,7 @@ def test_the_key_is_disabled_when_the_run_fails(fake_db, monkeypatch):
     with pytest.raises(RuntimeError):
         asyncio.run(e2e.run(ENV))
     assert fake_db.disabled == [(7, False), (7, False)], "the key was left enabled"
-    assert fake_db.made[0]["wallets"] == {("vibes", "image"): (5, 5)} and fake_db.made[0]["models"] == ["vibes-image"]
+    assert fake_db.made[0]["wallets"] == {"*": (5, 5), "vibes": (5, 5)} and fake_db.made[0]["models"] == ["vibes-image"]
 
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20_000

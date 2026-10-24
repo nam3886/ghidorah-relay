@@ -17,11 +17,14 @@ from relay_core.testing.fake_provider import FakeEngine
 from relay_core.testing.mutation import mutation
 
 RC = "packages/relay-core/src/relay_core/jobs/recheck.py"
+B = "packages/relay-core/src/relay_core/billing.py"
 SH = "packages/relay-core/src/relay_core/jobs/shares.py"
 
-RECHARGE = "recharged = await _recharge(conn, job_id, key_id, provider, kind, price)\n        await conn.execute("
+RECHARGE = "recharged = await _recharge(conn, job_id, key_id, provider, price)\n        await conn.execute("
 NO_RECHARGE = "recharged = 0\n        await conn.execute("
 NET_CHECK = "if net >= price:\n        return 0"
+NET_ALL_SCOPES = "WHERE job_id = %s AND scope = '*' AND entry IN ('charge', 'refund')"
+NET_UNFILTERED = "WHERE job_id = %s AND entry IN ('charge', 'refund')"
 NET_IGNORED = "if False:\n        return 0"
 FLAG = "if bulk and state.get(\"no_recheck\") is True:"
 FLAG_IGNORED = "if False:"
@@ -44,9 +47,9 @@ def row(db, job_id, names: str):
 
 
 def ledger(db, job_id) -> tuple[int, int]:
-    """(charges, refunds) of the job's ledger rows."""
+    """(charges, refunds) of the job's ledger rows on the points wallet (the provider's cap has the same)."""
     return db.one("SELECT count(*) FILTER (WHERE entry = 'charge'), count(*) FILTER (WHERE entry = 'refund') "
-                  "FROM ledger WHERE job_id = %s", job_id)
+                  "FROM ledger WHERE job_id = %s AND scope = '*'", job_id)
 
 
 async def waiting_job(p, k, prompt="x", **opts) -> uuid.UUID:
@@ -106,6 +109,41 @@ def test_recheck_of_a_job_that_was_never_refunded_charges_nothing(db):
 
     job_id, recharged = run(db, scenario)
     assert recharged == 0 and db.wallet(k, PROVIDER) == (10, 10) and ledger(db, job_id) == (1, 0)
+
+
+@mutation(B, "async with conn.transaction():", "if True:", expect="assert db.wallet(k) == (0, 0)")
+def test_a_provider_cap_refusal_inside_recheck_leaves_the_star_wallet_untouched(db):
+    # the points wallet would take the charge, the provider's cap (closed since) does not: Re-check revives the job
+    # without a charge and the points wallet must not keep the half of the statement that passed
+    k, _ = key(db, wallets=((PROVIDER, 10, None),)), account(db)
+
+    async def scenario(p):
+        job_id = await failed_job(p, k)
+        db.run("UPDATE key_wallets SET day_limit = 0 WHERE key_id = %s AND scope = %s", k, PROVIDER)
+        recharged = await store.recheck_job(p, job_id)
+        return job_id, recharged
+
+    job_id, recharged = run(db, scenario)
+    assert recharged == 0 and status(db, job_id) == "waiting"
+    assert db.wallet(k) == (0, 0) and db.wallet(k, PROVIDER) == (0, 0), "neither scope moved for the refused charge"
+    assert ledger(db, job_id) == (1, 1)
+
+
+@mutation(RC, NET_ALL_SCOPES, NET_UNFILTERED, expect="assert recharged == 10")
+def test_recheck_reads_what_was_refunded_from_the_points_wallet_rows_alone(db):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        job_id = await failed_job(p, k)
+        # surgery as the owner: the cap row of the charge was never refunded (the points wallet's was)
+        db.run("DELETE FROM ledger WHERE job_id = %s AND scope = %s AND entry = 'refund'", job_id, PROVIDER)
+        db.run("UPDATE key_wallets SET used_total = used_total + 10, used_day = used_day + 10 "
+               "WHERE key_id = %s AND scope = %s", k, PROVIDER)
+        recharged = await store.recheck_job(p, job_id)
+        await store.fail_job(p, job_id, expect=("waiting",), code="render.deadline", pools=POOLS)
+        return recharged
+
+    assert run(db, scenario) == 10
 
 
 def test_recheck_revives_a_refunded_job_even_when_the_key_can_no_longer_pay_and_never_refunds_twice(db):
@@ -264,7 +302,7 @@ def test_regenerate_makes_a_new_job_with_a_new_marker_charged_to_the_same_key_wi
         return made.job_id, again
 
     old, again = run(db, scenario)
-    cols = "key_id, provider, prompt, title, model, price, wallet_kind, params, status, marker"
+    cols = "key_id, provider, prompt, title, model, price, price_key, params, status, marker"
     assert again.job_id != old and not again.replayed and again.status == "queued"
     new_row, old_row = row(db, again.job_id, cols), row(db, old, cols)
     assert new_row[:-2] == old_row[:-2] and new_row[-2] == "queued" and old_row[-2] == "failed"
@@ -289,11 +327,12 @@ def test_regenerate_charges_the_callers_plan_not_the_old_jobs_price(db):
     old, again = run(db, scenario)
     assert row(db, again.job_id, "price, submit_timeout_s") == (14, 99)
     assert row(db, old, "price, submit_timeout_s")[0] == 10
-    assert db.one("SELECT amount FROM ledger WHERE job_id = %s AND entry = 'charge'", again.job_id) == (14,)
+    assert db.one("SELECT amount FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'charge'",
+                  again.job_id) == (14,)
 
 
 def test_regenerate_goes_through_the_creation_gate_the_cap_and_the_wallet_refuse_it_with_no_charge(db):
-    k = key(db, wallets=((PROVIDER, "video", 10, None), (PROVIDER, "image", None, None)), max_unfinished=1)
+    k = key(db, wallets=((PROVIDER, 10, None),), max_unfinished=1)
     account(db)
     today = new_job(k, "x").plan
 
@@ -364,7 +403,7 @@ def test_recheck_with_a_missing_wallet_row_fails_loudly_and_revives_nothing(db):
 
     async def scenario(p):
         job_id = await failed_job(p, k)
-        db.run("UPDATE jobs SET wallet_kind = 'audio' WHERE id = %s", job_id)      # the key has no such wallet
+        db.run("UPDATE jobs SET provider = 'nobody' WHERE id = %s", job_id)        # the key has no cap row for it
         try:
             await store.recheck_job(p, job_id)
         except billing.WalletMissing:

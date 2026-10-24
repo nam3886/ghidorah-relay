@@ -39,7 +39,10 @@ STATUS_KEYS = {"id", "status", "stage", "result_urls", "images", "error", "error
                "progress", "render_started_at", "estimated_finish_at"}
 POINTS_OF_FAILED = "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
 POINTS_NET = "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
-POINTS_READ = "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
+POINTS_READ = "FROM ledger l WHERE l.job_id = j.id AND l.scope = '*' AND l.entry IN ('charge', 'refund')), 0) "
+POINTS_ALL_SCOPES = "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
+REFUNDED_READ = "EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.scope = '*' AND l.entry = 'refund'), "
+REFUNDED_ALL_SCOPES = "EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.entry = 'refund'), "
 
 
 def video(**kw) -> dict:
@@ -88,8 +91,8 @@ def test_i3_every_door_creates_and_charges_exactly_once_for_one_idempotency_key(
             assert len(rows) == 1, "I3: door %s made %d jobs for one idempotency key" % (name, len(rows))
             assert charges(db, key_id=key.id) == 1, "I3: door %s charged %d times" % (name, charges(db, key_id=key.id))
             price = 10 if kind == "video" else 1
-            assert used(db, key.id, "fake", kind) == price, "I3: door %s moved the wallet by %d" % (
-                name, used(db, key.id, "fake", kind))
+            assert used(db, key.id) == used(db, key.id, "fake") == price, "I3: door %s moved the wallet by %d" % (
+                name, used(db, key.id))
             if job_of is not None:
                 assert job_of(first.json()) == job_of(again.json()) == str(rows[0][0]), name
         # the request log of a create names its job and provider
@@ -744,8 +747,37 @@ def test_status_shows_the_points_the_job_charged_the_key(db):
     run_app(db, scenario)
 
 
+@mutation(DOORS, POINTS_READ, POINTS_ALL_SCOPES, expect="the points of the points wallet")
+@mutation(DOORS, REFUNDED_READ, REFUNDED_ALL_SCOPES, expect="refunded of the points wallet")
+def test_status_points_count_only_the_star_rows(db):
+    """A charge writes a row on the points wallet and one on the provider's cap: the status shows the price once."""
+    async def scenario(env):
+        key = await env.new_key()
+        job_id = (await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)).json()["id"]
+        body = (await env.client.get("%s/%s" % (VIDEO_PATH, job_id), headers=key.headers)).json()
+        assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s", uuid.UUID(job_id))[0] == 2
+        assert body["points"] == 10, "the points of the points wallet, once: %r" % body["points"]
+        # only the cap row was refunded (a half refund planted by hand): the job is not shown as refunded
+        db.run("UPDATE jobs SET status = 'failed', error_code = 'render.deadline', finished_at = now() WHERE id = %s",
+               uuid.UUID(job_id))
+        db.run("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day, refund_of) "
+               "SELECT key_id, scope, job_id, provider, 'refund', amount, billing_day, id FROM ledger "
+               "WHERE job_id = %s AND scope = 'fake' AND entry = 'charge'", uuid.UUID(job_id))
+        db.run("UPDATE key_wallets SET used_total = 0, used_day = 0 WHERE key_id = %s AND scope = 'fake'", key.id)
+        body = (await env.client.get("%s/%s" % (VIDEO_PATH, job_id), headers=key.headers)).json()
+        assert body["refunded"] is False, "refunded of the points wallet only: %r" % body["refunded"]
+        db.run("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day, refund_of) "
+               "SELECT key_id, scope, job_id, provider, 'refund', amount, billing_day, id FROM ledger "
+               "WHERE job_id = %s AND scope = '*' AND entry = 'charge'", uuid.UUID(job_id))     # now both are refunded
+        db.run("UPDATE key_wallets SET used_total = 0, used_day = 0 WHERE key_id = %s AND scope = '*'", key.id)
+        body = (await env.client.get("%s/%s" % (VIDEO_PATH, job_id), headers=key.headers)).json()
+        assert body["refunded"] is True and body["points"] == 10
+
+    run_app(db, scenario)
+
+
 @mutation(DOORS, POINTS_READ, "FROM ledger l WHERE l.job_id::text = j.id::text "
-          "AND l.entry IN ('charge', 'refund')), 0) ", expect="served by ledger_job")
+          "AND l.scope = '*' AND l.entry IN ('charge', 'refund')), 0) ", expect="served by ledger_job")
 def test_the_status_query_reads_the_ledger_through_its_job_index(db):
     """EXPLAIN with the sequential scan switched off (the tables are nearly empty): both ledger reads of the status
     (`refunded` and `points`) are lookups on `ledger_job`, never a ledger scan."""

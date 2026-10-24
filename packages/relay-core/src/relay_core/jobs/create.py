@@ -1,6 +1,6 @@
 """Job creation (without the source step; invariants I3, I15).
 
-One transaction: the idempotency lookup, the per-key cap, the wallet charge with its ledger row, the job row, the
+One transaction: the idempotency lookup, the per-key cap, the wallet charge with its ledger rows, the job row, the
 input media rows and the `queued` event. Input objects are uploaded BEFORE this runs (no foreign I/O in a
 transaction); an object whose creation failed is an orphan the media sweep removes later.
 """
@@ -150,10 +150,10 @@ async def _check_cap(conn, new: NewJob, limit: int) -> None:
 
 _INSERT = (
     "INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, params, prompt, "
-    "title, marker, status, completion, after_sent, submit_timeout_s, wallet_kind, price, pool, account_cost, "
+    "title, marker, status, completion, after_sent, submit_timeout_s, price_key, price, pool, account_cost, "
     "callback_url, warnings, request, request_hash, sent_text, frame_id) VALUES (%(id)s, %(provider)s, %(key)s, "
     "%(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, %(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', "
-    "%(completion)s, %(after_sent)s, %(timeout)s, %(kind)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, "
+    "%(completion)s, %(after_sent)s, %(timeout)s, %(price_key)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, "
     "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s)")
 
 
@@ -178,7 +178,7 @@ async def _insert(conn, new: NewJob) -> None:
         "hash": new.idem_body_hash, "op": p.operation, "media": p.media_type, "model": p.model,
         "params": Jsonb(dict(p.params)), "prompt": new.prompt, "title": new.title, "marker": marker,
         "completion": str(p.completion), "after_sent": str(p.after_sent), "timeout": p.submit_timeout_s,
-        "kind": p.wallet_kind, "price": p.price, "pool": p.pool, "cost": p.account_cost,
+        "price_key": p.price_key, "price": p.price, "pool": p.pool, "cost": p.account_cost,
         "callback": new.callback_url, "rhash": new.request_hash,
         "request": None if new.request is None else Jsonb(dict(new.request)), "sent": sent_text, "frame": frame_id,
         "warnings": Jsonb([{"code": w.code, "text": redact_log(w.text)} for w in p.warnings])})
@@ -202,7 +202,7 @@ async def _create(pool: AsyncConnectionPool, new: NewJob, settings: Settings) ->
             return hit
         await _check_cap(conn, new, limit)
         assert new.plan.price is not None          # NewJob refuses an unpriced plan
-        await billing.charge(conn, new.key_id, new.provider, new.plan.wallet_kind, new.plan.price, new.job_id)
+        await billing.charge(conn, new.key_id, new.provider, new.plan.price, new.job_id)
         await failpoints.hit("job.create.charged")
         await _insert(conn, new)
         await add_event(conn, new.job_id, "system", "queued", "queued")

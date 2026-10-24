@@ -95,7 +95,7 @@ async def test_a_taken_order_is_accepted_with_what_dola_stated():
     res = await scene.run()
     assert res.job == Accepted(CONV, facts=res.job.facts, taken=True)
     assert (res.job.facts.upstream_price, res.job.facts.upstream_model) == (2, "Dreamina Seedance 2.5")
-    assert res.account == (Success(), Balance("video", 2, "reported"))
+    assert res.account == (Success(), Balance("video", 2))
     assert res.warnings == () and scene.ctx.refs == [(CONV, {})], "the conversation was not reported as the job's ref"
     assert scene.driver.sent == [SENT], "the engine must type the core's sent_text and nothing else"
 
@@ -186,12 +186,11 @@ async def test_zero_patches_applied_stops_a_30_second_order_before_anything_is_s
 @sync
 async def test_two_orders_in_a_row_until_the_account_is_exhausted():
     first = Scene(replies={1: [ACCEPTED]})
-    assert (await first.run()).account == (Success(), Balance("video", 2, "reported"))
+    assert (await first.run()).account == (Success(), Balance("video", 2))
     last = Scene(replies={1: [ACCEPTED.replace("2 video credits left", "0 video credits left")]})
     res = await last.run()
     assert isinstance(res.job, Accepted)
-    assert res.account == (Success(), Balance("video", 0, "reported"),
-                           Rest("video", MIDNIGHT, "out of credit: the last order took the last credit"))
+    assert res.account == (Success(), Balance("video", 0)), "the last credit: a reported 0, which the core rests"
 
 
 @sync
@@ -221,23 +220,21 @@ async def test_another_model_named_is_a_warning_and_the_model_is_recorded():
 
 # ---- out of credit --------------------------------------------------------------------------------------------------
 @sync
-async def test_the_daily_limit_rests_the_jobs_pool_until_the_next_reset():
+async def test_the_daily_limit_reports_the_jobs_pool_empty_and_the_core_rests_it_until_its_refill():
     res = await Scene(replies={1: [DAILY_LIMIT]}).run()
     assert res.job == NotTaken("pool.account_out_of_points")
-    assert effects_of(res) == (Rest("video", MIDNIGHT, "out of credit"),), \
-        "no balance was reported: none may be invented"
+    assert effects_of(res) == (Balance("video", 0),), "out for the day: the pool reports 0, whatever a counter says"
 
 
-@mutation(SUB, "        if verdict.credits_left == 0:\n            effects.append(self._rest(",
-          "        if False:\n            effects.append(self._rest(",
+@mutation(SUB, "        effects = self._balance(verdict)\n        # The admin hears the reply relay could not classify",
+          "        effects = []\n        # The admin hears the reply relay could not classify",
           expect="rested in every reading")
 @sync
 async def test_zero_credits_left_with_nothing_else_recognised_is_unclear_and_rests_the_pool():
     scene = Scene(replies={1: ["You have 0 video credits left today."]})
     res = await scene.run()
     assert isinstance(res.job, Accepted) and res.job.taken is False, "an unknown reply is unclear: the poll decides"
-    assert effects_of(res) == (Balance("video", 0, "reported"),
-                           Rest("video", MIDNIGHT, "out of credit: dola reports 0 credits left")), (
+    assert effects_of(res) == (Balance("video", 0),), (
         "an account at 0 must be rested in every reading: %r" % (effects_of(res),))
     assert scene.log.count("send") == 1, "no re-send, no move to another account"
 
@@ -246,22 +243,22 @@ async def test_zero_credits_left_with_nothing_else_recognised_is_unclear_and_res
 async def test_not_enough_for_this_order_with_a_positive_balance_is_not_out_of_credit():
     res = await Scene(replies={1: [NOT_ENOUGH]}).run()
     assert res.job == NotTaken("pool.account_cannot_afford")
-    assert effects_of(res) == (Balance("video", 1, "reported"),), \
+    assert effects_of(res) == (Balance("video", 1),), \
         "a positive balance must not rest the pool until midnight"
 
 
-@mutation(SUB, '        return Rest(self.spec.kind, next_pool_reset(self.deps.now()), reason)',
-          '        return Rest("video", next_pool_reset(self.deps.now()), reason)', expect="the job's own pool")
+@mutation(SUB, "        return _outcome(NotTaken(POOL_OUT_OF_POINTS), Balance(spec.kind, 0))",
+          '        return _outcome(NotTaken(POOL_OUT_OF_POINTS), Balance("video", 0))', expect="the job's own pool")
 @sync
 async def test_the_pool_that_rests_is_the_jobs_kind_not_dolas_wording():
     # dola says "daily limit for VIDEO generation" for an IMAGE order too (measured 260920)
     scene = Scene(job=make_job("image"), replies={1: [DAILY_LIMIT]})
     res = await scene.run()
     assert res.job == NotTaken("pool.account_out_of_points")
-    assert effects_of(res) == (Rest("image", MIDNIGHT, "out of credit"),), "the job's own pool (image) must rest"
+    assert effects_of(res) == (Balance("image", 0),), "the job's own pool (image) must report empty"
     # a video balance dola reports in an image refusal is not an image balance
     scene = Scene(job=make_job("image"), replies={1: [DAILY_LIMIT + " You still have 3 video credits left today."]})
-    assert effects_of(await scene.run()) == (Rest("image", MIDNIGHT, "out of credit"),)
+    assert effects_of(await scene.run()) == (Balance("image", 0),)
 
 
 @mutation(SUB, "            if attempt >= 2:\n                # The page text is NOT consulted here",

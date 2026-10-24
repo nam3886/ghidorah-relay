@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal, Protocol
-from zoneinfo import ZoneInfo
 
 from relay_core import frames
 
@@ -77,19 +76,17 @@ class Revive:
     reason: str
 
 
-BALANCE_SOURCES = ("reported", "counted", "reset")
-
-
 @dataclass(frozen=True)
 class Balance:
-    """The account's remaining capacity in a pool. A `reported` value always overrides a counted one."""
+    """What the upstream said the account has left in a pool. It wins until the pool's next refill: `refill_at` when the
+    upstream named one, else the pool's own next window boundary. A `left_n` of 0 also rests the pool until then."""
     pool: str
-    left_n: int | None
-    source: str = "reported"
+    left_n: int
+    refill_at: datetime | None = None
 
     def __post_init__(self):
-        if self.source not in BALANCE_SOURCES:
-            raise ValueError("Balance.source must be one of %s" % (BALANCE_SOURCES,))
+        if self.refill_at is not None:
+            _aware(self.refill_at)
 
 
 @dataclass(frozen=True)
@@ -310,25 +307,22 @@ class ProxyVerdict:
 # ---- capabilities, catalog, plan ------------------------------------------------------------------------------
 @dataclass(frozen=True)
 class PoolSpec:
-    """One account pool: its day rule is a constant of the spec, its daily budget a live setting (or None). `unit` is
-    what the budget counts, for the admin: points (an account cost that varies per job) or jobs."""
+    """One account pool. `unit` is what its budget and every job's `account_cost` count: credits (an upstream credit
+    balance), jobs (one per order) or uses (a quota counted in uses). Its windows and budgets are the `<p>.pools`
+    setting (`relay_core.pool.pools_setting`)."""
     name: str
-    tz: str
-    budget_setting: str | None = None
-    unit: Literal["points", "jobs"] = "jobs"
+    unit: Literal["credits", "jobs", "uses"] = "jobs"
 
     def __post_init__(self):
         if not self.name:
             raise ValueError("a pool needs a name")
-        if self.unit not in ("points", "jobs"):
-            raise ValueError("a pool counts points or jobs")
-        ZoneInfo(self.tz)   # an unknown timezone refuses here, not at the first rollover
+        if self.unit not in ("credits", "jobs", "uses"):
+            raise ValueError("a pool counts credits, jobs or uses")
 
 
 @dataclass(frozen=True)
 class Caps:
     execution: Literal["http", "browser"]
-    wallet_kinds: tuple[str, ...]
     pools: tuple[PoolSpec, ...]
     account_slots: int | None          # max simultaneous leases per account; None = unlimited
     max_attempts: int
@@ -345,8 +339,6 @@ class Caps:
     def __post_init__(self):
         if self.execution not in ("http", "browser"):
             raise ValueError("execution must be http or browser")
-        if not self.wallet_kinds:
-            raise ValueError("a provider declares at least one wallet kind")
         names = [p.name for p in self.pools]
         if len(set(names)) != len(names):
             raise ValueError("pool names must be unique")
@@ -459,11 +451,6 @@ class Plan:
                 or self.submit_timeout_s < 1:
             raise ValueError("price and account_cost must be >= 0 and submit_timeout_s >= 1")
 
-    @property
-    def wallet_kind(self) -> str:
-        """The key wallet a job is charged to: its media type, the kind every provider's wallets are keyed by."""
-        return self.media_type
-
 
 # ---- what the engine sees -------------------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -496,7 +483,7 @@ class AccountView:
     credential_gen: int
     proxy: Proxy | None
     provider_state: Mapping[str, Any]
-    capacity: Mapping[str, int | None]   # pool -> left_n (None = unknown)
+    capacity: Mapping[str, int | None]   # pool -> what is left (reported, else computed; None = unknown)
     seal_key: str | None = None          # the public key that sealed the credential (not a secret); None: no renewal
     sealed: bytes | None = field(default=None, repr=False)        # the ciphertext read: a renewal swaps exactly it
     reload: "Callable[[], Awaitable[AccountView]] | None" = field(default=None, repr=False, compare=False)
@@ -647,7 +634,7 @@ def _problems(spec: ProviderSpec) -> list[str]:
     stray = sorted(k for k in keys if not k.startswith(spec.name + "."))
     if stray:
         bad.append("%s: settings outside its namespace: %s" % (spec.name, ", ".join(stray)))
-    needed = ["claims_enabled", "render_deadline_s", "disabled_models", "prices", "costs"] + (
+    needed = ["claims_enabled", "render_deadline_s", "disabled_models", "prices", "costs", "pools"] + (
         ["browser_slots"] if spec.caps.execution == "browser" else [])
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
     if missing:                      # the core reads these (the door reads disabled_models, prices, costs)
@@ -662,10 +649,12 @@ def _problems(spec: ProviderSpec) -> list[str]:
                 slots.validate(slots.default)          # a bad default is a refusal here, not a traceback at start
             except ValueError as e:
                 bad.append("%s.browser_slots default: %s" % (spec.name, e))
-    for pool in spec.caps.pools:
-        if pool.budget_setting is not None and pool.budget_setting not in keys:
-            bad.append("%s: pool %s names the budget setting %s, which the spec does not declare"
-                       % (spec.name, pool.name, pool.budget_setting))
+    pools = spec.settings().get(spec.name + ".pools")
+    if pools is not None:
+        undeclared = sorted({p.name for p in spec.caps.pools} - set(getattr(pools, "default", {}) or {}))
+        if undeclared:               # the default of `<p>.pools` must say how each declared pool counts
+            bad.append("%s: the %s.pools default does not name the pools: %s" % (spec.name, spec.name,
+                                                                                ", ".join(undeclared)))
     execution_setting = getattr(spec, "execution_setting", None)
     if execution_setting is not None and execution_setting not in keys:
         bad.append("%s: execution_setting names %s, which the spec does not declare" % (spec.name, execution_setting))

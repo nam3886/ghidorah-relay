@@ -82,13 +82,12 @@ FABRICATED = {
     'test_pool.py': (
         'plants account charges that are not the job account_cost, and submitting jobs with no lease row',
         {
-            'test_a_charge_counts_account_cost_once_per_job_and_a_reported_value_stays_reported': ('account_cost',),
-            'test_a_counted_balance_does_not_wake_a_rest_and_a_reported_one_overrides_a_counted_one':
+            'test_left_is_the_day_budget_minus_unrefunded_charges_of_the_day': ('account_cost',),
+            'test_a_reported_balance_wins_over_the_budget_until_its_refill_and_a_charge_after_it_is_taken_off':
                 ('account_cost',),
-            'test_a_refund_after_the_pool_day_rolled_credits_nothing': ('account_cost',),
-            'test_a_refund_restores_the_exact_amount_once_and_wakes_the_pool': ('account_cost',),
-            'test_charging_the_same_job_twice_decrements_once': ('account_cost',),
-            'test_drift_corrects_a_counted_value_and_returns_what_it_found': ('account_cost',),
+            'test_a_charge_inserts_one_row_per_job_and_pool_and_a_second_try_changes_nothing': ('account_cost',),
+            'test_a_refund_marks_the_charge_refunded_gives_back_the_exact_amount_once': ('account_cost',),
+            'test_a_refund_of_yesterdays_charge_changes_nothing_today': ('account_cost',),
             'test_eight_concurrent_refunds_of_one_charge_restore_it_once': ('account_cost',),
             'test_reserved_counts_uncharged_job_leases_of_the_pool_only': ('no lease row',),
         }),
@@ -172,13 +171,13 @@ def pytest_configure(config):
 
 
 JOB_COLUMNS = ("id, provider, key_id, operation, media_type, model, prompt, marker, status, completion, after_sent, "
-               "submit_timeout_s, wallet_kind, price")
+               "submit_timeout_s, price_key, price")
 
 
 def job_args(job_id, key_id, *, provider="p1", kind="video", price=0, prompt="a prompt") -> tuple:
     """Parameters for `INSERT INTO jobs (JOB_COLUMNS)`: the smallest valid job row."""
     return (job_id, provider, key_id, "generate", kind, "m", prompt, "marker-" + str(job_id)[:8], "queued",
-            "detach", "reconcile", 60, kind, price)
+            "detach", "reconcile", 60, "%s-%s" % (provider, kind), price)
 
 
 JOB_INSERT = "INSERT INTO jobs (%s) VALUES (%s)" % (JOB_COLUMNS, ", ".join(["%s"] * 14))
@@ -193,15 +192,18 @@ class Db:
     def connect(self) -> psycopg.Connection:
         return psycopg.connect(self.dsn, autocommit=True, options="-c search_path=relay")
 
-    def key(self, *wallets: tuple[str, str, int | None, int | None], enabled: bool = True) -> uuid.UUID:
-        """An api key with wallets (provider, kind, day_limit, total_limit); None = unlimited."""
+    def key(self, *caps: tuple[str, int | None, int | None], star: tuple[int | None, int | None] = (None, None),
+            enabled: bool = True) -> uuid.UUID:
+        """An api key with its points wallet (`star`: day and total limit, unlimited by default) and a cap row per
+        `(provider, day_limit, total_limit)` given; None = unlimited, 0 = closed. A provider that is not named has no
+        cap row, so a charge to it is refused as a missing wallet."""
         key_id = uuid.uuid4()
         with self.connect() as c:
             c.execute("INSERT INTO api_keys (id, key_hash, key_prefix, enabled) VALUES (%s, %s, %s, %s)",
                       (key_id, key_id.hex, "rk-test", enabled))
-            for provider, kind, day, total in wallets:
-                c.execute("INSERT INTO key_wallets (key_id, provider, kind, day_limit, total_limit) "
-                          "VALUES (%s, %s, %s, %s, %s)", (key_id, provider, kind, day, total))
+            for scope, day, total in (("*", *star), *caps):
+                c.execute("INSERT INTO key_wallets (key_id, scope, day_limit, total_limit) VALUES (%s, %s, %s, %s)",
+                          (key_id, scope, day, total))
         return key_id
 
     def job(self, key_id, **kw) -> uuid.UUID:
@@ -222,10 +224,9 @@ class Db:
         with self.connect() as c:
             return c.execute(sql, params).fetchall()
 
-    def wallet(self, key_id, provider="p1", kind="video") -> tuple[int, int]:
-        """(used_day, used_total)"""
-        return self.one("SELECT used_day, used_total FROM key_wallets WHERE key_id=%s AND provider=%s AND kind=%s",
-                        key_id, provider, kind)
+    def wallet(self, key_id, scope="*") -> tuple[int, int]:
+        """(used_day, used_total) of the points wallet `*` or of a provider's cap"""
+        return self.one("SELECT used_day, used_total FROM key_wallets WHERE key_id=%s AND scope=%s", key_id, scope)
 
     def pin(self, tz: str = "UTC") -> None:
         """The test seam for the billing day: production code cannot choose a timezone, a test moves the pin."""

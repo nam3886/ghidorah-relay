@@ -23,10 +23,10 @@ MEDIA_BATCH = 200
 SWEEP_STATEMENT_TIMEOUT = "60s"          # the sweeps raise the 5 s default for their own transactions
 SWEEP_HOLD_S = 70.0                      # ... and `tx` holds a sweep transaction a little longer than that
 
-# Per wallet: used_total = sum(charge) - sum(refund) + sum(adjust); used_day is the same sum restricted to the
-# wallet's day_anchor, where a refund counts only when it was made on the day of the charge it undoes.
+# Per wallet (key, scope): used_total = sum(charge) - sum(refund) + sum(adjust); used_day is the same sum restricted
+# to the wallet's day_anchor, where a refund counts only when it was made on the day of the charge it undoes.
 _LEDGER_VS_COUNTERS = """
-SELECT w.key_id, w.provider, w.kind, w.used_total, w.used_day,
+SELECT w.key_id, w.scope, w.used_total, w.used_day,
        COALESCE(sum(CASE l.entry WHEN 'charge' THEN l.amount WHEN 'refund' THEN -l.amount ELSE l.amount END), 0),
        COALESCE(sum(CASE WHEN l.billing_day = w.day_anchor THEN
                      CASE l.entry WHEN 'charge' THEN l.amount
@@ -34,18 +34,18 @@ SELECT w.key_id, w.provider, w.kind, w.used_total, w.used_day,
                                   ELSE l.amount END
                    ELSE 0 END), 0)
   FROM key_wallets w
-  LEFT JOIN ledger l ON l.key_id = w.key_id AND l.provider = w.provider AND l.kind = w.kind
+  LEFT JOIN ledger l ON l.key_id = w.key_id AND l.scope = w.scope
   LEFT JOIN ledger c ON c.id = l.refund_of
- GROUP BY w.key_id, w.provider, w.kind, w.used_total, w.used_day, w.day_anchor
+ GROUP BY w.key_id, w.scope, w.used_total, w.used_day, w.day_anchor
 """
 
 
 ALERT_EVERY_H = 20
 _STORE_DRIFT = """
-INSERT INTO billing_alerts (alert, key_id, provider, kind, amount, used_day, used_total, detail)
-SELECT 'drift', %(k)s, %(p)s, %(kind)s, %(amt)s, %(day)s, %(total)s, %(detail)s
- WHERE NOT EXISTS (SELECT 1 FROM billing_alerts WHERE alert = 'drift' AND key_id = %(k)s AND provider = %(p)s
-                   AND kind = %(kind)s AND detail = %(detail)s
+INSERT INTO billing_alerts (alert, key_id, scope, amount, used_day, used_total, detail)
+SELECT 'drift', %(k)s, %(scope)s, %(amt)s, %(day)s, %(total)s, %(detail)s
+ WHERE NOT EXISTS (SELECT 1 FROM billing_alerts WHERE alert = 'drift' AND key_id = %(k)s AND scope = %(scope)s
+                   AND detail = %(detail)s
                    AND at > clock_timestamp() - make_interval(hours => %(h)s))
 """
 
@@ -55,8 +55,7 @@ class Drift:
     """A wallet counter that disagrees with the ledger. `counter` is `used_total` or `used_day`."""
 
     key_id: uuid.UUID
-    provider: str
-    kind: str
+    scope: str
     counter: str
     stored: int
     ledger: int
@@ -71,19 +70,19 @@ async def ledger_check(db: AsyncConnectionPool) -> list[Drift]:
         await conn.execute("SET LOCAL statement_timeout = '%s'" % SWEEP_STATEMENT_TIMEOUT)
         rows = await (await conn.execute(_LEDGER_VS_COUNTERS)).fetchall()
     found = []
-    for key_id, provider, kind, used_total, used_day, ledger_total, ledger_day in rows:
+    for key_id, scope, used_total, used_day, ledger_total, ledger_day in rows:
         if used_total != ledger_total:
-            found.append((Drift(key_id, provider, kind, "used_total", used_total, ledger_total), used_day, used_total))
+            found.append((Drift(key_id, scope, "used_total", used_total, ledger_total), used_day, used_total))
         if used_day != ledger_day:
-            found.append((Drift(key_id, provider, kind, "used_day", used_day, ledger_day), used_day, used_total))
+            found.append((Drift(key_id, scope, "used_day", used_day, ledger_day), used_day, used_total))
     for d, _, _ in found:
-        log.error("ledger drift: wallet %s %s/%s %s is %d, the ledger says %d",
-                  d.key_id, d.provider, d.kind, d.counter, d.stored, d.ledger)
+        log.error("ledger drift: wallet %s %s %s is %d, the ledger says %d",
+                  d.key_id, d.scope, d.counter, d.stored, d.ledger)
     if found:
         async with tx(db) as conn:
             for d, used_day, used_total in found:
                 await conn.execute(_STORE_DRIFT, {
-                    "k": d.key_id, "p": d.provider, "kind": d.kind, "amt": d.stored - d.ledger, "day": used_day,
+                    "k": d.key_id, "scope": d.scope, "amt": d.stored - d.ledger, "day": used_day,
                     "total": used_total, "h": ALERT_EVERY_H,
                     "detail": "%s is %d, the ledger says %d" % (d.counter, d.stored, d.ledger)})
     return [d for d, _, _ in found]

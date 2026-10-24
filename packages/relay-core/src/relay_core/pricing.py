@@ -12,6 +12,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from typing import Any
 
+from relay_core.pool import ceiling, pool_configs
 from relay_core.providers import ModelSpec, Plan, ProviderSpec
 from relay_core.settings import Rule, Spec
 
@@ -77,13 +78,12 @@ def table_setting(key: str, description: str, keys: Iterable[str], default: Mapp
 
 
 def _budget(spec: ProviderSpec, pool: str | None, settings: Any) -> int | None:
-    """The most a pool can ever hold: its budget setting, or None (unknown) without one."""
+    """The most an account can ever hold in the pool (`<p>.pools`, the largest budget of any tier), or None (unknown)
+    for a pool with no budget."""
     if pool is None:
         return None
-    for p in spec.caps.pools:
-        if p.name == pool and p.budget_setting is not None:
-            return int(settings.get(p.budget_setting))
-    return None
+    cfg = pool_configs(spec.name, spec.caps, settings.get).get(pool)
+    return None if cfg is None else ceiling(cfg)
 
 
 def price_plan(spec: ProviderSpec, plan: Plan, settings: Any) -> Plan:

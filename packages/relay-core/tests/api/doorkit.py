@@ -73,15 +73,15 @@ class StrictFake(FakeSpec):
 # ---- rows ---------------------------------------------------------------------------------------------------------
 def charges(db, *, key_id=None, job_id=None) -> int:
     where, args = ("job_id = %s", [job_id]) if job_id else ("key_id = %s", [key_id])
-    return db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND " + where, *args)[0]
+    return db.one("SELECT count(*) FROM ledger WHERE entry = 'charge' AND scope = '*' AND " + where, *args)[0]
 
 
 def jobs(db, key_id) -> list[tuple]:
     return db.all("SELECT id, status FROM jobs WHERE key_id = %s ORDER BY created_at", key_id)
 
 
-def used(db, key_id, provider="fake", kind="video") -> int:
-    return db.wallet(key_id, provider, kind)[1]
+def used(db, key_id, scope="*") -> int:
+    return db.wallet(key_id, scope)[1]
 
 
 def finish_done(db, job_id, n: int = 1) -> list[str]:

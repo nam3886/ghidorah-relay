@@ -149,7 +149,7 @@ def account_row(db, account_id) -> dict:
 def children(db, account_id) -> dict[str, int]:
     """Rows that reference the account, per table: all zero once it is gone."""
     return {t: db.one("SELECT count(*) FROM %s WHERE account_id = %%s" % t, account_id)[0]
-            for t in ("leases", "account_shots", "commands", "account_capacity", "account_charges", "jobs")}
+            for t in ("leases", "account_shots", "commands", "account_pools", "account_charges", "jobs")}
 
 
 def minio_settings() -> tuple[str, str, str]:

@@ -79,8 +79,8 @@ async def plant(w):
     async def job(status: str, *sets: str) -> uuid.UUID:
         job_id = uuid.uuid4()
         await w.sql("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, "
-                    "completion, after_sent, submit_timeout_s, wallet_kind, price) VALUES (%s, %s, %s, 'generate', "
-                    "'video', 'm', 'p', %s, %s, 'detach', 'reconcile', 60, 'video', 0)",
+                    "completion, after_sent, submit_timeout_s, price_key, price) VALUES (%s, %s, %s, 'generate', "
+                    "'video', 'm', 'p', %s, %s, 'detach', 'reconcile', 60, 'fake-video', 0)",
                     job_id, PROVIDER, key_id, "planted-" + job_id.hex[:8], status)
         if sets:
             await w.sql("UPDATE jobs SET %s WHERE id = %%s" % ", ".join(sets), job_id)
@@ -89,8 +89,8 @@ async def plant(w):
     await job("fetching", "next_poll_at = clock_timestamp()")                              # never finished
     resent = await job("done", "finished_at = clock_timestamp()")                          # done, never proven taken
     failed = await job("failed", "error_code = 'account.dead_session'")                    # failed, no finished_at
-    await w.sql("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-                "VALUES (%s, %s, 'video', 0, (clock_timestamp() AT TIME ZONE 'UTC')::date)", account_id, failed)
+    await w.sql("INSERT INTO account_charges (account_id, job_id, pool, amount) VALUES (%s, %s, 'video', 0)",
+                account_id, failed)
     await w.sql("INSERT INTO leases (account_id, purpose, owner, until, hard_until) VALUES (%s, 'check', 'x', "
                 "clock_timestamp() + interval '1 h', clock_timestamp() + interval '1 h')", account_id)
     w.engine.sends[resent] = 5                                                             # sent 5 times, no re-send

@@ -49,7 +49,7 @@ SELF = "packages/relay-core/tests/test_invariants.py"
 # ---- 1. every checker rule has a planted violation and a mutation ---------------------------------------------------
 def make_job(db, *sets: str) -> uuid.UUID:
     """A queued p1 job with `sets` (SQL assignments) applied on top."""
-    job = db.job(db.key(("p1", "video", None, None)))
+    job = db.job(db.key(("p1", None, None)))
     if sets:
         db.run("UPDATE jobs SET %s WHERE id = %%s" % ", ".join(sets), job)
     return job
@@ -61,8 +61,8 @@ def terminal(*sets: str) -> tuple[str, ...]:
 
 def charge(db, job, amount: int, entry: str = "charge") -> None:
     kid = db.one("SELECT key_id FROM jobs WHERE id = %s", job)[0]
-    db.run("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
-           "VALUES (%s, %s, 'p1', 'video', %s, %s, current_date)", kid, job, entry, amount)
+    db.run("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day) "
+           "VALUES (%s, '*', %s, 'p1', %s, %s, current_date)", kid, job, entry, amount)
 
 
 def command(db, status: str, *, lease: int | None = None) -> uuid.UUID:
@@ -133,15 +133,14 @@ def _failed_charged(db):
 def _untaken_charge(db):
     job = make_job(db, "status = 'waiting'", "external_ref = 'r'", "next_poll_at = now()")
     acct = account_row(db)
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) VALUES (%s, %s, 'video', 1, "
-           "current_date)", acct, job)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) VALUES (%s, %s, 'video', 1)", acct, job)
     return job
 
 
 def _wrong_amount(db):
     job = make_job(db, "account_cost = 2", "pool = 'video'")
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) VALUES (%s, %s, 'video', 1, "
-           "current_date)", account_row(db), job)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) VALUES (%s, %s, 'video', 1)",
+           account_row(db), job)
     return job
 
 
@@ -363,7 +362,7 @@ def test_a_submit_that_died_after_the_send_is_never_sent_again_in_either_mode(db
     assert [c for c in engine.calls if c[0] == "submit"] == [("submit", str(job_id))]
     assert db.one("SELECT status, claims, attempts, sent_at IS NOT NULL FROM jobs WHERE id = %s", job_id) == (
         "unknown", 1, 0, True)
-    assert db.wallet(k, "fake", "video") == (10, 10), "the key stays charged: the order may exist upstream"
+    assert db.wallet(k) == (10, 10), "the key stays charged: the order may exist upstream"
     assert strict(db) == [] and job_status(db, job_id) == "unknown"
 
 
@@ -422,9 +421,9 @@ def test_all_outputs_of_one_job_are_delivered_at_the_one_price_in_either_mode(db
         job_id, recovered = run(db, scenario)
     assert db.one("SELECT status FROM jobs WHERE id = %s", job_id) == ("done",)
     assert db.one("SELECT count(*) FROM job_media WHERE job_id = %s AND role = 'output'", job_id) == (4,)
-    assert db.all("SELECT entry, amount FROM ledger WHERE job_id = %s", job_id) == [("charge", 10)]
+    assert db.all("SELECT entry, amount FROM ledger WHERE job_id = %s AND scope = '*'", job_id) == [("charge", 10)]
     assert db.all("SELECT amount FROM account_charges WHERE job_id = %s", job_id) == [(2,)]
-    assert db.wallet(k, "fake", "video") == (10, 10) and (recovered.attached, recovered.recharged) == (1, 0)
+    assert db.wallet(k) == (10, 10) and (recovered.attached, recovered.recharged) == (1, 0)
     assert strict(db) == []
 
 
@@ -432,7 +431,7 @@ def snapshot(db, job_id) -> tuple:
     """Everything a writer could change about a job: its row, its events, its money and its media."""
     return (db.one("SELECT to_jsonb(j) - 'updated_at' FROM jobs j WHERE id = %s", job_id),
             db.one("SELECT count(*) FROM job_events WHERE job_id = %s", job_id),
-            db.all("SELECT entry, amount FROM ledger WHERE job_id = %s ORDER BY id", job_id),
+            db.all("SELECT entry, amount FROM ledger WHERE job_id = %s AND scope = '*' ORDER BY id", job_id),
             db.all("SELECT amount, refunded_at IS NULL FROM account_charges WHERE job_id = %s ORDER BY id", job_id),
             db.one("SELECT count(*) FROM job_media WHERE job_id = %s", job_id))
 
@@ -532,14 +531,14 @@ MATRIX = {
            "test_billing.py::test_a_unique_violation_other_than_the_refund_of_one_is_an_error_not_an_already_refunded_answer"),
     "I5": ("test_billing.py::test_a_refund_that_waits_across_midnight_does_not_touch_the_new_days_counter",
            "test_billing.py::test_a_refund_never_takes_a_counter_below_zero_and_raises_the_alert",
-           "test_billing.py::test_concurrent_charges_never_pass_the_day_limit"),
+           "test_billing.py::test_eight_concurrent_charges_never_pass_the_star_day_limit"),
     "I6": ("test_claim.py::test_a_head_no_account_can_afford_does_not_stall_the_cheaper_jobs_behind_it",
            "test_claim.py::test_an_unknown_balance_allows_any_cost",
            "test_claim.py::test_no_browser_token_is_taken_when_no_account_can_afford_any_head",
            "test_pool.py::test_can_afford_follows_i6"),
     "I7": ("test_lifecycle.py::test_an_order_not_yet_proven_taken_charges_no_account_and_stores_no_facts",
            "test_pool.py::test_eight_concurrent_refunds_of_one_charge_restore_it_once",
-           "test_pool.py::test_a_refund_after_the_pool_day_rolled_credits_nothing",
+           "test_pool.py::test_a_refund_of_yesterdays_charge_changes_nothing_today",
            "test_invariants.py::test_every_checker_rule_names_its_planted_violation"),
     "I8": ("test_invariants.py::test_all_outputs_of_one_job_are_delivered_at_the_one_price_in_either_mode",
            "test_recheck_recover.py::test_recover_attaches_outputs_once_by_upstream_id_charges_a_refunded_job_again_"
@@ -585,7 +584,7 @@ MATRIX = {
             "test_lifecycle.py::test_not_sent_is_refused_when_the_listing_does_not_cover_the_send_window"),
     "I28": ("test_browser_budget.py::test_i28_a_crowd_of_unknown_jobs_checks_and_submits_never_exceeds_the_semaphore",
             "test_crash_windows.py::test_unknown_jobs_checks_and_full_submit_slots_never_exceed_the_browser_semaphore"),
-    "I29": ("test_billing.py::test_a_provider_added_after_the_key_is_closed_on_it_until_the_admin_opens_it",
+    "I29": ("test_billing.py::test_a_new_provider_is_closed_on_existing_keys",
             "test_billing.py::test_a_day_limit_of_zero_blocks_even_a_zero_point_charge"),
 }
 

@@ -4,6 +4,7 @@ import pytest
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
+from relay_core.pool import day_pool
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -53,9 +54,8 @@ def refusal(model="vibes-image", prompt="a lighthouse at dawn", **kw) -> tuple[s
 # ---- caps, settings, catalog -----------------------------------------------------------------------------------------
 def test_the_caps_say_an_http_provider_with_a_video_and_an_image_pool():
     c = SPEC.caps
-    assert SPEC.name == "vibes" and c.execution == "http" and c.wallet_kinds == ("video", "image")
-    assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [
-        ("video", "UTC", "vibes.video_budget"), ("image", "UTC", "vibes.image_budget")]
+    assert SPEC.name == "vibes" and c.execution == "http"
+    assert [(p.name, p.unit) for p in c.pools] == [("video", "jobs"), ("image", "jobs")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
     # a video is polled after the send, and a send whose answer was lost is reconciled from its batch
@@ -71,7 +71,8 @@ def test_vibes_stays_drained_by_default_and_declares_the_settings_the_core_reads
     assert "vibes.browser_slots" not in s, "an http provider has no browser"
     assert s["vibes.prices"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
     assert s["vibes.costs"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
-    assert s["vibes.image_budget"].default >= 1000 and s["vibes.video_budget"].default >= 1000, "not measured yet"
+    # not measured yet: far above any real day
+    assert s["vibes.pools"].default == {"video": day_pool({"free": 1000}), "image": day_pool({"free": 1000})}
     assert s["vibes.render_deadline_s"].default >= 600, "a video renders for about 5 min"
     assert (s["vibes.poll_interval_s"].default, s["vibes.poll_interval_s"].min) == (20, 10), "slower than 2-6 s"
     assert s["vibes.checkpoint_rest_s"].default == 600 and s["vibes.checkpoint_rest_s"].min == 60
@@ -122,13 +123,11 @@ def test_an_image_is_held_in_the_request_and_a_video_is_detached_and_polled():
     p = plan(ratio="4:3")
     assert (p.operation, p.media_type, p.model, dict(p.params)) == (
         "text_to_image", "image", "vibes-image", {"kind": "image", "model": "midjen-base", "ratio": "4:3"})
-    assert (p.completion, p.after_sent, p.wallet_kind, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image",
-                                                                   "image")
+    assert (p.completion, p.after_sent, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image")
     assert (p.price_key, p.submit_timeout_s, p.warnings) == ("vibes-image", 180, ())
     assert (priced().price, priced().account_cost) == (1, 1)
     v = plan("vibes-video", "a paper lantern over a lake")
-    assert (v.operation, v.media_type, v.wallet_kind, v.pool, v.submit_timeout_s) == (
-        "text_to_video", "video", "video", "video", 120)
+    assert (v.operation, v.media_type, v.pool, v.submit_timeout_s) == ("text_to_video", "video", "video", 120)
     assert v.completion == Completion.DETACH, "a video is polled after the session"
     assert dict(v.params) == {"kind": "video", "model": "midjen-short", "ratio": None, "resolution": "480p"}
 

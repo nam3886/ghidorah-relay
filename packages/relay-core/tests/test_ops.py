@@ -21,19 +21,19 @@ MARK_UNKNOWN = "UPDATE jobs SET status = 'unknown', sent_at"
 MARK_QUEUED = "UPDATE jobs SET status = 'queued', sent_at"
 UNSENT_RULE = "AND NOT (status = 'queued' AND claims = 0 AND sent_at IS NULL)"
 UNSENT_IGNORED = "AND TRUE"
-NOT_REPORTED = "SET left_n = NULL WHERE source <> 'reported'"
-ALL_CAPACITY = "SET left_n = NULL WHERE true"
+FORGET = '"UPDATE account_pools SET reported_left = NULL, reported_at = NULL, refill_at = NULL"'
+KEEP = '"UPDATE account_pools SET rest_until = rest_until"'
 DUE = "UPDATE accounts SET check_due_at = clock_timestamp()"
 NOT_DUE = "UPDATE accounts SET updated_at = updated_at"
 WORKER_GUARD = "        if live:"
 NO_WORKER_GUARD = "        if False:"
 ACCOUNTS_BEFORE_CAPACITY = """        await conn.execute("UPDATE accounts SET check_due_at = clock_timestamp()")
-        # left_n is rebuilt from reported balances: a counted or reset value of the dump may be stale, so it becomes
-        # unknown (allow)
-        await conn.execute("UPDATE account_capacity SET left_n = NULL WHERE source <> 'reported'")
+        # a reported balance of the dump may be stale: it is forgotten, and the checks report the real ones
+        await conn.execute("UPDATE account_pools SET reported_left = NULL, reported_at = NULL, refill_at = NULL")
 """
 CAPACITY_BEFORE_ACCOUNTS = (
-    "        await conn.execute(\"UPDATE account_capacity SET left_n = NULL WHERE source <> 'reported'\")\n"
+    "        await conn.execute(\"UPDATE account_pools SET reported_left = NULL, reported_at = NULL, "
+    "refill_at = NULL\")\n"
     "        await conn.execute(\"UPDATE accounts SET check_due_at = clock_timestamp()\")\n")
 
 
@@ -169,21 +169,24 @@ def test_restore_fails_queued_commands_and_refuses_a_naive_time(db):
     raise AssertionError("a naive dump time must be refused")
 
 
-@mutation(SRC, NOT_REPORTED, ALL_CAPACITY,
-           expect="got == {(ids[\"a\"], \"video\"): None, (ids[\"a\"], \"image\"): 7, (ids[\"b\"], \"video\"): None}")
+@mutation(SRC, FORGET, KEEP, expect="got == {")
 @mutation(SRC, DUE, NOT_DUE, expect="assert 2 == 0")
-def test_restore_forgets_counted_capacity_keeps_reported_and_makes_every_account_due(db):
+def test_restore_forgets_every_reported_balance_keeps_the_rests_and_makes_every_account_due(db):
     ids = {n: uuid.uuid4() for n in ("a", "b")}
     for i in ids.values():
         db.run("INSERT INTO accounts (id, provider, credential_enc, state, check_due_at) VALUES "
                "(%s, 'p1', '\\x01', 'available', clock_timestamp() + interval '1 day')", i)
-    for pool_name, source in (("video", "counted"), ("image", "reported")):
-        db.run("INSERT INTO account_capacity (account_id, pool, left_n, source) VALUES (%s, %s, 7, %s)",
-               ids["a"], pool_name, source)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source) VALUES (%s, 'video', 9, 'reset')", ids["b"])
+    for pool_name in ("video", "image"):
+        db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at, rest_until) "
+               "VALUES (%s, %s, 7, clock_timestamp(), clock_timestamp() + interval '1 day', "
+               "clock_timestamp() + interval '1 hour')", ids["a"], pool_name)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at) "
+           "VALUES (%s, 'video', 9, clock_timestamp())", ids["b"])
     run(db, lambda p: ops.restore_mark(p, datetime.now(UTC)))
-    got = {(r[0], r[1]): r[2] for r in db.all("SELECT account_id, pool, left_n FROM account_capacity")}
-    assert got == {(ids["a"], "video"): None, (ids["a"], "image"): 7, (ids["b"], "video"): None}
+    got = {(r[0], r[1]): r[2:] for r in db.all(
+        "SELECT account_id, pool, reported_left, reported_at, refill_at, rest_until IS NOT NULL FROM account_pools")}
+    assert got == {(ids["a"], "video"): (None, None, None, True), (ids["a"], "image"): (None, None, None, True),
+                   (ids["b"], "video"): (None, None, None, False)}
     assert db.one("SELECT count(*) FROM accounts WHERE check_due_at > clock_timestamp()")[0] == 0
 
 
@@ -252,12 +255,13 @@ def test_restore_mark_runs_when_every_heartbeat_is_older_than_a_dead_worker_boun
 
 
 @mutation(SRC, ACCOUNTS_BEFORE_CAPACITY, CAPACITY_BEFORE_ACCOUNTS, expect="deadlock detected")
-def test_restore_mark_locks_the_account_rows_before_the_capacity_rows(db):
-    """A transaction that holds an account row and then updates its capacity rows (a wake) must not meet the restore
-    head on: the restore waits for the account first and holds no capacity row while it does."""
+def test_restore_mark_locks_the_account_rows_before_the_pool_rows(db):
+    """A transaction that holds an account row and then updates its pool rows (a wake) must not meet the restore
+    head on: the restore waits for the account first and holds no pool row while it does."""
     acct = uuid.uuid4()
     db.run("INSERT INTO accounts (id, provider, credential_enc, state) VALUES (%s, 'p1', '\\x01', 'available')", acct)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source) VALUES (%s, 'video', 5, 'counted')", acct)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at) "
+           "VALUES (%s, 'video', 5, clock_timestamp())", acct)
 
     async def scenario(p):
         reached, go, hits = asyncio.Event(), asyncio.Event(), []
@@ -293,4 +297,4 @@ def test_restore_mark_locks_the_account_rows_before_the_capacity_rows(db):
     out = run(db, scenario)
     errors = [r for r in out if isinstance(r, psycopg.Error)]
     assert not errors, errors
-    assert db.one("SELECT left_n FROM account_capacity")[0] is None
+    assert db.one("SELECT reported_left FROM account_pools")[0] is None

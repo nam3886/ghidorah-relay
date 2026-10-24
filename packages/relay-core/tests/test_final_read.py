@@ -72,7 +72,7 @@ def objects():
 
 
 def refunds(db, job_id) -> int:
-    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id)[0]
+    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id)[0]
 
 
 def charges(db, job_id) -> tuple[int, int]:
@@ -373,20 +373,21 @@ def test_a_video_found_after_the_deadline_keeps_its_download_retries_for_the_win
 # ---- the migrations -----------------------------------------------------------------------------------------------
 IDX_ACCOUNT = "CREATE INDEX jobs_account_idx ON jobs (account_id);"
 IDX_CREATED = "CREATE INDEX jobs_created_at_idx ON jobs (created_at);"
-IDX_CHARGES = "CREATE INDEX account_charges_account_pool_day_idx ON account_charges (account_id, pool, account_day);"
-INDEXES = ("jobs_account_idx", "jobs_created_at_idx", "account_charges_account_pool_day_idx")
+M0020 = "packages/relay-core/src/relay_core/db/migrations/0020_money_v2.sql"
+IDX_WINDOW = "CREATE INDEX account_charges_window ON account_charges (account_id, pool, at) WHERE refunded_at IS NULL;"
+INDEXES = ("jobs_account_idx", "jobs_created_at_idx", "account_charges_window")
 
 
 @mutation(M0018, IDX_ACCOUNT, "", expect="jobs_account_idx is missing")
 @mutation(M0018, IDX_CREATED, "", expect="jobs_created_at_idx is missing")
-@mutation(M0018, IDX_CHARGES, "", expect="account_charges_account_pool_day_idx is missing")
+@mutation(M0020, IDX_WINDOW, "", expect="account_charges_window is missing")
 def test_the_stats_indexes_exist_on_the_columns_the_stats_read(db):
     found = {name for (name,) in db.all("SELECT indexname FROM pg_indexes WHERE schemaname = 'relay'")}
     for name in INDEXES:
         assert name in found, "%s is missing" % name
     definition = db.one("SELECT indexdef FROM pg_indexes WHERE schemaname = 'relay' "
-                        "AND indexname = 'account_charges_account_pool_day_idx'")[0]
-    assert "(account_id, pool, account_day)" in definition
+                        "AND indexname = 'account_charges_window'")[0]
+    assert "(account_id, pool, at)" in definition and "refunded_at IS NULL" in definition
 
 
 COLUMNS = "ALTER TABLE jobs ADD COLUMN answered_at timestamptz NULL, ADD COLUMN late_seen_at timestamptz NULL;"

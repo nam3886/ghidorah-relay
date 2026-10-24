@@ -84,7 +84,7 @@ class Env:
         return self.spec.name
 
     def pools(self) -> dict[str, pool.PoolConfig]:
-        return pool.pool_configs(self.caps, self.settings.get)
+        return pool.pool_configs(self.spec.name, self.caps, self.settings.get)
 
     def drained(self) -> bool:
         return not self.settings.get(self.provider + ".claims_enabled")

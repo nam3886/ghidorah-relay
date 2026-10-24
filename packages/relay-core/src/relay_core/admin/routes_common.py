@@ -6,16 +6,15 @@ proxy parser. Not a lane module: it has no `router`, so `create_app` never lists
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from urllib.parse import quote, unquote, urlsplit
-from zoneinfo import ZoneInfo
 
 from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict
 
 from relay_core.api.errors_http import ApiError
-from relay_core.pool import PoolConfig
+from relay_core.pool import PoolConfig, PoolState
 from relay_core.providers import ProviderRegistry, ProviderSpec
 
 ADMIN_COMMANDS = ("delete_account", "wake", "check", "check_all", "proxy_recheck", "recover", "refresh_catalog",
@@ -35,17 +34,25 @@ def ms(moment: datetime | None) -> int | None:
     return None if moment is None else int(moment.timestamp() * 1000)
 
 
-def pool_point(cfg: PoolConfig | None, left_n: int | None, source: str, anchor: date | None, now: datetime,
-               spent: int) -> tuple[bool, int | None, bool | None]:
-    """One capacity row as the next claim sees it: `(stale, left_today, drift)`. `now` is the database clock
-    (`clock_timestamp()`, the one `pool.lock_capacity` rolls the day with), `spent` the unrefunded charges of the
-    row's own day. A row whose pool day is over goes back to the pool's budget (unknown without one); drift is a
-    counted value of today that disagrees with the budget less `spent` (the pool's 5-minute pass corrects it)."""
-    stale = cfg is not None and anchor != now.astimezone(ZoneInfo(cfg.tz)).date()
-    counted = cfg is not None and cfg.budget is not None and not stale and source in ("counted", "reset") \
-        and left_n is not None
-    drift = left_n != cfg.budget - spent if counted else None
-    return stale, cfg.budget if stale and cfg else left_n, drift
+def pool_budget(state: PoolState) -> int | None:
+    """The units the account may spend in the pool's windows, for its tier: None when any window has no budget for the
+    tier (or the pool has no window): the figure is unknown."""
+    budgets = [w.budget for w in state.standing.windows]
+    return None if not budgets or None in budgets else sum(b for b in budgets if b is not None)
+
+
+def pool_view(cfg: PoolConfig, state: PoolState) -> dict:
+    """One pool of one account as the admin lists it, what the next claim will see: `left_today` is its effective
+    balance (None = unknown), `source` says where it comes from (`reported`, `computed` or `unknown`), `left_n` is
+    the balance the upstream last reported, `budget` the tier's units in the windows and `windows` each window's
+    budget, spend and refill. `drift` is gone (spend is computed from the charges, so it cannot disagree with them)."""
+    st = state.standing
+    return {
+        "pool": cfg.name, "unit": cfg.unit, "left_n": None if state.reported is None else state.reported.left,
+        "left_today": st.left, "budget": pool_budget(state), "drift": None, "source": st.source, "day_anchor": None,
+        "rest_until_ms": ms(state.rest_until), "rest_reason": state.rest_reason,
+        "windows": [{"name": w.name, "kind": w.kind, "budget": w.budget, "spent": w.spent, "refill_ms": ms(w.refill_at)}
+                    for w in st.windows]}
 
 
 def spec_of(registry: ProviderRegistry, provider: str) -> ProviderSpec:

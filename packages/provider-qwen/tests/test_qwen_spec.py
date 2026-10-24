@@ -6,6 +6,7 @@ import pytest
 from qwenkit import BLOB, BX_UA, PAIR, REFRESH, export, minted_blob, rec
 
 from relay_core import errors, pricing
+from relay_core.pool import day_pool
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -52,9 +53,8 @@ def refusal(model="qwen-image-3.0", prompt="a lighthouse at dawn", **kw):
 # ---- caps, settings, catalog, codes --------------------------------------------------------------------------------
 def test_the_caps_say_an_http_provider_with_a_video_credit_pool_and_an_image_pool():
     c = SPEC.caps
-    assert SPEC.name == "qwen" and c.execution == "http" and c.wallet_kinds == ("video", "image")
-    assert [(p.name, p.budget_setting) for p in c.pools] == [("video", "qwen.video_budget"),
-                                                              ("image", "qwen.image_budget")]
+    assert SPEC.name == "qwen" and c.execution == "http"
+    assert [(p.name, p.unit) for p in c.pools] == [("video", "credits"), ("image", "jobs")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy) == (True, True, False)
     # the check keeps the pair fresh: it comes at least twice in the pair's lifetime
@@ -67,11 +67,11 @@ def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["qwen.claims_enabled"].default is False, "qwen must stay drained until the owner turns it on"
     for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
-                "refusal_grace_s", "prices", "costs", "image_budget", "video_budget", "disabled_models"):
+                "refusal_grace_s", "prices", "costs", "pools", "disabled_models"):
         assert "qwen." + key in s, key
-    assert s["qwen.video_budget"].default == 40          # a free account's daily credits
-    assert {k for k, v in s.items() if v.basic} == {"qwen.claims_enabled", "qwen.prices", "qwen.image_budget",
-                                                    "qwen.video_budget", "qwen.disabled_models"}
+    # a free account's daily credits; images have no window
+    assert s["qwen.pools"].default == {"video": day_pool({"free": 40}), "image": {"combine": "sum", "windows": []}}
+    assert {k for k, v in s.items() if v.basic} == {"qwen.claims_enabled", "qwen.prices", "qwen.disabled_models"}
 
 
 def test_the_registry_takes_qwen_beside_every_other_provider():
@@ -132,7 +132,7 @@ def test_a_video_is_detached_in_the_video_pool_and_costs_the_account_its_credits
 def test_a_video_that_needs_more_credits_than_an_account_has_a_day_is_refused():
     with pytest.raises(pricing.TooCostly):
         priced("qwen-happyhorse-1.1", duration=10)
-    cfg = FakeSettings(SPEC, qwen__video_budget=100)
+    cfg = FakeSettings(SPEC, qwen__pools={"video": day_pool({"free": 100})})
     assert priced("qwen-happyhorse-1.1", duration=10, cfg=cfg).account_cost == 60
 
 

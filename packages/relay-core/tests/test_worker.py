@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from accountkit import minio_settings, new_command, object_store
 from enginekit import until, within
-from jobkit import POOLS, SPEC, account, create, key
+from jobkit import SPEC, account, create, key
 from lifecyclekit import MediaEngine, load_account
 
 from relay_core import crypto, failpoints
@@ -241,34 +241,6 @@ def test_a_claim_loop_that_outlasts_the_shutdown_deadline_is_cancelled_with_the_
 
     took = run_as_worker(db, scenario)
     assert took < 2.0, "the stop took %.2f s for a 0.8 s grace" % took
-
-
-DRIFT_STEP = '("visibility", self._visibility), ("pool_drift", self._pool_drift)'
-@mutation(R, DRIFT_STEP, '("visibility", self._visibility)',
-          expect="timed out waiting for the drift pass to correct the counter")
-def test_the_running_worker_corrects_a_planted_pool_drift(db, objects):
-    acct = account(db, left=None)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) VALUES "
-           "(%s, 'video', 0, 'counted', (clock_timestamp() AT TIME ZONE 'UTC')::date)", acct)
-    budget = POOLS["video"].budget
-
-    def counter() -> int:                       # the video row: a check of the account also adds the image row
-        return db.one("SELECT left_n FROM account_capacity WHERE account_id = %s AND pool = 'video'", acct)[0]
-
-    async def scenario(owner, wp):
-        worker = make_worker(wp, FakeEngine(), objects, drift_check_s=0.2)
-        task = asyncio.create_task(worker.run())
-        try:
-            await until(lambda: counter() == budget, timeout_s=10, what="the drift pass to correct the counter")
-            async with tx(owner) as conn:                                                  # drifts again
-                await conn.execute("UPDATE account_capacity SET left_n = 1 WHERE account_id = %s AND pool = 'video'",
-                                   (acct,))
-            await until(lambda: counter() == budget, timeout_s=10, what="the next drift pass")
-        finally:
-            worker.stop()
-            await asyncio.wait_for(task, 20)
-
-    run_as_worker(db, scenario)
 
 
 # ---- start and exit codes -----------------------------------------------------------------------------------------

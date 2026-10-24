@@ -149,7 +149,7 @@ class ClaimLoop:
                 await asyncio.wait_for(self._stop.wait(), self.tick_s)
 
     def _pools(self) -> dict[str, pool.PoolConfig]:
-        return pool.pool_configs(self.caps, self.settings.get)
+        return pool.pool_configs(self.spec.name, self.caps, self.settings.get)
 
     # ---- one job -----------------------------------------------------------------------------------------------
     async def _shielded(self, work: Coroutine) -> Any:

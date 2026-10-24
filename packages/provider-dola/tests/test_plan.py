@@ -140,8 +140,7 @@ def test_a_video_names_its_model_and_length_and_the_core_prices_it_from_both_tab
                                ("seedance-1.0", 10, 2)):
         p = priced(model, duration=secs)
         assert p.price_key == C.price_key(C.resolve(model).model, "video", secs), "price key of %s %ds" % (model, secs)
-        assert p.price == price and p.account_cost == price and p.wallet_kind == "video" and p.pool == "video", (
-            model, secs)
+        assert p.price == price and p.account_cost == price and p.pool == "video", (model, secs)
     # 10 s costs twice 30 s: measured, not a typo
     assert priced(duration=10).price == 2 * priced(duration=30).price
 
@@ -190,7 +189,7 @@ def test_an_image_costs_units_of_the_image_budget_and_5_0_pro_four_of_them():
     """Owner 24/10: 40 units a day; Seedream 4.x 40 jobs (1 unit each), 5.0 Pro 10 jobs (4 each)."""
     assert priced("seedream-4.5").account_cost == 1
     assert priced("seedream-5.0-pro").account_cost == 4, "5.0 Pro costs 4 image units"
-    assert settings().get("dola.image_budget") == 40
+    assert settings().get("dola.pools")["image"]["windows"][0]["budget"] == {"free": 40}
 
 
 @mutation(SPEC_FILE, "completion=Completion.HOLD", "completion=Completion.DETACH", expect="Completion.HOLD")
@@ -199,8 +198,7 @@ def test_completion_after_sent_and_timeouts_are_the_spike_findings():
     assert v.completion is Completion.DETACH and i.completion is Completion.HOLD
     assert v.after_sent is AfterSent.RECONCILE and i.after_sent is AfterSent.RECONCILE
     assert (v.submit_timeout_s, i.submit_timeout_s) == (720, 300)
-    assert (v.media_type, i.media_type, v.pool, i.pool, v.wallet_kind, i.wallet_kind) == (
-        "video", "image", "video", "image", "video", "image")
+    assert (v.media_type, i.media_type, v.pool, i.pool) == ("video", "image", "video", "image")
 
 
 def test_operations_follow_the_inputs():
@@ -252,7 +250,7 @@ def test_the_conflict_is_judged_on_the_ratio_and_length_that_will_run():
 def test_plan_ignores_price_account_cost_and_timeout_in_options():
     # FakeSpec takes these from options; the native door passes options as the client sent them.
     steer = {"price": 999, "account_cost": 50, "submit_timeout_s": 1, "completion": "hold", "pool": "image",
-             "wallet_kind": "image", "after_sent": "fail_refund", "marker": "0001", "price_key": "seedream-4.5"}
+             "after_sent": "fail_refund", "marker": "0001", "price_key": "seedream-4.5"}
     for model in ("seedance-2.5", "seedream-4.5"):
         plain, steered = plan(model), plan(model, options=steer)
         assert steered == plain, "%s: options changed the plan: %s" % (model, steered)

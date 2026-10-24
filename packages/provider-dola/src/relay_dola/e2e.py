@@ -1,6 +1,6 @@
 """dola end-to-end run against the live service: `relay e2e --provider dola`.
 
-It makes a temporary API key with a small video wallet, creates one 5-second video through the running API, waits for
+It makes a temporary API key with a small points wallet, creates one 5-second video through the running API, waits for
 it, checks the delivered length with ffprobe, and disables the key afterwards. It SPENDS dola credits (a real
 generation) and so refuses unless `RELAY_E2E_SPEND=yes`. Environment: `DATABASE_URL` (a role that may create keys),
 `RELAY_E2E_URL` (the API, default http://127.0.0.1:8100). Never prints a key.
@@ -50,8 +50,7 @@ async def run(env: Mapping[str, str]) -> int:
     try:
         async with tx(pool) as conn:
             made = await keys.create_key(conn, label="e2e-dola", models=[MODEL], max_unfinished=1,
-                                         declared=[("dola", "video"), ("dola", "image")],
-                                         wallets={("dola", "video"): (10, 10)})
+                                         declared=["dola"], wallets={"*": (10, 10), "dola": (10, 10)})
         try:
             return await _generate(base, made.raw)
         finally:

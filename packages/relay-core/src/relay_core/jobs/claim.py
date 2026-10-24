@@ -5,7 +5,7 @@ first by `(created_at, id)`, so a video backlog never starves an older image job
 account that is available, checked, not cooling, not resting in the pool, has a free slot, and can afford the head
 (`left_n - reserved >= account_cost`, unknown allows). Affordability is decided before any browser token is taken, so
 a head that no account can pay for never stalls the cheaper jobs behind it. A candidate's account row is locked first,
-`SKIP LOCKED` (one another transaction holds is skipped), then its capacity row, so a claim never waits for anyone.
+`SKIP LOCKED` (one another transaction holds is skipped), then its pool row, so a claim never waits for anyone.
 The oldest queued job the winner can afford is claimed with `FOR UPDATE SKIP LOCKED` and its lease is inserted in the
 same transaction. The job lease's hard bound is `submit_timeout_s + APPLY_MARGIN_S`: the engine's timeout cuts the
 submit, and the margin keeps the lease alive for the fenced apply of a result that arrived just before it.
@@ -49,7 +49,7 @@ SELECT a.id FROM accounts a
  WHERE a.provider = %(provider)s AND a.state = 'available' AND a.last_checked_at IS NOT NULL
    AND (a.cooldown_until IS NULL OR a.cooldown_until <= clock_timestamp())
    AND (%(pool)s::text IS NULL OR NOT EXISTS (
-        SELECT 1 FROM account_capacity c
+        SELECT 1 FROM account_pools c
          WHERE c.account_id = a.id AND c.pool = %(pool)s AND c.rest_until > clock_timestamp()))
    AND (%(slots)s::int IS NULL OR
         (SELECT count(*) FROM leases l WHERE l.account_id = a.id AND l.until > clock_timestamp()) < %(slots)s)
@@ -159,12 +159,13 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
     """Claim at most one job for `provider`; None when nothing can run now.
 
     `settings` supplies `<provider>.claims_enabled` (drain mode, I9: a drained provider claims nothing),
-    `unsent_deadline_s` and the pool budgets. `take_token` is the browser semaphore's non-blocking acquire for a
+    `unsent_deadline_s` and the pool windows (`<provider>.pools`). `take_token` is the browser semaphore's
+    non-blocking acquire for a
     submit (None for an HTTP provider); a returned token is released here when no claim results and by the caller
     after the submit otherwise."""
     if not settings.get(provider + ".claims_enabled"):
         return None
-    cfgs = pool.pool_configs(caps, settings.get)
+    cfgs = pool.pool_configs(provider, caps, settings.get)
     deadline_s = settings.get("unsent_deadline_s")
     claim: Claim | None = None
     try:

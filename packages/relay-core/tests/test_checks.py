@@ -433,7 +433,7 @@ def test_a_drained_provider_still_checks_its_accounts_and_claims_no_job(db):
 def merge_setup(db, store, *, old_state="available", new_proxy=None, old_proxy=("10.0.0.9", 1)):
     old = new_account(db, identity="who@x", checked=True, state=old_state, credential=b"old-cred", proxy=old_proxy)
     new = new_account(db, checked=False, credential=b"new-cred", proxy=new_proxy)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", new)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", new)
     cmd = new_command(db, "check", account_id=new)
     other = new_command(db, "wake", account_id=new)
     shot = put_shot(db, store, new)
@@ -520,7 +520,7 @@ class SpyStore:
           expect="the surviving account has no capacity row for")
 def test_a_merge_makes_sure_the_surviving_twin_has_all_its_capacity_rows(db, store):
     old, new, cmd, other, shot = merge_setup(db, store)
-    assert db.one("SELECT count(*) FROM account_capacity WHERE account_id = %s", old) == (0,)
+    assert db.one("SELECT count(*) FROM account_pools WHERE account_id = %s", old) == (0,)
 
     async def scenario(p):
         engine = KitEngine()
@@ -529,7 +529,7 @@ def test_a_merge_makes_sure_the_surviving_twin_has_all_its_capacity_rows(db, sto
         return await check_account(env, new, command_id=cmd), set(env.pools())
 
     result, declared = worker(db, scenario)
-    got = {r[0] for r in db.all("SELECT pool FROM account_capacity WHERE account_id = %s", old)}
+    got = {r[0] for r in db.all("SELECT pool FROM account_pools WHERE account_id = %s", old)}
     assert result.outcome == "merged" and declared
     assert got == declared, "the surviving account has no capacity row for %s" % sorted(declared - got)
 
@@ -558,7 +558,7 @@ def twin_pair(db):
     b = new_account(db, identity="b@x", checked=True, credential=b"cred-b")
     for each in (a, b):                 # a checked account has every declared pool row
         for name in ("image", "video"):
-            db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, %s, 'reported')", each, name)
+            db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, %s)", each, name)
     return a, b
 
 
@@ -693,7 +693,7 @@ def test_the_first_check_inserts_every_declared_pool_row_of_the_account_in_pool_
         return (await check_account(make_env(p, engine), a)).outcome
 
     assert worker(db, scenario) == "checked"
-    rows = [r[0] for r in db.all("SELECT pool FROM account_capacity WHERE account_id = %s ORDER BY pool", a)]
+    rows = [r[0] for r in db.all("SELECT pool FROM account_pools WHERE account_id = %s ORDER BY pool", a)]
     assert rows == sorted(p.name for p in SPEC.caps.pools), "the first check did not insert every declared pool row"
 
 
@@ -714,7 +714,7 @@ def test_a_merge_keeps_the_existing_proxy_when_the_import_gave_none_and_never_wa
 def test_an_identity_that_belongs_to_an_account_in_use_is_not_merged_and_the_check_fails_cleanly(db, store):
     old = new_account(db, identity="who@x", checked=True)
     new = new_account(db, checked=False)
-    key = db.key(("fake", "video", None, None))
+    key = db.key(("fake", None, None))
     job = db.job(key, provider="fake")
     db.run("UPDATE jobs SET account_id = %s, status = 'failed', error_code = 'render.deadline', error = 'x', "
            "finished_at = now() WHERE id = %s",
@@ -753,7 +753,7 @@ INTERVAL = "return self.caps.check_interval_s if self.check_every_s is None else
 INTERVAL_FIXED = "return 3600.0"
 ACCOUNT_LOCK = ('        rows = await (await conn.execute("SELECT id, credential_gen FROM accounts WHERE id = ANY(%s) '
                 'ORDER BY id "\n')
-CAPACITY_FIRST = ('        await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = ANY(%s) '
+CAPACITY_FIRST = ('        await conn.execute("SELECT 1 FROM account_pools WHERE account_id = ANY(%s) '
                   'ORDER BY account_id, pool FOR UPDATE", (ids,))\n'
                   '        rows = await (await conn.execute("SELECT id, credential_gen FROM accounts '
                   'WHERE id = ANY(%s) ORDER BY id "\n')
@@ -767,7 +767,7 @@ def with_caps(spec: KitSpec, **kw) -> KitSpec:
 
 @mutation(CHECKS, REST_ALL, REST_NONE, expect="the claim must not open a browser through a dead proxy")
 @mutation(CHECKS, REST_FIXED, REST_FIXED_MUTATED,
-          expect="assert db.all(\"SELECT pool FROM account_capacity WHERE account_id = %s AND rest_")
+          expect="assert db.all(\"SELECT pool FROM account_pools WHERE account_id = %s AND rest_")
 def test_a_failed_proxy_probe_rests_the_account_on_every_pool_for_the_providers_proxy_rest(db):
     a = new_account(db, checked=True, proxy=("10.0.0.1", 8080))
     k = jobkit.key(db)
@@ -782,7 +782,7 @@ def test_a_failed_proxy_probe_rests_the_account_on_every_pool_for_the_providers_
     outcome, claimed = worker(db, scenario)
     assert outcome == "proxy_bad"
     assert claimed is None, "the claim must not open a browser through a dead proxy"
-    assert db.all("SELECT pool FROM account_capacity WHERE account_id = %s AND rest_until > clock_timestamp() "
+    assert db.all("SELECT pool FROM account_pools WHERE account_id = %s AND rest_until > clock_timestamp() "
                   "+ interval '500 s' AND rest_until < clock_timestamp() + interval '700 s' ORDER BY pool",
                   a) == [("image",), ("video",)]
 
@@ -812,14 +812,13 @@ def test_a_check_takes_the_account_row_before_the_capacity_rows_like_the_claim(d
     """The claim holds the account row and then takes a capacity row; a check that took a capacity row first and then
     the account row (for a Balance effect) would deadlock with it."""
     a = new_account(db, checked=True)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) "
-           "VALUES (%s, 'video', 3, 'reported', (clock_timestamp() AT TIME ZONE 'UTC')::date)", a)
-    db.run("INSERT INTO account_capacity (account_id, pool, source, day_anchor) "       # a checked account has both
-           "VALUES (%s, 'image', 'reset', (clock_timestamp() AT TIME ZONE 'UTC')::date)", a)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) "
+           "VALUES (%s, 'video', 3, clock_timestamp(), clock_timestamp() + interval '2 days')", a)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'image')", a)       # a checked account has both
 
     async def scenario(p):
         engine = KitEngine()
-        engine.health = Health("alive", effects=(Balance("video", 2, "reported"),))
+        engine.health = Health("alive", effects=(Balance("video", 2),))
         env = make_env(p, engine)
         reached, gate = asyncio.Event(), asyncio.Event()
 
@@ -833,7 +832,7 @@ def test_a_check_takes_the_account_row_before_the_capacity_rows_like_the_claim(d
                 await conn.execute("SELECT 1 FROM accounts WHERE id = %s FOR NO KEY UPDATE", (a,))
                 gate.set()                              # the check now records, and meets the claim's account lock
                 await asyncio.sleep(1.5)
-                await conn.execute("SELECT 1 FROM account_capacity WHERE account_id = %s FOR UPDATE", (a,))
+                await conn.execute("SELECT 1 FROM account_pools WHERE account_id = %s FOR UPDATE", (a,))
 
         async def checker():
             return (await check_account(env, a)).outcome
@@ -847,7 +846,7 @@ def test_a_check_takes_the_account_row_before_the_capacity_rows_like_the_claim(d
         return outcome
 
     assert worker(db, scenario) == "checked"
-    assert db.one("SELECT left_n FROM account_capacity WHERE account_id = %s AND pool = 'video'", a) == (2,)
+    assert db.one("SELECT reported_left FROM account_pools WHERE account_id = %s AND pool = 'video'", a) == (2,)
 
 
 @mutation(CHECKS, NO_ACCOUNT_LOCK, '"", (ids,))).fetchall()', expect="cannot be deleted")
@@ -856,7 +855,7 @@ def test_a_delete_beside_the_first_check_of_an_account_with_some_pool_rows_missi
     FOR UPDATE: the delete waits for the check's whole transaction, then removes what is there. No deadlock, no
     foreign key error, and the account is gone at the end."""
     a = new_account(db, checked=False, due_s=None)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", a)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", a)
 
     async def scenario(p):
         engine = KitEngine()
@@ -888,7 +887,7 @@ def test_a_delete_beside_the_first_check_of_an_account_with_some_pool_rows_missi
     assert not isinstance(checked, BaseException) and not isinstance(deleted, BaseException), (checked, deleted)
     assert checked.outcome == "checked" and deleted == []
     assert db.one("SELECT count(*) FROM accounts WHERE id = %s", a)[0] == 0
-    assert db.one("SELECT count(*) FROM account_capacity WHERE account_id = %s", a)[0] == 0
+    assert db.one("SELECT count(*) FROM account_pools WHERE account_id = %s", a)[0] == 0
 
 
 @mutation(CHECKS, NO_ACCOUNT_LOCK, '"", (ids,))).fetchall()', expect="violates foreign key constraint")

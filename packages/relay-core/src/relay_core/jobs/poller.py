@@ -100,7 +100,7 @@ class JobLoop:
         self._stop.set()
 
     def _pools(self) -> dict[str, pool.PoolConfig]:
-        return pool.pool_configs(self.caps, self.settings.get)
+        return pool.pool_configs(self.spec.name, self.caps, self.settings.get)
 
     async def _claim(self, n: int) -> list[Any]:
         raise NotImplementedError

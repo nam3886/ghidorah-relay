@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
@@ -52,6 +53,11 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
+# Video counts qwen credits (a free account gets 40 a day; a 5 s HappyHorse 1.1 video takes 30; a video that costs
+# more than any tier holds is refused, input.too_costly). Images count jobs and have no window: no limit met yet.
+POOLS = (PoolSpec("video", "credits"), PoolSpec("image", "jobs"))
+POOL_DEFAULTS = {"video": day_pool({"free": 40}), "image": {"combine": "sum", "windows": []}}
+
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
              "Drain mode off: when false qwen claims no new job; its account checks go on. Off until the owner turns "
@@ -85,11 +91,7 @@ _SETTINGS = dict((
         PROVIDER + ".costs", "What one job costs the qwen account: an image counts one job of the image budget, a "
         "video its qwen credits (qwen's price list). An option missing here is refused (model.uncosted).",
         C.PRICE_KEYS, C.DEFAULT_COSTS, unit="jobs or qwen credits")),
-    _setting("image_budget", int, 1000, "Images each qwen account may make per day (no limit met yet).", min=1,
-             basic=True),
-    _setting("video_budget", int, 40,
-             "qwen credits each account has for videos per day (a free account gets 40; a 5 s HappyHorse 1.1 video "
-             "takes 30). A video that costs more than this is refused (input.too_costly).", min=1, basic=True),
+    (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
@@ -105,8 +107,7 @@ class QwenSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("video", "image"),
-        pools=(PoolSpec("video", "UTC", "qwen.video_budget"), PoolSpec("image", "UTC", "qwen.image_budget")),
+        execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

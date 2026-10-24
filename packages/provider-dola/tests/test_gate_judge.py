@@ -30,7 +30,7 @@ from kit_c import (
     sync,
 )
 
-from relay_core.providers import Accepted, Balance, Fail, NotTaken, Rest, Success
+from relay_core.providers import Accepted, Balance, Fail, NotTaken, Success
 from relay_core.testing.mutation import mutation
 from relay_dola import classify, errors
 from relay_dola.engine import resolver
@@ -290,7 +290,7 @@ def result_kind(res):
     if not (isinstance(job, Accepted) and job.taken) and account[:1] == (Success(),):
         account = account[1:]          # the logged-in read that came first clears the strike count; not what is judged
     if isinstance(job, NotTaken):
-        if job.code == "pool.account_out_of_points" and account == (Rest("video", MIDNIGHT, "out of credit"),):
+        if job.code == "pool.account_out_of_points" and account == (Balance("video", 0),):
             return POINTS
         if job.code == errors.TEMPORARY_ERROR and account == ():
             return TEMP
@@ -308,16 +308,15 @@ def result_kind(res):
         rest = account[1:]
         if not rest:
             return TN
-        if rest[0] == Balance("video", 0, "reported") and len(rest) == 2 and isinstance(rest[1], Rest):
+        if rest == (Balance("video", 0),):
             return T0
         if len(rest) == 1 and isinstance(rest[0], Balance) and rest[0].pool == "video":
             return ("taken", rest[0].left_n)
     if not job.taken and account == ():
         return MAYBE
-    if not job.taken and account == (Balance("video", 2, "reported"),):
+    if not job.taken and account == (Balance("video", 2),):
         return MAYBE2
-    if not job.taken and len(account) == 2 and account[0] == Balance("video", 0, "reported") \
-            and isinstance(account[1], Rest) and account[1].pool == "video":
+    if not job.taken and account == (Balance("video", 0),):
         return ZERO_LEFT
     return "unexpected: taken=%s %r" % (job.taken, account)
 

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core import frames
+from relay_core.pool import day_pool, pools_setting
 from relay_core.pricing import table_setting
 from relay_core.providers import (
     AfterSent,
@@ -51,6 +52,11 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
+# Image: 100 a day (not measured yet). Video: 15 a day; measured on AI Pro (24/10): one 10 s video uses 453 of 2400
+# units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week.
+POOLS = (PoolSpec("image", "uses"), PoolSpec("video", "uses"))
+POOL_DEFAULTS = {"image": day_pool({"free": 100}), "video": day_pool({"free": 15})}
+
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
              "Drain mode off: when false gemini claims no new job; its account checks go on and keep the Google "
@@ -76,11 +82,7 @@ _SETTINGS = dict((
         PROVIDER + ".costs", "What one job costs the gemini account: one use of its image or its video budget "
         "(the quota is relative; no per-job figure exists). An option missing here is refused (model.uncosted).",
         C.PRICE_KEYS, C.DEFAULT_COSTS, unit="uses")),
-    _setting("image_budget", int, 100, "Images each gemini account may make per day (not measured yet).", min=1,
-             basic=True),
-    _setting("video_budget", int, 15,
-             "Videos each gemini account may make per day. Measured on AI Pro (24/10): one 10 s video uses 453 of "
-             "2400 units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week.", min=1, basic=True),
+    (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     _setting("video_limit_rest_s", int, 18000,
              "Seconds an account's video pool rests after gemini answers it can make no more videos for now (the "
              "short usage window is 5 h).", min=600, max=7 * 86400),
@@ -100,8 +102,7 @@ class GeminiSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="http", wallet_kinds=("image", "video"),
-        pools=(PoolSpec("image", "UTC", "gemini.image_budget"), PoolSpec("video", "UTC", "gemini.video_budget")),
+        execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

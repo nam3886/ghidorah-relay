@@ -10,7 +10,7 @@ import time
 
 import pytest
 from enginekit import in_status, job_status, lease_count, make_loop, running, until, within
-from jobkit import SPEC, account, create, key, run
+from jobkit import POOLS, SPEC, account, create, key, run
 
 from relay_core import crypto, failpoints
 from relay_core.budget import BrowserBudget
@@ -626,15 +626,15 @@ def test_the_account_view_opens_the_sealed_credential_and_proxy_with_the_workers
            json.dumps({"composer": 1}), acct)
 
     async def scenario(p):
-        view = await load_account_view(p, acct, [other.private, pair.private])
+        view = await load_account_view(p, acct, [other.private, pair.private], POOLS)
         with pytest.raises(crypto.CryptoError):
-            await load_account_view(p, acct, [other.private])
+            await load_account_view(p, acct, [other.private], POOLS)
         return view
 
     view = run(db, scenario)
     assert (view.label, view.credential, view.credential_gen) == ("main", b"cookie=1", 1)
     assert (view.proxy.host, view.proxy.port, view.proxy.auth) == ("h", 8080, "user:pw")
-    assert view.provider_state == {"composer": 1} and view.capacity == {"video": 3}
+    assert view.provider_state == {"composer": 1} and view.capacity == {"video": 3, "image": None}
 
 
 RUNCTX = "packages/relay-core/src/relay_core/jobs/runctx.py"
@@ -663,8 +663,8 @@ def stored(db, acct, pair) -> tuple[bytes, int]:
 @mutation(RUNCTX, '"UPDATE accounts SET credential_enc = %s, updated_at',
           '"UPDATE accounts SET credential_enc = %s, credential_gen = credential_gen + 1, updated_at',
           expect="a renewal changed the generation")
-@mutation(RUNCTX, "{pool: left for pool, left in caps}, crypto.sealing_key(sealed, keys), sealed,",
-          "{pool: left for pool, left in caps}, crypto.generate_keypair().public, sealed,",
+@mutation(RUNCTX, "capacity, crypto.sealing_key(sealed, keys), sealed,",
+          "capacity, crypto.generate_keypair().public, sealed,",
           expect="the renewed credential is not sealed for the worker's key")
 @mutation(RUNCTX, "                self.sealed, self.plain = sealed, blob\n",
           "                self.plain = blob\n", expect="a second renewal of one run was refused")
@@ -677,7 +677,7 @@ def test_a_renewed_credential_replaces_the_sealed_one_with_the_same_key_and_gene
     pair, other, acct = sealed_account(db, b'{"at": 1}')
 
     async def scenario(p):
-        view = await load_account_view(p, acct, [other.private, pair.private])
+        view = await load_account_view(p, acct, [other.private, pair.private], {})
         renewal = Renewal(p, view)
         first, second = await renewal(b'{"at": 2}'), await renewal(b'{"at": 3}')
         newer = await renewal(b'{"at": 10, "k": "x"}', merge_json)
@@ -715,8 +715,8 @@ def test_two_runs_that_read_one_generation_never_lose_a_rotation_even_when_the_l
     pair, other, acct = sealed_account(db, b'{"a": "old", "at": 1, "b": "old", "c": "old"}')
 
     async def scenario(p):
-        one = await load_account_view(p, acct, [pair.private])
-        two = await load_account_view(p, acct, [pair.private])
+        one = await load_account_view(p, acct, [pair.private], {})
+        two = await load_account_view(p, acct, [pair.private], {})
         first = await Renewal(p, one)(b'{"a": "rotated", "at": 5, "b": "old", "c": "old"}')
         b = Renewal(p, two)
         second = await b(b'{"a": "old", "at": 3, "b": "old", "c": "page", "d": "new"}', merge_json)
@@ -737,7 +737,7 @@ def test_concurrent_renewals_never_regress_and_without_a_merge_a_lost_swap_write
     pair, other, acct = sealed_account(db, b'{"at": 1}')
 
     async def concurrent(p):
-        views = [await load_account_view(p, acct, [pair.private]) for _ in range(3)]
+        views = [await load_account_view(p, acct, [pair.private], {}) for _ in range(3)]
         return await asyncio.gather(*(Renewal(p, v)(b'{"at": %d}' % (10 + i), merge_json)
                                       for i, v in enumerate(views)))
 
@@ -747,14 +747,14 @@ def test_concurrent_renewals_never_regress_and_without_a_merge_a_lost_swap_write
         "a concurrent renewal regressed the newest session"
 
     async def no_merge(p):
-        old = await load_account_view(p, acct, [pair.private])
-        assert await Renewal(p, await load_account_view(p, acct, [pair.private]))(b'{"at": 20}')
+        old = await load_account_view(p, acct, [pair.private], {})
+        assert await Renewal(p, await load_account_view(p, acct, [pair.private], {}))(b'{"at": 20}')
         return await Renewal(p, old)(b'{"at": 13}')
 
     assert run(db, no_merge) is None and json.loads(stored(db, acct, pair)[0])["at"] == 20
 
     async def stale(p):        # a run that read generation 1, while a re-import moved the account to generation 2
-        old = await load_account_view(p, acct, [pair.private])
+        old = await load_account_view(p, acct, [pair.private], {})
         async with tx(p) as conn:
             await conn.execute("UPDATE accounts SET credential_enc = %s, credential_gen = 2 WHERE id = %s",
                                (crypto.seal(pair.public, b'{"at": 0}'), acct))

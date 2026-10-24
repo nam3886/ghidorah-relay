@@ -20,12 +20,12 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import Field
 
 from relay_core import crypto, storage
-from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms, parse_proxy, pool_point, spec_of
+from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms, parse_proxy, pool_view, spec_of
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store, skip_body_log
 from relay_core.api.errors_http import ApiError
 from relay_core.db import lock_account, tx
 from relay_core.db.pool import TX_HOLD_S
-from relay_core.pool import pool_configs
+from relay_core.pool import pool_configs, pool_states
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore
@@ -42,13 +42,14 @@ _LIST = (
     "a.proxy_port, a.proxy_auth_enc IS NOT NULL, a.proxy_ok, a.proxy_checked_at, a.strikes, a.cooldown_until, "
     "a.cooldown_reason, a.last_error, a.last_used_at, a.last_checked_at, a.check_due_at, a.credential_gen, "
     "a.created_at, (SELECT count(*) FROM leases l WHERE l.account_id = a.id AND l.until > clock_timestamp()) > 0, "
-    "EXISTS (SELECT 1 FROM account_shots s WHERE s.account_id = a.id), a.provider_state->>'composer' "
+    "EXISTS (SELECT 1 FROM account_shots s WHERE s.account_id = a.id), a.provider_state->>'composer', "
+    "a.tier, a.tier_read_at IS NOT NULL, a.cycle_start "
     "FROM accounts a WHERE (%(p)s::text IS NULL OR a.provider = %(p)s) "
     "ORDER BY a.created_at DESC, a.id LIMIT %(limit)s OFFSET %(offset)s")
 _COLUMNS = ("id", "provider", "label", "identity", "display_name", "state", "state_reason", "proxy_host", "proxy_port",
             "has_proxy_auth", "proxy_ok", "proxy_checked_at", "strikes", "cooldown_until", "cooldown_reason",
             "last_error", "last_used_at", "last_checked_at", "check_due_at", "credential_gen", "created_at", "in_use",
-            "has_screenshot", "composer")
+            "has_screenshot", "composer", "tier", "tier_read", "cycle_start")
 _TIMES = ("proxy_checked_at", "cooldown_until", "last_used_at", "last_checked_at", "check_due_at", "created_at")
 
 
@@ -118,9 +119,10 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
                         pool: AsyncConnectionPool = Depends(get_pool),
                         registry: ProviderRegistry = Depends(get_registry),
                         settings: Settings = Depends(get_settings)) -> dict:
-    """A page of accounts, newest first. Each capacity row also shows `left_today`: what the next claim will see.
-    A row whose pool day is over goes back to the pool's budget (unknown without one), as `pool.lock_capacity` rolls
-    it; the stored `left_n` and `day_anchor` are shown as they are."""
+    """A page of accounts, newest first. Each pool in `capacity` shows `left_today`: what the next claim will see (the
+    balance the upstream reported while its refill has not come, else the tier's budget less the unrefunded charges of
+    the window, as `pool.lock_capacity` reads it), its `source`, its windows and its rest. The account's `tier` (null =
+    free), whether the upstream `tier_read` it and its `cycle_start` ride along."""
     if not 1 <= limit <= MAX_PAGE or offset < 0:
         raise ApiError("input.invalid", "limit")
     async with tx(pool) as conn:
@@ -128,35 +130,19 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
         total = (await (await conn.execute("SELECT count(*) FROM accounts WHERE (%(p)s::text IS NULL OR "
                                            "provider = %(p)s)", {"p": provider})).fetchone())[0]
         ids = [r[0] for r in rows]
-        capacity = await (await conn.execute(
-            "SELECT account_id, pool, left_n, source, day_anchor, rest_until, rest_reason FROM account_capacity "
-            "WHERE account_id = ANY(%s) ORDER BY pool", (ids,))).fetchall()
-        now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]   # the clock the claim uses
+        configs = {name: pool_configs(name, registry.spec(name).caps, settings.get) for name in registry.names()}
+        _, states = await pool_states(conn, {r[0]: (r[-3], configs.get(r[1], {})) for r in rows})
         made = await (await conn.execute(
             "SELECT account_id, media_type, count(*) FROM jobs WHERE account_id = ANY(%s) AND status = 'done' "
             "GROUP BY account_id, media_type", (ids,))).fetchall()
-        spent = {(a, p, d): n for a, p, d, n in await (await conn.execute(
-            "SELECT account_id, pool, account_day, sum(amount) FROM account_charges WHERE account_id = ANY(%s) "
-            "AND refunded_at IS NULL GROUP BY account_id, pool, account_day", (ids,))).fetchall()}
-    configs = {name: pool_configs(registry.spec(name).caps, settings.get) for name in registry.names()}
-    provider_of = {r[0]: r[1] for r in rows}
-    pools: dict[Any, list[dict]] = {}
-    for account_id, pool_name, left_n, source, anchor, rest_until, rest_reason in capacity:
-        cfg = configs.get(provider_of[account_id], {}).get(pool_name)
-        paid = spent.get((account_id, pool_name, anchor), 0)
-        _, left_today, drift = pool_point(cfg, left_n, source, anchor, now, paid)
-        pools.setdefault(account_id, []).append({
-            "pool": pool_name, "left_n": left_n, "left_today": left_today,
-            "budget": None if cfg is None else cfg.budget, "drift": drift, "source": source,
-            "day_anchor": None if anchor is None else str(anchor), "rest_until_ms": ms(rest_until),
-            "rest_reason": rest_reason})
     items = []
     for row in rows:
         item = dict(zip(_COLUMNS, row, strict=True))
         for name in _TIMES:
             item[name.removesuffix("_at") + "_ms"] = ms(item.pop(name))
         item["id"] = str(item["id"])
-        item["capacity"] = pools.get(row[0], [])
+        item["cycle_start"] = None if item["cycle_start"] is None else str(item["cycle_start"])
+        item["capacity"] = [pool_view(cfg, states[(row[0], name)]) for name, cfg in configs.get(row[1], {}).items()]
         item["made"] = {"video": 0, "image": 0}
         items.append(item)
     by_id = {item["id"]: item for item in items}

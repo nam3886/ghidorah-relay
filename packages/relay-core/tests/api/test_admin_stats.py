@@ -140,7 +140,7 @@ IN_USE_TWICE = ("(SELECT count(*) FROM leases JOIN accounts x ON x.id = account_
                 "WHERE x.provider = a.provider AND until > ")
 LEASE_LIVE = "AND until > clock_timestamp())), "
 COOLING = "count(*) FILTER (WHERE cooldown_until > clock_timestamp() "
-RESTING = "OR EXISTS (SELECT 1 FROM account_capacity c"
+RESTING = "OR EXISTS (SELECT 1 FROM account_pools c"
 REST_LIVE = "c.rest_until > clock_timestamp())) "
 
 
@@ -151,7 +151,7 @@ REST_LIVE = "c.rest_until > clock_timestamp())) "
 @mutation(ROUTES, COOLING, "count(*) FILTER (WHERE cooldown_until IS NOT NULL ", expect="asleep: all")
 @mutation(ROUTES, COOLING, "count(*) FILTER (WHERE state = 'available' AND cooldown_until > clock_timestamp() ",
           expect="asleep: all")
-@mutation(ROUTES, RESTING, "OR FALSE AND EXISTS (SELECT 1 FROM account_capacity c", expect="asleep: all")
+@mutation(ROUTES, RESTING, "OR FALSE AND EXISTS (SELECT 1 FROM account_pools c", expect="asleep: all")
 @mutation(ROUTES, REST_LIVE, "c.rest_until IS NOT NULL)) ", expect="asleep: all")
 @mutation(ROUTES, IN_USE_SUM, '"in_use": sum(r[4] for r in accounts.values())', expect="in use: fake")
 @mutation(ROUTES, ASLEEP_SUM, '"asleep": sum(r[5] for r in accounts.values())', expect="asleep: fake")
@@ -164,7 +164,7 @@ def test_the_cards_count_the_accounts_the_list_marks_in_use_and_asleep(db):
                "VALUES (%s, 'check', 'test', clock_timestamp() + make_interval(secs => %s))", account_id, seconds)
 
     def rest(account_id, seconds):
-        db.run("UPDATE account_capacity SET rest_until = clock_timestamp() + make_interval(secs => %s) "
+        db.run("UPDATE account_pools SET rest_until = clock_timestamp() + make_interval(secs => %s) "
                "WHERE account_id = %s", seconds, account_id)
 
     lease(account(db), 600)                              # in use
@@ -726,32 +726,20 @@ def test_rows_sit_in_the_hour_they_were_created_and_the_window_is_the_last_24_wh
 
 
 # ---- the pool panel -------------------------------------------------------------------------------------------------
+POOL = "packages/relay-core/src/relay_core/pool.py"
 POOL_ACCOUNTS = "FROM accounts WHERE state = 'available' AND"
 POOL_WITH_DEAD = "FROM accounts WHERE state <> 'disabled' AND"
 POOL_WITH_DISABLED = "FROM accounts WHERE state <> 'dead' AND"
 POOL_ACCOUNTS_ANY_PROVIDER = "WHERE state = 'available' AND (%(p)s::text IS NULL OR provider = %(p)s)"
 POOL_ACCOUNTS_ANY_PROVIDER_OFF = "WHERE state = 'available' AND true"
-REFUNDED_OUT = "WHERE c.refunded_at IS NULL AND"
-REFUNDED_IN = "WHERE true AND"
-COMMON = "packages/relay-core/src/relay_core/admin/routes_common.py"
-SPENT_TODAY = "spent.get((account_id, pool_name), 0)"
-SPENT_NOTHING = "0"
-SPENT_DAY = "AND k.day_anchor = c.account_day"
-SPENT_ANY_DAY = "AND true"
-DB_CLOCK = 'now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]'
-APP_CLOCK = "now = _now()"
-STALE_DAY = "stale = cfg is not None and anchor != "
-NEVER_STALE = "stale = False and anchor != "
-STALE_NOT_DRIFT = "and not stale and source in"
-STALE_DRIFT = "and source in"
-COUNTED_SOURCES = 'source in ("counted", "reset")'
-REPORTED_TOO = 'source in ("counted", "reported", "reset")'
-NO_BUDGET_OR_ROW = "if cfg.budget is None or row is None:"
-NO_ROW_ONLY = "if cfg.budget is None:"
-UNKNOWN_LEFT = "if left_today is None:"
+REFUNDED_OUT = '"AND refunded_at IS NULL AND at >= %s ORDER BY at", (ids, since))'
+REFUNDED_IN = '"AND at >= %s ORDER BY at", (ids, since))'
+SPENT_TODAY = "if at >= window_start(w, now)"
+SPENT_EVER = "if True"
+REPORT_WINS = "    if reported is not None and now < _refill_of_report(cfg, reported):\n"
+REPORT_ALWAYS = "    if reported is not None:\n"
+UNKNOWN_LEFT = "if state.standing.left is None or budget is None:"
 UNKNOWN_LEFT_OFF = "if False:"
-DRIFT_COUNTED = 'total["drift"] += bool(drift)'
-DRIFT_UNCOUNTED = 'total["drift"] += 0'
 SEEDED_POOLS = "for pool_name in cfgs if provider in (None, name) else ():"
 NO_SEEDED_POOLS = "for pool_name in ():"
 PROXY_FAILED = "AND proxy_ok = false"
@@ -766,20 +754,21 @@ CHECK_DONE = "status = 'done' AND (%(p)s::text IS NULL OR provider = %(p)s)"
 CHECK_NOT_QUEUED = "status <> 'queued' AND (%(p)s::text IS NULL OR provider = %(p)s)"
 CHECK_PROVIDER = "status = 'done' AND (%(p)s::text IS NULL OR provider = %(p)s)"
 CHECK_PROVIDER_OFF = "status = 'done' AND true"
-TODAY = "(clock_timestamp() AT TIME ZONE 'UTC')::date"      # the database's day, as the accounts list reads it
-YESTERDAY = TODAY + " - 1"
+LATER = "clock_timestamp() + interval '1 hour'"          # a refill still ahead
+EARLIER = "clock_timestamp() - interval '1 hour'"        # a refill that has passed
+YESTERDAY = "clock_timestamp() - interval '2 days'"
 
 
-def capacity(db, account, pool: str, left, source: str, day: str) -> None:
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) VALUES (%s, %s, %s, %s, "
-           + day + ")", account, pool, left, source)
+def reported(db, account, pool: str, left, refill: str = LATER) -> None:
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) VALUES (%s, %s, %s, "
+           "clock_timestamp() - interval '1 second', " + refill + ")", account, pool, left)
 
 
-def charged(db, k, account, pool: str, amount: int, day: str, refunded: bool = False) -> None:
+def charged(db, k, account, pool: str, amount: int, when: str = "clock_timestamp()", refunded: bool = False) -> None:
     job = done_job(db, k, account, ref=uuid.uuid4().hex)
     db.run("UPDATE jobs SET taken_at = clock_timestamp(), account_cost = %s WHERE id = %s", amount, job)
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day, refunded_at) "
-           "VALUES (%s, %s, %s, %s, " + day + ", CASE WHEN %s THEN now() END)", account, job, pool, amount, refunded)
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, at, refunded_at) "
+           "VALUES (%s, %s, %s, %s, " + when + ", CASE WHEN %s THEN now() END)", account, job, pool, amount, refunded)
 
 
 def command(db, provider: str, kind: str, status: str, finished_ms: int | None) -> None:
@@ -793,25 +782,26 @@ async def pool_stats(env, query: str = ""):
 
 
 def plant_pool(db):
-    """fake.video_budget = 4. Six available accounts count, a dead and a disabled one do not: video left
-    3 + 1 + 3 + 4 (a stale day is the budget) = 11 of 16, 2 unknown (no row, a null count), 1 drift."""
+    """`fake.pools`: video is 4 a day for a free account, images have no window. Six available accounts count, a dead
+    and a disabled one do not. Video left: a report 3, a charge of 1 today (yesterday's does not count) 3, a refunded
+    charge 4, nothing yet 4, a report whose refill passed 4 = 18 of 20; a pro account has no budget: 1 unknown. Every
+    image pool is unknown (no window)."""
     k = key(db)
-    ok, drifted, charged_ok, _no_row, null_left, stale = [account(db) for _ in range(6)]
+    ok, charged_ok, refunded, fresh, stale, pro = [account(db) for _ in range(6)]
     dead, disabled = account(db, state="dead"), account(db, state="disabled")
-    capacity(db, ok, "video", 3, "reported", TODAY)            # 3 != 4, but a reported value is not judged
-    capacity(db, drifted, "video", 1, "counted", TODAY)        # 4 - 0 spent != 1
-    charged(db, k, drifted, "video", 3, TODAY, refunded=True)  # a refunded charge is not spent
-    capacity(db, charged_ok, "video", 3, "counted", TODAY)     # 4 - 1 spent today == 3
-    charged(db, k, charged_ok, "video", 1, TODAY)
-    charged(db, k, charged_ok, "video", 1, YESTERDAY)          # yesterday's charge is not today's
-    capacity(db, null_left, "video", None, "reported", TODAY)
-    capacity(db, stale, "video", 0, "counted", YESTERDAY)      # the day is over: back to the budget, no drift verdict
-    capacity(db, dead, "video", 2, "reported", TODAY)
-    capacity(db, disabled, "video", 2, "reported", TODAY)
-    capacity(db, ok, "image", 5, "reported", TODAY)            # the image pool has no budget
+    reported(db, ok, "video", 3)                                    # 3, not the budget's 4: the report wins
+    charged(db, k, charged_ok, "video", 1)
+    charged(db, k, charged_ok, "video", 1, YESTERDAY)               # yesterday's charge is not today's
+    charged(db, k, refunded, "video", 3, refunded=True)             # a refunded charge is not spent
+    reported(db, stale, "video", 0, EARLIER)                        # its refill has passed: the budget again
+    db.run("UPDATE accounts SET tier = 'pro' WHERE id = %s", pro)
+    reported(db, dead, "video", 2)
+    reported(db, disabled, "video", 2)
+    reported(db, ok, "image", 5)
     db.run("UPDATE accounts SET proxy_ok = false WHERE id IN (%s, %s, %s)", ok, dead, disabled)
-    db.run("UPDATE accounts SET proxy_ok = true WHERE id = %s", drifted)
+    db.run("UPDATE accounts SET proxy_ok = true WHERE id = %s", charged_ok)
     db.run("INSERT INTO accounts (provider, credential_enc, proxy_ok) VALUES ('other', '\\x01', false)")
+    assert fresh
     command(db, "fake", "check_all", "done", ANCHOR - 2 * HOUR_MS)
     command(db, "fake", "check_all", "done", ANCHOR - HOUR_MS)
     command(db, "fake", "check_all", "failed", ANCHOR - HOUR_MS // 2)
@@ -822,21 +812,15 @@ def plant_pool(db):
 
 @mutation(ROUTES, POOL_ACCOUNTS, POOL_WITH_DEAD, expect="dead and disabled accounts")
 @mutation(ROUTES, POOL_ACCOUNTS, POOL_WITH_DISABLED, expect="dead and disabled accounts")
-@mutation(COMMON, STALE_DAY, NEVER_STALE, expect="left and budget")
-@mutation(ROUTES, DB_CLOCK, APP_CLOCK, expect="left and budget")
-@mutation(ROUTES, REFUNDED_OUT, REFUNDED_IN, expect="drift flagged")
-@mutation(ROUTES, SPENT_TODAY, SPENT_NOTHING, expect="drift flagged")
-@mutation(ROUTES, SPENT_DAY, SPENT_ANY_DAY, expect="drift flagged")
-@mutation(COMMON, STALE_NOT_DRIFT, STALE_DRIFT, expect="drift flagged")
-@mutation(COMMON, COUNTED_SOURCES, REPORTED_TOO, expect="drift flagged")
-@mutation(ROUTES, DRIFT_COUNTED, DRIFT_UNCOUNTED, expect="drift flagged")
-@mutation(ROUTES, NO_BUDGET_OR_ROW, NO_ROW_ONLY, expect="pool figures")
+@mutation(POOL, REFUNDED_OUT, REFUNDED_IN, expect="left and budget")
+@mutation(POOL, SPENT_TODAY, SPENT_EVER, expect="left and budget")
+@mutation(POOL, REPORT_WINS, REPORT_ALWAYS, expect="left and budget")
 @mutation(ROUTES, UNKNOWN_LEFT, UNKNOWN_LEFT_OFF, expect="pool figures")
 @mutation(ROUTES, PROXY_FAILED, PROXY_SET, expect="proxy checks failed")
 @mutation(ROUTES, PROXY_AVAILABLE, PROXY_ANY_STATE, expect="proxy checks failed")
 @mutation(ROUTES, FULL_CHECK, ANY_KIND, expect="last full check")
 @mutation(ROUTES, CHECK_DONE, CHECK_NOT_QUEUED, expect="last full check")
-def test_the_pool_panel_counts_points_unknowns_drift_proxy_failures_and_the_last_full_check(db):
+def test_the_pool_panel_counts_points_unknowns_proxy_failures_and_the_last_full_check(db):
     plant_pool(db)
 
     async def scenario(env):
@@ -846,15 +830,38 @@ def test_the_pool_panel_counts_points_unknowns_drift_proxy_failures_and_the_last
     assert r.status_code == 200, "pool figures: " + r.text
     body = r.json()
     video, image = body["pools"]
-    assert (video["pool"], image["pool"]) == ("video", "image"), "pool figures: one entry per pool, spec order"
-    assert (video["left"], video["budget"]) == (11, 16), (
-        "left and budget exclude dead and disabled accounts, and a stale day counts as the budget")
-    assert video["unknown"] == 2, "unknown points: no row or a null count, dead and disabled accounts add none"
-    assert video["drift"] == 1, "drift flagged: a counted value of today against the budget less unrefunded charges"
-    assert image == {"pool": "image", "left": 0, "budget": 0, "unknown": 6, "drift": 0}, (
-        "no budget: every counted account is unknown")
+    assert (video["provider"], video["pool"], image["pool"]) == ("fake", "video", "image"), (
+        "pool figures: one entry per pool, spec order")
+    assert (video["left"], video["budget"]) == (18, 20), (
+        "left and budget exclude dead and disabled accounts: reports, today's unrefunded charges and the budget")
+    assert video["unknown"] == 1, "unknown points: a tier with no budget, dead and disabled accounts add none"
+    assert video["unit"] == "jobs"
+    assert image == {"provider": "fake", "pool": "image", "unit": "jobs", "left": 0, "budget": 0, "unknown": 6}, (
+        "no window: every available account is unknown")
+    assert "drift" not in video, "spend is computed from the charges: nothing can drift"
     assert body["proxy_failed"] == 1, "proxy checks failed: available accounts only, a dead or disabled one is not"
     assert body["last_full_check_ms"] == ANCHOR - HOUR_MS, "last full check: the newest finished check_all"
+
+
+def test_stats_pool_never_sums_two_providers(db):
+    for _ in range(2):
+        reported(db, account(db), "video", 3)
+    other_accounts = [account(db) for _ in range(3)]
+    db.run("UPDATE accounts SET provider = 'other' WHERE id = ANY(%s)", other_accounts)
+    for who in other_accounts:
+        reported(db, who, "video", 2)
+
+    async def scenario(env):
+        env.add_provider(FakeSpec("other"))
+        return await pool_stats(env), await pool_stats(env, "?provider=other")
+
+    everyone, other = run_app(db, scenario)
+    rows = {(r["provider"], r["pool"]): r for r in everyone.json()["pools"]}
+    assert set(rows) == {("fake", "video"), ("fake", "image"), ("other", "video"), ("other", "image")}, (
+        "one row per provider and pool, never a sum across providers")
+    assert (rows["fake", "video"]["left"], rows["fake", "video"]["budget"]) == (6, 8)
+    assert (rows["other", "video"]["left"], rows["other", "video"]["budget"]) == (6, 12)
+    assert [r["provider"] for r in other.json()["pools"]] == ["other", "other"]
 
 
 @mutation(ROUTES, POOL_ACCOUNTS_ANY_PROVIDER, POOL_ACCOUNTS_ANY_PROVIDER_OFF, expect="provider filter")
@@ -883,6 +890,6 @@ def test_an_empty_pool_gives_zero_figures_for_every_pool_and_no_last_check(db):
         return await pool_stats(env)
 
     assert run_app(db, scenario).json() == {
-        "pools": [{"pool": "video", "left": 0, "budget": 0, "unknown": 0, "drift": 0},
-                  {"pool": "image", "left": 0, "budget": 0, "unknown": 0, "drift": 0}],
+        "pools": [{"provider": "fake", "pool": "video", "unit": "jobs", "left": 0, "budget": 0, "unknown": 0},
+                  {"provider": "fake", "pool": "image", "unit": "jobs", "left": 0, "budget": 0, "unknown": 0}],
         "proxy_failed": 0, "last_full_check_ms": None}, "empty database: zero figures for every pool"

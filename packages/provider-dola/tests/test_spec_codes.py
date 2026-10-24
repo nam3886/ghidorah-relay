@@ -20,9 +20,8 @@ UPLOAD = "To proceed, please upload the 3 reference images of the 3 people and t
 
 def test_the_caps_are_the_contract_values():
     c = SPEC.caps
-    assert SPEC.name == "dola" and c.execution == "browser" and c.wallet_kinds == ("video", "image")
-    assert [(p.name, p.tz, p.budget_setting) for p in c.pools] == [
-        ("video", "UTC", "dola.video_budget"), ("image", "UTC", "dola.image_budget")]
+    assert SPEC.name == "dola" and c.execution == "browser"
+    assert [(p.name, p.unit) for p in c.pools] == [("video", "credits"), ("image", "uses")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, True, True)

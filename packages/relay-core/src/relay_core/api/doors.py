@@ -508,17 +508,18 @@ def public_base(request: Request) -> str:
     return (request.app.state.public_base_url or str(request.base_url)).rstrip("/")
 
 
-# `points` is what the job's charge took: its standing charge, net of re-check cycles (a re-check after a refund
-# charges again, once; a refused re-charge leaves 0). A failed job has had that charge given back (I21, `refunded`):
-# it shows the amount refunded, its last charge, so a client's net is `refunded ? 0 : points`. Both ledger reads go
-# through the `ledger_job` index.
+# `points` is what the job's charge took from the key's points wallet (the `*` rows; the provider cap's rows repeat
+# them): its standing charge, net of re-check cycles (a re-check after a refund charges again, once; a refused
+# re-charge leaves 0). A failed job has had that charge given back (I21, `refunded`): it shows the amount refunded, its
+# last charge, so a client's net is `refunded ? 0 : points`. Both ledger reads go through the `ledger_job` index.
 _STATUS = ("SELECT j.status, j.error_code, j.model, j.params, " + SHOWN_TITLE + ", j.warnings, j.created_at, "
            "j.finished_at, "
-           "j.media_type, EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.entry = 'refund'), "
+           "j.media_type, "
+           "EXISTS (SELECT 1 FROM ledger l WHERE l.job_id = j.id AND l.scope = '*' AND l.entry = 'refund'), "
            "COALESCE((SELECT CASE WHEN j.status = 'failed' "
            "THEN (array_agg(l.amount ORDER BY l.id DESC) FILTER (WHERE l.entry = 'charge'))[1] "
            "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
-           "FROM ledger l WHERE l.job_id = j.id AND l.entry IN ('charge', 'refund')), 0) "
+           "FROM ledger l WHERE l.job_id = j.id AND l.scope = '*' AND l.entry IN ('charge', 'refund')), 0) "
            ", COALESCE(j.render_since, j.sent_at), "
            "GREATEST(EXTRACT(EPOCH FROM clock_timestamp() - COALESCE(j.render_since, j.sent_at)), 0)::float8 "
            "FROM jobs j WHERE j.id = %s AND j.key_id = %s")

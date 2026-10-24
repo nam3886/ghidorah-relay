@@ -245,7 +245,8 @@ def test_a_credential_for_a_known_identity_is_inserted_and_the_first_check_merge
 def test_the_list_shows_state_capacity_and_use_and_no_secret(db, pair):
     a = new_account(db, label="alpha", checked=True, proxy=("10.0.0.1", 80), identity="a@x")
     b = new_account(db, label="beta", checked=False, provider="other")
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source) VALUES (%s, 'video', 7, 'reported')", a)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) VALUES "
+           "(%s, 'video', 7, clock_timestamp(), clock_timestamp() + interval '1 day')", a)
     db.run("UPDATE accounts SET proxy_auth_enc = %s WHERE id = %s", b"sealed-proxy-auth", a)
     live_lease(db, a)
 
@@ -262,6 +263,8 @@ def test_the_list_shows_state_capacity_and_use_and_no_secret(db, pair):
     [item] = fake.json()["items"]
     assert item["id"] == str(a) and item["in_use"] is True and item["has_proxy_auth"] is True
     assert item["capacity"][0]["pool"] == "video" and item["capacity"][0]["left_n"] == 7
+    assert (item["capacity"][0]["left_today"], item["capacity"][0]["source"]) == (7, "reported")
+    assert (item["tier"], item["tier_read"], item["cycle_start"]) == (None, False, None)
     assert (item["proxy_host"], item["proxy_port"], item["state"], item["identity"]) == ("10.0.0.1", 80, "available",
                                                                                          "a@x")
     assert isinstance(item["created_ms"], int) and item["check_due_ms"] is not None
@@ -272,23 +275,23 @@ def test_the_list_shows_state_capacity_and_use_and_no_secret(db, pair):
         assert name not in everything.text
 
 
-@mutation("packages/relay-core/src/relay_core/admin/routes_common.py", "stale = cfg is not None and anchor != ",
-          "stale = False and anchor != ",
-          expect="a pool whose day is over shows its budget")
-def test_the_list_shows_what_the_next_claim_will_see_once_a_pool_day_is_over(db, pair):
+@mutation("packages/relay-core/src/relay_core/admin/routes_common.py", '"left_today": st.left,', '"left_today": None,',
+          expect="the budget after its refill")
+def test_the_list_shows_what_the_next_claim_will_see_a_report_until_its_refill_and_the_budget_after_it(db, pair):
     a = new_account(db, label="alpha", checked=True)
-    db.run("INSERT INTO account_capacity (account_id, pool, left_n, source, day_anchor) VALUES "
-           "(%s, 'video', 1, 'counted', (clock_timestamp() AT TIME ZONE 'UTC')::date - 1), "
-           "(%s, 'image', 3, 'reported', (clock_timestamp() AT TIME ZONE 'UTC')::date)", a, a)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) VALUES "
+           "(%s, 'video', 1, clock_timestamp() - interval '30 hours', clock_timestamp() - interval '1 hour'), "
+           "(%s, 'image', 3, clock_timestamp(), clock_timestamp() + interval '1 hour')", a, a)
 
     async def scenario(env):
         return await env.client.get("/admin/accounts?provider=fake", headers=await env.admin_headers())
 
     [item] = run_app(db, scenario).json()["items"]
     caps = {c["pool"]: c for c in item["capacity"]}
-    assert (caps["video"]["left_n"], caps["video"]["left_today"]) == (1, 4), (
-        "a pool whose day is over shows its budget (fake.video_budget = 4), as the next claim rolls it")
-    assert (caps["image"]["left_n"], caps["image"]["left_today"]) == (3, 3), "today's value is shown as it is"
+    assert (caps["video"]["left_n"], caps["video"]["left_today"], caps["video"]["source"]) == (1, 4, "computed"), (
+        "a report whose refill has passed gives way to the budget (4 a day), as the next claim reads it")
+    assert (caps["image"]["left_n"], caps["image"]["left_today"], caps["image"]["source"]) == (3, 3, "reported"), (
+        "a report whose refill is ahead is shown as it is")
 
 
 # ---- patch ------------------------------------------------------------------------------------------------------

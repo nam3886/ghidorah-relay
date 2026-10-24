@@ -19,7 +19,7 @@ from psycopg import Connection
 # wallet's day_anchor: a refund counts there only when it was made on the day of the charge it undoes, the rule
 # billing.refund applies.
 _LEDGER_VS_COUNTERS = """
-SELECT w.key_id, w.provider, w.kind, w.used_total, w.used_day,
+SELECT w.key_id, w.scope, w.used_total, w.used_day,
        COALESCE(sum(CASE l.entry WHEN 'charge' THEN l.amount WHEN 'refund' THEN -l.amount ELSE l.amount END), 0),
        COALESCE(sum(CASE WHEN l.billing_day = w.day_anchor THEN
                      CASE l.entry WHEN 'charge' THEN l.amount
@@ -27,29 +27,27 @@ SELECT w.key_id, w.provider, w.kind, w.used_total, w.used_day,
                                   ELSE l.amount END
                    ELSE 0 END), 0)
   FROM key_wallets w
-  LEFT JOIN ledger l ON l.key_id = w.key_id AND l.provider = w.provider AND l.kind = w.kind
+  LEFT JOIN ledger l ON l.key_id = w.key_id AND l.scope = w.scope
   LEFT JOIN ledger c ON c.id = l.refund_of
- GROUP BY w.key_id, w.provider, w.kind, w.used_total, w.used_day, w.day_anchor
+ GROUP BY w.key_id, w.scope, w.used_total, w.used_day, w.day_anchor
 """
 
 # A refund undoes a charge of the same key, wallet and amount; a refund is never refunded (I4).
 _BAD_REFUNDS = """
 SELECT r.id, r.refund_of FROM ledger r LEFT JOIN ledger c ON c.id = r.refund_of
  WHERE r.entry = 'refund'
-   AND (c.id IS NULL OR c.entry <> 'charge' OR (c.key_id, c.provider, c.kind, c.amount)
-        IS DISTINCT FROM (r.key_id, r.provider, r.kind, r.amount))
+   AND (c.id IS NULL OR c.entry <> 'charge' OR (c.key_id, c.scope, c.amount)
+        IS DISTINCT FROM (r.key_id, r.scope, r.amount))
 """
 
 
 def violations(conn: Connection, *, strict: bool = False) -> list[str]:
     found = []
-    for key, provider, kind, used_total, used_day, ledger_total, ledger_day in conn.execute(_LEDGER_VS_COUNTERS):
+    for key, scope, used_total, used_day, ledger_total, ledger_day in conn.execute(_LEDGER_VS_COUNTERS):
         if used_total != ledger_total:
-            found.append("I25 wallet %s %s/%s: used_total %s, ledger says %s"
-                         % (key, provider, kind, used_total, ledger_total))
+            found.append("I25 wallet %s %s: used_total %s, ledger says %s" % (key, scope, used_total, ledger_total))
         if used_day != ledger_day:
-            found.append("I25 wallet %s %s/%s: used_day %s, ledger says %s"
-                         % (key, provider, kind, used_day, ledger_day))
+            found.append("I25 wallet %s %s: used_day %s, ledger says %s" % (key, scope, used_day, ledger_day))
     for refund_id, charge_id in conn.execute(_BAD_REFUNDS):
         found.append("I4 refund row %s does not undo a matching charge (refund_of %s)" % (refund_id, charge_id))
     for (charge_id, n) in conn.execute("SELECT refund_of, count(*) FROM ledger WHERE refund_of IS NOT NULL "
@@ -88,7 +86,7 @@ _TERMINAL = "('done', 'failed')"
 _JOB_RULES = (
     ("I9", "a queued job still has sent_at (a requeue clears it)",
      "SELECT id FROM jobs WHERE status = 'queued' AND sent_at IS NOT NULL"),
-    ("I21", "a failed job whose key charge is not refunded",
+    ("I21", "a failed job whose key charge is not refunded (on the points wallet or on its provider's cap)",
      "SELECT job_id FROM ledger WHERE job_id IN (SELECT id FROM jobs WHERE status = 'failed') "
      "GROUP BY job_id HAVING sum(CASE entry WHEN 'charge' THEN amount WHEN 'refund' THEN -amount ELSE 0 END) <> 0"),
     ("I7", "an account charge for a job whose order was never proven taken",
@@ -108,10 +106,12 @@ _JOB_RULES = (
      "(SELECT count(*) FROM job_media m WHERE m.job_id = jobs.id AND m.role = 'output')"),
     ("I1", "a waiting job without an upstream reference",
      "SELECT id FROM jobs WHERE status = 'waiting' AND external_ref IS NULL"),
-    ("I8", "a job whose net key charge is neither 0 nor its price",
-     "SELECT j.id FROM jobs j JOIN ledger l ON l.job_id = j.id WHERE j.price > 0 GROUP BY j.id, j.price "
-     "HAVING sum(CASE l.entry WHEN 'charge' THEN l.amount WHEN 'refund' THEN -l.amount ELSE 0 END) "
-     "NOT IN (0, j.price)"),
+    ("I8", "a job whose net charge on a scope is neither 0 nor its price, or differs between its points wallet and "
+     "its provider's cap",
+     "SELECT job_id FROM (SELECT j.id AS job_id, j.price, "
+     "sum(CASE l.entry WHEN 'charge' THEN l.amount WHEN 'refund' THEN -l.amount ELSE 0 END) AS net "
+     "FROM jobs j JOIN ledger l ON l.job_id = j.id WHERE j.price > 0 GROUP BY j.id, j.price, l.scope) s "
+     "GROUP BY job_id, price HAVING bool_or(net NOT IN (0, price)) OR count(DISTINCT net) > 1"),
     ("I23", "a poll token on a job that is neither waiting nor fetching",
      "SELECT id FROM jobs WHERE poll_token IS NOT NULL AND status NOT IN ('waiting', 'fetching')"),
     ("I16", "a webhook with more than 3 attempts",
@@ -131,7 +131,7 @@ _STRICT_JOB_RULES = (
      "AND NOT EXISTS (SELECT 1 FROM leases l WHERE l.job_id = jobs.id)"),
     ("I3", "a priced job with no charge row in the ledger",
      "SELECT id FROM jobs WHERE price > 0 AND NOT EXISTS "
-     "(SELECT 1 FROM ledger l WHERE l.job_id = jobs.id AND l.entry = 'charge')"),
+     "(SELECT 1 FROM ledger l WHERE l.job_id = jobs.id AND l.scope = '*' AND l.entry = 'charge')"),
     ("I7", "an account charge that is not the job's account_cost",
      "SELECT j.id FROM jobs j JOIN account_charges c ON c.job_id = j.id WHERE c.amount <> j.account_cost"),
     ("I13", "a terminal job without finished_at",

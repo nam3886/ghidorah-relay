@@ -43,13 +43,13 @@ async def resume(settings: Settings, provider: str, *, by: str = "cli") -> bool:
 async def restore_mark(db: AsyncConnectionPool, dump_time: datetime) -> int:
     """After a restore from a dump taken at `dump_time`: any job that may have been sent after the dump becomes
     `unknown`, never `queued` (I1); reconcile then proves each one. `sent_at` is `dump_time` where it was empty.
-    Queued commands fail; capacity that is not a reported balance becomes unknown and every
-    account is due for a check. Returns how many jobs were marked.
+    Queued commands fail; every reported balance is forgotten (what an account has left is then computed from its
+    charges, which the dump holds) and every account is due for a check. Returns how many jobs were marked.
 
     It writes whole tables, so it refuses (`WorkersRunning`) while any worker's heartbeat is fresh: the runbook runs
     it before the workers start. The heartbeat table is locked first (SHARE), and a booting worker writes its first
     heartbeat before it starts any loop, so the whole worker waits until this has returned. Rows are then locked in
-    the global order: leases, jobs, commands, accounts, capacity rows."""
+    the global order: leases, jobs, commands, accounts, pool rows."""
     if dump_time.tzinfo is None:
         raise ValueError("the dump time needs a timezone")
     async with tx(db) as conn:
@@ -67,9 +67,8 @@ async def restore_mark(db: AsyncConnectionPool, dump_time: datetime) -> int:
         await conn.execute("UPDATE commands SET status = 'failed', finished_at = clock_timestamp(), "
                            "result = '{\"error\": \"restore\"}' WHERE status = 'queued'")
         # every account is checked next so the checks report the real balances; the account rows are locked before
-        # the capacity rows
+        # the pool rows
         await conn.execute("UPDATE accounts SET check_due_at = clock_timestamp()")
-        # left_n is rebuilt from reported balances: a counted or reset value of the dump may be stale, so it becomes
-        # unknown (allow)
-        await conn.execute("UPDATE account_capacity SET left_n = NULL WHERE source <> 'reported'")
+        # a reported balance of the dump may be stale: it is forgotten, and the checks report the real ones
+        await conn.execute("UPDATE account_pools SET reported_left = NULL, reported_at = NULL, refill_at = NULL")
     return len(marked)

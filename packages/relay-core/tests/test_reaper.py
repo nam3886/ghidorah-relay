@@ -34,7 +34,7 @@ def events(db, job_id) -> list[str]:
 
 
 def refunds(db, job_id) -> int:
-    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id)[0]
+    return db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id)[0]
 
 
 class CauseSpec(FakeSpec):
@@ -466,7 +466,7 @@ def test_a_recheck_restarts_the_render_clock_and_the_new_failure_is_refunded_aga
 
     job_id, failed, alive = run(db, scenario)
     assert (failed, alive, status(db, job_id)) == ("failed", "waiting", "failed")
-    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'charge'", job_id) == (2,)
+    assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'charge'", job_id) == (2,)
     assert refunds(db, job_id) == 2, "the re-charge is refundable like the first (I10, I21)"
 
 

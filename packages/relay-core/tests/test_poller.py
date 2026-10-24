@@ -95,7 +95,7 @@ def test_a_failed_poll_fails_the_job_and_refunds_the_key_once(db, completion):
     job_id = run(db, scenario)
     assert row(db, job_id, "status, error_code, finished_at IS NOT NULL") == ("failed", "render.deadline", True)
     assert db.one("SELECT sum(CASE entry WHEN 'charge' THEN amount ELSE -amount END) FROM ledger "
-                  "WHERE job_id = %s", job_id) == (0,)
+                  "WHERE job_id = %s AND scope = '*'", job_id) == (0,)
 
 
 @mutation(A, "                if out.taken:                           # proven taken",

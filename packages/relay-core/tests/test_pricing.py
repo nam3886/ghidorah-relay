@@ -43,7 +43,7 @@ def test_the_core_fills_price_and_cost_from_the_settings_and_never_from_the_plan
     cfg = FakeSettings(SPEC, fake__prices={"fake-video": 7, "fake-image": 1}, fake__costs={"fake-video": 3,
                                                                                          "fake-image": 1})
     p = priced(cfg=cfg, price=999, account_cost=50)          # the fake's plan carries these: the core replaces them
-    assert (p.price, p.account_cost, p.wallet_kind, p.price_key) == (7, 3, "video", "fake-video")
+    assert (p.price, p.account_cost, p.price_key) == (7, 3, "fake-video")
     free = priced(cfg=FakeSettings(SPEC, fake__prices={"fake-video": 0, "fake-image": 1}))
     assert free.price == 0, "0 points is a price the owner may set"
 
@@ -52,7 +52,7 @@ def test_the_core_fills_price_and_cost_from_the_settings_and_never_from_the_plan
 def test_a_cost_above_the_pool_budget_is_too_costly():
     """No account could ever take it: refused at the door instead of queued until the unsent deadline."""
     with pytest.raises(pricing.TooCostly) as caught:
-        priced(cfg=FakeSettings(SPEC, fake__costs={"fake-video": 5, "fake-image": 1}))   # fake.video_budget is 4
+        priced(cfg=FakeSettings(SPEC, fake__costs={"fake-video": 5, "fake-image": 1}))   # no tier holds more than 4
     assert caught.value.code == "input.too_costly"
     assert priced(cfg=FakeSettings(SPEC, fake__costs={"fake-video": 4, "fake-image": 1})).account_cost == 4
     # a pool without a budget setting is unknown: any cost passes

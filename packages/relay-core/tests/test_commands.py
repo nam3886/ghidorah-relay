@@ -195,7 +195,7 @@ def test_a_heartbeat_between_the_commit_and_the_return_of_a_command_write_does_n
 def test_two_recovers_that_return_the_same_output_leave_one_object_and_it_is_the_one_a_row_names(db, store):
     a = new_account(db, checked=True)
     b = new_account(db, checked=True)
-    k = db.key(("fake", "video", None, None))
+    k = db.key(("fake", None, None))
     job = done_job(db, k, a, ref="r1", upstream_id="up-old")
 
     async def scenario(p):
@@ -431,7 +431,7 @@ def test_a_browser_command_holds_a_command_token_and_waits_without_one(db):
 # ---- recover -------------------------------------------------------------------------------------------------------
 def recover_setup(db):
     a = new_account(db, checked=True)
-    key = db.key(("fake", "video", None, None))
+    key = db.key(("fake", None, None))
     job = done_job(db, key, a, ref="r1", upstream_id="up-old")
     return a, job
 
@@ -490,7 +490,7 @@ def test_two_recovers_of_one_job_at_once_never_write_the_same_object_key(db, sto
 
 def test_recover_removes_the_objects_it_stored_when_the_job_refuses_it(db, store):
     a = new_account(db, checked=True)
-    job = done_job(db, db.key(("fake", "video", None, None)), a, status="done")
+    job = done_job(db, db.key(("fake", None, None)), a, status="done")
     # a job that cannot be recovered: not finished
     db.run("UPDATE jobs SET status = 'queued', sent_at = NULL, finished_at = NULL WHERE id = %s", job)
     db.run("DELETE FROM job_media WHERE job_id = %s", job)

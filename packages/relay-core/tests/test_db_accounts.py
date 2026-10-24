@@ -34,13 +34,13 @@ def delete_as(dsn, account_id):
 def counts(db, account_id):
     return {t: db.one("SELECT count(*) FROM %s WHERE %s = %%s" % (t, "id" if t == "accounts" else "account_id"),
                       account_id)[0]
-            for t in ("accounts", "leases", "account_charges", "account_shots", "commands", "account_capacity")}
+            for t in ("accounts", "leases", "account_charges", "account_shots", "commands", "account_pools")}
 
 
 def by_product_rows(db, account_id):
     db.run("INSERT INTO account_shots (account_id, object_key) VALUES (%s, 'shots/b.png')", account_id)
     db.run("INSERT INTO commands (provider, kind, account_id) VALUES ('p1', 'check', %s)", account_id)
-    db.run("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", account_id)
+    db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", account_id)
     db.run("INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now() - interval '1 h')",
            account_id)
 
@@ -49,7 +49,7 @@ def by_product_rows(db, account_id):
           '("it has a job", "SELECT false WHERE %s IS NULL"),',
            expect="return await delete_unused_account(conn, account_id)")
 def test_an_account_with_a_job_is_refused(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     account_id = account(db)
     db.run("UPDATE jobs SET account_id = %s WHERE id = %s", account_id, db.job(key))
     with pytest.raises(AccountInUse, match="has a job"):
@@ -61,10 +61,10 @@ def test_an_account_with_a_job_is_refused(db):
           '("it has an account charge", "SELECT false WHERE %s IS NULL"),',
            expect="return await delete_unused_account(conn, account_id)")
 def test_an_account_with_a_charge_is_refused(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     account_id = account(db)
-    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-           "VALUES (%s, %s, 'video', 2, current_date)", account_id, db.job(key))      # the job itself is unassigned
+    db.run("INSERT INTO account_charges (account_id, job_id, pool, amount) "
+           "VALUES (%s, %s, 'video', 2)", account_id, db.job(key))      # the job itself is unassigned
     with pytest.raises(AccountInUse, match="account charge"):
         delete_as(db.worker_dsn, account_id)
     assert counts(db, account_id)["account_charges"] == 1
