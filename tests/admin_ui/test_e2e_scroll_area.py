@@ -310,10 +310,10 @@ def test_the_flow_layout_is_the_same_page_in_one_block(app, app_session, db, rou
 
 def test_a_page_shorter_than_the_window_keeps_the_window_height_in_the_flow_layout(app, app_session):
     page = app_session
-    go(app, page, "test", 1440, 1200)
+    go(app, page, "test", 1440, 1600)                  # the Test page is about 1,320 px tall at 1440
     with flow(page):
         settle(page)
-        assert page.evaluate("document.documentElement.scrollHeight", isolated_context=False) == 1200
+        assert page.evaluate("document.documentElement.scrollHeight", isolated_context=False) == 1600
 
 
 def test_the_flow_layout_is_not_a_test_hook(app, app_session):
