@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AlertDetail, BillingItem, UnclearItem } from "@/api/alerts";
+import { scopeName } from "@/components/keys/key-model";
 import LedgerList, { type LedgerItem } from "@/components/shared/LedgerList.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
@@ -74,7 +75,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
           <span class="ad-time">{{ alertTime(r.at_ms) }}</span>
           <StatusChip :status="r.alert" tone="bad" />
         </span>
-        <span class="ad-muted">{{ r.provider }} / {{ r.kind }}</span>
+        <span class="ad-muted">{{ scopeName(r.scope) }}</span>
         <span class="ad-muted ad-mono"
           >amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total
           }}<template v-if="r.detail"> · {{ r.detail }}</template></span
@@ -156,7 +157,7 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
               <span v-if="r.detail" class="ad-code">{{ r.detail }}</span>
             </td>
             <td class="ad-acctkey">
-              <span class="ad-key">{{ r.provider }} / {{ r.kind }}</span>
+              <span class="ad-key">{{ scopeName(r.scope) }}</span>
               <span class="ad-acct">amount {{ r.amount }} · today {{ r.used_day }} · total {{ r.used_total }}</span>
             </td>
             <td class="ad-ack">{{ r.acknowledged_ms === null ? "not yet" : acked(r) }}</td>

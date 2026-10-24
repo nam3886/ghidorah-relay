@@ -161,8 +161,7 @@ describe("the list", () => {
           unfinished: 2,
           wallets: [
             {
-              provider: "vibes",
-              kind: "video",
+              scope: "*",
               day_limit: 10,
               total_limit: 100,
               used_day: 3,
@@ -170,8 +169,7 @@ describe("the list", () => {
               mode: "limit",
             },
             {
-              provider: "dola",
-              kind: "image",
+              scope: "dola",
               day_limit: 0,
               total_limit: 0,
               used_day: 0,
@@ -185,9 +183,9 @@ describe("the list", () => {
     const w = await open();
     const row = w.find("tbody tr").text();
     expect(row).toContain(PLANTED);
-    expect(row).toContain("vibes video");
+    expect(row).toContain("points");
     expect(row).toContain("day 3/10 · total 40/100");
-    expect(row).toContain("dola image");
+    expect(row).toContain("dola cap");
     expect(row).toContain("closed");
     expect(row).toContain("2 / unlimited");
     expect(
@@ -444,8 +442,7 @@ describe("Copy", () => {
 });
 
 const limitWallet = (over: Partial<keys.Wallet> = {}): keys.Wallet => ({
-  provider: "dola",
-  kind: "video",
+  scope: "dola",
   day_limit: 20,
   total_limit: 200,
   used_day: 3,
@@ -470,14 +467,14 @@ describe("the provider strip", () => {
           id: "k2",
           label: "dola only",
           models: ["m2", "m3"],
-          wallets: [limitWallet(), limitWallet({ provider: "vibes", kind: "video" })],
+          wallets: [limitWallet({ scope: "*" }), limitWallet(), limitWallet({ scope: "vibes" })],
         }),
         key({ id: "k3", label: "vibes only", models: ["m1"] }),
       ],
     });
   });
 
-  it("a provider shows the keys that may use its models, only its models and its wallets; paused is greyed", async () => {
+  it("a provider shows the keys that may use its models, only its models, the points wallet and its cap; paused is greyed", async () => {
     const w = await open();
     useScopeStore().provider = "dola";
     await settle();
@@ -485,7 +482,10 @@ describe("the provider strip", () => {
     expect(rows.map((r) => r.find(".k-label").text())).toEqual(["any", "dola only"]);
     expect(rows[1]!.findAll(".k-mg").map((g) => g.text())).toEqual(["Ddola: m2, m3 (paused)"]);
     expect(rows[1]!.find(".k-mg__paused").text()).toBe("m3 (paused)");
-    expect(rows[1]!.findAll('[data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual(["Ddola video"]);
+    expect(rows[1]!.findAll('[data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual([
+      "points",
+      "Ddola cap",
+    ]);
     expect(w.text()).toContain("A model marked (paused) is switched off in Settings");
   });
 });
@@ -510,8 +510,8 @@ describe("the page as the design draws it", () => {
         key({
           wallets: [
             limitWallet(),
-            limitWallet({ kind: "image", mode: "unlimited", used_total: 9 }),
-            limitWallet({ provider: "x", kind: "audio", mode: "closed" }),
+            limitWallet({ scope: "flow", mode: "unlimited", used_total: 9 }),
+            limitWallet({ scope: "x", mode: "closed" }),
           ],
         }),
       ],
@@ -523,24 +523,29 @@ describe("the page as the design draws it", () => {
     expect(bars[0]!.findAll(".wallet__fill").map((f) => (f.element as HTMLElement).style.width)).toEqual(["15%", "7%"]);
     expect(bars[0]!.find(".wallet__fill--relative").exists()).toBe(false);
     const lines = w.findAll('tbody [data-testid="wallet-line"]').map((l) => l.text());
-    expect(lines[0]).toContain("dola video");
+    expect(lines[0]).toContain("dola cap");
     expect(lines[0]).toContain("day 3/20 · total 14/200");
     expect(lines[1]).toContain("unlimited (9 used)");
     expect(lines[2]).toContain("closed");
   });
 
-  it("lists a provider's video wallet before its image wallet, whatever order the server sent", async () => {
+  it("lists the points wallet first, then the providers' caps by name, whatever order the server sent", async () => {
     list.mockResolvedValue({
       items: [
         key({
-          wallets: [limitWallet({ kind: "image", mode: "closed" }), limitWallet({ kind: "video", mode: "closed" })],
+          wallets: [
+            limitWallet({ scope: "vibes", mode: "closed" }),
+            limitWallet({ scope: "dola", mode: "closed" }),
+            limitWallet({ scope: "*", mode: "closed" }),
+          ],
         }),
       ],
     });
     const w = await open();
     expect(w.findAll('tbody [data-testid="wallet-line"] .wallet__kind').map((k) => k.text())).toEqual([
-      "Ddola video",
-      "Ddola image",
+      "points",
+      "Ddola cap",
+      "Vvibes cap",
     ]);
   });
 
@@ -603,10 +608,7 @@ describe("the key form as the design draws it", () => {
       items: [
         key({
           models: ["m1"],
-          wallets: [
-            limitWallet({ provider: "vibes", kind: "video" }),
-            limitWallet({ provider: "dola", kind: "image", mode: "unlimited", used_total: 9 }),
-          ],
+          wallets: [limitWallet({ scope: "vibes" }), limitWallet({ scope: "dola", mode: "unlimited", used_total: 9 })],
           ...over,
         }),
       ],
@@ -638,7 +640,9 @@ describe("the key form as the design draws it", () => {
     expect(document.getElementById(named.getAttribute("aria-labelledby")!)).toBe(dialog.querySelector("h2"));
     expect(dialog.textContent).toContain("3 used today · 14 total");
     expect(dialog.textContent).toContain("9 used");
-    expect(dialog.textContent).toContain("Limits apply in limit mode only. Per day resets at midnight.");
+    expect(dialog.textContent).toContain(
+      "A job needs the points wallet and its provider's cap both open. Limits apply in limit mode only. Per day resets at midnight.",
+    );
   });
 
   it("a new key has a plain title and says nothing of use", async () => {
@@ -652,25 +656,25 @@ describe("the key form as the design draws it", () => {
 
   it("a wallet that leaves limit mode shows empty, disabled number boxes, and a limit wallet shows its numbers", async () => {
     await editShop();
-    expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
-    expect(field('input[aria-label="vibes video total"]').value).toBe("200");
-    expect(field('input[aria-label="vibes video per day"]').disabled).toBe(false);
-    await chooseMode("vibes video", "closed");
-    expect(field('input[aria-label="vibes video per day"]').value).toBe("");
-    expect(field('input[aria-label="vibes video per day"]').disabled).toBe(true);
-    expect(field('input[aria-label="vibes video total"]').disabled).toBe(true);
-    await chooseMode("vibes video", "limit");
-    expect(field('input[aria-label="vibes video per day"]').value).toBe("20");
+    expect(field('input[aria-label="vibes cap per day"]').value).toBe("20");
+    expect(field('input[aria-label="vibes cap total"]').value).toBe("200");
+    expect(field('input[aria-label="vibes cap per day"]').disabled).toBe(false);
+    await chooseMode("vibes cap", "closed");
+    expect(field('input[aria-label="vibes cap per day"]').value).toBe("");
+    expect(field('input[aria-label="vibes cap per day"]').disabled).toBe(true);
+    expect(field('input[aria-label="vibes cap total"]').disabled).toBe(true);
+    await chooseMode("vibes cap", "limit");
+    expect(field('input[aria-label="vibes cap per day"]').value).toBe("20");
   });
 
   it("each wallet's Mode is named after its wallet and keeps the visible word", async () => {
     await editShop();
     const modes = [...document.body.querySelectorAll<HTMLElement>('.key-dialog [role="combobox"]')];
-    expect(modes.map((m) => m.getAttribute("aria-label"))).toEqual(["dola image Mode", "vibes video Mode"]);
+    expect(modes.map((m) => m.getAttribute("aria-label"))).toEqual(["points Mode", "dola cap Mode", "vibes cap Mode"]);
     expect(modes.some((m) => m.hasAttribute("aria-labelledby"))).toBe(false);
-    modes[1]!.click();
+    modes[2]!.click();
     await settle();
-    expect(document.body.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("vibes video Mode");
+    expect(document.body.querySelector('[role="listbox"]')!.getAttribute("aria-label")).toBe("vibes cap Mode");
   });
 
   it("the model boxes are off while Any model is ticked and on once it is cleared", async () => {
@@ -1068,7 +1072,7 @@ describe("the relative bars of an unlimited wallet", () => {
     );
   });
 
-  it("a limit wallet that is open counts toward the maximum; a closed one does not; each provider and kind has its own", async () => {
+  it("a limit wallet that is open counts toward the maximum; a closed one does not; each scope has its own", async () => {
     list.mockResolvedValue({
       items: [
         key({ id: "a", label: "a", wallets: [unlimited({ used_day: 4, used_total: 8 })] }),
@@ -1082,7 +1086,7 @@ describe("the relative bars of an unlimited wallet", () => {
           label: "c",
           wallets: [limitWallet({ mode: "closed", used_day: 999, used_total: 999, day_limit: 0, total_limit: null })],
         }),
-        key({ id: "d", label: "d", wallets: [unlimited({ kind: "image", used_day: 2, used_total: 2 })] }),
+        key({ id: "d", label: "d", wallets: [unlimited({ scope: "x", used_day: 2, used_total: 2 })] }),
       ],
     });
     const w = await open();

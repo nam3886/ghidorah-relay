@@ -30,7 +30,7 @@ const SUMMARY: ProvidersSummary = {
       done_today: 2,
       accounts: { usable: 6, total: 8 },
       pools: [
-        { pool: "video", unit: "points", left: 11, budget: 32 },
+        { pool: "video", unit: "credits", left: 11, budget: 32 },
         { pool: "image", unit: "jobs", left: 120, budget: 320 },
       ],
     }),
@@ -63,6 +63,7 @@ describe("the Jobs today table", () => {
     const [video, image] = rowsOf(SUMMARY)[0]!.pools;
     expect(poolText(video!)).toBe("11 / 32 video pts");
     expect(poolText(image!)).toBe("120 / 320 image jobs");
+    expect(poolText({ ...image!, unit: "uses" })).toBe("120 / 320 image uses");
   });
 
   it("names the send path, or paused when the provider takes no new job", () => {

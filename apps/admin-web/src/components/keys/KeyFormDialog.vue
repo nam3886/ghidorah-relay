@@ -6,7 +6,7 @@ import FilterSelect from "@/components/shared/FilterSelect.vue";
 import DetailDrawer from "@/components/shared/DetailDrawer.vue";
 import { IconAlertCircle } from "@/components/shared/icons";
 import "@/components/logs/lane-controls.css";
-import { type CreateError, keyBody, keyForm, type KeyForm } from "./key-model";
+import { type CreateError, keyBody, keyForm, type KeyForm, scopeName } from "./key-model";
 
 // Create or edit a key, in a right drawer. The form only asks: it builds the body from what was typed and the view
 // sends it. `dirty` (something typed since it opened) is what the drawer's close guard and the view's leave guard read.
@@ -50,8 +50,8 @@ const title = computed(() =>
 );
 
 // What a wallet has used so far, from the key being edited ("3 used today · 14 total", "9 used"); nothing for a new key.
-function usedText(provider: string, kind: string, mode: string): string {
-  const w = props.editing?.wallets.find((x) => x.provider === provider && x.kind === kind);
+function usedText(scope: string, mode: string): string {
+  const w = props.editing?.wallets.find((x) => x.scope === scope);
   if (!w) return "";
   return mode === "limit" || w.mode === "limit"
     ? `${w.used_day} used today · ${w.used_total} total`
@@ -136,25 +136,28 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
 
       <fieldset class="kd__set" :class="{ 'is-error': flagged('wallets') }">
         <legend class="kd__label kd__legend kd__legend--tight">Wallets</legend>
-        <p class="kd__help kd__help--wallets">Limits apply in limit mode only. Per day resets at midnight.</p>
+        <p class="kd__help kd__help--wallets">
+          A job needs the points wallet and its provider's cap both open. Limits apply in limit mode only. Per day
+          resets at midnight.
+        </p>
         <!-- each wallet a group named after it: its Mode, Per day and Total read in its name -->
         <div
           v-for="w in form.wallets"
-          :key="`${w.provider}/${w.kind}`"
+          :key="w.scope"
           class="kd__wallet"
           role="group"
-          :aria-label="`${w.provider} ${w.kind}`"
+          :aria-label="scopeName(w.scope)"
           data-wallet
         >
           <div class="kd__wallet-name">
-            <span class="kd__wallet-kind">{{ w.provider }} {{ w.kind }}</span>
-            <span class="kd__help kd__used">{{ usedText(w.provider, w.kind, w.mode) }}</span>
+            <span class="kd__wallet-kind">{{ scopeName(w.scope) }}</span>
+            <span class="kd__help kd__used">{{ usedText(w.scope, w.mode) }}</span>
           </div>
           <FilterSelect
             class="kd__mode"
             variant="field"
             label="Mode"
-            :aria-label="`${w.provider} ${w.kind} Mode`"
+            :aria-label="`${scopeName(w.scope)} Mode`"
             :model-value="w.mode"
             :options="MODE_OPTIONS"
             @update:model-value="(v) => (w.mode = v as WalletMode)"
@@ -170,7 +173,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
               placeholder="—"
               :value="w.mode === 'limit' ? w.day : ''"
               :disabled="w.mode !== 'limit'"
-              :aria-label="`${w.provider} ${w.kind} per day`"
+              :aria-label="`${scopeName(w.scope)} per day`"
               @input="w.day = typed($event)"
           /></label>
           <label class="kd__mini"
@@ -184,7 +187,7 @@ const modelHint = (m: CatalogModel): string => `${String(m.kind ?? "")} · ${m.n
               placeholder="—"
               :value="w.mode === 'limit' ? w.total : ''"
               :disabled="w.mode !== 'limit'"
-              :aria-label="`${w.provider} ${w.kind} total`"
+              :aria-label="`${scopeName(w.scope)} total`"
               @input="w.total = typed($event)"
           /></label>
         </div>

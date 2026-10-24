@@ -58,20 +58,20 @@ def _models(models: Iterable[str]) -> list[str]:
 
 
 async def create_key(conn: psycopg.AsyncConnection, *, label: str = "", models: Iterable[str] = (ANY_MODEL,),
-                     max_unfinished: int | None = None, declared: Iterable[tuple[str, str]],
-                     wallets: Mapping[tuple[str, str], tuple[int | None, int | None]] | None = None) -> NewKey:
-    """Make a key. `wallets` maps (provider, kind) to (day_limit, total_limit): a number, 0 = closed, None =
-    unlimited, which is set only on purpose. `declared` is every (provider, kind) pair the registered providers
-    offer (required, so no wallet is ever missing): a pair not given in `wallets` gets a closed row. Runs inside
-    a transaction, since a key and its wallets are made together or not at all."""
+                     max_unfinished: int | None = None, declared: Iterable[str],
+                     wallets: Mapping[str, tuple[int | None, int | None]] | None = None) -> NewKey:
+    """Make a key. `wallets` maps a scope to (day_limit, total_limit): the points wallet `*` and a provider's cap, a
+    number, 0 = closed, None = unlimited, which is set only on purpose. `declared` is every provider the registered
+    providers offer (required, so no cap row is ever missing): the points wallet and every declared provider not given
+    in `wallets` get a closed row. Runs inside a transaction, since a key and its wallets are made together or not
+    at all."""
     billing.require_tx(conn)
     raw = PREFIX + secrets.token_urlsafe(32)
     key_id = (await (await conn.execute(
         "INSERT INTO api_keys (key_hash, key_prefix, label, models, max_unfinished) VALUES (%s, %s, %s, %s, %s) "
         "RETURNING id", (hash_key(raw), raw[:LOOKUP_LEN], label, _models(models), max_unfinished))).fetchone())[0]
-    chosen = {**dict.fromkeys(declared, CLOSED), **(wallets or {})}
-    for (provider, kind), (day, total) in chosen.items():
-        await billing.create_wallets(conn, key_id, [(provider, kind)], day_limit=day, total_limit=total)
+    chosen = {**dict.fromkeys([billing.STAR, *declared], CLOSED), **(wallets or {})}
+    await billing.create_wallets(conn, key_id, chosen)
     return NewKey(key_id, raw)
 
 

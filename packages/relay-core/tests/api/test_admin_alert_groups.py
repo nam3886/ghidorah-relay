@@ -22,8 +22,8 @@ MARKER = "PLANTED-MARKER-7f3a"
 
 ACK_UNCLEAR = "WHERE group_id = %s AND id <= %s AND acknowledged_at IS NULL"
 ACK_UNCLEAR_ALL = "WHERE group_id = %s AND %s IS NOT NULL AND acknowledged_at IS NULL"
-ACK_BILLING = "AND key_id = %s AND provider = %s AND kind = %s AND id <= %s AND acknowledged_at IS NULL"
-ACK_BILLING_ALL = "AND key_id = %s AND provider = %s AND kind = %s AND %s IS NOT NULL AND acknowledged_at IS NULL"
+ACK_BILLING = "AND key_id = %s AND scope = %s AND id <= %s AND acknowledged_at IS NULL"
+ACK_BILLING_ALL = "AND key_id = %s AND scope = %s AND %s IS NOT NULL AND acknowledged_at IS NULL"
 ACK_BY_KIND = "acknowledged_by = %s WHERE alert = %s "
 ACK_ANY_KIND = "acknowledged_by = %s WHERE %s IS NOT NULL "
 OPEN_FILTER = '(">" if status == "open" else "=")'
@@ -98,7 +98,7 @@ def test_one_list_holds_a_clamp_a_drift_and_an_unclear_group_in_the_common_shape
     assert set(by_kind["unclear_reply"]) == {"kind", "group", "severity", "title", "provider", "first_ms", "last_ms",
                                             "count", "open_count", "keys", "newest_id", "reply", "key_label",
                                             "status", "detail"}
-    assert by_kind["clamp"]["group"] == "%s.fake.video" % k and by_kind["clamp"]["newest_id"] == clamp
+    assert by_kind["clamp"]["group"] == "%s.*" % k and by_kind["clamp"]["newest_id"] == clamp
     assert by_kind["drift"]["newest_id"] == drift and by_kind["clamp"]["keys"] == 1
     unclear = by_kind["unclear_reply"]
     assert unclear["severity"] == "warning" and unclear["title"] == "hmm, order [#] is odd." and unclear["keys"] == 1
@@ -279,7 +279,7 @@ def test_a_billing_detail_shows_the_rows_of_that_alert_kind_and_wallet_as_the_bi
 
     async def scenario(env):
         h = await env.admin_headers()
-        group = "%s.fake.video" % k
+        group = "%s.*" % k
         detail = await env.client.get(detail_url("clamp", group), headers=h)
         other = await env.client.get(detail_url("drift", group), headers=h)
         listing = await env.client.get("/admin/alerts?status=all", headers=h)
@@ -314,17 +314,17 @@ def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db)
     k, clamp, drift = plant(db)
     db.run("UPDATE api_keys SET label = 'Main key' WHERE id = %s", k)
     job = plant_job(db, k, "done")                         # untitled: named by its prompt
-    ledger = db.one("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
-                    "VALUES (%s, %s, 'fake', 'video', 'charge', 1, current_date) RETURNING id", k, job)[0]
-    db.run("UPDATE key_wallets SET used_total = 1 WHERE key_id = %s", k)   # agrees with the ledger
-    named = db.one("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, "
-                   "used_total) VALUES ('clamp', %s, 'fake', 'video', %s, 5, 2, 3) RETURNING id", k, ledger)[0]
+    ledger = db.one("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day) "
+                    "VALUES (%s, '*', %s, 'fake', 'charge', 1, current_date) RETURNING id", k, job)[0]
+    db.run("UPDATE key_wallets SET used_total = 1 WHERE key_id = %s AND scope = '*'", k)   # agrees with the ledger
+    named = db.one("INSERT INTO billing_alerts (alert, key_id, scope, ledger_id, amount, used_day, "
+                   "used_total) VALUES ('clamp', %s, '*', %s, 5, 2, 3) RETURNING id", k, ledger)[0]
     reply = plant_unclear(db, k, "Wording [1]")
     db.run("UPDATE jobs SET title = 'Unclear one' WHERE id = (SELECT job_id FROM unclear_replies WHERE id = %s)", reply)
 
     async def scenario(env):
         h = await env.admin_headers()
-        billing = await env.client.get(detail_url("clamp", "%s.fake.video" % k), headers=h)
+        billing = await env.client.get(detail_url("clamp", "%s.*" % k), headers=h)
         return billing, await env.client.get(detail_url("unclear_reply", group_of("Wording [1]")), headers=h)
 
     billing, unclear = run_app(db, scenario)
@@ -342,15 +342,15 @@ def test_alert_details_carry_the_job_title_and_the_key_label_next_to_the_ids(db)
 @mutation(ALERTS, JOB_JOIN, JOB_ANY_KEY, expect="another key's job is never named")
 def test_a_billing_alert_never_names_a_ledger_row_or_a_job_of_another_key(db):
     k, other = key(db), key(db)
-    db.run("UPDATE key_wallets SET used_total = 2 WHERE kind = 'video' AND key_id = %s", other)
-    db.run("UPDATE key_wallets SET used_total = 1 WHERE kind = 'video' AND key_id = %s", k)
+    db.run("UPDATE key_wallets SET used_total = 2 WHERE scope = '*' AND key_id = %s", other)
+    db.run("UPDATE key_wallets SET used_total = 1 WHERE scope = '*' AND key_id = %s", k)
     mine, theirs = plant_job(db, k, "done"), plant_job(db, other, "done")
     db.run("UPDATE jobs SET title = 'Mine' WHERE id = %s", mine)
     db.run("UPDATE jobs SET title = 'Not yours' WHERE id = %s", theirs)
-    ledger = ("INSERT INTO ledger (key_id, job_id, provider, kind, entry, amount, billing_day) "
-              "VALUES (%s, %s, 'fake', 'video', 'charge', 1, current_date) RETURNING id")
-    alert = ("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, used_total) "
-             "VALUES ('clamp', %s, 'fake', 'video', %s, 5, 2, 3) RETURNING id")
+    ledger = ("INSERT INTO ledger (key_id, scope, job_id, provider, entry, amount, billing_day) "
+              "VALUES (%s, '*', %s, 'fake', 'charge', 1, current_date) RETURNING id")
+    alert = ("INSERT INTO billing_alerts (alert, key_id, scope, ledger_id, amount, used_day, used_total) "
+             "VALUES ('clamp', %s, '*', %s, 5, 2, 3) RETURNING id")
     # another key's ledger row with another key's job; with this key's job; and this key's row with another key's job
     both, ledger_only, job_only = (db.one(alert, k, db.one(ledger, other, theirs)[0])[0],
                                    db.one(alert, k, db.one(ledger, other, mine)[0])[0],
@@ -358,7 +358,7 @@ def test_a_billing_alert_never_names_a_ledger_row_or_a_job_of_another_key(db):
 
     async def scenario(env):
         h = await env.admin_headers()
-        return await env.client.get(detail_url("clamp", "%s.fake.video" % k), headers=h)
+        return await env.client.get(detail_url("clamp", "%s.*" % k), headers=h)
 
     items = {i["id"]: i for i in run_app(db, scenario).json()["items"]}
     check = Soft()
@@ -391,10 +391,10 @@ def test_acknowledge_stamps_only_the_open_rows_up_to_through_id_and_a_new_row_re
     ids = [plant_unclear(db, k, "Same words [%d]" % n) for n in range(3)]
     group = group_of("Same words [0]")
     k2, clamp, drift = plant(db)
-    ledger = db.one("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) "
-                    "VALUES (%s, 'fake', 'video', 'adjust', 0, current_date) RETURNING id", k2)[0]
-    clamp2 = db.one("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, "
-                    "used_total) VALUES ('clamp', %s, 'fake', 'video', %s, 1, 1, 1) RETURNING id", k2, ledger)[0]
+    ledger = db.one("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) "
+                    "VALUES (%s, '*', 'adjust', 0, current_date) RETURNING id", k2)[0]
+    clamp2 = db.one("INSERT INTO billing_alerts (alert, key_id, scope, ledger_id, amount, used_day, "
+                    "used_total) VALUES ('clamp', %s, '*', %s, 1, 1, 1) RETURNING id", k2, ledger)[0]
 
     async def scenario(env):
         h = await env.admin_headers()
@@ -403,7 +403,7 @@ def test_acknowledge_stamps_only_the_open_rows_up_to_through_id_and_a_new_row_re
         with caplog.at_level(logging.INFO, logger="relay_core.alerts"):
             first = await post("unclear_reply", group, ids[1])
             again = await post("unclear_reply", group, ids[1])
-            billing = await post("clamp", "%s.fake.video" % k2, clamp)
+            billing = await post("clamp", "%s.*" % k2, clamp)
         late = plant_unclear(db, k, "Same words [9]")
         reopened = await env.client.get(detail_url("unclear_reply", group), headers=h)
         return first, again, billing, late, reopened
@@ -428,7 +428,7 @@ def test_acknowledging_a_clamp_group_leaves_the_drift_row_of_the_same_wallet_ope
 
     async def scenario(env):
         h = await env.admin_headers()
-        return await env.client.post(detail_url("clamp", "%s.fake.video" % k, "/acknowledge"), headers=h,
+        return await env.client.post(detail_url("clamp", "%s.*" % k, "/acknowledge"), headers=h,
                                      json={"through_id": max(clamp, drift)})
 
     r = run_app(db, scenario)
@@ -461,11 +461,11 @@ def test_every_bad_value_is_a_400_or_a_404_and_never_a_500(db):
             "short": await get(detail_url("unclear_reply", "abc")),
             "upper": await get(detail_url("unclear_reply", group.upper() + "0")),
             "billing-form": await get(detail_url("clamp", "a.b.c")),
-            "billing-uuid": await get(detail_url("clamp", "not-a-uuid.fake.video")),
+            "billing-uuid": await get(detail_url("clamp", "not-a-uuid.*")),
             "ghost": await get(detail_url("unclear_reply", "0" * 16)),
             "nul": await get(detail_url("unclear_reply", "ab%00cd")),
             "nul-billing": await get(detail_url("clamp", "ab%00.cd.ef")),
-            "ghost-billing": await get(detail_url("clamp", "%s.fake.image" % k)),
+            "ghost-billing": await get(detail_url("clamp", "%s.nobody" % k)),
             "ack-ghost": await post(detail_url("unclear_reply", "f" * 16, "/acknowledge"), {"through_id": 1}),
             "ack-badkind": await post(detail_url("nope", group, "/acknowledge"), {"through_id": 1}),
             "t0": await post(ack, {"through_id": 0}), "tbig": await post(ack, {"through_id": 2**63}),

@@ -33,9 +33,8 @@ class AliasSpec(FakeSpec):
 
 
 async def make_key(env, *, models=(keys.ANY_MODEL,), wallets=None, max_unfinished=None) -> NewApiKey:
-    declared = [(s.name, kind) for s in map(env.registry.spec, env.registry.names()) for kind in s.caps.wallet_kinds]
     async with tx(env.pool) as conn:
-        made = await keys.create_key(conn, models=models, declared=declared, wallets=wallets or {},
+        made = await keys.create_key(conn, models=models, declared=env.registry.names(), wallets=wallets or {},
                                      max_unfinished=max_unfinished)
     return NewApiKey(made.id, made.raw)
 
@@ -200,10 +199,10 @@ def test_provider_options_come_from_the_provider_snapshots(db):
     assert unknown.json()["error"]["code"] == "resource.not_found" and unknown.json()["error"]["param"] == "provider"
 
 
-def points_of(db, env_key_id, provider="fake", kind="video"):
+def points_of(db, env_key_id, scope="*"):
     db.run("UPDATE key_wallets SET used_day = 7, used_total = 40, "
-           "day_anchor = (clock_timestamp() AT TIME ZONE 'UTC')::date WHERE key_id = %s AND provider = %s "
-           "AND kind = %s", env_key_id, provider, kind)
+           "day_anchor = (clock_timestamp() AT TIME ZONE 'UTC')::date WHERE key_id = %s AND scope = %s",
+           env_key_id, scope)
 
 
 @mutation(
@@ -212,28 +211,27 @@ def points_of(db, env_key_id, provider="fake", kind="video"):
 @mutation(
     CATALOG, "WHERE w.key_id = %s ORDER BY", "WHERE w.key_id = %s OR true ORDER BY",
     expect="the key sees only its own wallets")
-def test_points_show_the_keys_own_wallets_and_a_new_day_starts_at_zero(db):
+def test_points_route_shows_the_wallet_and_the_caps_and_a_new_day_starts_at_zero(db):
     async def scenario(env):
-        mine = await make_key(env, wallets={("fake", "video"): (100, 1000), ("fake", "image"): (None, None)})
-        other = await make_key(env, wallets={("fake", "video"): (5, 5)})
+        mine = await make_key(env, wallets={"*": (100, 1000), "fake": (None, None)})
+        other = await make_key(env, wallets={"*": (5, 5)})
         points_of(db, mine.id)
         points_of(db, other.id)
         try:
             today = (await env.client.get("/v1/points", headers=mine.headers)).json()
-            db.run("UPDATE key_wallets SET day_anchor = day_anchor - 1 WHERE key_id = %s AND kind = 'video'",
-                   mine.id)
+            db.run("UPDATE key_wallets SET day_anchor = day_anchor - 1 WHERE key_id = %s AND scope = '*'", mine.id)
             yesterday = (await env.client.get("/v1/points", headers=mine.headers)).json()
         finally:                                     # counters with no ledger behind them are drift: undo the plant
             db.run("UPDATE key_wallets SET used_day = 0, used_total = 0")
         return today, yesterday
 
     today, yesterday = run_app(db, scenario)
-    assert today["fake"] == {
-        "video": {"day_limit": 100, "used_day": 7, "total_limit": 1000, "used_total": 40},
-        "image": {"day_limit": None, "used_day": 0, "total_limit": None, "used_total": 0}}, \
+    assert today["points"] == {"day_limit": 100, "used_day": 7, "total_limit": 1000, "used_total": 40}, \
         "the key sees only its own wallets"
-    assert yesterday["fake"]["video"]["used_day"] == 0, "yesterday's day counter is not shown as today's"
-    assert yesterday["fake"]["video"]["used_total"] == 40
+    assert today["providers"] == {
+        "fake": {"day_limit": None, "used_day": 0, "total_limit": None, "used_total": 0}}, "the caps by provider"
+    assert yesterday["points"]["used_day"] == 0, "yesterday's day counter is not shown as today's"
+    assert yesterday["points"]["used_total"] == 40
 
 
 @mutation(

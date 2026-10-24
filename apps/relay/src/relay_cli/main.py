@@ -193,8 +193,8 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     never be able to), when the credential PUBLIC key is missing or malformed (account import and proxy edits seal
     with it), when the database or object store settings are missing, or when the object-store secret is empty or an
     example value; when the bucket cannot be made (exit 1, before the pool opens); after it connects, when
-    BILLING_TZ differs from the pin. Then every (provider, kind) pair the registered specs declare gets a closed
-    wallet on the keys that exist (I29), each shipped default prompt frame without a row is seeded, the app is
+    BILLING_TZ differs from the pin. Then every provider the registered specs declare gets a closed cap row
+    on the keys that exist (I29), each shipped default prompt frame without a row is seeded, the app is
     built, and `http` serves until a stop signal. Shutdown order: stop serving, stop the runners, then the pool."""
     from relay_core import billing, crypto, frames
     from relay_core.api import runners
@@ -241,7 +241,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
             raise CliError(str(e), EXIT_REFUSED) from None
         async with tx(pool) as conn:
             for spec in specs:
-                await billing.ensure_wallets(conn, spec.name, spec.caps.wallet_kinds)
+                await billing.ensure_wallets(conn, spec.name)
                 if getattr(spec, "frames", None) is not None:       # version 1 of each shipped default
                     await frames.seed(conn, spec.name, spec.frames.defaults)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry)
@@ -306,35 +306,43 @@ def keygen() -> int:
     return EXIT_OK
 
 
-def parse_wallets(items: list[str]) -> dict[tuple[str, str], tuple[int | None, int | None]]:
-    """`provider:kind=N` (a day limit) or `provider:kind=unlimited`; a pair not named stays closed."""
-    wallets: dict[tuple[str, str], tuple[int | None, int | None]] = {}
+def _limit(text: str, what: str) -> int | None:
+    """A limit given on the command line: a whole number, or `unlimited` (None)."""
+    if text == "unlimited":
+        return None
+    if text.isdigit():
+        return int(text)
+    raise CliError("%s must be a number or 'unlimited', got %r" % (what, text), EXIT_REFUSED)
+
+
+def parse_wallets(items: list[str], points_day: str | None = None, points_total: str | None = None
+                  ) -> dict[str, tuple[int | None, int | None]]:
+    """The wallets a key is made with: `--points-day` and `--points-total` open the points wallet (`*`; the limit that
+    is not given is unlimited, so `--points-day unlimited` alone is an unlimited wallet), and `--wallet provider=N` (a
+    day limit) or `provider=unlimited` opens that provider's cap. Everything not named stays closed."""
+    wallets: dict[str, tuple[int | None, int | None]] = {}
+    if points_day is not None or points_total is not None:
+        wallets["*"] = (_limit(points_day or "unlimited", "--points-day"),
+                        _limit(points_total or "unlimited", "--points-total"))
     for item in items:
-        pair, _, limit = item.partition("=")
-        provider, _, kind = pair.partition(":")
-        if not (provider and kind and limit):
-            raise CliError("--wallet wants provider:kind=N or provider:kind=unlimited, got %r" % item, EXIT_REFUSED)
-        if limit == "unlimited":
-            wallets[(provider, kind)] = (None, None)
-        elif limit.isdigit():
-            wallets[(provider, kind)] = (int(limit), None)
-        else:
-            raise CliError("--wallet limit must be a number or 'unlimited', got %r" % limit, EXIT_REFUSED)
+        provider, _, limit = item.partition("=")
+        if not (provider and limit) or provider == "*":
+            raise CliError("--wallet wants provider=N or provider=unlimited, got %r" % item, EXIT_REFUSED)
+        wallets[provider] = (_limit(limit, "--wallet limit"), None)
     return wallets
 
 
 def key_create(specs: list[Any], label: str, models: list[str], max_unfinished: int | None,
-               wallet_args: list[str]) -> int:
+               wallet_args: list[str], points_day: str | None = None, points_total: str | None = None) -> int:
     from relay_core import keys
     from relay_core.db import tx
 
-    declared = [(s.name, kind) for s in specs for kind in s.caps.wallet_kinds]
-    wallets = parse_wallets(wallet_args)
-    unknown = sorted(set(wallets) - set(declared))
+    declared = [s.name for s in specs]
+    wallets = parse_wallets(wallet_args, points_day, points_total)
+    unknown = sorted(set(wallets) - set(declared) - {"*"})
     if unknown:
-        raise CliError("no such wallet: %s (declared: %s)" % (
-            ", ".join("%s:%s" % p for p in unknown), ", ".join("%s:%s" % p for p in declared) or "none"),
-            EXIT_REFUSED)
+        raise CliError("no such provider: %s (declared: %s)" % (", ".join(unknown), ", ".join(declared) or "none"),
+                       EXIT_REFUSED)
 
     async def run(pool) -> int:
         try:
@@ -441,8 +449,12 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--label", default="")
     create.add_argument("--models", nargs="+", default=[], help="allow-list (default: every model)")
     create.add_argument("--max-unfinished", type=int, default=None)
-    create.add_argument("--wallet", action="append", default=[], metavar="PROVIDER:KIND=N|unlimited",
-                        help="open a wallet with a day limit; unnamed wallets stay closed")
+    create.add_argument("--points-day", metavar="N|unlimited", default=None,
+                        help="open the points wallet with a day limit (alone: no total limit)")
+    create.add_argument("--points-total", metavar="N|unlimited", default=None,
+                        help="open the points wallet with a total limit (alone: no day limit)")
+    create.add_argument("--wallet", action="append", default=[], metavar="PROVIDER=N|unlimited",
+                        help="open a provider's cap with a day limit; unnamed caps stay closed")
     key.add_parser("disable", help="disable a key").add_argument("key_id")
     provider = sub.add_parser("provider", help="drain or resume a provider").add_subparsers(dest="mode", required=True)
     provider.add_parser("drain", help="stop claiming new work; open jobs still finish").add_argument("name")
@@ -476,7 +488,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "key":
             specs = built_specs(load_specs())
             if args.key_cmd == "create":
-                return key_create(specs, args.label, args.models, args.max_unfinished, args.wallet)
+                return key_create(specs, args.label, args.models, args.max_unfinished, args.wallet,
+                                  args.points_day, args.points_total)
             return key_disable(args.key_id)
         elif args.cmd == "provider":
             return provider_mode(built_specs(load_specs()), args.name, args.mode == "drain")

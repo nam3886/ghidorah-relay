@@ -20,13 +20,12 @@ import {
   usageLabel,
   usagePercent,
   walletMaxima,
-  walletPairs,
+  walletScopes,
   walletText,
 } from "@/components/keys/key-model";
 
 const wallet = (over: Partial<Wallet>): Wallet => ({
-  provider: "fake",
-  kind: "video",
+  scope: "fake",
   day_limit: null,
   total_limit: null,
   used_day: 0,
@@ -156,13 +155,9 @@ const models = [
   { id: "m4", owned_by: "dola", kind: "video" },
 ];
 
-describe("walletPairs and keyForm", () => {
-  it("one pair per distinct (provider, kind), sorted", () => {
-    expect(walletPairs(models)).toEqual([
-      ["dola", "video"],
-      ["vibes", "video"],
-      ["vibes", "image"],
-    ]);
+describe("walletScopes and keyForm", () => {
+  it("the points wallet, then one cap per distinct provider, sorted", () => {
+    expect(walletScopes(models)).toEqual(["*", "dola", "vibes"]);
   });
 
   it("a new key: any model, empty label, every wallet closed", () => {
@@ -172,9 +167,9 @@ describe("walletPairs and keyForm", () => {
       any: true,
       models: [],
       wallets: [
-        { provider: "dola", kind: "video", mode: "closed", day: "", total: "" },
-        { provider: "vibes", kind: "video", mode: "closed", day: "", total: "" },
-        { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
+        { scope: "*", mode: "closed", day: "", total: "" },
+        { scope: "dola", mode: "closed", day: "", total: "" },
+        { scope: "vibes", mode: "closed", day: "", total: "" },
       ],
     });
   });
@@ -192,8 +187,8 @@ describe("walletPairs and keyForm", () => {
       jobs: 0,
       unfinished: 0,
       wallets: [
-        wallet({ provider: "vibes", kind: "video", day_limit: 5, total_limit: 50 }),
-        wallet({ provider: "dola", kind: "video", mode: "unlimited" }),
+        wallet({ scope: "vibes", day_limit: 5, total_limit: 50 }),
+        wallet({ scope: "dola", mode: "unlimited" }),
       ],
     };
     const form = keyForm(models, key);
@@ -202,9 +197,9 @@ describe("walletPairs and keyForm", () => {
     expect(form.any).toBe(false);
     expect(form.models).toEqual(["m1", "m3"]);
     expect(form.wallets).toEqual([
-      { provider: "dola", kind: "video", mode: "unlimited", day: "", total: "" },
-      { provider: "vibes", kind: "video", mode: "limit", day: "5", total: "50" },
-      { provider: "vibes", kind: "image", mode: "closed", day: "", total: "" },
+      { scope: "*", mode: "closed", day: "", total: "" },
+      { scope: "dola", mode: "unlimited", day: "", total: "" },
+      { scope: "vibes", mode: "limit", day: "5", total: "50" },
     ]);
   });
 });
@@ -237,14 +232,14 @@ describe("keyBody (the create and edit payload)", () => {
     const body = keyBody(
       form({
         wallets: [
-          { provider: "a", kind: "video", mode: "closed", day: "5", total: "9" },
-          { provider: "a", kind: "image", mode: "unlimited", day: "5", total: "9" },
+          { scope: "*", mode: "closed", day: "5", total: "9" },
+          { scope: "a", mode: "unlimited", day: "5", total: "9" },
         ],
       }),
     );
     expect(body.wallets).toEqual([
-      { provider: "a", kind: "video", mode: "closed" },
-      { provider: "a", kind: "image", mode: "unlimited" },
+      { scope: "*", mode: "closed" },
+      { scope: "a", mode: "unlimited" },
     ]);
   });
 
@@ -252,18 +247,18 @@ describe("keyBody (the create and edit payload)", () => {
     const body = keyBody(
       form({
         wallets: [
-          { provider: "a", kind: "video", mode: "limit", day: "5", total: "9" },
-          { provider: "a", kind: "image", mode: "limit", day: "5", total: "" },
-          { provider: "b", kind: "image", mode: "limit", day: "", total: "9" },
-          { provider: "b", kind: "video", mode: "limit", day: "", total: "" },
+          { scope: "*", mode: "limit", day: "5", total: "9" },
+          { scope: "a", mode: "limit", day: "5", total: "" },
+          { scope: "b", mode: "limit", day: "", total: "9" },
+          { scope: "c", mode: "limit", day: "", total: "" },
         ],
       }),
     );
     expect(body.wallets).toEqual([
-      { provider: "a", kind: "video", mode: "limit", day_limit: 5, total_limit: 9 },
-      { provider: "a", kind: "image", mode: "limit", day_limit: 5 },
-      { provider: "b", kind: "image", mode: "limit", total_limit: 9 },
-      { provider: "b", kind: "video", mode: "limit" },
+      { scope: "*", mode: "limit", day_limit: 5, total_limit: 9 },
+      { scope: "a", mode: "limit", day_limit: 5 },
+      { scope: "b", mode: "limit", total_limit: 9 },
+      { scope: "c", mode: "limit" },
     ]);
   });
 
@@ -313,23 +308,23 @@ describe("deleteToast", () => {
 });
 
 describe("the order of the wallets", () => {
-  const at = (provider: string, kind: string) => ({ provider, kind });
+  const at = (scope: string) => ({ scope });
 
-  it("a provider's video wallet comes before its image wallet, then any other kind by name", () => {
-    const sorted = sortedWallets([at("dola", "voice"), at("dola", "image"), at("dola", "audio"), at("dola", "video")]);
-    expect(sorted.map((w) => w.kind)).toEqual(["video", "image", "audio", "voice"]);
+  it("the points wallet comes first, then the providers' caps by name", () => {
+    const sorted = sortedWallets([at("vibes"), at("dola"), at("*"), at("flow")]);
+    expect(sorted.map((w) => w.scope)).toEqual(["*", "dola", "flow", "vibes"]);
   });
 
-  it("providers go in name order whatever their kinds", () => {
-    const sorted = sortedWallets([at("vibes", "video"), at("dola", "image"), at("dola", "video")]);
-    expect(sorted.map((w) => `${w.provider}/${w.kind}`)).toEqual(["dola/video", "dola/image", "vibes/video"]);
+  it("the points wallet is first whichever side of the comparison it is on", () => {
+    expect(compareWallets(at("*"), at("a"))).toBeLessThan(0);
+    expect(compareWallets(at("a"), at("*"))).toBeGreaterThan(0);
   });
 
   it("does not change the list it was given, and a wallet equals itself", () => {
-    const list = [at("dola", "image"), at("dola", "video")];
+    const list = [at("dola"), at("*")];
     expect(sortedWallets(list)).not.toBe(list);
-    expect(list.map((w) => w.kind)).toEqual(["image", "video"]);
-    expect(compareWallets(at("dola", "video"), at("dola", "video"))).toBe(0);
+    expect(list.map((w) => w.scope)).toEqual(["dola", "*"]);
+    expect(compareWallets(at("dola"), at("dola"))).toBe(0);
   });
 });
 
@@ -350,18 +345,18 @@ describe("relativePercent", () => {
 
 describe("walletMaxima", () => {
   const keyOf = (...wallets: Wallet[]) => ({ wallets });
-  it("is the highest use per provider and kind among the keys that have the wallet open", () => {
+  it("is the highest use per scope among the keys that have the wallet open", () => {
     const out = walletMaxima([
       keyOf(
         wallet({ mode: "unlimited", used_day: 4, used_total: 9 }),
-        wallet({ kind: "image", mode: "limit", used_day: 7 }),
+        wallet({ scope: "*", mode: "limit", used_day: 7 }),
       ),
       keyOf(wallet({ mode: "limit", used_day: 2, used_total: 30 })),
       keyOf(wallet({ mode: "closed", used_day: 500, used_total: 500 })),
     ]);
-    expect(out.get("fake/video")).toEqual({ day: 4, total: 30 });
-    expect(out.get("fake/image")).toEqual({ day: 7, total: 0 });
-    expect(out.has("other/video")).toBe(false);
+    expect(out.get("fake")).toEqual({ day: 4, total: 30 });
+    expect(out.get("*")).toEqual({ day: 7, total: 0 });
+    expect(out.has("other")).toBe(false);
   });
   it("has nothing for no keys or only closed wallets", () => {
     expect(walletMaxima([]).size).toBe(0);

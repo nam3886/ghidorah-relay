@@ -1098,8 +1098,8 @@ describe("the names of the groups, as the canvas writes them", () => {
     reply: "Sorry, I can’t create that video",
   });
   const clamp = group({
-    group: "k1.dola.video",
-    title: "clamp: dola video wallet of key k1",
+    group: "k1.dola",
+    title: "clamp: dola cap of key k1",
     provider: "dola",
     key_label: "Shop A",
   });
@@ -1109,7 +1109,7 @@ describe("the names of the groups, as the canvas writes them", () => {
     list.mockResolvedValue({ items: [reply, clamp] });
     vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ ...reply, items: [] }));
     const w = await open();
-    expect(w.findAll("tbody .g-title").map((t) => t.text())).toEqual([SAID, "dola video wallet of key Shop A"]);
+    expect(w.findAll("tbody .g-title").map((t) => t.text())).toEqual([SAID, "dola cap of key Shop A"]);
     await listButtons(w, `Details of ${SAID}`)[0]!.trigger("click");
     await settle();
     expect(db().find('[data-testid="alert-detail-title"]').text()).toBe(SAID);
@@ -1119,6 +1119,6 @@ describe("the names of the groups, as the canvas writes them", () => {
     showAt(390);
     list.mockResolvedValue({ items: [reply, clamp] });
     const w = await open();
-    expect(w.findAll(".p-group__title").map((t) => t.text())).toEqual([SAID, "dola video wallet of key Shop A"]);
+    expect(w.findAll(".p-group__title").map((t) => t.text())).toEqual([SAID, "dola cap of key Shop A"]);
   });
 });

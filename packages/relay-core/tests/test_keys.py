@@ -1,5 +1,6 @@
 """API keys: hashed `rk-` keys, fail-closed lookup, the model allow-list, wallets made
-with the key, and delete-or-disable. Everything runs as `relay_api`, the role that serves these operations."""
+with the key (the points wallet and a cap per provider), and delete-or-disable. Everything runs as `relay_api`, the
+role that serves these operations."""
 
 import asyncio
 import re
@@ -54,22 +55,20 @@ def test_a_key_is_shown_once_and_only_its_hash_and_lookup_prefix_are_stored(db):
 
 def test_wallets_are_created_with_the_limits_chosen_and_a_new_provider_is_closed_on_the_key(db):
     async def scenario(pool):
-        k = await make(pool, wallets={("p1", "video"): (5, 100), ("p1", "image"): CLOSED,
-                                      ("p2", "video"): (None, None)})
-        rows = db.all("SELECT provider, kind, day_limit, total_limit FROM key_wallets WHERE key_id = %s "
-                      "ORDER BY provider, kind", k.id)
-        assert rows == [("p1", "image", 0, None), ("p1", "video", 5, 100), ("p2", "video", None, None)]
+        k = await make(pool, wallets={"*": (5, 100), "p1": CLOSED, "p2": (None, None)})
+        rows = db.all("SELECT scope, day_limit, total_limit FROM key_wallets WHERE key_id = %s ORDER BY scope", k.id)
+        assert rows == [("*", 5, 100), ("p1", 0, None), ("p2", None, None)]
         async with tx(pool) as conn:                   # a provider that registers later
-            await billing.ensure_wallets(conn, "p3", ["video"])
-        assert db.one("SELECT day_limit FROM key_wallets WHERE key_id = %s AND provider = %s", k.id, "p3") == (0,)
+            await billing.ensure_wallets(conn, "p3")
+        assert db.one("SELECT day_limit FROM key_wallets WHERE key_id = %s AND scope = %s", k.id, "p3") == (0,)
         with pytest.raises(billing.QuotaExceeded):     # closed means closed, even for a 0-point job
             async with tx(pool) as conn:
-                await billing.charge(conn, k.id, "p3", "video", 0, uuid.uuid4())
+                await billing.charge(conn, k.id, "p3", 0, uuid.uuid4())
 
     run(db, scenario)
 
 
-def test_declared_pairs_are_required_to_make_a_key(db):
+def test_the_declared_providers_are_required_to_make_a_key(db):
     async def scenario(pool):
         async with tx(pool) as conn:
             with pytest.raises(TypeError, match="declared"):
@@ -84,18 +83,17 @@ def test_a_key_is_not_made_outside_a_transaction(db):
     async def scenario(pool):
         async with pool.connection() as conn:             # autocommit: each statement would commit alone
             with pytest.raises(billing.NotInTransaction):
-                await keys.create_key(conn, declared=[("p1", "video")])
+                await keys.create_key(conn, declared=["p1"])
         assert db.one("SELECT count(*) FROM api_keys") == (0,)
 
     run(db, scenario)
 
 
-def test_a_declared_pair_the_admin_left_out_gets_a_closed_wallet(db):
+def test_a_declared_provider_the_admin_left_out_gets_a_closed_cap_and_the_points_wallet_starts_closed(db):
     async def scenario(pool):
-        k = await make(pool, wallets={("p1", "video"): (5, None)},
-                       declared=[("p1", "video"), ("p1", "image"), ("p2", "video")])
-        rows = db.all("SELECT provider, kind, day_limit FROM key_wallets WHERE key_id = %s ORDER BY 1, 2", k.id)
-        assert rows == [("p1", "image", 0), ("p1", "video", 5), ("p2", "video", 0)]
+        k = await make(pool, wallets={"p1": (5, None)}, declared=["p1", "p2"])
+        rows = db.all("SELECT scope, day_limit FROM key_wallets WHERE key_id = %s ORDER BY 1", k.id)
+        assert rows == [("*", 0), ("p1", 5), ("p2", 0)]
 
     run(db, scenario)
 
@@ -237,13 +235,13 @@ def test_star_allows_everything_and_an_empty_list_nothing():
            expect="violates foreign key constraint \"jobs_key_id_fkey\"")
 def test_only_a_key_without_history_is_deleted_the_rest_are_disabled(db):
     async def scenario(pool):
-        clean = await make(pool, wallets={("p1", "video"): (5, None)})
-        with_job = await make(pool, wallets={("p1", "video"): (5, None)})
-        ledger_only = await make(pool, wallets={("p1", "video"): (5, None)})
+        clean = await make(pool, wallets={"p1": (5, None)})
+        with_job = await make(pool, wallets={"p1": (5, None)})
+        ledger_only = await make(pool, wallets={"p1": (5, None)})
         db.job(with_job.id)
         with db.connect() as c:                             # an `adjust` row: ledger history with no job
-            c.execute("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) "
-                      "VALUES (%s, 'p1', 'video', 'adjust', 0, current_date)", (ledger_only.id,))
+            c.execute("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) "
+                      "VALUES (%s, '*', 'adjust', 0, current_date)", (ledger_only.id,))
         results = {}
         for name, k in (("clean", clean), ("job", with_job), ("ledger", ledger_only)):
             async with tx(pool) as conn:
@@ -264,7 +262,7 @@ def test_only_a_key_without_history_is_deleted_the_rest_are_disabled(db):
 
 def test_a_refused_delete_does_not_poison_the_callers_transaction(db):
     async def scenario(pool):
-        k = await make(pool, wallets={("p1", "video"): (5, None)})
+        k = await make(pool, wallets={"p1": (5, None)})
         db.job(k.id)
         other = await make(pool)
         async with tx(pool) as conn:

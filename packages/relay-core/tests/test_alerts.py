@@ -625,7 +625,8 @@ def expired(db, spec, *, prompt="x"):
         await reaper(p, spec=spec).tick()
 
     run_as(db.worker_dsn, reap)
-    return job_id, db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund'", job_id)[0]
+    return job_id, db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND entry = 'refund' AND scope = '*'",
+                          job_id)[0]
 
 
 @mutation(REAPER, "            said = self.spec.unclear_at_deadline(text, state)\n", "            said = None\n",

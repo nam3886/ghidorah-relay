@@ -19,7 +19,7 @@ pytestmark = pytest.mark.browser
 
 
 PROVIDER = "dola"
-WALLETS = ((PROVIDER, "video", None, None), (PROVIDER, "image", None, None))
+WALLETS = ((PROVIDER, None, None),)       # the caps a test key gets next to its points wallet
 
 
 def wallet_values(spec: tuple) -> tuple:
@@ -32,22 +32,23 @@ def wallet_values(spec: tuple) -> tuple:
     return 0, None, 0, 0
 
 
-def set_key(db, key_id, label, prefix, enabled, models, video, image, created) -> None:
+def set_key(db, key_id, label, prefix, enabled, models, points, cap, created) -> None:
+    """`points` is the spec of the key's points wallet (`*`), `cap` the one of its `PROVIDER` cap."""
     db.run("UPDATE api_keys SET label = %s, key_prefix = %s, enabled = %s, models = %s, max_unfinished = 5, "
            "created_at = %s WHERE id = %s", label, prefix, enabled, models, created, key_id)
     if label == "Internal test":
         db.run("UPDATE api_keys SET max_unfinished = 0 WHERE id = %s", key_id)
-    for kind, spec in (("video", video), ("image", image)):
+    for scope, spec in (("*", points), (PROVIDER, cap)):
         day, total, used_day, used_total = wallet_values(spec)
         db.run("UPDATE key_wallets SET day_limit = %s, total_limit = %s, used_day = %s, used_total = %s, "
-               "day_anchor = current_date WHERE key_id = %s AND provider = %s AND kind = %s", day, total, used_day,
-               used_total, key_id, PROVIDER, kind)
+               "day_anchor = current_date WHERE key_id = %s AND scope = %s", day, total, used_day,
+               used_total, key_id, scope)
         # the ledger the counters add up from (the checker holds every test to it): what was used before today,
         # then what was used today
         for amount, day_offset in ((used_total - used_day, 1), (used_day, 0)):
             if amount:
-                db.run("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES (%s, %s, %s, "
-                       "'adjust', %s, current_date - %s)", key_id, PROVIDER, kind, amount, day_offset)
+                db.run("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) VALUES (%s, %s, "
+                       "'adjust', %s, current_date - %s)", key_id, scope, amount, day_offset)
 
 WIDTHS = ((1440, 900), (768, 1024))
 BOXES_JS = """() => {
@@ -259,7 +260,7 @@ def test_a_mode_list_opens_over_the_drawer_escape_closes_only_the_list_and_a_pre
     page = app_session
     goto_keys(app, page)
     box = open_form(page)
-    combo = box.get_by_role("group", name="fake video", exact=True).get_by_role("combobox", name="Mode")
+    combo = box.get_by_role("group", name="points", exact=True).get_by_role("combobox", name="Mode")
     combo.focus()
     page.keyboard.press("ArrowDown")
     listbox = page.get_by_role("listbox")
@@ -584,12 +585,12 @@ def test_space_and_page_down_with_the_drawer_open_leave_the_page_where_it_was(ap
 # ---- wallet bars -------------------------------------------------------------------------------------------------
 
 def open_unlimited(db, label, prefix, used_day, used_total, *, limit=False):
-    """A key whose video wallet has used the given figures; unlimited unless `limit`."""
+    """A key whose points wallet has used the given figures; unlimited unless `limit`."""
     key = new_key(db, wallets=WALLETS)
     set_key(db, key, label, prefix, True, ["*"], ("limit", 100, 1000, used_day, used_total), ("closed",),
             datetime.now(UTC))
     if not limit:
-        db.run("UPDATE key_wallets SET day_limit = NULL, total_limit = NULL WHERE key_id = %s AND kind = 'video'", key)
+        db.run("UPDATE key_wallets SET day_limit = NULL, total_limit = NULL WHERE key_id = %s AND scope = '*'", key)
     return key
 
 

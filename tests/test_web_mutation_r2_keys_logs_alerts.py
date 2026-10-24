@@ -175,23 +175,27 @@ def test_the_wallet_text_the_bars_and_the_created_date_are_written_right():
 ORDER = f"FAILED {KEY_SPEC} > the order of the wallets > "
 
 
-@mutation(KEY_MODEL, "const rank = kindRank(a.kind) - kindRank(b.kind);",
-          "const rank = kindRank(b.kind) - kindRank(a.kind);",
-          expect=ORDER + "a provider's video wallet comes before its image wallet, then any other kind by name")
-@mutation(KEY_MODEL, "return at === -1 ? KIND_ORDER.length : at;", "return at;",
-          expect=ORDER + "a provider's video wallet comes before its image wallet, then any other kind by name")
-@mutation(KEY_MODEL, "return a.provider < b.provider ? -1 : 1;", "return a.provider < b.provider ? 1 : -1;",
-          expect=ORDER + "providers go in name order whatever their kinds")
+@mutation(KEY_MODEL, "if (a.scope === POINTS) return -1;", "if (a.scope === POINTS) return 1;",
+          expect=ORDER + "the points wallet is first whichever side of the comparison it is on")
+@mutation(KEY_MODEL, "if (b.scope === POINTS) return 1;", "if (b.scope === POINTS) return -1;",
+          expect=ORDER + "the points wallet is first whichever side of the comparison it is on")
+@mutation(KEY_MODEL, "return a.scope < b.scope ? -1 : 1;", "return a.scope < b.scope ? 1 : -1;",
+          expect=ORDER + "the points wallet comes first, then the providers' caps by name")
+@mutation(KEY_MODEL, "sortedWallets([POINTS, ...new Set(models.map((m) => m.owned_by))]",
+          "sortedWallets([...new Set(models.map((m) => m.owned_by))]",
+          expect=f"FAILED {KEY_SPEC} > walletScopes and keyForm > the points wallet, then one cap per distinct "
+                 "provider, sorted")
 @pytest.mark.web_unit
-def test_the_wallets_are_listed_video_first():
+def test_the_points_wallet_is_listed_first_then_the_caps_by_name():
     vitest(KEY_SPEC)
 
 
 @mutation(WALLET_LINES, "const ordered = computed(() => sortedWallets(props.wallets));",
           "const ordered = computed(() => props.wallets);",
-          expect=DESIGN + "lists a provider's video wallet before its image wallet, whatever order the server sent")
+          expect=DESIGN + "lists the points wallet first, then the providers' caps by name, whatever order the "
+                          "server sent")
 @pytest.mark.web_unit
-def test_the_keys_view_lists_video_wallets_first():
+def test_the_keys_view_lists_the_points_wallet_first():
     vitest(KEYS_VIEW_SPEC)
 
 
@@ -377,10 +381,10 @@ def test_one_discard_question_at_a_time_and_a_leave_guard_while_dirty():
 # ---- Keys: the relative bars of an unlimited wallet ---------------------------------------------------------------
 @mutation(KEY_MODEL, '      if (w.mode === "closed") continue;\n', "",
           expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
-                            "provider and kind has its own")
-@mutation(KEY_MODEL, "      const id = `${w.provider}/${w.kind}`;", "      const id = w.provider;",
+                            "scope has its own")
+@mutation(KEY_MODEL, "out.set(w.scope, {", 'out.set("*", {',
           expect=RELATIVE + "a limit wallet that is open counts toward the maximum; a closed one does not; each "
-                            "provider and kind has its own")
+                            "scope has its own")
 @mutation(KEYS, "const maxima = computed(() => walletMaxima(items.value));",
           "const maxima = computed(() => walletMaxima(items.value.slice(1)));",
           expect=RELATIVE + "the busiest key of the wallet is full, the others proportional, today and in total on "
@@ -730,9 +734,11 @@ NAMED = f"FAILED {ALERTS_VIEW_SPEC} > the names of the groups, as the canvas wri
           expect=TITLE + "a reply group is who replied and the newest reply as stored, else its folded wording")
 @mutation(ALERTS_MODEL, "isEmptyWording(g) ? groupTitle(g) : replied(g, g.reply)", "replied(g, g.reply)",
           expect=TITLE + "the read failure keeps its own words")
-@mutation(ALERTS_MODEL, 'const wallet = g.group.split(".")[2];', 'const wallet = g.group.split(".")[1];',
+@mutation(ALERTS_MODEL, 'const scope = g.group.split(".")[1];', 'const scope = g.group.split(".")[0];',
           expect=TITLE + "a billing group is its wallet and the key's name, else the server's title")
-@mutation(ALERTS_MODEL, "g.key_label && wallet ?", "wallet ?",
+@mutation(ALERTS_MODEL, "return g.key_label && scope", "return scope",
+          expect=TITLE + "a billing group is its wallet and the key's name, else the server's title")
+@mutation(ALERTS_MODEL, '${scope === POINTS ? "points wallet" : scopeName(scope)}', "${scopeName(scope)}",
           expect=TITLE + "a billing group is its wallet and the key's name, else the server's title")
 @mutation(ALERTS_MODEL, '["accounts_low", "pool"],', '["accounts_low", "accounts_low"],',
           expect=WORD + "names what the condition is about, as the canvas writes `pool:`")

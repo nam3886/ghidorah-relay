@@ -3,9 +3,9 @@ import { request } from "@/api/client";
 
 export type WalletMode = "closed" | "limit" | "unlimited";
 
+// scope "*" is the key's one points wallet; any other scope is a provider's cap on top of it (a job needs both open).
 export interface Wallet {
-  provider: string;
-  kind: string;
+  scope: string;
   day_limit: number | null;
   total_limit: number | null;
   used_day: number;
@@ -28,8 +28,7 @@ export interface ApiKey {
 }
 
 export interface WalletBody {
-  provider: string;
-  kind: string;
+  scope: string;
   mode: WalletMode;
   day_limit?: number;
   total_limit?: number;

@@ -40,8 +40,8 @@ export interface BillingItem {
   id: number;
   at_ms: number | null;
   alert: string;
-  provider: string;
-  kind: string;
+  // "*" (the key's points wallet) or a provider's name (its cap)
+  scope: string;
   amount: number;
   used_day: number;
   used_total: number;

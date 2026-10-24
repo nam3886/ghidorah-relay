@@ -529,19 +529,17 @@ describe("a running job", () => {
 describe("the model picker and the wallet", () => {
   it("shows the wallet limits of /v1/points as rows: day and total, and unlimited with its use", async () => {
     vi.mocked(api.getPoints).mockResolvedValue({
-      dola: {
-        video: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
-        image: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 },
-      },
+      points: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
+      providers: { dola: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 } },
       models: [],
     });
     await open();
     await loadModels();
     const rows = wrapper!.findAll(".wallet__row").map((r) => [r.find("dt").text(), r.find("dd").text()]);
     expect(rows).toEqual([
-      ["dola video · today", "3 / 20"],
-      ["dola video · total", "14 / 200"],
-      ["dola image", "unlimited (9 used)"],
+      ["points · today", "3 / 20"],
+      ["points · total", "14 / 200"],
+      ["dola cap", "unlimited (9 used)"],
     ]);
     expect(wrapper!.find(".test-tab__points-box pre").exists()).toBe(false);
   });
@@ -643,19 +641,21 @@ describe("the model picker and the wallet", () => {
     expect(body.style).toBe("oil_painting");
   });
 
-  it("lists the video wallet first, whatever order the points answer has", async () => {
+  it("lists the points wallet first, then the caps by name, whatever order the points answer has", async () => {
     vi.mocked(api.getPoints).mockResolvedValue({
-      dola: {
-        image: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 },
-        video: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
+      providers: {
+        vibes: { day_limit: 5, used_day: 1, total_limit: null, used_total: 9 },
+        dola: { day_limit: null, used_day: 0, total_limit: null, used_total: 9 },
       },
+      points: { day_limit: 20, used_day: 3, total_limit: 200, used_total: 14 },
     });
     await open();
     await loadModels();
     expect(wrapper!.findAll(".wallet__row dt").map((d) => d.text())).toEqual([
-      "dola video · today",
-      "dola video · total",
-      "dola image",
+      "points · today",
+      "points · total",
+      "dola cap",
+      "vibes cap · today",
     ]);
   });
 

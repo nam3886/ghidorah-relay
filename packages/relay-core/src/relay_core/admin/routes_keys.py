@@ -1,7 +1,9 @@
-"""Admin: API keys and their per-provider wallets.
+"""Admin: API keys and their wallets.
 
-A key is made with one wallet per declared (provider, kind) pair: a pair the admin does not name is CLOSED, a named one
-is `closed`, a `limit` (a day and/or a total number) or `unlimited` (set on purpose, never by omission). The raw key is
+A key has one points wallet (scope `*`, listed first) and one cap per declared provider. A scope the admin does not
+name is CLOSED, a named one is `closed`, a `limit` (a day and/or a total number) or `unlimited` (set on purpose, never
+by omission). A charge needs the points wallet AND the provider's cap to admit it: an `unlimited` cap adds no limit of
+its own and a `closed` one shuts the provider for the key. The raw key is
 in the create answer once and nowhere else; no route returns a hash. `max_unfinished`: NULL = the
 `max_unfinished_default` setting, 0 = unlimited.
 """
@@ -13,7 +15,7 @@ from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 from pydantic import Field, field_validator, model_validator
 
-from relay_core import keys
+from relay_core import billing, keys
 from relay_core.admin.routes_common import Strict, ms
 from relay_core.api.deps import get_pool, get_registry, get_settings
 from relay_core.api.doors import model_disabled
@@ -39,8 +41,7 @@ Limits = tuple[int | None, int | None]       # (day_limit, total_limit)
 
 
 class WalletIn(Strict):
-    provider: str
-    kind: str
+    scope: str            # `*` (the points wallet) or a provider's name (its cap)
     mode: Literal["closed", "limit", "unlimited"]
     day_limit: int | None = Field(default=None, ge=1)
     total_limit: int | None = Field(default=None, ge=1)
@@ -86,17 +87,17 @@ class KeyPatch(Strict):
         return None if value is None else value.strip()
 
 
-def declared_pairs(registry: ProviderRegistry) -> list[tuple[str, str]]:
-    return [(name, kind) for name in registry.names() for kind in registry.spec(name).caps.wallet_kinds]
+def declared_scopes(registry: ProviderRegistry) -> list[str]:
+    """The scopes a key has: the points wallet, then one cap per provider."""
+    return [billing.STAR, *registry.names()]
 
 
-def _wallet_map(wallets: list[WalletIn], declared: list[tuple[str, str]]) -> dict[tuple[str, str], Limits]:
-    chosen: dict[tuple[str, str], Limits] = {}
+def _wallet_map(wallets: list[WalletIn], declared: list[str]) -> dict[str, Limits]:
+    chosen: dict[str, Limits] = {}
     for i, w in enumerate(wallets):
-        pair = (w.provider, w.kind)
-        if pair not in declared or pair in chosen:
+        if w.scope not in declared or w.scope in chosen:
             raise ApiError("input.invalid", "wallets.%d" % i)
-        chosen[pair] = w.limits()
+        chosen[w.scope] = w.limits()
     return chosen
 
 
@@ -117,11 +118,12 @@ _LIST = (
 async def _views(conn, settings: Settings, key_id=None) -> list[dict]:
     rows = await (await conn.execute(_LIST, {"id": key_id})).fetchall()
     wallets: dict[Any, list[dict]] = {}
-    for kid, provider, kind, day, total, used_day, used_total, anchor in await (await conn.execute(
-            "SELECT key_id, provider, kind, day_limit, total_limit, used_day, used_total, day_anchor FROM key_wallets "
-            "WHERE (%(id)s::uuid IS NULL OR key_id = %(id)s) ORDER BY provider, kind", {"id": key_id})).fetchall():
+    for kid, scope, day, total, used_day, used_total, anchor in await (await conn.execute(
+            "SELECT key_id, scope, day_limit, total_limit, used_day, used_total, day_anchor FROM key_wallets "
+            "WHERE (%(id)s::uuid IS NULL OR key_id = %(id)s) ORDER BY (scope <> '*'), scope",
+            {"id": key_id})).fetchall():
         wallets.setdefault(kid, []).append({
-            "provider": provider, "kind": kind, "day_limit": day, "total_limit": total, "used_day": used_day,
+            "scope": scope, "day_limit": day, "total_limit": total, "used_day": used_day,
             "used_total": used_total, "day_anchor": None if anchor is None else str(anchor),
             "mode": "closed" if 0 in (day, total) else "unlimited" if day is None and total is None else "limit"})
     default = settings.get("max_unfinished_default")
@@ -136,11 +138,11 @@ async def create_key(body: KeyCreate, pool: AsyncConnectionPool = Depends(get_po
                      registry: ProviderRegistry = Depends(get_registry),
                      settings: Settings = Depends(get_settings)) -> dict:
     """The raw key is in this answer and never again. Every declared wallet exists afterwards (unnamed: closed)."""
-    declared = declared_pairs(registry)
+    declared = declared_scopes(registry)
     wallets = _wallet_map(body.wallets, declared)
     async with tx(pool) as conn:
         made = await keys.create_key(conn, label=body.label, models=_models(body.models),
-                                     max_unfinished=body.max_unfinished, declared=declared, wallets=wallets)
+                                     max_unfinished=body.max_unfinished, declared=registry.names(), wallets=wallets)
         view = (await _views(conn, settings, made.id))[0]
     return {**view, "key": made.raw}
 
@@ -176,7 +178,7 @@ async def patch_key(key_id: uuid.UUID, body: KeyPatch, pool: AsyncConnectionPool
     if "wallets" in fields:
         if body.wallets is None:
             raise ApiError("input.invalid", "wallets")
-        wallets = _wallet_map(body.wallets, declared_pairs(registry))
+        wallets = _wallet_map(body.wallets, declared_scopes(registry))
     async with tx(pool) as conn:
         if (await (await conn.execute("SELECT 1 FROM api_keys WHERE id = %s FOR NO KEY UPDATE", (key_id,))
                    ).fetchone()) is None:
@@ -188,11 +190,11 @@ async def patch_key(key_id: uuid.UUID, body: KeyPatch, pool: AsyncConnectionPool
             await keys.set_models(conn, key_id, _models(body.models or []))
         if "max_unfinished" in fields:
             await keys.set_max_unfinished(conn, key_id, body.max_unfinished)
-        for (provider, kind), (day, total) in wallets.items():
+        for scope, (day, total) in wallets.items():
             cur = await conn.execute(
-                "UPDATE key_wallets SET day_limit = %s, total_limit = %s WHERE key_id = %s AND provider = %s "
-                "AND kind = %s", (day, total, key_id, provider, kind))
-            if cur.rowcount == 0:                     # a declared pair with no row: a bug, not an admin choice
+                "UPDATE key_wallets SET day_limit = %s, total_limit = %s WHERE key_id = %s AND scope = %s",
+                (day, total, key_id, scope))
+            if cur.rowcount == 0:                     # a declared scope with no row: a bug, not an admin choice
                 raise ApiError("input.invalid", "wallets")
         return (await _views(conn, settings, key_id))[0]
 

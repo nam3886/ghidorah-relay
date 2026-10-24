@@ -94,10 +94,10 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
                                                                         width):
     page = app_page
     size(page, width)
-    studio = label_key(db, "studio-prod", ["*"], [("dola", "video", 40, None), ("vibes", "video", 100, None)])
+    studio = label_key(db, "studio-prod", ["*"], [("dola", 40, None), ("vibes", 100, None)])
     label_key(db, "agency-a", ["seedream-4.5", "meta-image", "meta-video", "flow-nano-banana-pro"],
-              [("meta", "image", 50, None), ("flow", "image", 20, None)])
-    label_key(db, "trial-oct", ["seedance-2.0", "seedance-1.0"], [("dola", "video", None, 5)])
+              [("meta", 50, None), ("flow", 20, None)])
+    label_key(db, "trial-oct", ["seedance-2.0", "seedance-1.0"], [("dola", None, 5)])
     log(db, studio, "dola", "POST /v1/video/generations", 202)
     log(db, studio, "vibes", "POST /v1/video/generations", 202)
     log(db, studio, "meta", "POST /v1/chat/completions", 429, "quota.too_many_queued")

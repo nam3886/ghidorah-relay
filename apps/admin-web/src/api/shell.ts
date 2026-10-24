@@ -70,7 +70,7 @@ export interface ProviderSummary {
   done_today: number;
   failed_today: number;
   accounts: { usable: number; total: number };
-  pools: Array<{ pool: string; unit: "points" | "jobs"; left: number; budget: number }>;
+  pools: Array<{ pool: string; unit: "credits" | "jobs" | "uses"; left: number; budget: number }>;
 }
 
 export interface ProvidersSummary {

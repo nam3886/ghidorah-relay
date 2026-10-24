@@ -8,7 +8,7 @@ from apikit import ADMIN_USER, run_app
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_alerts.py"
-MIGRATION = "packages/relay-core/src/relay_core/db/migrations/0012_billing_alerts_acknowledge.sql"
+MIGRATION = "packages/relay-core/src/relay_core/db/migrations/0020_money_v2.sql"
 KEEP_FIRST = "acknowledged_at = COALESCE(acknowledged_at, clock_timestamp()), "
 KEEP_LAST = "acknowledged_at = clock_timestamp(), "
 GRANT = "GRANT UPDATE (acknowledged_at, acknowledged_by) ON billing_alerts"
@@ -21,13 +21,13 @@ def code_of(r) -> str:
 
 def plant(db) -> tuple:
     """A clamp (it names a ledger row) and a drift (it names none), newest last."""
-    key = db.key(("fake", "video", None, None))
-    ledger = db.one("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) "
-                    "VALUES (%s, 'fake', 'video', 'adjust', 0, current_date) RETURNING id", key)[0]
-    clamp = db.one("INSERT INTO billing_alerts (alert, key_id, provider, kind, ledger_id, amount, used_day, "
-                   "used_total) VALUES ('clamp', %s, 'fake', 'video', %s, 5, 2, 3) RETURNING id", key, ledger)[0]
-    drift = db.one("INSERT INTO billing_alerts (alert, key_id, provider, kind, amount, used_day, used_total, "
-                   "detail) VALUES ('drift', %s, 'fake', 'video', 0, 1, 9, 'used_total 9, ledger says 0') "
+    key = db.key(("fake", None, None))
+    ledger = db.one("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) "
+                    "VALUES (%s, '*', 'adjust', 0, current_date) RETURNING id", key)[0]
+    clamp = db.one("INSERT INTO billing_alerts (alert, key_id, scope, ledger_id, amount, used_day, "
+                   "used_total) VALUES ('clamp', %s, '*', %s, 5, 2, 3) RETURNING id", key, ledger)[0]
+    drift = db.one("INSERT INTO billing_alerts (alert, key_id, scope, amount, used_day, used_total, "
+                   "detail) VALUES ('drift', %s, '*', 0, 1, 9, 'used_total 9, ledger says 0') "
                    "RETURNING id", key)[0]
     return key, clamp, drift
 
@@ -108,13 +108,13 @@ def test_the_api_may_update_the_acknowledge_columns_of_an_alert_and_nothing_else
 
 
 ALERTS_PY = "packages/relay-core/src/relay_core/alerts.py"
-ITEM_KEYS = ["id", "alert", "key_id", "provider", "kind", "ledger_id", "amount", "used_day", "used_total", "detail",
+ITEM_KEYS = ["id", "alert", "key_id", "scope", "ledger_id", "amount", "used_day", "used_total", "detail",
              "acknowledged_by", "at_ms", "acknowledged_ms"]
 
 
 @mutation(ALERTS_PY, 'item["at_ms"] = _ms(item.pop("at"))', 'item["at_ms"] = _ms(item["at"])',
-          expect="the thirteen keys of an alert, in this order")
-def test_an_alert_has_exactly_the_thirteen_keys_the_dashboard_has_always_read(db):
+          expect="the twelve keys of an alert, in this order")
+def test_an_alert_has_exactly_the_twelve_keys_of_a_wallet_alert(db):
     plant(db)
 
     async def scenario(env):
@@ -126,4 +126,4 @@ def test_an_alert_has_exactly_the_thirteen_keys_the_dashboard_has_always_read(db
 
     first, acked = run_app(db, scenario)
     for item in first.json()["items"] + [acked.json()]:
-        assert list(item) == ITEM_KEYS, "the thirteen keys of an alert, in this order"
+        assert list(item) == ITEM_KEYS, "the twelve keys of an alert, in this order"

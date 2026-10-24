@@ -1,6 +1,7 @@
 // Pure rules of the Alerts view: what a group is called, what the detail says about it and what an acknowledge toasts.
 import type { AlertDetail, AlertGroup } from "@/api/alerts";
 import { ApiError } from "@/api/client";
+import { POINTS, scopeName } from "@/components/keys/key-model";
 
 export const GROUP_LIMIT = 200;
 export const ROW_LIMIT = 100;
@@ -45,14 +46,16 @@ function replied(g: Pick<AlertGroup, "title" | "provider">, reply?: string | nul
 
 // The name of a group on the Alerts page, as the canvas writes it: a reply group is who replied and the newest reply
 // as stored (`Dola replied “Sorry, I can’t create that video”`); a billing group is its wallet and the key's name
-// (`dola video wallet of key Shop A`, the wallet kind from the group id `<key>.<provider>.<kind>`). Without those
-// fields it is the server's title; the read failure keeps its own words.
+// (`points wallet of key Shop A`, or `dola cap of key Shop A`; the scope from the group id `<key>.<scope>`, `*` for the
+// points wallet). Without those fields it is the server's title; the read failure keeps its own words.
 export function alertTitle(
   g: Pick<AlertGroup, "kind" | "group" | "title" | "provider" | "reply" | "key_label">,
 ): string {
   if (g.kind === "unclear_reply") return isEmptyWording(g) ? groupTitle(g) : replied(g, g.reply);
-  const wallet = g.group.split(".")[2];
-  return g.key_label && wallet ? `${g.provider} ${wallet} wallet of key ${g.key_label}` : g.title;
+  const scope = g.group.split(".")[1];
+  return g.key_label && scope
+    ? `${scope === POINTS ? "points wallet" : scopeName(scope)} of key ${g.key_label}`
+    : g.title;
 }
 
 // The word before a live condition's message (`pool: dola has 7 usable accounts (alert below 8)`): what it is about.

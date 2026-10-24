@@ -44,7 +44,7 @@ export function hourBars(s: ProvidersSummary, name: string): Bar[] {
 
 // "11 / 32 video pts", "120 / 320 image jobs"
 export const poolText = (p: ProviderSummary["pools"][number]): string =>
-  `${p.left.toLocaleString("en-US")} / ${p.budget.toLocaleString("en-US")} ${p.pool} ${p.unit === "points" ? "pts" : "jobs"}`;
+  `${p.left.toLocaleString("en-US")} / ${p.budget.toLocaleString("en-US")} ${p.pool} ${p.unit === "jobs" ? "jobs" : p.unit === "uses" ? "uses" : "pts"}`;
 
 export const poolShare = (p: ProviderSummary["pools"][number]): number =>
   p.budget > 0 ? Math.min(100, (p.left / p.budget) * 100) : 0;

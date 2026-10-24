@@ -26,7 +26,7 @@ export function relativePercent(used: number, max: number): number {
   return Math.min(100, Math.round((used / max) * 100));
 }
 
-// The highest use of each wallet (`provider/kind`) among the keys that have it open (limit or unlimited), today and in
+// The highest use of each wallet (its scope) among the keys that have it open (limit or unlimited), today and in
 // total: what a relative bar counts as full.
 export type WalletMaxima = ReadonlyMap<string, { day: number; total: number }>;
 export function walletMaxima(keys: readonly Pick<ApiKey, "wallets">[]): WalletMaxima {
@@ -34,9 +34,8 @@ export function walletMaxima(keys: readonly Pick<ApiKey, "wallets">[]): WalletMa
   for (const k of keys) {
     for (const w of k.wallets) {
       if (w.mode === "closed") continue;
-      const id = `${w.provider}/${w.kind}`;
-      const at = out.get(id) ?? { day: 0, total: 0 };
-      out.set(id, { day: Math.max(at.day, w.used_day), total: Math.max(at.total, w.used_total) });
+      const at = out.get(w.scope) ?? { day: 0, total: 0 };
+      out.set(w.scope, { day: Math.max(at.day, w.used_day), total: Math.max(at.total, w.used_total) });
     }
   }
   return out;
@@ -117,8 +116,7 @@ export function unfinishedText(k: Pick<ApiKey, "unfinished" | "max_unfinished_ef
 
 // What the operator types. Numbers stay text until sent, so an empty box and a 0 differ.
 export interface WalletRow {
-  provider: string;
-  kind: string;
+  scope: string;
   mode: WalletMode;
   day: string;
   total: string;
@@ -132,45 +130,40 @@ export interface KeyForm {
   wallets: WalletRow[];
 }
 
-const SEP = "\u0000";
+export const POINTS = "*";
 
-// Wallets are listed by provider, and a provider's video wallet comes before its image wallet (as the design draws
-// them); any other kind follows, by name.
-const KIND_ORDER = ["video", "image"];
-const kindRank = (kind: string): number => {
-  const at = KIND_ORDER.indexOf(kind);
-  return at === -1 ? KIND_ORDER.length : at;
-};
-export function compareWallets(a: { provider: string; kind: string }, b: { provider: string; kind: string }): number {
-  if (a.provider !== b.provider) return a.provider < b.provider ? -1 : 1;
-  const rank = kindRank(a.kind) - kindRank(b.kind);
-  if (rank !== 0) return rank;
-  return a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0;
+// What a scope is called: the points wallet, or a provider's cap.
+export const scopeName = (scope: string): string => (scope === POINTS ? "points" : `${scope} cap`);
+
+// The points wallet comes first, then the providers' caps by name.
+export function compareWallets(a: { scope: string }, b: { scope: string }): number {
+  if (a.scope === b.scope) return 0;
+  if (a.scope === POINTS) return -1;
+  if (b.scope === POINTS) return 1;
+  return a.scope < b.scope ? -1 : 1;
 }
-export const sortedWallets = <T extends { provider: string; kind: string }>(wallets: readonly T[]): T[] =>
+export const sortedWallets = <T extends { scope: string }>(wallets: readonly T[]): T[] =>
   [...wallets].sort(compareWallets);
 
-// One wallet per distinct (provider, kind) of the catalog, in a stable order.
-export function walletPairs(models: CatalogModel[]): [string, string][] {
-  const seen = new Set<string>();
-  for (const m of models) seen.add(`${m.owned_by}${SEP}${String(m.kind)}`);
-  const pairs = [...seen].map((s) => s.split(SEP) as [string, string]);
-  return pairs.sort(([ap, ak], [bp, bk]) => compareWallets({ provider: ap, kind: ak }, { provider: bp, kind: bk }));
+// The wallets of a form: the points wallet, then one cap per distinct provider of the catalog, in a stable order.
+export function walletScopes(models: CatalogModel[]): string[] {
+  return sortedWallets([POINTS, ...new Set(models.map((m) => m.owned_by))].map((scope) => ({ scope }))).map(
+    (w) => w.scope,
+  );
 }
 
 // The form of a new key (null) or of an existing one. A wallet the key does not have yet starts closed.
 export function keyForm(models: CatalogModel[], key: ApiKey | null): KeyForm {
-  const byPair = new Map((key?.wallets ?? []).map((w) => [`${w.provider}${SEP}${w.kind}`, w]));
+  const byScope = new Map((key?.wallets ?? []).map((w) => [w.scope, w]));
   return {
     label: key?.label ?? "",
     maxUnfinished: key && key.max_unfinished !== null ? String(key.max_unfinished) : "",
     any: !key || key.models.includes("*"),
     models: key ? key.models.filter((m) => m !== "*") : [],
-    wallets: walletPairs(models).map(([provider, kind]) => {
-      const w = byPair.get(`${provider}${SEP}${kind}`);
+    wallets: walletScopes(models).map((scope) => {
+      const w = byScope.get(scope);
       return {
-        provider,
-        kind,
+        scope,
         mode: w?.mode ?? "closed",
         day: w?.day_limit ? String(w.day_limit) : "",
         total: w?.total_limit ? String(w.total_limit) : "",
@@ -181,7 +174,7 @@ export function keyForm(models: CatalogModel[], key: ApiKey | null): KeyForm {
 
 // The limits count only in `limit` mode, and only the boxes that are filled.
 function walletBody(row: WalletRow): WalletBody {
-  const body: WalletBody = { provider: row.provider, kind: row.kind, mode: row.mode };
+  const body: WalletBody = { scope: row.scope, mode: row.mode };
   if (row.mode === "limit") {
     if (row.day) body.day_limit = Number(row.day);
     if (row.total) body.total_limit = Number(row.total);

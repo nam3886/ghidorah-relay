@@ -1,4 +1,4 @@
-"""Admin keys: per-provider wallets that are closed unless opened on purpose, the raw key
+"""Admin keys: the points wallet and the per-provider caps, closed unless opened on purpose, the raw key
 shown once, the unfinished-jobs cap meanings, and a delete that only removes a key nothing ever used."""
 
 import uuid
@@ -10,10 +10,11 @@ from jobkit import new_job
 from relay_core import keys
 from relay_core.db import tx
 from relay_core.jobs import store
+from relay_core.testing.fake_provider import FakeSpec
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_keys.py"
-FAKE_VIDEO, FAKE_IMAGE = ("fake", "video"), ("fake", "image")
+STAR, FAKE = "*", "fake"
 UNLIMITED_FOR_NOTHING = '{"closed": (0, None), "unlimited": (None, None)}'
 CLOSED_AS_UNLIMITED = '{"closed": (None, None), "unlimited": (None, None)}'
 LIMIT_KEPT = "await keys.set_max_unfinished(conn, key_id, body.max_unfinished)"
@@ -27,8 +28,8 @@ def code_of(r) -> str:
 
 
 def wallets_of(db, key_id) -> dict:
-    return {(p, k): (d, t) for p, k, d, t in db.all(
-        "SELECT provider, kind, day_limit, total_limit FROM key_wallets WHERE key_id = %s", uuid.UUID(key_id))}
+    return {s: (d, t) for s, d, t in db.all(
+        "SELECT scope, day_limit, total_limit FROM key_wallets WHERE key_id = %s", uuid.UUID(key_id))}
 
 
 async def make(env, h, **body) -> dict:
@@ -37,20 +38,38 @@ async def make(env, h, **body) -> dict:
     return r.json()
 
 
-@mutation(ROUTES, "declared=declared, wallets=wallets)", "declared=[], wallets=wallets)",
+@mutation(ROUTES, "declared=registry.names(), wallets=wallets)", "declared=[], wallets=wallets)",
           expect="every declared wallet exists")
-def test_a_wallet_the_admin_did_not_name_is_closed_and_a_named_one_is_what_was_asked(db):
+def test_a_scope_the_admin_did_not_name_is_closed_and_a_named_one_is_what_was_asked(db):
     async def scenario(env):
         h = await env.admin_headers()
         return await make(env, h, label="client a", wallets=[
-            {"provider": "fake", "kind": "video", "mode": "limit", "day_limit": 50, "total_limit": 500}])
+            {"scope": "*", "mode": "limit", "day_limit": 50, "total_limit": 500}])
 
     made = run_app(db, scenario)
     got = wallets_of(db, made["id"])
-    assert set(got) == {FAKE_VIDEO, FAKE_IMAGE}, "every declared wallet exists"
-    assert got[FAKE_VIDEO] == (50, 500) and got[FAKE_IMAGE] == (0, None), "the unnamed pair is closed"
-    by_kind = {w["kind"]: w["mode"] for w in made["wallets"]}
-    assert by_kind == {"video": "limit", "image": "closed"}
+    assert set(got) == {STAR, FAKE}, "every declared wallet exists"
+    assert got[STAR] == (50, 500) and got[FAKE] == (0, None), "the unnamed provider cap is closed"
+    assert {w["scope"]: w["mode"] for w in made["wallets"]} == {STAR: "limit", FAKE: "closed"}
+
+
+@mutation(ROUTES, "ORDER BY (scope <> '*'), scope", "ORDER BY (scope = '*'), scope",
+          expect="the points wallet first")
+def test_a_key_lists_its_points_wallet_first_and_then_one_cap_per_provider_by_name(db):
+    async def scenario(env):
+        env.add_provider(FakeSpec("alpha"))
+        h = await env.admin_headers()
+        made = await make(env, h, wallets=[{"scope": "alpha", "mode": "unlimited"},
+                                           {"scope": "*", "mode": "unlimited"}])
+        listing = await env.client.get("/admin/keys", headers=h)
+        return made, listing.json()["items"][0]
+
+    made, listed = run_app(db, scenario)
+    for view in (made, listed):
+        assert [w["scope"] for w in view["wallets"]] == [STAR, "alpha", FAKE], "the points wallet first"
+        assert all(set(w) >= {"scope", "mode", "day_limit", "total_limit", "used_day", "used_total"}
+                   for w in view["wallets"])
+        assert not any("provider" in w or "kind" in w for w in view["wallets"])
 
 
 @mutation(ROUTES, UNLIMITED_FOR_NOTHING, CLOSED_AS_UNLIMITED, expect="closed means closed")
@@ -58,27 +77,26 @@ def test_closed_and_unlimited_and_a_day_only_limit_are_three_different_wallets(d
     async def scenario(env):
         h = await env.admin_headers()
         return await make(env, h, wallets=[
-            {"provider": "fake", "kind": "video", "mode": "closed"},
-            {"provider": "fake", "kind": "image", "mode": "unlimited"}]), await make(env, h, wallets=[
-                {"provider": "fake", "kind": "video", "mode": "limit", "day_limit": 5}])
+            {"scope": "*", "mode": "closed"},
+            {"scope": "fake", "mode": "unlimited"}]), await make(env, h, wallets=[
+                {"scope": "*", "mode": "limit", "day_limit": 5}])
 
     closed_open, day_only = run_app(db, scenario)
     got = wallets_of(db, closed_open["id"])
-    assert got[FAKE_VIDEO] == (0, None), "closed means closed"
-    assert got[FAKE_IMAGE] == (None, None)
-    assert wallets_of(db, day_only["id"])[FAKE_VIDEO] == (5, None)
+    assert got[STAR] == (0, None), "closed means closed"
+    assert got[FAKE] == (None, None)
+    assert wallets_of(db, day_only["id"])[STAR] == (5, None)
 
 
 def test_a_bad_wallet_is_refused_and_no_key_is_made(db):
     bad = [
-        [{"provider": "fake", "kind": "video", "mode": "limit"}],                         # a limit with no number
-        [{"provider": "fake", "kind": "video", "mode": "unlimited", "day_limit": 3}],     # a number with no limit
-        [{"provider": "fake", "kind": "video", "mode": "limit", "day_limit": 0}],         # 0 is "closed", not a limit
-        [{"provider": "ghost", "kind": "video", "mode": "closed"}],                       # not declared
-        [{"provider": "fake", "kind": "audio", "mode": "closed"}],
-        [{"provider": "fake", "kind": "video", "mode": "closed"},
-         {"provider": "fake", "kind": "video", "mode": "unlimited"}],                    # twice
-        [{"provider": "fake", "kind": "video", "mode": "open"}],
+        [{"scope": "*", "mode": "limit"}],                                  # a limit with no number
+        [{"scope": "*", "mode": "unlimited", "day_limit": 3}],              # a number with no limit
+        [{"scope": "fake", "mode": "limit", "day_limit": 0}],               # 0 is "closed", not a limit
+        [{"scope": "ghost", "mode": "closed"}],                             # not declared
+        [{"scope": "*", "mode": "closed"}, {"scope": "*", "mode": "unlimited"}],       # twice
+        [{"scope": "fake", "mode": "open"}],
+        [{"provider": "fake", "kind": "video", "mode": "closed"}],          # the old shape: a provider and a kind
     ]
 
     async def scenario(env):
@@ -121,8 +139,8 @@ def test_the_raw_key_is_shown_once_works_and_no_listing_ever_leaks_a_hash(db):
 def test_max_unfinished_null_uses_the_default_and_zero_means_unlimited_through_the_real_creation_gate(db):
     async def scenario(env):
         h = await env.admin_headers()
-        key = await make(env, h, wallets=[{"provider": "fake", "kind": k, "mode": "unlimited"} for k in
-                                          ("video", "image")], max_unfinished=1)
+        key = await make(env, h, wallets=[{"scope": s, "mode": "unlimited"} for s in ("*", "fake")],
+                         max_unfinished=1)
         key_id = uuid.UUID(key["id"])
 
         async def create() -> bool:
@@ -158,19 +176,18 @@ def test_a_patch_changes_the_label_the_models_and_the_wallet_limits_and_refuses_
         url = "/admin/keys/%s" % key["id"]
         patch = lambda body: env.client.patch(url, json=body, headers=h)  # noqa: E731
         out = {"label": await patch({"label": "new", "models": ["fake-video", "fake-image"]}),
-               "wallet": await patch({"wallets": [{"provider": "fake", "kind": "image", "mode": "limit",
-                                                   "total_limit": 9}]}),
-               "closed": await patch({"wallets": [{"provider": "fake", "kind": "image", "mode": "closed"}]})}
+               "wallet": await patch({"wallets": [{"scope": "fake", "mode": "limit", "total_limit": 9}]}),
+               "closed": await patch({"wallets": [{"scope": "fake", "mode": "closed"}]})}
         out["bad"] = [await patch(b) for b in ({}, {"label": None}, {"models": []}, {"models": ["  "]},
-                                               {"wallets": [{"provider": "ghost", "kind": "video", "mode": "closed"}]},
+                                               {"wallets": [{"scope": "ghost", "mode": "closed"}]},
                                                {"enabled": False})]
         out["ghost"] = await env.client.patch("/admin/keys/%s" % uuid.uuid4(), json={"label": "x"}, headers=h)
         return key, out
 
     key, out = run_app(db, scenario)
     assert out["label"].json()["label"] == "new" and out["label"].json()["models"] == ["fake-video", "fake-image"]
-    assert {w["kind"]: w["total_limit"] for w in out["wallet"].json()["wallets"]}["image"] == 9
-    assert wallets_of(db, key["id"])[FAKE_IMAGE] == (0, None)
+    assert {w["scope"]: w["total_limit"] for w in out["wallet"].json()["wallets"]}["fake"] == 9
+    assert wallets_of(db, key["id"])[FAKE] == (0, None)
     for r in out["bad"]:
         assert (r.status_code, code_of(r)) == (400, "input.invalid"), r.text
     assert (out["ghost"].status_code, code_of(out["ghost"])) == (404, "resource.not_found")
@@ -203,7 +220,8 @@ def test_delete_removes_a_key_nothing_used_and_only_disables_one_with_a_job(db):
     async def scenario(env):
         h = await env.admin_headers()
         unused = await make(env, h, label="unused")
-        used = await make(env, h, label="used", wallets=[{"provider": "fake", "kind": "video", "mode": "unlimited"}])
+        used = await make(env, h, label="used", wallets=[{"scope": "*", "mode": "unlimited"},
+                                                         {"scope": "fake", "mode": "unlimited"}])
         await store.create_job(env.pool, new_job(uuid.UUID(used["id"])), env.settings)    # a charge: a ledger row
         return (await env.client.delete("/admin/keys/%s" % unused["id"], headers=h),
                 await env.client.delete("/admin/keys/%s" % used["id"], headers=h),
@@ -216,7 +234,8 @@ def test_delete_removes_a_key_nothing_used_and_only_disables_one_with_a_job(db):
     assert db.one("SELECT count(*) FROM key_wallets WHERE key_id = %s", uuid.UUID(unused["id"]))[0] == 0
     assert kept.json() == {"id": used["id"], "result": "disabled"}
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", uuid.UUID(used["id"])) == (False,)
-    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s", uuid.UUID(used["id"]))[0] == 1, "history kept"
+    assert db.one("SELECT count(*) FROM ledger WHERE key_id = %s AND scope = '*'", uuid.UUID(used["id"]))[0] == 1, \
+        "history kept"
     assert ghost.status_code == 404
 
 
@@ -226,9 +245,9 @@ def test_a_key_with_ledger_history_and_no_job_is_disabled_not_deleted(db):
         h = await env.admin_headers()
         key = await make(env, h)
         db.run("UPDATE key_wallets SET used_day = 3, used_total = 3, day_anchor = (now() AT TIME ZONE 'UTC')::date "
-               "WHERE key_id = %s AND kind = 'video'", uuid.UUID(key["id"]))
-        db.run("INSERT INTO ledger (key_id, provider, kind, entry, amount, billing_day) VALUES "
-               "(%s, 'fake', 'video', 'adjust', 3, (now() AT TIME ZONE 'UTC')::date)", uuid.UUID(key["id"]))
+               "WHERE key_id = %s AND scope = '*'", uuid.UUID(key["id"]))
+        db.run("INSERT INTO ledger (key_id, scope, entry, amount, billing_day) VALUES "
+               "(%s, '*', 'adjust', 3, (now() AT TIME ZONE 'UTC')::date)", uuid.UUID(key["id"]))
         return key, await env.client.delete("/admin/keys/%s" % key["id"], headers=h)
 
     key, r = run_app(db, scenario)

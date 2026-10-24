@@ -221,14 +221,16 @@ class Source:
     groups: str
 
 
+# One group per (alert, key, scope): the key's points wallet (`*`, no provider) or one provider's cap.
 BILLING = Source(BILLING_KINDS, """
-    SELECT alert AS kind, key_id::text || '.' || provider || '.' || kind AS grp, 'error' AS severity,
-           alert || ': ' || provider || ' ' || kind || ' wallet of key ' || key_id::text AS title, provider,
+    SELECT alert AS kind, key_id::text || '.' || scope AS grp, 'error' AS severity,
+           alert || ': ' || CASE WHEN scope = '*' THEN 'points wallet' ELSE scope || ' cap' END || ' of key '
+           || key_id::text AS title, CASE WHEN scope = '*' THEN '' ELSE scope END AS provider,
            min(at) AS first_at, max(at) AS last_at, count(*) AS count,
            count(*) FILTER (WHERE acknowledged_at IS NULL) AS open_count, 1 AS keys, max(id) AS newest_id,
            NULL::text AS reply,
            (SELECT """ + KEY_NAME + """ FROM api_keys k WHERE k.id = billing_alerts.key_id) AS key_label
-      FROM billing_alerts GROUP BY alert, key_id, provider, kind""")
+      FROM billing_alerts WHERE alert IN ('clamp', 'drift') GROUP BY alert, key_id, scope""")
 
 UNCLEAR = Source((KIND_UNCLEAR,), """
     SELECT 'unclear_reply' AS kind, u.group_id AS grp, 'warning' AS severity,
@@ -290,7 +292,7 @@ async def get_group(conn, kind: str, group: str, sources=None) -> dict | None:
     return rows[0] if rows else None
 
 
-_BILLING_GROUP = re.compile(_UUID.pattern + r"\.[a-z0-9_-]+\.[a-z0-9_-]+")
+_BILLING_GROUP = re.compile(_UUID.pattern + r"\.(?:\*|[a-z][a-z0-9_]*)")
 _UNCLEAR_GROUP = re.compile(r"[0-9a-f]{16}")
 
 
@@ -303,7 +305,7 @@ def group_form(kind: str, group: str) -> bool:
 
 # billing items: the shape `GET /admin/alerts` shows. Defined here so the hub does not import a route module (a test
 # keeps the two equal).
-BILLING_COLUMNS = ("id", "at", "alert", "key_id", "provider", "kind", "ledger_id", "amount", "used_day", "used_total",
+BILLING_COLUMNS = ("id", "at", "alert", "key_id", "scope", "ledger_id", "amount", "used_day", "used_total",
                    "detail", "acknowledged_at", "acknowledged_by")
 
 
@@ -312,13 +314,13 @@ def billing_item(row: tuple) -> dict:
     item["at_ms"] = _ms(item.pop("at"))
     acknowledged = item.pop("acknowledged_at")
     item["acknowledged_ms"] = None if acknowledged is None else _ms(acknowledged)
-    item["key_id"] = str(item["key_id"])
+    item["key_id"] = None if item["key_id"] is None else str(item["key_id"])
     return item
 
 
-def _billing_key(group: str) -> tuple[str, str, str]:
-    key_id, provider, wallet = group.split(".")
-    return key_id, provider, wallet
+def _billing_key(group: str) -> tuple[str, str]:
+    key_id, scope = group.split(".")
+    return key_id, scope
 
 
 def _shown_title() -> str:
@@ -328,7 +330,7 @@ def _shown_title() -> str:
 
 
 async def billing_items(conn, kind: str, group: str, limit: int, offset: int) -> list[dict]:
-    key_id, provider, wallet = _billing_key(group)
+    key_id, scope = _billing_key(group)
     # The key's name and the job (through the ledger row the alert points at) ride along so the page can name them;
     # an alert with no ledger row, or a deleted key, has null names. The ledger row and the job must belong to the
     # alert's own key: a row of another key is never named here.
@@ -337,9 +339,9 @@ async def billing_items(conn, kind: str, group: str, limit: int, offset: int) ->
         "FROM billing_alerts b LEFT JOIN api_keys k ON k.id = b.key_id "
         "LEFT JOIN ledger l ON l.id = b.ledger_id AND l.key_id = b.key_id "
         "LEFT JOIN jobs j ON j.id = l.job_id AND j.key_id = b.key_id "
-        "WHERE b.alert = %s AND b.key_id = %s AND b.provider = %s AND b.kind = %s "
+        "WHERE b.alert = %s AND b.key_id = %s AND b.scope = %s "
         "ORDER BY b.id DESC LIMIT %s OFFSET %s",
-        (kind, key_id, provider, wallet, limit, offset))).fetchall()
+        (kind, key_id, scope, limit, offset))).fetchall()
     n = len(BILLING_COLUMNS)
     return [{**billing_item(r[:n]), "key_label": r[n], "job_id": None if r[n + 1] is None else str(r[n + 1]),
              "job_title": r[n + 2]} for r in rows]
@@ -382,11 +384,11 @@ async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -
     and the time. Rows that arrived later stay open; a stamped row is never touched (the filter, and for unclear
     replies the trigger). One INFO line records who, which group and how many: no text."""
     if kind in BILLING_KINDS:
-        key_id, provider, wallet = _billing_key(group)
+        key_id, scope = _billing_key(group)
         cur = await conn.execute(
             "UPDATE billing_alerts SET acknowledged_at = clock_timestamp(), acknowledged_by = %s WHERE alert = %s "
-            "AND key_id = %s AND provider = %s AND kind = %s AND id <= %s AND acknowledged_at IS NULL",
-            (user, kind, key_id, provider, wallet, through_id))
+            "AND key_id = %s AND scope = %s AND id <= %s AND acknowledged_at IS NULL",
+            (user, kind, key_id, scope, through_id))
     else:
         cur = await conn.execute(
             "UPDATE unclear_replies SET acknowledged_at = clock_timestamp(), acknowledged_by = %s "

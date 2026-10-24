@@ -79,9 +79,10 @@ const isWallet = (v: unknown): v is Wallet =>
   typeof (v as Wallet).used_day === "number" &&
   typeof (v as Wallet).used_total === "number";
 
-// The wallet limits of /v1/points as ledger rows: `dola video · today 3 / 20`, `dola video · total 14 / 200`, and for a
-// wallet with no limit at all `dola image unlimited (9 used)`. Null when the text is not the points answer (an error
-// message, or a shape this does not know): the caller then shows the text itself.
+// The wallet limits of /v1/points as ledger rows: the key's points wallet first (`points · today 3 / 20`,
+// `points · total 14 / 200`, and for a wallet with no limit at all `points unlimited (9 used)`), then each provider's
+// cap by name (`dola cap · today 1 / 5`). Null when the text is not the points answer (an error message, or a shape
+// this does not know): the caller then shows the text itself.
 export function walletRows(points: string): Array<{ label: string; value: string }> | null {
   let data: unknown;
   try {
@@ -90,25 +91,25 @@ export function walletRows(points: string): Array<{ label: string; value: string
     return null;
   }
   if (!data || typeof data !== "object") return null;
+  const answer = data as { points?: unknown; providers?: unknown };
+  const caps =
+    answer.providers && typeof answer.providers === "object" && !Array.isArray(answer.providers)
+      ? Object.entries(answer.providers as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
+      : [];
   const rows: Array<{ label: string; value: string }> = [];
-  for (const [provider, kinds] of Object.entries(data as Record<string, unknown>)) {
-    if (!kinds || typeof kinds !== "object" || Array.isArray(kinds)) continue;
-    // video first, as the model picker lists them (the answer has its own key order)
-    const byKind = Object.entries(kinds as Record<string, unknown>).sort(
-      ([a], [b]) => Number(b === "video") - Number(a === "video") || a.localeCompare(b),
-    );
-    for (const [kind, wallet] of byKind) {
-      if (!isWallet(wallet)) continue;
-      const label = `${provider} ${kind}`;
-      if (wallet.day_limit === null && wallet.total_limit === null) {
-        rows.push({ label, value: `unlimited (${wallet.used_total} used)` });
-        continue;
-      }
-      if (wallet.day_limit !== null)
-        rows.push({ label: `${label} · today`, value: `${wallet.used_day} / ${wallet.day_limit}` });
-      if (wallet.total_limit !== null) {
-        rows.push({ label: `${label} · total`, value: `${wallet.used_total} / ${wallet.total_limit}` });
-      }
+  for (const [label, wallet] of [
+    ["points", answer.points] as const,
+    ...caps.map(([p, w]) => [`${p} cap`, w] as const),
+  ]) {
+    if (!isWallet(wallet)) continue;
+    if (wallet.day_limit === null && wallet.total_limit === null) {
+      rows.push({ label, value: `unlimited (${wallet.used_total} used)` });
+      continue;
+    }
+    if (wallet.day_limit !== null)
+      rows.push({ label: `${label} · today`, value: `${wallet.used_day} / ${wallet.day_limit}` });
+    if (wallet.total_limit !== null) {
+      rows.push({ label: `${label} · total`, value: `${wallet.used_total} / ${wallet.total_limit}` });
     }
   }
   return rows.length ? rows : null;

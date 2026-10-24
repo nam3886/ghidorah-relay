@@ -59,8 +59,8 @@ describe("groupSentence (the Jobs banner's muted sentence)", () => {
 
   it("a reply with no text, or a group of another kind, says its title", () => {
     expect(groupSentence({ ...g, title: EMPTY_WORDING_TITLE })).toBe("API read failure: no reply text was read.");
-    expect(groupSentence({ ...g, kind: "clamp", title: "clamp: dola video wallet of key k1" })).toBe(
-      "clamp: dola video wallet of key k1.",
+    expect(groupSentence({ ...g, kind: "clamp", title: "clamp: points wallet of key k1" })).toBe(
+      "clamp: points wallet of key k1.",
     );
   });
 });
@@ -181,9 +181,9 @@ describe("alertTitle (a group's name on the Alerts page)", () => {
   };
   const clamp = {
     kind: "clamp",
-    group: "6b1f0c2e-0000-4000-8000-000000000000.dola.video",
-    title: "clamp: dola video wallet of key 6b1f0c2e-0000-4000-8000-000000000000",
-    provider: "dola",
+    group: "6b1f0c2e-0000-4000-8000-000000000000.*",
+    title: "clamp: points wallet of key 6b1f0c2e-0000-4000-8000-000000000000",
+    provider: "",
     reply: null,
     key_label: "Shop A",
   };
@@ -202,9 +202,9 @@ describe("alertTitle (a group's name on the Alerts page)", () => {
   });
 
   it("a billing group is its wallet and the key's name, else the server's title", () => {
-    expect(alertTitle(clamp)).toBe("dola video wallet of key Shop A");
-    expect(alertTitle({ ...clamp, kind: "drift", group: clamp.group.replace("video", "image") })).toBe(
-      "dola image wallet of key Shop A",
+    expect(alertTitle(clamp)).toBe("points wallet of key Shop A");
+    expect(alertTitle({ ...clamp, kind: "drift", group: clamp.group.replace("*", "dola"), provider: "dola" })).toBe(
+      "dola cap of key Shop A",
     );
     expect(alertTitle({ ...clamp, key_label: null })).toBe(clamp.title);
     expect(alertTitle({ ...clamp, key_label: undefined })).toBe(clamp.title);

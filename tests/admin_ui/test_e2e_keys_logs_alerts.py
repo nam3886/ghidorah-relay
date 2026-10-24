@@ -71,9 +71,9 @@ def create_key(page, label="customer one"):
     page.get_by_role("button", name="New key").first.click()
     box = page.get_by_role("dialog")
     box.get_by_label("Label", exact=True).fill(label)
-    mode(box, "fake video", "limit")
-    box.get_by_label("fake video per day").fill("5")
-    mode(box, "fake image", "unlimited")
+    mode(box, "points", "limit")
+    box.get_by_label("points per day").fill("5")
+    mode(box, "fake cap", "unlimited")
     box.get_by_role("button", name="Create key").click()
     # the dialog has the same name; the field is the textbox
     callout = page.get_by_role("textbox", name="New API key")
@@ -102,9 +102,9 @@ def test_create_shows_the_raw_key_once_copies_it_over_plain_http_and_it_is_gone_
     assert raw not in json.dumps(db.all("SELECT key_hash, key_prefix FROM api_keys")), "only the hash is stored"
     row = rows(page).first
     expect(row).to_contain_text("customer one")
-    expect(row).to_contain_text("fake video")
+    expect(row).to_contain_text("points")
     expect(row).to_contain_text("day 0/5")
-    expect(row).to_contain_text("fake image")
+    expect(row).to_contain_text("fake cap")
     expect(row).to_contain_text("unlimited")
     page.get_by_test_id("new-key").get_by_role("button", name="Dismiss").click()
     expect(page.get_by_test_id("new-key")).to_have_count(0)

@@ -291,7 +291,7 @@ def test_test_view_rules():
 
 
 # ---- page-test-login: the Test page drawn as the design (the result card frames, the wallet order, the play box) -----
-WALLET_ORDER = PICKER + "lists the video wallet first, whatever order the points answer has"
+WALLET_ORDER = PICKER + "lists the points wallet first, then the caps by name, whatever order the points answer has"
 FRAMES_OF_RESULT = VIEW_SPEC + "the result card frames > "
 DONE_FRAME = (FRAMES_OF_RESULT + "draws a done job as a title bar over the media and the ledger: job, model, duration "
               + "and time taken")
@@ -308,8 +308,9 @@ REFUNDED_POINTS = (VIEW_SPEC + "the result card > a refunded failed job strikes 
 OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and the label only when there is no value"
 
 
-@mutation(TEST_MODELS, 'Number(b === "video") - Number(a === "video") || a.localeCompare(b)', "a.localeCompare(b)",
+@mutation(TEST_MODELS, ".sort(([a], [b]) => a.localeCompare(b))", ".sort(([a], [b]) => b.localeCompare(a))",
           expect=WALLET_ORDER)
+@mutation(TEST_MODELS, '["points", answer.points] as const,', '["points", null] as const,', expect=WALLET_ORDER)
 @mutation(TEST_RESULT, 'typeof props.job?.error_code === "string" ? props.job.error_code : ""', '""',
           expect=FAILED_CODE)
 @mutation(TEST_VIEW, "(extras.ratios ?? []).map(optionValue)", "(extras.ratios ?? []).map(optionLabel)",

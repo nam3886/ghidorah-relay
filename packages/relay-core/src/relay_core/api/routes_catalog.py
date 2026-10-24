@@ -8,7 +8,7 @@ model it may not use is as unknown to it as a model that does not exist. A model
 from fastapi import APIRouter, Depends
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import keys, pricing
+from relay_core import billing, keys, pricing
 from relay_core.api.deps import get_pool, get_registry, get_settings, require_key
 from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
@@ -21,11 +21,11 @@ router = APIRouter()
 GEMINI_METHODS = ["generateContent", "streamGenerateContent"]
 # used_day counts only for the wallet's own day: a stale anchor means the day counter starts again at 0.
 _WALLETS = """
-SELECT w.provider, w.kind, w.day_limit, w.total_limit,
+SELECT w.scope, w.day_limit, w.total_limit,
        CASE WHEN w.day_anchor IS DISTINCT FROM d.today THEN 0 ELSE w.used_day END, w.used_total
   FROM key_wallets w,
        (SELECT (clock_timestamp() AT TIME ZONE (SELECT tz FROM billing_pin))::date AS today) d
- WHERE w.key_id = %s ORDER BY w.provider, w.kind
+ WHERE w.key_id = %s ORDER BY (w.scope <> '*'), w.scope
 """
 
 
@@ -107,17 +107,17 @@ async def provider_options(provider: str, key: ApiKey = Depends(require_key),
 @router.get("/v1/points")
 async def points(key: ApiKey = Depends(require_key), pool: AsyncConnectionPool = Depends(get_pool),
                  settings: Settings = Depends(get_settings)):
-    """`{provider: {kind: {day_limit, used_day, total_limit, used_total}}}` plus `models` (the key's allow-list),
-    `unfinished_jobs` and `max_unfinished_jobs` (null = no cap). A limit of null is unlimited, 0 is closed."""
+    """`points` (the key's one points wallet) and `providers` (`{provider: cap}`, each a provider's cap on top of it),
+    both `{day_limit, used_day, total_limit, used_total}`, plus `models` (the key's allow-list), `unfinished_jobs` and
+    `max_unfinished_jobs` (null = no cap). A limit of null is unlimited, 0 is closed. A job is charged to the points
+    wallet and to its provider's cap, so it needs both open."""
     async with pool.connection() as conn:
         wallets = await (await conn.execute(_WALLETS, (key.id,))).fetchall()
         unfinished = (await (await conn.execute(
             "SELECT count(*) FROM jobs WHERE key_id = %s AND status NOT IN ('done', 'failed')",
             (key.id,))).fetchone())[0]
     cap = settings.get("max_unfinished_default") if key.max_unfinished is None else key.max_unfinished
-    out: dict = {}
-    for provider, kind, day_limit, total_limit, used_day, used_total in wallets:
-        out.setdefault(provider, {})[kind] = {"day_limit": day_limit, "used_day": used_day,
-                                              "total_limit": total_limit, "used_total": used_total}
-    return {**out, "models": list(key.models), "unfinished_jobs": unfinished,
-            "max_unfinished_jobs": cap or None}
+    rows = {scope: {"day_limit": day_limit, "used_day": used_day, "total_limit": total_limit,
+                    "used_total": used_total} for scope, day_limit, total_limit, used_day, used_total in wallets}
+    return {"points": rows.pop(billing.STAR, None), "providers": rows, "models": list(key.models),
+            "unfinished_jobs": unfinished, "max_unfinished_jobs": cap or None}

@@ -187,18 +187,16 @@ def test_serve_refuses_to_serve_when_the_object_store_is_unreachable(db, monkeyp
 
 
 # ---- serve: start and stop ----------------------------------------------------------------------------------------
-@mutation(M, "                await billing.ensure_wallets(conn, spec.name, spec.caps.wallet_kinds)\n",
-          "                pass\n", expect="a newly declared pair must be closed on the existing key")
-def test_serve_backfills_closed_wallets_for_a_newly_declared_pair_and_leaves_the_others(db, monkeypatch, http):
-    key = db.key(("fake", "video", 5, None))                       # "other" is new; "fake"/"image" is new too
+@mutation(M, "                await billing.ensure_wallets(conn, spec.name)\n",
+          "                pass\n", expect="a newly declared provider must be closed on the existing key")
+def test_serve_backfills_a_closed_cap_for_a_newly_declared_provider_and_leaves_the_others(db, monkeypatch, http):
+    key = db.key(("fake", 5, None))                                # "other" is new
     specs(monkeypatch, "fake", "other")
     serve_env(monkeypatch, db)
     assert cli.main(["serve"]) == 0 and http.calls == [(8123, {"ok": True})]
-    rows = db.all("SELECT provider, kind, day_limit, total_limit FROM key_wallets WHERE key_id = %s "
-                  "ORDER BY provider, kind", key)
-    assert rows == [("fake", "image", 0, None), ("fake", "video", 5, None),
-                    ("other", "image", 0, None), ("other", "video", 0, None)], (
-        "a newly declared pair must be closed on the existing key, and an existing wallet untouched")
+    rows = db.all("SELECT scope, day_limit, total_limit FROM key_wallets WHERE key_id = %s ORDER BY scope", key)
+    assert rows == [("*", None, None), ("fake", 5, None), ("other", 0, None)], (
+        "a newly declared provider must be closed on the existing key, and an existing wallet untouched")
 
 
 @mutation(M, '                    await frames.seed(conn, spec.name, spec.frames.defaults)', "                    pass",
@@ -341,7 +339,7 @@ def test_key_create_prints_the_raw_key_once_stores_only_its_hash_and_opens_only_
     monkeypatch.setenv("DATABASE_URL", db.api_dsn)
     specs(monkeypatch, "fake")
     assert cli.main(["key", "create", "--label", "ops", "--models", "fake-video", "--max-unfinished", "3",
-                     "--wallet", "fake:video=7"]) == 0
+                     "--points-day", "20", "--points-total", "200", "--wallet", "fake=7"]) == 0
     out = capsys.readouterr()
     assert len(RAW_KEY.findall(out.out)) == 1, "the raw key must be printed exactly once"
     raw = RAW_KEY.search(out.out).group(0)
@@ -349,8 +347,8 @@ def test_key_create_prints_the_raw_key_once_stores_only_its_hash_and_opens_only_
     row = db.one("SELECT id, key_hash, label, models, max_unfinished FROM api_keys")
     assert row[1] == keys.hash_key(raw) and raw not in row[1:]
     assert (row[2], row[3], row[4]) == ("ops", ["fake-video"], 3)
-    assert db.all("SELECT kind, day_limit, total_limit FROM key_wallets ORDER BY kind") == [
-        ("image", 0, None), ("video", 7, None)], "the day limit of the named wallet, the other closed"
+    assert db.all("SELECT scope, day_limit, total_limit FROM key_wallets ORDER BY scope") == [
+        ("*", 20, 200), ("fake", 7, None)], "the day limit of the named wallet and the points wallet's two limits"
 
     async def lookup():
         pool = await open_pool(db.api_dsn, max_size=1)
@@ -366,24 +364,29 @@ def test_key_create_prints_the_raw_key_once_stores_only_its_hash_and_opens_only_
 def test_key_create_unlimited_and_refusals_make_no_key(db, monkeypatch, capsys):
     monkeypatch.setenv("DATABASE_URL", db.api_dsn)
     specs(monkeypatch, "fake")
-    assert cli.main(["key", "create", "--wallet", "fake:image=unlimited"]) == 0
-    assert db.all("SELECT kind, day_limit, total_limit FROM key_wallets ORDER BY kind") == [
-        ("image", None, None), ("video", 0, None)]
+    assert cli.main(["key", "create", "--wallet", "fake=unlimited"]) == 0
+    assert db.all("SELECT scope, day_limit, total_limit FROM key_wallets ORDER BY scope") == [
+        ("*", 0, None), ("fake", None, None)], "the points wallet not named is closed"
+    assert cli.main(["key", "create", "--points-day", "unlimited"]) == 0
+    assert db.all("SELECT w.scope, w.day_limit, w.total_limit FROM key_wallets w JOIN api_keys k ON k.id = w.key_id "
+                  "ORDER BY k.created_at DESC, w.scope LIMIT 2") == [
+        ("*", None, None), ("fake", 0, None)], "an unlimited points wallet and a closed cap"
     capsys.readouterr()
-    for bad in ("nobody:video=1", "fake:video", "fake:video=lots"):
-        assert cli.main(["key", "create", "--wallet", bad]) == 2, bad
+    for bad in (["--wallet", "nobody=1"], ["--wallet", "fake"], ["--wallet", "fake=lots"], ["--wallet", "*=5"],
+                ["--points-day", "lots"], ["--points-total", "-3"]):
+        assert cli.main(["key", "create", *bad]) == 2, bad
     assert cli.main(["key", "create", "--models", " "]) == 2
-    assert db.one("SELECT count(*) FROM api_keys")[0] == 1
+    assert db.one("SELECT count(*) FROM api_keys")[0] == 2
 
 
 @mutation(M, "keys.set_enabled(conn, wanted, False)", "keys.set_enabled(conn, wanted, True)",
           expect="the key must be disabled")
 def test_key_disable_disables_and_refuses_an_unknown_or_malformed_id(db, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", db.api_dsn)
-    key = db.key(("fake", "video", 5, None))
+    key = db.key(("fake", 5, None))
     assert cli.main(["key", "disable", str(key)]) == 0
     assert db.one("SELECT enabled FROM api_keys WHERE id = %s", key) == (False,), "the key must be disabled"
-    assert db.one("SELECT count(*) FROM key_wallets WHERE key_id = %s", key) == (1,)    # disabled, never deleted
+    assert db.one("SELECT count(*) FROM key_wallets WHERE key_id = %s", key) == (2,)    # disabled, never deleted
     import uuid
 
     assert cli.main(["key", "disable", str(uuid.uuid4())]) == 1

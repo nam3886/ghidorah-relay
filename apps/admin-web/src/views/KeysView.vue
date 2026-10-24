@@ -17,6 +17,7 @@ import {
   keyReaches,
   loadFailedText,
   modelGroups,
+  POINTS,
   unfinishedText,
   walletMaxima,
 } from "@/components/keys/key-model";
@@ -93,7 +94,8 @@ const known = computed(() => scope.models ?? []);
 const shown = computed(() =>
   scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value,
 );
-const walletsOf = (k: ApiKey) => (scope.provider ? k.wallets.filter((w) => w.provider === scope.provider) : k.wallets);
+const walletsOf = (k: ApiKey) =>
+  scope.provider ? k.wallets.filter((w) => w.scope === POINTS || w.scope === scope.provider) : k.wallets;
 // a model on the page is paused: the note under the list says what that means
 const anyPaused = computed(() =>
   shown.value.some((k) =>
