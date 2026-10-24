@@ -199,6 +199,17 @@ describe("stats store", () => {
     expect(stats.loading).toBe(false);
   });
 
+  it("a group of a muted kind is never counted or worded", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(statsOf(1));
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({
+      items: [group({ kind: "clamp", muted_until_ms: Date.now() + 60_000 }), group({ kind: "drift", group: "g2" })],
+    });
+    const stats = useStatsStore();
+    await stats.refresh();
+    expect(stats.openGroups).toBe(1);
+    expect(stats.firstGroup?.kind).toBe("drift");
+  });
+
   it("keeps the first group and its newest reply, read again only when the group or its newest row changes", async () => {
     vi.mocked(shell.getStats).mockResolvedValue(statsOf(1));
     vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group()] });

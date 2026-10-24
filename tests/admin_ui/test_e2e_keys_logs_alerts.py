@@ -665,7 +665,8 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     open_tab(page, "Alerts")
     expect(groups(page)).to_have_count(5)
     expect(page.get_by_test_id("alert-live").filter(has_text="pool: ")).to_have_count(1)
-    assert page.get_by_test_id("alert-live").get_by_role("button").count() == 0, "nothing to acknowledge there"
+    assert page.get_by_test_id("alert-live").get_by_role("button", name="Acknowledge").count() == 0, \
+        "nothing to acknowledge there"
     expect(page.get_by_test_id("alerts-more")).to_have_count(0)
     page.wait_for_timeout(300)                           # a script in the planted markup would have run by now
     hostile, plain = group_row(page, "which style?"), group_row(page, "plain wording")
@@ -687,6 +688,32 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     choose(page, "Kind", "All")
     choose(page, "Status", "Open")
     expect(groups(page)).to_have_count(5)
+
+
+def test_mute_resolved_today_the_rules_and_open_jobs_filtered_work_against_the_real_routes(app, app_session, db):
+    page = app_session
+    alerts_page(page, db)
+    # Mute 1 h on the plain wording mutes every unclear-reply group: they keep their rows and show the mute's end
+    group_row(page, "plain wording").get_by_role("button", name="Mute unclear_reply for 1 hour").click()
+    expect(page.get_by_text(re.compile(r"^unclear_reply muted until"))).to_be_visible()
+    expect(group_row(page, "plain wording").get_by_test_id("alert-muted")).to_contain_text("Muted until")
+    assert db.one("SELECT updated_by FROM alert_rules WHERE source = 'stored' AND kind = 'unclear_reply' "
+                  "AND muted_until > now() + interval '59 minutes'")[0] == "operator"
+    # the acknowledged wording planted today counts as resolved today
+    resolved = page.get_by_test_id("alerts-resolved")
+    expect(resolved.get_by_test_id("alerts-resolved-count")).to_have_text("1")
+    resolved.locator("button[aria-expanded]").click()
+    expect(resolved.get_by_test_id("alert-resolved")).to_contain_text("Seen and acknowledged wording")
+    # the rules drawer turns the clamp off: its group leaves the list
+    page.get_by_role("button", name="Alert rules").click()
+    page.get_by_test_id("alert-rule").filter(has_text="clamp").get_by_role("switch").click()
+    expect(page.get_by_text("clamp turned off")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(group_row(page, "points wallet")).to_have_count(1)            # the drift is still listed
+    # Open Jobs filtered on the drift's group opens Jobs on its key
+    open_group(page, "points wallet")
+    page.get_by_test_id("alert-detail").get_by_role("button", name="Open Jobs filtered").click()
+    expect(page).to_have_url(re.compile(r"#/jobs\?key_id=[0-9a-f-]{36}$"))
 
 
 def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it_showed(app, app_session, db):

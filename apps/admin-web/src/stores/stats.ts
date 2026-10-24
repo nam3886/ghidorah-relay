@@ -45,8 +45,10 @@ export const useStatsStore = defineStore("stats", () => {
       const [stats, groups] = await Promise.all([getStats(scope.provider), getOpenAlertGroups()]);
       if (!latest.isCurrent(ticket)) return;
       data.value = stats;
-      openGroups.value = groups.items.length;
-      firstGroup.value = groups.items[0] ?? null;
+      // a group of a muted kind (Alert rules) is listed on the Alerts page but never counted or worded here
+      const raised = groups.items.filter((g) => !g.muted_until_ms);
+      openGroups.value = raised.length;
+      firstGroup.value = raised[0] ?? null;
       await readReply(firstGroup.value, ticket);
     } catch (err) {
       if (!latest.isCurrent(ticket)) return;

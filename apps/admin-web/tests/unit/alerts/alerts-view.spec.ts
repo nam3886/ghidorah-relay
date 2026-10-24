@@ -11,7 +11,16 @@ import { useScopeStore } from "@/stores/scope";
 import { useUiStore } from "@/stores/ui";
 import AlertsView from "@/views/AlertsView.vue";
 
-vi.mock("@/api/alerts", () => ({ listAlertGroups: vi.fn(), getAlertGroup: vi.fn(), acknowledgeGroup: vi.fn() }));
+vi.mock("@/api/alerts", () => ({
+  listAlertGroups: vi.fn(),
+  getAlertGroup: vi.fn(),
+  acknowledgeGroup: vi.fn(),
+  getResolvedToday: vi.fn(),
+  changeAlertRule: vi.fn(),
+  listAlertRules: vi.fn(),
+}));
+const push = vi.fn();
+vi.mock("vue-router", () => ({ useRouter: () => ({ push }) }));
 vi.mock("@/api/shell", () => ({ getStats: vi.fn(), getOpenAlertGroups: vi.fn(), getModels: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
@@ -158,6 +167,8 @@ beforeEach(() => {
   });
   vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [] });
   vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail());
+  vi.mocked(alerts.getResolvedToday).mockResolvedValue({ count: 0, day_start_ms: 0, tz: "UTC", items: [] });
+  push.mockReset();
   delete (window as unknown as { __pwned?: number }).__pwned;
 });
 afterEach(() => {
@@ -251,11 +262,9 @@ describe("the lists", () => {
       ],
     });
     const w = await open();
-    expect(w.findAll("section[aria-label]").map((c) => c.attributes("aria-label"))).toEqual([
-      "Critical",
-      "Warnings",
-      "Info",
-    ]);
+    // the Resolved card follows the severity cards
+    const cards = w.findAll("section[aria-label]").map((c) => c.attributes("aria-label"));
+    expect(cards.filter((c) => c !== "Resolved")).toEqual(["Critical", "Warnings", "Info"]);
     expect(w.find('[data-testid="alerts-card-error"]').findAll('[data-testid="alert-group"]')).toHaveLength(1);
     expect(w.find('[data-testid="alerts-card-info"]').findAll('[data-testid="alert-group"]')).toHaveLength(1);
   });
@@ -291,7 +300,8 @@ describe("the lists", () => {
     const w = await open();
     const item = w.find('[data-testid="alert-live"]');
     expect(item.text()).toContain("Computed now: it cannot be acknowledged and clears when the condition does.");
-    expect(item.find("button").exists()).toBe(false);
+    // its one button mutes it; nothing acknowledges it
+    expect(item.findAll("button").map((b) => b.text())).toEqual(["Mute 1 h"]);
     vi.mocked(shell.getStats).mockResolvedValue({
       ...(await shell.getStats("")),
       alerts: [],
@@ -612,7 +622,12 @@ describe("the detail", () => {
   it("the footer's Acknowledge says how many rows it marks", async () => {
     const w = await open();
     await openFirst(w);
-    expect(dr().find(".rl-drawer__foot button").text()).toBe("Acknowledge 2 rows");
+    // as drawn: Mute 1 h at the left, Open Jobs filtered and Acknowledge at the right
+    expect(
+      dr()
+        .findAll(".rl-drawer__foot button")
+        .map((b) => b.text()),
+    ).toEqual(["Mute 1 h", "Open Jobs filtered", "Acknowledge 2 rows"]);
   });
 
   it("a tablet row opens the detail on a click beside its buttons", async () => {
@@ -995,7 +1010,7 @@ describe("the tablet and the phone", () => {
     await openFirst(w);
     expect(db().find('[data-testid="alert-detail-title"]').text()).toBe("first");
     expect(dr().find('button[aria-label="Back to Alerts"]').exists()).toBe(true);
-    expect(dr().find(".rl-drawer__foot").text()).toBe("Acknowledge 2 rows");
+    expect(dr().find(".ad-ack").text()).toBe("Acknowledge 2 rows");
   });
 
   it("a phone says the detail is cut at 100 rows, and only then", async () => {
@@ -1104,5 +1119,119 @@ describe("the names of the groups, as the canvas writes them", () => {
       SAID,
       "dola cap of key Shop A",
     ]);
+  });
+});
+
+describe("mute, rules, Open Jobs filtered and Resolved today", () => {
+  const HOUR = 3_600_000;
+
+  it("Mute 1 h mutes the row's kind for 60 minutes; a muted row shows its end and is not counted", async () => {
+    const end = new Date(2026, 9, 24, 15, 27).getTime();
+    vi.mocked(alerts.changeAlertRule).mockResolvedValue({
+      enabled: true,
+      muted_until_ms: end,
+      updated_by: "ann",
+      updated_ms: 1,
+    });
+    const w = await open();
+    expect(w.find('[data-testid="alerts-summary"]').text()).toBe("2 open: 1 critical, 1 warning.");
+    list.mockResolvedValue({ items: [group({ muted_until_ms: end })] });
+    await listButtons(w, "Mute clamp for 1 hour")[0]!.trigger("click");
+    await settle();
+    expect(alerts.changeAlertRule).toHaveBeenCalledWith("stored", "clamp", { mute_minutes: 60 });
+    const row = w.find('[data-testid="alert-group"]');
+    expect(row.find('[data-testid="alert-muted"]').text()).toMatch(/^Muted until (15:27|\d+ Oct 15:27)$/);
+    expect(row.find('[data-testid="alert-mute"]').exists()).toBe(false);
+    expect(w.find('[data-testid="alerts-summary"]').text()).toBe("1 open: 1 warning.");
+  });
+
+  it("a live condition can be muted, and a muted one from the stats is listed with its end, never counted", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue({
+      jobs: { queued: 0, in_progress: 0, done: 0, failed: 0, pre_job_failures_24h: 0 },
+      made: { videos: 0, images: 0 },
+      accounts: { usable: 1, available: 1, dead: 0, disabled: 0 },
+      keys: 1,
+      alerts: [{ kind: "accounts_low", severity: "warning", message: "only 1 usable account" }],
+      muted_alerts: [{ kind: "disk_low", severity: "error", message: "2 GB free", muted_until_ms: Date.now() + HOUR }],
+    });
+    vi.mocked(alerts.changeAlertRule).mockResolvedValue({
+      enabled: true,
+      muted_until_ms: Date.now() + HOUR,
+      updated_by: "ann",
+      updated_ms: 1,
+    });
+    const w = await open();
+    const live = w.findAll('[data-testid="alert-live"]');
+    expect(live).toHaveLength(2);
+    expect(live.filter((r) => r.find('[data-testid="alert-muted"]').exists())).toHaveLength(1);
+    expect(w.find('[data-testid="alerts-summary"]').text()).toBe("2 open: 1 critical, 1 warning.");
+    await listButtons(w, "Mute accounts_low for 1 hour")[0]!.trigger("click");
+    await settle();
+    expect(alerts.changeAlertRule).toHaveBeenCalledWith("live", "accounts_low", { mute_minutes: 60 });
+  });
+
+  it("Open Jobs filtered opens Jobs on the group's provider and key", async () => {
+    const w = await open();
+    await listButtons(w, "Details of Clamp on fake")[0]!.trigger("click");
+    await settle();
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail());
+    const go = dr()
+      .findAll("button")
+      .find((b) => b.text() === "Open Jobs filtered")!;
+    expect(go.exists()).toBe(true);
+    await go.trigger("click");
+    await settle();
+    expect(useScopeStore().provider).toBe("");
+    expect(push).toHaveBeenCalledWith({ name: "jobs", query: { key_id: "g1" } });
+    void w;
+  });
+
+  it("Resolved today counts the groups acknowledged today and lists them when opened", async () => {
+    vi.mocked(alerts.getResolvedToday).mockResolvedValue({
+      count: 1,
+      day_start_ms: 0,
+      tz: "UTC",
+      items: [
+        {
+          ...group({ kind: "drift", group: "k1.dola", title: "drift of key", open_count: 0 }),
+          key_label: "Shop A",
+          resolved_ms: new Date(2026, 9, 24, 13, 12).getTime(),
+          resolved_by: "ann",
+          resolved_rows: 2,
+        },
+      ],
+    });
+    const w = await open();
+    const card = w.find('[data-testid="alerts-resolved"]');
+    expect(card.find('[data-testid="alerts-resolved-count"]').text()).toBe("1");
+    expect(card.text()).toContain("Latest: dola cap of key Shop A acknowledged at 13:12 by ann");
+    expect(card.findAll('[data-testid="alert-resolved"]')).toHaveLength(0);
+    await card.find("button[aria-expanded]").trigger("click");
+    expect(card.findAll('[data-testid="alert-resolved"]')).toHaveLength(1);
+  });
+
+  it("the head opens the alert rules", async () => {
+    vi.mocked(alerts.listAlertRules).mockResolvedValue({
+      items: [
+        {
+          source: "live",
+          kind: "accounts_low",
+          severity: "warning",
+          text: "A provider has fewer usable accounts than the threshold.",
+          fixed: null,
+          thresholds: [{ setting: "alert_accounts_low", value: 3 }],
+          enabled: true,
+          muted_until_ms: null,
+          updated_by: null,
+          updated_ms: null,
+        },
+      ],
+    });
+    const w = await open();
+    await listButtons(w, "Alert rules")[0]!.trigger("click");
+    await settle();
+    const rule = db().find('[data-testid="alert-rule"]');
+    expect(rule.text()).toContain("accounts_low");
+    expect((rule.find("input").element as HTMLInputElement).value).toBe("3");
   });
 });

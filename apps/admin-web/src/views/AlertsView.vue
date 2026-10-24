@@ -1,22 +1,38 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
-import { acknowledgeGroup, type AlertDetail, type AlertGroup, getAlertGroup, listAlertGroups } from "@/api/alerts";
+import { useRouter } from "vue-router";
+import {
+  acknowledgeGroup,
+  type AlertDetail,
+  type AlertGroup,
+  changeAlertRule,
+  getAlertGroup,
+  getResolvedToday,
+  listAlertGroups,
+  type ResolvedToday,
+  type RuleSource,
+} from "@/api/alerts";
 import { getStats, type LiveAlert } from "@/api/shell";
 import AlertDetailPanel from "@/components/alerts/AlertDetailPanel.vue";
+import AlertRulesPanel from "@/components/alerts/AlertRulesPanel.vue";
 import {
   ackLabel,
   ackToast,
   type AlertAsk,
   ALERT_KINDS,
-  alertTime,
   alertTitle,
   GROUP_LIMIT,
+  dayClock,
   groupLine,
+  jobsFilter,
   liveWord,
   loadFailedText,
+  MUTE_MINUTES,
+  mutedText,
   ONE_CUSTOMER_NOTE,
   oneCustomer,
   openSummary,
+  resolvedLine,
   ROW_LIMIT,
   seenText,
   type Severity,
@@ -34,6 +50,7 @@ import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { providerClass } from "@/lib/providers";
+import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
@@ -52,6 +69,8 @@ import { useUiStore } from "@/stores/ui";
 // drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read that
 // failed.
 const stats = useStatsStore();
+const router = useRouter();
+const scope = useScopeStore();
 const ui = useUiStore();
 const { run } = useBusy();
 const latest = useLatest();
@@ -62,6 +81,10 @@ const asked = ref<AlertAsk>({ status: "open", kind: "", open: null });
 const groups = shallowRef<AlertGroup[]>([]);
 const live = shallowRef<LiveAlert[]>([]);
 const opened = shallowRef<AlertDetail | null>(null);
+// the groups acknowledged today (the Resolved card); null until read, or when that read failed
+const resolved = shallowRef<ResolvedToday | null>(null);
+const resolvedOpen = ref(false);
+const rulesOpen = ref(false);
 // the last detail that was read: the drawer keeps drawing it while it slides out, and never gets a null
 const shownDetail = shallowRef<AlertDetail | null>(null);
 const detailError = shallowRef<unknown>(null);
@@ -93,8 +116,8 @@ const cards = computed(() =>
 // what is open, by severity: the open groups and the live conditions
 const summary = computed(() => {
   const n: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
-  for (const g of groups.value) if (g.open_count > 0) n[severityOf(g.severity)]++;
-  for (const a of liveShown.value) n[severityOf(a.severity)]++;
+  for (const g of groups.value) if (g.open_count > 0 && !g.muted_until_ms) n[severityOf(g.severity)]++;
+  for (const a of liveShown.value) if (!a.muted_until_ms) n[severityOf(a.severity)]++;
   return openSummary(n);
 });
 
@@ -103,12 +126,18 @@ interface View {
   live: LiveAlert[];
   opened: AlertDetail | null;
   detailError: unknown;
+  resolved: ResolvedToday | null;
 }
 
 // The list, the live conditions and the open detail, read together so they are drawn together. A detail that cannot
 // be read does not fail the rest.
 async function read(at: AlertAsk): Promise<View> {
-  const [list, stat] = await Promise.all([listAlertGroups(at.status, at.kind, GROUP_LIMIT), getStats("")]);
+  const [list, stat, done] = await Promise.all([
+    listAlertGroups(at.status, at.kind, GROUP_LIMIT),
+    getStats(""),
+    // a convenience: a failed read leaves the Resolved card out, never the alerts
+    getResolvedToday().catch(() => null),
+  ]);
   let detail: AlertDetail | null = null;
   let detailError: unknown = null;
   if (at.open) {
@@ -118,13 +147,16 @@ async function read(at: AlertAsk): Promise<View> {
       detailError = err;
     }
   }
-  return { groups: list.items, live: stat.alerts, opened: detail, detailError };
+  // the muted conditions are listed with their mute's end (they are never counted)
+  const live = [...stat.alerts, ...(stat.muted_alerts ?? [])];
+  return { groups: list.items, live, opened: detail, detailError, resolved: done };
 }
 
 function draw(view: View, at: AlertAsk): void {
   groups.value = view.groups;
   live.value = view.live;
   opened.value = view.opened;
+  resolved.value = view.resolved;
   error.value = null;
   updatedAt.value = Date.now();
   // the close's own reload asks for no group: it must not wipe the error of a drawer that is leaving
@@ -285,11 +317,48 @@ async function acknowledge(g: AlertGroup) {
   });
 }
 
+// Mute 1 h: the row's kind is muted from now for an hour; the list is read again, so the row shows the mute's end.
+async function mute(source: RuleSource, kind: string) {
+  await run(async () => {
+    writing.value = true;
+    try {
+      const rule = await changeAlertRule(source, kind, { mute_minutes: MUTE_MINUTES });
+      let failure: unknown = null;
+      try {
+        await load();
+      } catch (err) {
+        failure = err;
+      }
+      const said = rule.muted_until_ms ? `${kind} muted until ${dayClock(rule.muted_until_ms)}` : `${kind} muted`;
+      if (failure) notify.error(`${said}, but the list could not be reloaded: ${errorText(failure)}`);
+      else notify.success(said);
+    } finally {
+      writing.value = false;
+    }
+    await stats.refresh();
+  });
+}
+
+// Open Jobs filtered: the Jobs page with the group's provider on the strip and its key (when it has one) in `key_id`,
+// the query that page reads; an empty `key_id` clears a key filter left from before.
+function openJobs(g: AlertGroup): void {
+  const f = jobsFilter(g);
+  closeDetail();
+  scope.provider = f.provider;
+  void router.push({ name: "jobs", query: { key_id: f.keyId } });
+}
+
+// a rule changed in the rules drawer: the cards and the counts follow
+async function rulesChanged(): Promise<void> {
+  await run(load);
+  await stats.refresh();
+}
+
 const groupCount = computed(() => `${groups.value.length} ${groups.value.length === 1 ? "group" : "groups"}`);
 
 // the count a stacked row shows at its right: `×3 · since 14:05` on a tablet, `×3` on a phone
 const rowRight = (g: AlertGroup): string =>
-  isPhone.value || !g.first_ms ? `×${g.count}` : `×${g.count} · since ${alertTime(g.first_ms)}`;
+  isPhone.value || !g.first_ms ? `×${g.count}` : `×${g.count} · since ${dayClock(g.first_ms)}`;
 
 // octagon, triangle and circle alerts (the cards' badges); inbox, search-x and cloud-off (the states)
 const ICONS = {
@@ -301,6 +370,15 @@ const ICONS = {
   cloud: ["M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.7 8 4.5 4.5 0 0 1 18 18z", "m3 3 18 18"],
 };
 const SKELETON = [0, 1, 2];
+// bell-off (Mute 1 h), check (Resolved) and the disclosure's chevron
+const MUTE_ICON = [
+  "M13.7 21a2 2 0 0 1-3.4 0",
+  "M18 8a6 6 0 0 0-9.3-5",
+  "M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14",
+  "m2 2 20 20",
+];
+const CHECK_ICON = ["M20 6 9 17l-5-5"];
+const CHEVRON_ICON = ["m6 9 6 6 6-6"];
 </script>
 
 <template>
@@ -314,6 +392,7 @@ const SKELETON = [0, 1, 2];
       </div>
       <h1 v-else class="sr-only">Alerts</h1>
       <span class="av-head__actions">
+        <IconButton icon="settings" label="Alert rules" placement="bottom-end" @click="rulesOpen = true" />
         <IconButton icon="rotate" label="Refresh" placement="bottom-end" :disabled="loading > 0" @click="reload" />
       </span>
     </div>
@@ -372,6 +451,9 @@ const SKELETON = [0, 1, 2];
         <span class="av-box__icon is-brand"><PathIcon :paths="ICONS.inbox" :size="22" :stroke="1.8" /></span>
         <b class="av-box__title">No alerts</b>
         <span class="av-box__text">Nothing needs a look.</span>
+        <button type="button" class="av-secondary" data-testid="alerts-empty-rules" @click="rulesOpen = true">
+          Alert rules
+        </button>
       </template>
     </section>
 
@@ -420,7 +502,10 @@ const SKELETON = [0, 1, 2];
             >
               {{ alertTitle(g) }}
             </button>
-            <span class="g-kind num">{{ groupLine(g) }}</span>
+            <span class="g-kind num"
+              ><template v-if="compact && g.muted_until_ms">{{ mutedText(g.muted_until_ms) }} · </template
+              >{{ groupLine(g) }}</span
+            >
             <span v-if="oneCustomer(g)" class="g-note">{{ ONE_CUSTOMER_NOTE }}</span>
           </div>
           <dl v-if="!compact" class="av-meta">
@@ -434,7 +519,10 @@ const SKELETON = [0, 1, 2];
             </div>
           </dl>
           <div class="av-item__acts">
-            <span v-if="g.open_count === 0" class="state">Acknowledged</span>
+            <span v-if="g.muted_until_ms && !compact" class="state" data-testid="alert-muted">{{
+              mutedText(g.muted_until_ms)
+            }}</span>
+            <span v-else-if="g.open_count === 0 && !g.muted_until_ms" class="state">Acknowledged</span>
             <IconButton
               v-if="g.open_count > 0"
               icon="check"
@@ -442,6 +530,17 @@ const SKELETON = [0, 1, 2];
               :disabled="locked"
               @click="acknowledge(g)"
             />
+            <button
+              v-if="!g.muted_until_ms"
+              type="button"
+              class="av-ghost"
+              :disabled="locked"
+              :aria-label="`Mute ${g.kind} for 1 hour`"
+              data-testid="alert-mute"
+              @click="mute('stored', g.kind)"
+            >
+              <PathIcon v-if="!compact" :paths="MUTE_ICON" :size="14" :stroke="2" />Mute 1 h
+            </button>
           </div>
         </div>
 
@@ -460,7 +559,10 @@ const SKELETON = [0, 1, 2];
           <span v-else class="pchip pchip--wide">{{ providerOf(a.provider) }}</span>
           <div class="av-item__main">
             <span class="g-title">{{ liveWord(a.kind) }}: {{ a.message }}</span>
-            <span class="g-kind">Computed now: it cannot be acknowledged and clears when the condition does.</span>
+            <span class="g-kind"
+              ><template v-if="compact && a.muted_until_ms">{{ mutedText(a.muted_until_ms) }} · </template>Computed now:
+              it cannot be acknowledged and clears when the condition does.</span
+            >
           </div>
           <dl v-if="!compact" class="av-meta">
             <div>
@@ -472,13 +574,94 @@ const SKELETON = [0, 1, 2];
               <dd>live</dd>
             </div>
           </dl>
-          <div class="av-item__acts"><span class="state">Clears by itself</span></div>
+          <div class="av-item__acts">
+            <span v-if="a.muted_until_ms && !compact" class="state" data-testid="alert-muted">{{
+              mutedText(a.muted_until_ms)
+            }}</span>
+            <template v-else-if="!a.muted_until_ms">
+              <button
+                type="button"
+                class="av-ghost"
+                :disabled="locked"
+                :aria-label="`Mute ${a.kind} for 1 hour`"
+                data-testid="alert-mute"
+                @click="mute('live', a.kind)"
+              >
+                <PathIcon v-if="!compact" :paths="MUTE_ICON" :size="14" :stroke="2" />Mute 1 h
+              </button>
+            </template>
+          </div>
         </div>
       </section>
       <p v-if="groups.length >= GROUP_LIMIT" class="alerts-more" data-testid="alerts-more">
         Showing the newest {{ GROUP_LIMIT }} groups; older groups are not listed.
       </p>
     </div>
+
+    <!-- Resolved today: the groups acknowledged since the relay's day began, newest first -->
+    <section
+      v-if="resolved && (listState === 'ready' || listState === 'refreshing' || listState === 'empty')"
+      class="av-card"
+      aria-label="Resolved"
+      data-testid="alerts-resolved"
+    >
+      <button
+        v-if="compact"
+        type="button"
+        class="av-resolved-btn num"
+        :aria-expanded="resolvedOpen"
+        :disabled="!resolved.count"
+        @click="resolvedOpen = !resolvedOpen"
+      >
+        Resolved today · {{ resolved.count }}
+      </button>
+      <button
+        v-else
+        type="button"
+        class="av-disclosure"
+        :aria-expanded="resolvedOpen"
+        :disabled="!resolved.count"
+        @click="resolvedOpen = !resolvedOpen"
+      >
+        <span class="av-badge tone-ok"><PathIcon :paths="CHECK_ICON" :size="16" :stroke="2.2" /></span>
+        <span class="av-disclosure__text">
+          <span class="av-disclosure__title"
+            >Resolved today
+            <span class="av-count num tone-ok" data-testid="alerts-resolved-count">{{ resolved.count }}</span></span
+          >
+          <span class="g-kind num">{{ resolvedLine(resolved.items) }}</span>
+        </span>
+        <PathIcon
+          v-if="resolved.count"
+          class="av-disclosure__chev"
+          :class="{ 'is-open': resolvedOpen }"
+          :paths="CHEVRON_ICON"
+          :size="18"
+          :stroke="2"
+        />
+      </button>
+      <template v-if="resolvedOpen">
+        <div
+          v-for="r in resolved.items"
+          :key="`${r.kind}/${r.group}`"
+          class="av-item"
+          :class="providerClass(providerOf(r.provider))"
+          data-testid="alert-resolved"
+          @click="rowClick($event, r)"
+        >
+          <span class="pchip pchip--wide">{{ providerOf(r.provider) }}</span>
+          <div class="av-item__main">
+            <button type="button" class="g-title g-open-btn" aria-haspopup="dialog" @click="openGroup(r)">
+              {{ alertTitle(r) }}
+            </button>
+            <span class="g-kind num"
+              >{{ r.kind }} · {{ r.resolved_rows }} {{ r.resolved_rows === 1 ? "row" : "rows" }} acknowledged at
+              {{ dayClock(r.resolved_ms) }}<template v-if="r.resolved_by"> by {{ r.resolved_by }}</template></span
+            >
+          </div>
+        </div>
+      </template>
+    </section>
 
     <SideDrawer
       :model-value="!!asked.open"
@@ -503,7 +686,7 @@ const SKELETON = [0, 1, 2];
         }}</span>
         <span class="ad-help num"
           >{{ shownDetail.open_count }} open of {{ shownDetail.count }} rows · since
-          {{ alertTime(shownDetail.first_ms) }}</span
+          {{ dayClock(shownDetail.first_ms ?? 0) }}</span
         >
       </template>
       <p v-if="detailError" class="ad-error" role="alert" data-testid="alert-detail-error">
@@ -511,11 +694,52 @@ const SKELETON = [0, 1, 2];
       </p>
       <AlertDetailPanel v-else-if="shownDetail" :detail="shownDetail" :writing="writing" @open-job="openJob" />
       <p v-else class="ad-loading" role="status">Loading the group…</p>
-      <template v-if="shownDetail && !detailError && shownDetail.open_count > 0" #footer>
-        <button type="button" class="av-primary ad-ack" :disabled="locked" @click="acknowledge(shownDetail)">
-          {{ ackLabel(shownDetail.open_count) }}
+      <template v-if="shownDetail && !detailError" #footer>
+        <span v-if="shownDetail.muted_until_ms" class="state" data-testid="alert-detail-muted">{{
+          mutedText(shownDetail.muted_until_ms)
+        }}</span>
+        <button
+          v-else
+          type="button"
+          class="av-ghost av-ghost--lg"
+          :disabled="locked"
+          data-testid="alert-detail-mute"
+          @click="mute('stored', shownDetail.kind)"
+        >
+          <PathIcon :paths="MUTE_ICON" :size="15" :stroke="2" />Mute 1 h
         </button>
+        <span class="ad-foot">
+          <button
+            type="button"
+            class="av-secondary"
+            :disabled="writing"
+            data-testid="alert-open-jobs"
+            @click="openJobs(shownDetail)"
+          >
+            Open Jobs filtered
+          </button>
+          <button
+            v-if="shownDetail.open_count > 0"
+            type="button"
+            class="av-primary ad-ack"
+            :disabled="locked"
+            @click="acknowledge(shownDetail)"
+          >
+            {{ ackLabel(shownDetail.open_count) }}
+          </button>
+        </span>
       </template>
+    </SideDrawer>
+
+    <SideDrawer
+      :model-value="rulesOpen"
+      title="Alert rules"
+      testid="alert-rules-drawer"
+      back-label="Back to Alerts"
+      @update:model-value="(o) => (rulesOpen = o)"
+      @back="rulesOpen = false"
+    >
+      <AlertRulesPanel v-if="rulesOpen" @changed="rulesChanged" />
     </SideDrawer>
   </section>
 </template>
@@ -770,7 +994,126 @@ const SKELETON = [0, 1, 2];
   justify-content: flex-end;
   gap: 8px;
   flex: none;
-  min-width: 180px;
+  min-width: 236px;
+}
+/* Mute 1 h: a ghost button, the bell-off icon before its words */
+.av-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rl-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.is-compact .av-ghost {
+  color: var(--rl-brand-ink);
+  font-weight: 700;
+}
+.av-ghost--lg {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.av-ghost:hover:not(:disabled) {
+  background: var(--rl-track);
+  color: var(--rl-fg);
+}
+.av-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.is-phone .av-ghost {
+  height: 44px;
+}
+.av-secondary {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--rl-line);
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.av-secondary:hover:not(:disabled) {
+  background: var(--rl-head);
+}
+.is-phone .av-secondary {
+  height: 44px;
+}
+.tone-ok {
+  background: var(--rl-ok-bg);
+  color: var(--rl-ok);
+}
+/* Resolved today: a disclosure the width of its card */
+.av-resolved-btn {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.av-resolved-btn:disabled {
+  cursor: default;
+}
+.av-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 14px 20px;
+  border: 0;
+  background: transparent;
+  color: var(--rl-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.av-disclosure:disabled {
+  cursor: default;
+}
+.av-disclosure__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.av-disclosure__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.av-disclosure__title .av-count {
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+.av-disclosure__chev {
+  flex: none;
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.av-disclosure__chev.is-open {
+  transform: rotate(180deg);
+}
+.av-disclosure + .av-item {
+  border-top: 1px solid var(--rl-rule);
+}
+.is-phone .av-disclosure {
+  padding: 14px 16px;
 }
 .state {
   display: inline-flex;
@@ -980,8 +1323,13 @@ const SKELETON = [0, 1, 2];
   line-height: 18px;
   color: var(--rl-faint);
 }
+.ad-foot {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
 .ad-ack {
-  margin: 0 0 0 auto;
+  margin: 0;
 }
 .ad-loading,
 .ad-error {

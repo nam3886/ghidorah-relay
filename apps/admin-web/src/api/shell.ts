@@ -33,6 +33,8 @@ export interface LiveAlert {
   message: string;
   // the provider the condition is about; null for one of the whole relay (the disk, the webhooks)
   provider?: string | null;
+  // set on a condition of a muted kind (Alert rules): the end of the mute
+  muted_until_ms?: number | null;
 }
 
 export interface Stats {
@@ -42,6 +44,8 @@ export interface Stats {
   accounts: { usable: number; available: number; dead: number; disabled: number; in_use?: number; asleep?: number };
   keys: number;
   alerts: LiveAlert[];
+  // the conditions of a muted kind: listed on the Alerts page, never counted
+  muted_alerts?: LiveAlert[];
 }
 
 export const getStats = (provider: string): Promise<Stats> => request("/stats", { query: { provider } });

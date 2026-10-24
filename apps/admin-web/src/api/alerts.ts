@@ -19,6 +19,8 @@ export interface AlertGroup {
   reply?: string | null;
   // a billing group's key: its label, else its prefix; null for an unclear group
   key_label?: string | null;
+  // the end of its kind's mute (Alert rules), null when the kind is not muted now
+  muted_until_ms?: number | null;
 }
 
 export interface UnclearItem {
@@ -60,6 +62,8 @@ export interface AlertDetail extends AlertGroup {
   failed_codes?: Record<string, number>;
   // the one media type of all the group's jobs (video, image); null when they are mixed
   media?: string | null;
+  // unclear_reply groups only: the distinct accounts that heard the wording
+  accounts?: number;
 }
 
 export interface GroupRef {
@@ -79,3 +83,47 @@ export const getAlertGroup = (g: GroupRef, limit: number): Promise<AlertDetail> 
 // `through_id` is the newest row the operator saw: a row that arrives later keeps the group open.
 export const acknowledgeGroup = (g: GroupRef, throughId: number): Promise<{ acknowledged: number }> =>
   request(`${groupPath(g)}/acknowledge`, { method: "POST", body: { through_id: throughId } });
+
+// Alert rules: every kind the relay raises, `stored` (the groups above) or `live` (a /stats condition). A kind is on
+// and unmuted until the admin changes it. `thresholds` are the settings that set it (edited with PUT /settings),
+// `fixed` a figure that is code.
+export type RuleSource = "stored" | "live";
+
+export interface AlertRule {
+  source: RuleSource;
+  kind: string;
+  severity: string;
+  text: string;
+  fixed: string | null;
+  thresholds: Array<{ setting: string; value: unknown }>;
+  enabled: boolean;
+  muted_until_ms: number | null;
+  updated_by: string | null;
+  updated_ms: number | null;
+}
+
+export const listAlertRules = (): Promise<{ items: AlertRule[] }> => request("/alerts/rules");
+
+// `mute_minutes` 0 ends a mute; what is not given stays as it was.
+export const changeAlertRule = (
+  source: RuleSource,
+  kind: string,
+  body: { enabled?: boolean; mute_minutes?: number },
+): Promise<Pick<AlertRule, "enabled" | "muted_until_ms" | "updated_by" | "updated_ms">> =>
+  request(`/alerts/rules/${encodeURIComponent(source)}/${encodeURIComponent(kind)}`, { method: "POST", body });
+
+// The groups acknowledged since the relay's billing day began (`day_start_ms`), the newest first.
+export interface ResolvedGroup extends AlertGroup {
+  resolved_ms: number;
+  resolved_by: string | null;
+  resolved_rows: number;
+}
+
+export interface ResolvedToday {
+  count: number;
+  day_start_ms: number;
+  tz: string;
+  items: ResolvedGroup[];
+}
+
+export const getResolvedToday = (): Promise<ResolvedToday> => request("/alerts/resolved");

@@ -769,3 +769,29 @@ def test_the_alert_names_and_live_words_are_the_canvas_words():
 @pytest.mark.web_unit
 def test_the_alerts_view_writes_the_canvas_names_and_opens_the_detail_in_a_drawer():
     vitest(ALERTS_VIEW_SPEC)
+
+
+MUTED = f"FAILED {ALERTS_VIEW_SPEC} > mute, rules, Open Jobs filtered and Resolved today > "
+STATS_STORE = SRC + "/stores/stats.ts"
+
+
+@mutation(ALERTS, "if (g.open_count > 0 && !g.muted_until_ms) n[", "if (g.open_count > 0) n[",
+          expect=MUTED + "Mute 1 h mutes the row's kind for 60 minutes; a muted row shows its end and is not counted")
+@mutation(ALERTS, "if (!a.muted_until_ms) n[", "if (a) n[",
+          expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
+@mutation(ALERTS, "const live = [...stat.alerts, ...(stat.muted_alerts ?? [])];", "const live = [...stat.alerts];",
+          expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
+@mutation(ALERTS_MODEL, 'return { provider: scope && scope !== POINTS ? scope : "", keyId: key ?? "" };',
+          'return { provider: scope ?? "", keyId: key ?? "" };',
+          expect=MUTED + "Open Jobs filtered opens Jobs on the group's provider and key")
+@pytest.mark.web_unit
+def test_the_alerts_view_mutes_a_kind_counts_only_what_is_raised_and_opens_jobs_filtered():
+    vitest(ALERTS_VIEW_SPEC)
+
+
+@mutation(STATS_STORE, "const raised = groups.items.filter((g) => !g.muted_until_ms);",
+          "const raised = groups.items;",
+          expect="FAILED tests/unit/stores.spec.ts > stats store > a group of a muted kind is never counted or worded")
+@pytest.mark.web_unit
+def test_the_shell_never_counts_a_muted_group():
+    vitest("tests/unit/stores.spec.ts")

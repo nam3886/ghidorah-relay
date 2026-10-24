@@ -159,6 +159,8 @@ export function groupFacts(d: AlertDetail): GroupFact[] {
     { label: "Rows", value: d.count },
     d.open_count > 0 ? { label: "Open", value: d.open_count, tone: "warn" } : { label: "Open", value: d.open_count },
     { label: "Keys", value: d.keys },
+    // an unclear group also counts the accounts that heard it (AlertDetail.dc.html)
+    ...(typeof d.accounts === "number" ? [{ label: "Accounts", value: d.accounts }] : []),
   ];
 }
 
@@ -187,6 +189,39 @@ export function loadFailedText(err: unknown, said: string): string {
 
 export function ackToast(acknowledged: number): string {
   return acknowledged ? `Acknowledged ${acknowledged} row(s)` : "Nothing new to acknowledge";
+}
+
+// Mute 1 h (Alerts.dc.html): the kind of the row is muted from now for an hour (Alert rules holds the mute).
+export const MUTE_MINUTES = 60;
+
+const clock = (ms: number): string => {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+// `15:27` today (the browser's clock), else the day and time.
+export const dayClock = (ms: number, now: number = Date.now()): string =>
+  new Date(ms).toDateString() === new Date(now).toDateString() ? clock(ms) : alertTime(ms);
+
+// The chip of a muted row: `Muted until 15:27`.
+export const mutedText = (ms: number, now: number = Date.now()): string => `Muted until ${dayClock(ms, now)}`;
+
+// What "Open Jobs filtered" asks the Jobs page for (its strip provider and its `key_id` query): an unclear group's
+// provider; a billing group's key (the group id is `<key>.<scope>`) and, for a cap, its provider. The Jobs list has no
+// account filter, so an account is never part of it.
+export function jobsFilter(g: Pick<AlertGroup, "kind" | "group" | "provider">): { provider: string; keyId: string } {
+  if (g.kind === "unclear_reply") return { provider: g.provider, keyId: "" };
+  const [key, scope] = g.group.split(".");
+  return { provider: scope && scope !== POINTS ? scope : "", keyId: key ?? "" };
+}
+
+// The line under "Resolved today": the newest acknowledge, `Latest: <name> acknowledged at 13:12 by ann`.
+export function resolvedLine(
+  items: Array<Parameters<typeof alertTitle>[0] & { resolved_ms: number; resolved_by: string | null }>,
+): string {
+  const r = items[0];
+  if (!r) return "Nothing acknowledged since the relay's day began.";
+  return `Latest: ${alertTitle(r)} acknowledged at ${clock(r.resolved_ms)}${r.resolved_by ? ` by ${r.resolved_by}` : ""}`;
 }
 
 export interface AlertAsk {
