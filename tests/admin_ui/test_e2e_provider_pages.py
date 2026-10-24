@@ -122,23 +122,26 @@ def test_keys_logs_and_alerts_filter_by_the_strip_and_draw_each_provider(app, ap
     no_cut_text(page, ".keys-card *")
     shot(page, "keys-%d-dola" % width, ".keys-card")
 
-    # Request logs: the strip's provider is the server's filter; a row carries its provider, none is the relay's
+    # Request logs: its own provider chips (no strip) are the server's filter; a row carries its provider
     strip(page).get_by_test_id("provider-tab-all").click()
     open_tab(page, "Request logs")
+    expect(page.locator("nav.pstrip")).to_have_count(0)
+    page.get_by_test_id("logs-provider-all").click()
     table = page.get_by_test_id("logs-table")
     rows = table.locator("tbody tr, .p-row")
     expect(rows).to_have_count(4)
     expect(table.locator(".pchip")).to_have_count(3)             # the request no provider handled has no chip
     no_cut_text(page, ".lv-card *")
     shot(page, "logs-%d-all" % width, ".lv-card")
-    strip(page).get_by_test_id("provider-tab-meta").click()
+    page.get_by_test_id("logs-provider-meta").click()
     expect(rows).to_have_count(1)
     expect(table.locator(".pchip.p-meta")).to_have_count(1)
     shot(page, "logs-%d-meta" % width, ".lv-card")
 
     # Alerts: the groups and the live conditions carry their tiles; a provider keeps its own
-    strip(page).get_by_test_id("provider-tab-all").click()
+    page.get_by_test_id("logs-provider-all").click()
     open_tab(page, "Alerts")
+    strip(page).get_by_test_id("provider-tab-all").click()
     groups = page.locator('section[aria-label="Alert groups"] tr.g-row, section[aria-label="Alert groups"] .p-group')
     expect(groups).to_have_count(2)
     expect(page.get_by_test_id("alerts-live").locator(".ptile").first).to_be_visible()

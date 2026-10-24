@@ -390,7 +390,8 @@ describe("the shell", () => {
       await router.push(`/${name}`);
       await flushPromises();
       expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
-      expect(wrapper.find("nav.pstrip").exists()).toBe(true);
+      // Request logs has its provider chips in its own card
+      expect(wrapper.find("nav.pstrip").exists()).toBe(name !== "logs");
     }
   });
 

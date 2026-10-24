@@ -272,6 +272,11 @@ def status_button(page, label):
     return page.get_by_role("group", name="Status", exact=True).get_by_role("button", name=label, exact=True)
 
 
+def card_chips(page):
+    """The Provider chips of the card: Request logs has no provider strip."""
+    return page.get_by_test_id("logs-provider-all")
+
+
 def show_dates(page, width):
     """The date range sits in the toolbar on a desktop and in the Filters sheet below 1280 px."""
     if width < 1280:
@@ -479,6 +484,8 @@ def test_the_toolbar_is_one_row_on_a_desktop_and_chips_with_search_and_dates_beh
     page.set_viewport_size({"width": width, "height": 844})
     open_tab(page, "Request logs")
     expect(status_button(page, "All")).to_be_visible()
+    expect(card_chips(page)).to_be_visible()
+    expect(page.locator("nav.pstrip")).to_have_count(0)
     got = page.evaluate(TOOLBAR_JS, isolated_context=False)
     card, status = got["card"], got["status"]
     why = "the toolbar at %d: %r" % (width, got)

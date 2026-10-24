@@ -4,6 +4,8 @@ import type { LogStatus } from "@/api/logs";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { IconSearch } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import { byProviderOrder, providerClass } from "@/lib/providers";
+import { useScopeStore } from "@/stores/scope";
 import LogsDatesField from "./LogsDatesField.vue";
 import { useLogsFilters } from "./logs-filters";
 import { STATUS_OPTIONS } from "./log-window";
@@ -16,6 +18,7 @@ import { STATUS_OPTIONS } from "./log-window";
 defineProps<{ searchOpen: boolean }>();
 const emit = defineEmits<{ search: [] }>();
 const filters = useLogsFilters();
+const scope = useScopeStore();
 const { isPhone, isTablet } = useBreakpoint();
 const compact = computed(() => isPhone.value || isTablet.value);
 
@@ -26,11 +29,18 @@ onBeforeUnmount(() => clearTimeout(timer));
 // the options (a list of its own: the shared words are read-only)
 const STATUS_CHOICES = STATUS_OPTIONS.map((o) => ({ ...o }));
 
+const providers = computed(() => byProviderOrder(scope.providers));
+
 // a status choice searches at once
 function pickStatus(value: string | number): void {
   filters.status = value as LogStatus;
   emit("search");
 }
+// a provider is the scope store's filter, shared with the other tabs; the view searches when it changes
+function pickProvider(name: string): void {
+  scope.provider = name;
+}
+
 function typed(): void {
   if (!compact.value) return;
   clearTimeout(timer);
@@ -93,6 +103,34 @@ function typed(): void {
         />
       </label>
     </div>
+
+    <div class="lf__prov">
+      <span class="lf__plabel">Provider</span>
+      <ArrowScroller class="lf__provs" label="Provider" :active-key="scope.provider">
+        <button
+          type="button"
+          class="chip"
+          :class="{ 'is-on': scope.provider === '' }"
+          :aria-pressed="scope.provider === ''"
+          data-testid="logs-provider-all"
+          @click="pickProvider('')"
+        >
+          All
+        </button>
+        <button
+          v-for="p in providers"
+          :key="p"
+          type="button"
+          class="chip"
+          :class="[providerClass(p), { 'is-on': scope.provider === p }]"
+          :aria-pressed="scope.provider === p"
+          :data-testid="`logs-provider-${p}`"
+          @click="pickProvider(p)"
+        >
+          <span class="chip__dot" aria-hidden="true" />{{ p }}
+        </button>
+      </ArrowScroller>
+    </div>
   </form>
 </template>
 
@@ -108,6 +146,29 @@ function typed(): void {
   gap: 8px 10px;
   padding: 14px 20px;
 }
+.lf__prov {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 14px;
+  border-bottom: 1px solid var(--rl-rule);
+}
+.lf__plabel {
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+}
+.lf__provs {
+  flex: 0 1 auto;
+}
+.chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+}
+
 /* the Status segments: a track with the chosen one raised */
 .lf__seg {
   display: flex;
@@ -209,6 +270,13 @@ function typed(): void {
   flex-wrap: nowrap;
   gap: 4px;
   padding: 12px 16px 8px;
+}
+.lf--tablet .lf__prov,
+.lf--phone .lf__prov {
+  padding: 0 16px 10px;
+}
+.lf--phone .lf__plabel {
+  display: none;
 }
 .lf--tablet .chip {
   height: 40px;

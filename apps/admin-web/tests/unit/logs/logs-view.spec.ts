@@ -544,6 +544,25 @@ describe("filters", () => {
     expect(w.exists()).toBe(true);
   });
 
+  it("the Provider chips are All and each provider of the catalog; a chip is the shared filter and searches", async () => {
+    useScopeStore(pinia).models = [
+      { id: "m1", owned_by: "vibes" },
+      { id: "m2", owned_by: "dola" },
+    ];
+    const { w } = await open();
+    const chips = w.findAll('[data-testid^="logs-provider-"]');
+    expect(chips.map((c) => c.text())).toEqual(["All", "dola", "vibes"]);
+    expect(chips[0]!.attributes("aria-pressed")).toBe("true");
+    await w.find('[data-testid="logs-provider-vibes"]').trigger("click");
+    await settle();
+    expect(useScopeStore(pinia).provider).toBe("vibes");
+    expect(lastQuery()).toMatchObject({ provider: "vibes", offset: 0 });
+    expect(w.find('[data-testid="logs-provider-vibes"]').attributes("aria-pressed")).toBe("true");
+    await w.find('[data-testid="logs-provider-all"]').trigger("click");
+    await settle();
+    expect(lastQuery().provider).toBeUndefined();
+  });
+
   it("a stats link opens it on the failed-before-a-job status", async () => {
     await open("/logs?status=pre_job");
     expect(lastQuery().status).toBe("pre_job");

@@ -67,7 +67,7 @@ describe("the provider strip", () => {
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
   });
 
-  it("is shown on the tabs that filter by provider, in each one's mode; the others keep the top bar's list", () => {
+  it("is shown on the tabs that filter by provider, in each one's mode; Request logs draws its own provider chips", () => {
     const routes = createAppRouter().getRoutes();
     const strip = Object.fromEntries(
       routes.filter((r) => r.meta.providerStrip).map((r) => [r.name, r.meta.providerStrip]),
@@ -76,7 +76,6 @@ describe("the provider strip", () => {
       jobs: "all",
       accounts: "all",
       keys: "all",
-      logs: "all",
       alerts: "all",
       frames: "only",
       settings: "general",

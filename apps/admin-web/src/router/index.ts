@@ -33,7 +33,6 @@ const STRIP_TABS: Record<string, StripMode> = {
   jobs: "all",
   accounts: "all",
   keys: "all",
-  logs: "all",
   alerts: "all",
   frames: "only",
   settings: "general",
