@@ -246,8 +246,8 @@ DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, 
 NOT_TAKEN = (PICKER + "a model that takes no ratio, style or image (meta) shows none of them and sends none, even "
              + "ones saved for another model")
 OWN_STYLES = PICKER + "a dola image model offers its own styles when the provider's options name none"
-DISPLAY_NAME = (PICKER + "a model that names a display name shows it with its id under it; "
-                + "one without shows the id alone")
+DISPLAY_NAME = (PICKER + "a model chip shows its display name, else its id; the chosen one has a check and what "
+                + "it sends below")
 RESULT_CARD = (VIEW_SPEC + "the result card > shows the step and word of a job in progress, its short id "
                + "and the fields it carries, and the id opens the job")
 FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, and a failed one shows the reason"

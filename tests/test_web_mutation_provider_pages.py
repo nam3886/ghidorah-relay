@@ -93,7 +93,7 @@ def test_the_frames_page_by_provider():
 @mutation(TEST_VIEW, "m.owned_by === provider.value && m.disabled === true &&", "m.owned_by === provider.value &&",
           expect=TEST_STRIP + "starts on the first provider in the drawn order that has a model, shows its models "
                               "only, and a paused one is a disabled chip")
-@mutation(TEST_VIEW, "  if (first) void pick(first.model);\n", "",
+@mutation(TEST_VIEW, "if (first) void pick(first.model);", "if (first) void first;",
           expect=TEST_STRIP + "another provider shows its models and picks its first; a provider the key has none of "
                               "says so")
 @pytest.mark.web_unit

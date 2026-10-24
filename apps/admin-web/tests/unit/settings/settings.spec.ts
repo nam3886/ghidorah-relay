@@ -455,6 +455,10 @@ describe("the card rules", () => {
     const off = withModelOn(undefined, paused, ids, "seedance-2.5", false);
     expect(JSON.parse(off)).toEqual(["seedance-2.5", "seedance-1.0"]);
     expect(withModelOn(off, paused, ids, "seedance-2.5", true)).toBe('["seedance-1.0"]');
+    // Stored out of the catalog's order: off and on again gives back the stored text, not the reordered list.
+    const stored = { ...paused, value: ["seedance-1.0", "seedance-2.5"] };
+    const offAgain = withModelOn(undefined, stored, ids, "seedream-4.5", false);
+    expect(withModelOn(offAgain, stored, ids, "seedream-4.5", true)).toBe('["seedance-1.0","seedance-2.5"]');
   });
 });
 
