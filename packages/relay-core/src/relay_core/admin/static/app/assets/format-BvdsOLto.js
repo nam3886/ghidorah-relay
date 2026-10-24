@@ -1,0 +1,1 @@
+function e(e){return e?new Date(e).toLocaleString(`en-GB`,{hour12:!1}).replace(`, `,`,\xA0`):`-`}export{e as t};
