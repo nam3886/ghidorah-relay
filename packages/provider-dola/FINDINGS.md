@@ -52,7 +52,8 @@ file name `bdms-sdk.a68c472ba3.js` and the version block).
 The send is checked, reads are not. The good-signature control went through within a minute of the refusals, same
 account and proxy: the refusals were the signature, not load. **dola reports a bad signature with its throttle codes.**
 Today the engine reads 710022002/710022004 as a throttled account and rests it (the owner's ruling ends a job at the
-first 710022002 with a refund, which is right: no conversation exists). Over HTTP a signer bug would look like every
+first 710022002 with a refund, which is right: no conversation exists; replaced 25/10: every refusal moves the job
+until `dola.refusal_max_accounts` accounts refused it). Over HTTP a signer bug would look like every
 account throttled at once; the provider needs its own signal (the `verify` decision on 710022004, both codes on every
 account at once).
 

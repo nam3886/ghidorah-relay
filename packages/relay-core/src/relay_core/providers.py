@@ -189,6 +189,12 @@ class Completed:
             raise ValueError("Completed needs at least one output")
 
 
+# The one `provider_state` key every requeue keeps (`jobs.apply`): the ids of the accounts upstream refused this order
+# on, oldest first. A provider that caps how many accounts a refused job may try appends the account and sends the
+# whole list back in its patch; a patch that names it replaces it.
+REFUSED_BY = "refused_by"
+
+
 @dataclass(frozen=True)
 class NotTaken:
     """Sent, and upstream certainly did not take it. A re-send is allowed (the job goes back to queued)."""

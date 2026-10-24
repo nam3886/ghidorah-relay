@@ -30,6 +30,7 @@ from relay_core.jobs.fail import fail_in_tx
 from relay_core.jobs.recheck import StoredOutput
 from relay_core.leases import LeaseLost
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Caps,
@@ -113,9 +114,11 @@ def _merge_outputs(outputs: tuple[Output, ...]) -> _Raw:
 
 def _reset(patch: Mapping[str, Any]) -> dict:
     """What a requeue writes: the previous attempt's reference and state are dropped (they belong to the account
-    that attempt ran on) and only the requeue's own patch survives. The core keeps no key of its own on a job that
-    has not been taken, so nothing else is kept."""
-    return dict(external_ref=None, provider_state=_Raw("%s::jsonb", (_state(patch),)))
+    that attempt ran on) and only the requeue's own patch survives, with one exception: `REFUSED_BY`, the accounts
+    upstream refused this order on, outlives every requeue (a fault requeue, an interrupted or a proven-not-sent one),
+    so a provider's cap on refused accounts is not reset by a requeue in between. A patch that names it replaces it."""
+    keep = "jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))" % (REFUSED_BY, REFUSED_BY)
+    return dict(external_ref=None, provider_state=_Raw(keep + " || %s::jsonb", (_state(patch),)))
 
 
 def _dropped(job: "_Job") -> str:

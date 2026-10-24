@@ -13,8 +13,13 @@ from relay_dola.constants import BROWSER_FAULT_FREE_RETRIES
 CONTENT_REFUSED = "dola.content_refused"
 # dola's reply stream ended with error code 710022002 (fixtures called it "high demand"): measured 23/10, 9 of 18 tries
 # in 3 h, ALL on one prompt and on 7 different accounts, so it answers the prompt, not the account's load. Owner's
-# ruling 23/10: it ends the job at once, refunded, and is never tried on another account (dola took nothing).
+# ruling 25/10 (it replaces the 23/10 one, which ended the job at the first): like every refusal it moves the job to
+# another account until `dola.refusal_max_accounts` accounts refused it, and the last one ends the job with this code,
+# refunded. A requeue in between carries it too (it uses no attempt).
 REFUSED_710022002 = "dola.refused_710022002"
+# The same cap reached by another refusal (a throttle 710022004, a "something went wrong" reply): dola would not take
+# the order on that many accounts. 22-23/10 single jobs went round all 9 accounts in minutes and 6 were logged out.
+REFUSED_ON_ACCOUNTS = "dola.refused_on_accounts"
 LIKENESS_REFUSED = "dola.likeness_refused"
 RENDER_WATERMARKED_ONLY = "render.watermarked_only"      # a core code: the poll saw only watermarked links
 NEEDS_CONFIRM = "dola.needs_confirm"
@@ -77,6 +82,8 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _refusal(CONTENT_REFUSED, "dola refused to make this (copyright, safety or content rules); the charge is returned"),
     _refusal(REFUSED_710022002, "dola refused to take this order (its code 710022002, which it gives for prompts it "
                                 "will not make); nothing was made and the charge is returned"),
+    _refusal(REFUSED_ON_ACCOUNTS, "dola would not take this order on the most accounts a job may try (it was "
+                                  "throttled or answered with an error); nothing was made and the charge is returned"),
     _refusal(LIKENESS_REFUSED,"dola refused: with a photo of a person it only makes videos of the account owner"),
     _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"),
     _refusal(NO_VIDEO, "dola made no video for this order"),

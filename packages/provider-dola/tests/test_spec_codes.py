@@ -36,7 +36,7 @@ def test_the_catalog_is_unique_across_names():
 # ---- codes -----------------------------------------------------------------------------------------------------------
 DOLA_CODES = {
     "dola.content_refused", "dola.refused_710022002", "dola.likeness_refused", "dola.needs_confirm", "dola.no_video",
-    "dola.no_image",
+    "dola.no_image", "dola.refused_on_accounts",
     "dola.temporary_error", "dola.unknown_status", "dola.http_error", "dola.bad_response",
     "dola.ui_mode_not_ready", "dola.ui_model_select_failed", "dola.ui_ratio_select_failed",
     "dola.ui_duration_patch_failed", "dola.ui_attach_failed", "dola.ui_style_select_failed", "dola.ui_send_failed",
@@ -53,7 +53,7 @@ def test_every_dola_code_of_the_contract_is_registered_and_the_registry_is_sound
 
 def test_refusals_end_the_job_at_once_and_refund_and_transient_codes_count_an_attempt():
     for code in ("dola.content_refused", "dola.refused_710022002", "dola.likeness_refused", "dola.needs_confirm",
-                 "dola.no_video", "dola.no_image"):
+                 "dola.no_video", "dola.no_image", "dola.refused_on_accounts"):
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, r.public, r.job_scoped) == (True, True, False, True, True), code
         assert r.http_status == 422, code

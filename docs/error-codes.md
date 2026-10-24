@@ -41,6 +41,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `dola.no_video` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola made no video for this order |
 | `dola.page_reloaded` | 500 | api_error | no | no | no | 3 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola's page reloaded while the order was being composed; the run is tried again |
 | `dola.refused_710022002` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola refused to take this order (its code 710022002, which it gives for prompts it will not make); nothing was made and the charge is returned |
+| `dola.refused_on_accounts` | 422 | invalid_request_error | yes | yes | no | 0 | yes | dola would not take this order on the most accounts a job may try (it was throttled or answered with an error); nothing was made and the charge is returned |
 | `dola.signer_suspect` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) dola refused the plain-HTTP send in a way that points at relay's request signature; nothing was taken |
 | `dola.temporary_error` | 502 | api_error | no | yes | yes | 0 | yes | dola reported a temporary error when it took the order |
 | `dola.ui_attach_failed` | 500 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the request could not be submitted to dola) the reference images could not be attached on dola's page |

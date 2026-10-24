@@ -38,6 +38,7 @@ from relay_browser.session import BrowserLaunchError, BrowserRefused, open_sessi
 from relay_browser.text import norm_for_match
 from relay_browser.ui import inject_cookies
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -74,6 +75,7 @@ from relay_dola.engine.verify import (
     login_state,
     lost_identity_cookies,
 )
+from relay_dola.spec import SPEC
 
 log = logging.getLogger("relay_dola.submit")
 SINGLE_PATH = "/im/chain/single"
@@ -81,12 +83,13 @@ COMPLETION_PATH = "/chat/completion"
 
 # dola's own throttle and region codes, carried in the `/chat/completion` SSE body (HTTP stays 200). Passive reading
 # only: the request is never edited (dola signs the body).
-THROTTLE_CODES = (710022004,)               # rate limit: the account rests, the job goes elsewhere
+THROTTLE_CODES = (710022004,)               # rate limit: the account rests, the job goes elsewhere (a refusal)
 REGION_CODE = 710022003                     # blocked by region for this endpoint: the proxy is the wrong region
 # dola will not take THIS order: measured 23/10, 9 of 18 tries in 3 h were 710022002, all on one prompt and on 7
-# accounts, so it answers the prompt, not the account. Owner's ruling 23/10: the job ends at once, refunded, and is
-# never tried on another account (dola took nothing). It was a throttle (rest, job elsewhere) until then.
+# accounts, so it answers the prompt, not the account. Owner's ruling 25/10 (replacing 23/10's "end at once"): like
+# every refusal, the account rests and the job goes to another one until `dola.refusal_max_accounts` refused it.
 REFUSED_CODE = 710022002
+REFUSAL_MAX_ACCOUNTS = "dola.refusal_max_accounts"
 SSE_MESSAGE_CHARS = 200
 # Events of a `/chat/completion` stream that deliver nothing: a heartbeat and the acknowledgement of the send.
 QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})
@@ -192,7 +195,7 @@ ATTACH_TRIES = 45            # ~31 s: N images through a slow proxy
 # out: the button is polled.
 COLD_MODE_WAIT_S = 30
 # On a 710022002 the receipt keeps looking for the conversation this long (it may appear a moment after the stream),
-# so it is kept as evidence; the job still fails right after.
+# so it is kept as evidence (or named, when the job goes to another account); the refusal is decided right after.
 REFUSAL_RECEIPT_S = 10.0
 # The conversation reads of the page and of the engine (`CHAIN_FETCH_JS`, the login probe): POSTs that read, and the
 # only POSTs the traffic watch does not count. The order itself goes elsewhere (`/chat/completion`).
@@ -1364,7 +1367,7 @@ class _Run:
         refunds)."""
         code = self._sse_error()
         if code in THROTTLE_CODES:
-            return self._throttled(code)
+            return await self._throttled(code)
         if code == REGION_CODE or REGION_BLOCK_MARK in await self.driver.page_url(self.page):
             return self._region_blocked("dola answered %s" % (code or "with its region page"))
         logged_out = await self._logged_out_after_send()
@@ -1412,25 +1415,57 @@ class _Run:
         await self._say(why, "submit_error", "engine")
         return _outcome(NotTaken(code), *effects)
 
-    async def _refused_by_code(self, stream: str, conversation: str | None) -> SubmitResult:
-        """dola's stream answered the send with REFUSED_CODE: dola will not take this order, and took nothing. The job
-        ends now, refunded (owner's ruling 23/10), and is never tried on another account: in 3 h it went to 7 accounts
-        and 5 of them were logged out by dola within the hour. The stream is kept as evidence and dola's own words go
-        to the timeline. The account rests THROTTLE_COOLDOWN_S and is checked again then: the refusal is about the
-        prompt, but an account that just sent such a prompt is at risk, and the check finds a logout before a job
-        does.
+    def _refused_on_account(self) -> tuple[list, bool]:
+        """dola refused this order on this account (710022002, a throttle code, or its "something went wrong" reply).
+        Owner's ruling 25/10: a job may be tried on at most `dola.refusal_max_accounts` accounts when dola refuses it;
+        22-23/10 single jobs went round all 9 accounts within minutes and 6 were logged out by dola's risk system right
+        after. The count is the job's `REFUSED_BY` list, which the core keeps across every requeue, so neither a fault
+        requeue in between nor a restart resets it. Returns the list with this account appended and whether this
+        refusal ends the job (the cap is reached)."""
+        before = self.job.provider_state.get(REFUSED_BY)
+        refused = [*(before if isinstance(before, list) else ()), self.ctx.account.id]
+        cap = self.settings.get(REFUSAL_MAX_ACCOUNTS) if self.settings is not None else None
+        if not isinstance(cap, int):          # the spec's own default, not a copy of it
+            cap = SPEC.settings()[REFUSAL_MAX_ACCOUNTS].default
+        return refused, len(refused) >= cap
 
-        A conversation that already appeared is KEPT before the job fails: its id becomes the job's reference and is
-        named in the timeline and in `provider_state.refused_conversation`. dola is known to refuse and still deliver
-        about 25 min later; such a delivery is not fetched by itself (the job is failed and refunded), but an admin
-        Re-check sends the job back to waiting (the key is charged again) and the poll reads that conversation."""
+    async def _refusal_outcome(self, not_taken: str, final: str, detail: str, effects, patch=None) -> SubmitResult:
+        """A refusal on this account: the job goes to another one (`not_taken`), or, when this was the last account
+        `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded). The account
+        `effects` (its rest) are the same either way."""
+        refused, last = self._refused_on_account()
+        if not last:
+            await self._say("dola refused the order on %d account(s); the job goes to another account (%s)"
+                            % (len(refused), REFUSAL_MAX_ACCOUNTS), "submit", "engine")
+            return _outcome(NotTaken(not_taken, {REFUSED_BY: refused}), *effects)
+        return _outcome(Fail(final, "%s (refused on %d account(s), the most %s allows)"
+                             % (detail, len(refused), REFUSAL_MAX_ACCOUNTS), {**(patch or {}), REFUSED_BY: refused}),
+                        *effects)
+
+    async def _refused_by_code(self, stream: str, conversation: str | None) -> SubmitResult:
+        """dola's stream answered the send with REFUSED_CODE: dola will not take this order, and took nothing. A refusal
+        like any other (`_refused_on_account`): the job goes to another account, and the last account's refusal ends
+        it with `dola.refused_710022002`, refunded. The stream is kept as evidence and dola's own words go to the
+        timeline. The account rests THROTTLE_COOLDOWN_S and is checked again then: the refusal is about the prompt,
+        but an account that just sent such a prompt is at risk, and the check finds a logout before a job does.
+
+        On the refusal that ends the job, a conversation that already appeared is KEPT before the job fails: its id
+        becomes the job's reference and is named in the timeline and in `provider_state.refused_conversation`. dola is
+        known to refuse and still deliver about 25 min later; such a delivery is not fetched by itself (the job is
+        failed and refunded), but an admin Re-check sends the job back to waiting (the key is charged again) and the
+        poll reads that conversation. A job that goes to another account names the conversation in the timeline
+        only (the requeue drops it as the reference)."""
         said = sse_message(stream)
         detail = "dola refused the order with %d: %s" % (REFUSED_CODE, said or "(no message)")
         await self._flush_steps()
         await self._say(detail, "submit", "upstream")
         await self._evidence([Evidence("refused-%d-stream.txt" % REFUSED_CODE, stream.encode("utf-8"), TEXT_MIME)])
+        until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
+        rest = (Cooldown("dola refused a prompt (%d)" % REFUSED_CODE, until, recheck=True),)
         patch = {}
-        if conversation is not None:
+        if conversation is not None and not self._refused_on_account()[1]:
+            await self._say("conversation %s is left: dola refused the order there" % conversation, "submit", "engine")
+        elif conversation is not None:
             self.conversation = conversation
             patch = {"refused_conversation": conversation}      # kept by the Fail itself, whatever comes next
             try:
@@ -1442,13 +1477,14 @@ class _Run:
                 await self._say("conversation %s could not be stored as the job's reference (%s); it is named in "
                                 "provider_state.refused_conversation" % (conversation, type(exc).__name__),
                                 "submit", "engine")
-        until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
-        return _outcome(Fail(errors.REFUSED_710022002, detail, patch),
-                        Cooldown("dola refused a prompt (%d)" % REFUSED_CODE, until, recheck=True))
+        return await self._refusal_outcome(errors.REFUSED_710022002, errors.REFUSED_710022002, detail, rest, patch)
 
-    def _throttled(self, code: int) -> SubmitResult:
+    async def _throttled(self, code: int) -> SubmitResult:
+        """dola's throttle code: a refusal (`_refused_on_account`). The account rests; the job goes to another one, or
+        ends with `dola.refused_on_accounts` on the last."""
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
-        return _outcome(NotTaken(POOL_THROTTLED), Cooldown("dola throttled (%d)" % code, until))
+        return await self._refusal_outcome(POOL_THROTTLED, errors.REFUSED_ON_ACCOUNTS, "dola throttled (%d)" % code,
+                                           (Cooldown("dola throttled (%d)" % code, until),))
 
     # ---- the answer ----
     async def _answer(self, conversation: str, images) -> SubmitResult:
@@ -1637,8 +1673,9 @@ class _Run:
                 detail = "dola refused this order (likeness protection)"
                 return _outcome(Fail(errors.LIKENESS_REFUSED, detail), *balance)
             return _outcome(Fail(errors.CONTENT_REFUSED, verdict.detail), *balance)
-        if outcome is classify.SubmitOutcome.ERROR:
-            return _outcome(NotTaken(errors.TEMPORARY_ERROR), *balance)
+        if outcome is classify.SubmitOutcome.ERROR:      # "something went wrong": a refusal like a throttle
+            return await self._refusal_outcome(errors.TEMPORARY_ERROR, errors.REFUSED_ON_ACCOUNTS, verdict.detail,
+                                               balance)
         # NEEDS_CONFIRM after the re-sends: dola is still gated but the video may come (R56): the poll decides.
         return _outcome(Accepted(self.conversation, taken=False), *balance)
 

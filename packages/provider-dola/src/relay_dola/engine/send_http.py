@@ -481,7 +481,7 @@ class HttpRun(_Run):
                 return _outcome(NotTaken(errors.SIGNER_SUSPECT))
             if code == REFUSED_CODE:
                 return await self._refused_by_code(text, None)
-            return self._throttled(code)
+            return await self._throttled(code)
         if code == REGION_CODE:
             return self._region_blocked("dola answered %d" % code)
         return await self._after_send_failure("dola answered %d before acknowledging the send: unknown" % code)

@@ -41,6 +41,7 @@ from relay_browser.session import BrowserLaunchError
 from relay_core import frames
 from relay_core.errors import rule
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -312,7 +313,7 @@ async def test_a_likeness_refusal_has_its_own_code_and_gives_no_guidance():
 @sync
 async def test_something_went_wrong_is_a_temporary_error_that_counts_an_attempt_and_drops_the_conversation():
     res = await Scene(replies={1: [SOMETHING_WRONG]}).run()
-    assert res.job == NotTaken(errors.TEMPORARY_ERROR)
+    assert res.job == NotTaken(errors.TEMPORARY_ERROR, {REFUSED_BY: ["acct-1"]}), "a refusal: counted (25/10)"
     assert rule(errors.TEMPORARY_ERROR).counts_attempt, "dola's own error must use an attempt"
 
 
@@ -405,18 +406,32 @@ async def sse_on_send(name):
 async def test_a_throttle_code_in_the_stream_cools_the_account_down_for_30_minutes(name, code):
     scene = Scene(polls=False, on_send=await sse_on_send(name))
     res = await scene.run()
-    assert res.job == NotTaken("pool.account_throttled")
+    assert res.job == NotTaken("pool.account_throttled", {REFUSED_BY: ["acct-1"]})
     assert effects_of(res) == (Cooldown("dola throttled (%d)" % code, COOLDOWN),), "cooldown must be 1800 s"
     assert rule("pool.account_throttled").counts_attempt is False
 
 
-# ---- 710022002: dola will not take this order (owner's ruling 23/10) ------------------------------------------------
+# ---- refusals: at most `dola.refusal_max_accounts` accounts per job (owner's ruling 25/10) ---------------------------
 REFUSED_ENDS = ("        if refused is not None:\n            return await self._refused_by_code(refused, "
                 "conversation)\n")
 REFUSED_KEPT = "                await self.ctx.report_ref(conversation, patch)\n"
-REFUSED_REST = "                        Cooldown(\"dola refused a prompt (%d)\" % REFUSED_CODE, until, recheck=True))"
+REFUSED_REST = "        rest = (Cooldown(\"dola refused a prompt (%d)\" % REFUSED_CODE, until, recheck=True),)\n"
 PLAIN_REFUSAL = ('data: {"error_code": 710022002, "error_msg": "The request   could not\\nbe completed"}\n\n'
                  'data: [DONE]\n\n')
+# Another account refused this job before: this account's refusal is the last one the default (2) allows.
+BEFORE = ["acct-0"]
+CAP_REACHED = "        return refused, len(refused) >= cap\n"
+CAP_PASSED = "        return refused, len(refused) > cap\n"
+NOT_LAST = "        if not last:\n            await self._say(\"dola refused the order on %d account(s)"
+COUNT_READ = "        refused = [*(before if isinstance(before, list) else ()), self.ctx.account.id]\n"
+CAP_SETTING = "        cap = self.settings.get(REFUSAL_MAX_ACCOUNTS) if self.settings is not None else None\n"
+DEFAULT_CAP = ('    _setting("refusal_max_accounts", int, 2,\n')
+SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
+THROTTLE_COUNTED = ("        return await self._refusal_outcome(POOL_THROTTLED, errors.REFUSED_ON_ACCOUNTS, "
+                    "\"dola throttled (%d)\" % code,\n")
+TEMPORARY_COUNTED = ("            return await self._refusal_outcome(errors.TEMPORARY_ERROR, "
+                     "errors.REFUSED_ON_ACCOUNTS, verdict.detail,\n"
+                     "                                               balance)\n")
 
 
 def refusal_on_send(text):
@@ -425,23 +440,119 @@ def refusal_on_send(text):
     return feed
 
 
-@mutation(SUB, REFUSED_ENDS, "", expect="a 710022002 refusal did not end the job at once")
-@mutation(SUB, REFUSED_REST, "                        )",
-          expect="the account that sent the refused prompt did not rest")
+def second_try(**kw):
+    return make_job(provider_state={REFUSED_BY: list(BEFORE)}, **kw)
+
+
+class Cap:
+    """The settings view with `dola.refusal_max_accounts` set."""
+
+    def __init__(self, n):
+        self.n = n
+
+    def get(self, key):
+        return self.n if key == "dola.refusal_max_accounts" else None
+
+
+# Each kind of refusal: the scene's keyword arguments, the code it goes back to the queue with, the code it ends with,
+# and the account's rest.
+REFUSALS = {
+    "710022002": (lambda: dict(polls=False, on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt"))),
+                  errors.REFUSED_710022002, errors.REFUSED_710022002,
+                  (Cooldown("dola refused a prompt (710022002)", COOLDOWN, recheck=True),)),
+    "throttle-710022004": (lambda: dict(polls=False, on_send=refusal_on_send(stream_text("throttle-710022004.txt"))),
+                           "pool.account_throttled", errors.REFUSED_ON_ACCOUNTS,
+                           (Cooldown("dola throttled (710022004)", COOLDOWN),)),
+    "something-went-wrong": (lambda: dict(replies={1: [SOMETHING_WRONG]}), errors.TEMPORARY_ERROR,
+                             errors.REFUSED_ON_ACCOUNTS, ()),
+}
+KINDS = pytest.mark.parametrize("kind", list(REFUSALS))
+
+
+@mutation(SUB, NOT_LAST, "        if False:\n            await self._say(\"dola refused the order on %d account(s)",
+          expect="the first refusal did not send the job to a second account")
+@mutation(SUB, THROTTLE_COUNTED, "        return _outcome(NotTaken(POOL_THROTTLED), Cooldown(\"dola throttled (%d)\" % "
+          "code, until))\n        (\"dola throttled (%d)\" % code,\n",
+          expect="the first refusal did not send the job to a second account")
+@mutation(SUB, TEMPORARY_COUNTED, "            return _outcome(NotTaken(errors.TEMPORARY_ERROR), *balance)\n",
+          expect="the first refusal did not send the job to a second account")
+@KINDS
+@sync
+async def test_the_first_refusal_rests_the_account_and_sends_the_job_to_a_second_account(kind):
+    """Owner's ruling 25/10: whatever the refusal, a job is tried on at most `dola.refusal_max_accounts` (2) accounts;
+    22-23/10 single jobs went round all 9 accounts within minutes and 6 were logged out by dola right after. The first
+    refusal goes back to the queue with this account in the job's `refused_by`, which every requeue keeps."""
+    scene_kw, not_taken, _, rest = REFUSALS[kind]
+    scene = Scene(**scene_kw())
+    res = await scene.run()
+    assert res.job == NotTaken(not_taken, {REFUSED_BY: ["acct-1"]}), \
+        "the first refusal did not send the job to a second account: %r" % (res.job,)
+    assert tuple(e for e in effects_of(res) if isinstance(e, Cooldown)) == rest, "the account's rest changed"
+    assert any("goes to another account" in t for t, _ in scene.ctx.said("submit"))
+    assert scene.log.count("send") == 1
+
+
+@mutation(SUB, CAP_REACHED, CAP_PASSED, expect="the refusal on the last account did not end the job")
+@mutation(SUB, COUNT_READ, "        refused = [self.ctx.account.id]\n",
+          expect="the refusal on the last account did not end the job")
+@mutation(SPEC_FILE, DEFAULT_CAP, '    _setting("refusal_max_accounts", int, 3,\n',
+          expect="the refusal on the last account did not end the job")
+@KINDS
+@sync
+async def test_the_refusal_on_the_last_account_ends_the_job_failed_with_its_refund(kind):
+    scene_kw, _, final, rest = REFUSALS[kind]
+    scene = Scene(job=second_try(), **scene_kw())
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == final, \
+        "the refusal on the last account did not end the job: %r" % (res.job,)
+    r = rule(final)
+    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), \
+        "%s does not end the job with its full refund" % final
+    assert res.job.state_patch[REFUSED_BY] == ["acct-0", "acct-1"]
+    assert res.job.detail.endswith("(refused on 2 account(s), the most dola.refusal_max_accounts allows)")
+    assert tuple(e for e in effects_of(res) if isinstance(e, Cooldown)) == rest, "the account's rest changed"
+    assert scene.log.count("send") == 1
+
+
+@mutation(SUB, CAP_SETTING, "        cap = None\n", expect="the setting at 1 did not end the job at the first refusal")
+@KINDS
+@sync
+async def test_with_the_setting_at_1_the_first_refusal_ends_the_job(kind):
+    scene_kw, _, final, _ = REFUSALS[kind]
+    scene = Scene(**scene_kw())
+    scene.ctx.settings = Cap(1)
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == final, \
+        "the setting at 1 did not end the job at the first refusal: %r" % (res.job,)
+    assert res.job.state_patch[REFUSED_BY] == ["acct-1"]
+    big = Scene(job=second_try(), **scene_kw())
+    big.ctx.settings = Cap(3)
+    assert (await big.run()).job == NotTaken(REFUSALS[kind][1], {REFUSED_BY: ["acct-0", "acct-1"]}), \
+        "at 3 the second refusal must still go to a third account"
+
+
+def test_the_setting_is_a_live_dola_setting_from_1_to_9_defaulting_to_2():
+    from relay_dola.spec import SPEC
+    s = SPEC.settings()["dola.refusal_max_accounts"]
+    assert (s.type, s.default, s.min, s.max) == (int, 2, 1, 9)
+    assert "refuses" in s.description and "refund" in s.description
+
+
+@mutation(SUB, REFUSED_ENDS, "", expect="a 710022002 refusal did not end the job")
+@mutation(SUB, REFUSED_REST, "        rest = ()\n", expect="the account that sent the refused prompt did not rest")
 @mutation(SUB, REFUSED_KEPT, "                pass\n", expect="the refused conversation was not kept")
 @pytest.mark.parametrize("conversation", [False, True], ids=["no-conversation", "a-conversation-appeared"])
 @sync
-async def test_a_710022002_refusal_ends_the_job_at_once_refunded_and_never_goes_to_another_account(conversation):
+async def test_a_710022002_refusal_on_the_last_account_ends_the_job_refunded_and_keeps_its_evidence(conversation):
     """23/10: 9 of 18 tries in 3 h were 710022002, all on one prompt, re-queued to 7 accounts in turn (5 of them were
-    logged out by dola within the hour). The owner ruled: it ends the job at once, with its refund."""
-    scene = Scene(polls=conversation, on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
+    logged out by dola within the hour). The 25/10 ruling: like any refusal, the last allowed account's ends the job,
+    with its refund."""
+    scene = Scene(job=second_try(), polls=conversation,
+                  on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
     res = await scene.run()
     assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
-        "a 710022002 refusal did not end the job at once (it would go to another account): %r" % (res.job,)
-    r = rule(errors.REFUSED_710022002)
-    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), \
-        "a 710022002 refusal did not end the job at once with its refund"
-    assert res.job.detail == "dola refused the order with 710022002: high demand"
+        "a 710022002 refusal did not end the job (it would go to a third account): %r" % (res.job,)
+    assert res.job.detail.startswith("dola refused the order with 710022002: high demand (refused on 2 account(s)")
     assert effects_of(res) == (Cooldown("dola refused a prompt (710022002)", COOLDOWN, recheck=True),), \
         "the account that sent the refused prompt did not rest: %r" % (res.account,)
     assert ("dola refused the order with 710022002: high demand", "upstream") in scene.ctx.said("submit")
@@ -452,10 +563,41 @@ async def test_a_710022002_refusal_ends_the_job_at_once_refunded_and_never_goes_
         # dola may refuse and still deliver ~25 min later: the conversation stays the job's reference for a Re-check
         assert scene.ctx.refs == [(CONV, {"refused_conversation": CONV})], \
             "the refused conversation was not kept: %r" % scene.ctx.refs
-        assert res.job.state_patch == {"refused_conversation": CONV}
+        assert res.job.state_patch == {"refused_conversation": CONV, REFUSED_BY: ["acct-0", "acct-1"]}
         assert any(CONV in t and "Re-check" in t for t, _ in scene.ctx.said("submit"))
     else:
-        assert scene.ctx.refs == [] and res.job.state_patch == {}
+        assert scene.ctx.refs == [] and res.job.state_patch == {REFUSED_BY: ["acct-0", "acct-1"]}
+
+
+@sync
+async def test_a_710022002_refusal_that_goes_to_another_account_names_the_conversation_and_keeps_no_reference():
+    scene = Scene(on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
+    res = await scene.run()
+    assert res.job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["acct-1"]})
+    assert scene.ctx.refs == [], "a job that goes to another account keeps no reference of this one"
+    assert any(CONV in t and "is left" in t for t, _ in scene.ctx.said("submit"))
+    assert not rule(errors.REFUSED_710022002).counts_attempt, "a refusal's requeue uses no attempt"
+
+
+@mutation(SUB, "        if code in THROTTLE_CODES:\n            return await self._throttled(code)\n        if code == "
+          "REGION_CODE or", "        if code in THROTTLE_CODES or code == REGION_CODE:\n            return await "
+          "self._throttled(code)\n        if code == REGION_CODE or", expect="a failure that is not a refusal")
+@sync
+async def test_failures_that_are_not_dolas_refusal_are_not_counted():
+    """A proxy failure, a signed-out page, a page fault, out of credit and a region block are not dola refusing the
+    order: none adds the account to `refused_by`, and none ends a job that one account already refused."""
+    outcomes = [
+        await Scene(job=second_try(), open_error=NET_ERROR).run(),                       # proxy
+        await Scene(job=second_try(), patched=0, replies={1: [ACCEPTED]}).run(),         # page fault
+        await Scene(job=second_try(), replies={1: [DAILY_LIMIT]}).run(),                 # out of credit
+        await Scene(job=second_try(), probe=GUEST).run(),                                # signed out
+        await Scene(job=second_try(), polls=False,
+                    on_send=refusal_on_send('data: {"error_code": 710022003}\n\n')).run(),   # region
+    ]
+    for res in outcomes:
+        assert not isinstance(res.job, Fail), "a failure that is not a refusal ended the job: %r" % (res.job,)
+        assert REFUSED_BY not in getattr(res.job, "state_patch", {}), \
+            "a failure that is not a refusal was counted: %r" % (res.job,)
 
 
 STREAM_DELIVERED = "        return None\n    return error\n"
@@ -491,12 +633,12 @@ REF_BEST_EFFORT = ("            except Exception as exc:      # noqa: BLE001 - k
           expect="a failed reference turned the refusal into an unknown order")
 @sync
 async def test_a_reference_that_cannot_be_stored_still_ends_the_refused_job_with_its_refund():
-    scene = Scene(on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")),
+    scene = Scene(job=second_try(), on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")),
                   report_error=RuntimeError("database unavailable"))
     res = await scene.run()
     assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
         "a failed reference turned the refusal into an unknown order: %r" % (res.job,)
-    assert res.job.state_patch == {"refused_conversation": CONV}, "the conversation was lost with the reference"
+    assert res.job.state_patch["refused_conversation"] == CONV, "the conversation was lost with the reference"
     assert any("could not be stored" in t for t, _ in scene.ctx.said("submit"))
 
 
@@ -505,8 +647,9 @@ async def test_a_reference_that_cannot_be_stored_still_ends_the_refused_job_with
 @sync
 async def test_a_conversation_that_appears_shortly_after_the_refusal_is_still_kept():
     """Codex 23/10: the receipt stopped at the first error, so a conversation that appeared a moment later was lost as
-    evidence. On a refusal it is looked for REFUSAL_RECEIPT_S more; the job still fails right after."""
-    scene = Scene(polls=False, on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
+    evidence. On a refusal it is looked for REFUSAL_RECEIPT_S more; the refusal is decided right after."""
+    scene = Scene(job=second_try(), polls=False,
+                  on_send=refusal_on_send(stream_text("high-demand-710022002-nested.txt")))
     probes = {"n": 0}
 
     async def probe(page):
@@ -516,7 +659,7 @@ async def test_a_conversation_that_appears_shortly_after_the_refusal_is_still_ke
     scene.driver.probe = probe
     res = await scene.run()
     assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002
-    assert res.job.state_patch == {"refused_conversation": CONV}, \
+    assert res.job.state_patch.get("refused_conversation") == CONV, \
         "a conversation that appeared after the refusal was lost: %r" % (res.job,)
     assert scene.log.count("send") == 1
 
@@ -534,29 +677,35 @@ GATE_REFUSAL = ("                if refused is not None:       # the re-send's o
 
 @mutation(SUB, GATE_REFUSAL, "                if False:\n", expect="a re-send's refusal did not end the job")
 @sync
-async def test_a_710022002_on_a_gated_re_send_ends_the_job_at_once_too():
-    """The gate presses Enter again in the same conversation; that send's own stream is read the same way."""
+async def test_a_710022002_on_a_gated_re_send_is_a_refusal_too():
+    """The gate presses Enter again in the same conversation; that send's own stream is read the same way: on the last
+    account it ends the job, on the first it sends the job to another account (no third send here)."""
     async def refuse_resend(world, n):
         if n == 2:
             await world.feeder.sse(stream_text("high-demand-710022002-nested.txt"))
-    scene = Scene(replies={1: [GATE]}, on_send=refuse_resend)
+    scene = Scene(job=second_try(), replies={1: [GATE]}, on_send=refuse_resend)
     res = await scene.run()
     assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_710022002, \
         "a re-send's refusal did not end the job: %r" % (res.job,)
     assert scene.log.count("send") == 2, "sent again after dola refused: %r" % kinds(scene.log)
-    assert res.job.state_patch == {"refused_conversation": CONV}
+    assert res.job.state_patch == {"refused_conversation": CONV, REFUSED_BY: ["acct-0", "acct-1"]}
+    first = Scene(replies={1: [GATE]}, on_send=refuse_resend)
+    assert (await first.run()).job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["acct-1"]}), \
+        "a re-send's refusal did not end the job (nor move it)"
+    assert first.log.count("send") == 2
 
 
 @sync
 async def test_a_710022002_refusal_keeps_dolas_own_words_folded_and_cut():
-    scene = Scene(polls=False, on_send=refusal_on_send(PLAIN_REFUSAL))
+    scene = Scene(job=second_try(), polls=False, on_send=refusal_on_send(PLAIN_REFUSAL))
     res = await scene.run()
-    assert res.job == Fail(errors.REFUSED_710022002, "dola refused the order with 710022002: The request could not "
-                                                    "be completed")
+    assert res.job.code == errors.REFUSED_710022002
+    assert res.job.detail.startswith("dola refused the order with 710022002: The request could not be completed (")
     assert sse_message('data: {"error_code": 710022002, "error_msg": "%s"}' % ("x" * 999)) == "x" * 200
     assert sse_message('data: {"error_code": 710022002}') == ""
-    silent = await Scene(polls=False, on_send=refusal_on_send('data: {"error_code": 710022002}\n\n')).run()
-    assert silent.job == Fail(errors.REFUSED_710022002, "dola refused the order with 710022002: (no message)")
+    silent = await Scene(job=second_try(), polls=False,
+                         on_send=refusal_on_send('data: {"error_code": 710022002}\n\n')).run()
+    assert silent.job.detail.startswith("dola refused the order with 710022002: (no message) (")
 
 
 @sync

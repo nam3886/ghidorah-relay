@@ -13,6 +13,7 @@ from relay_core import errors, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.jobs import apply, store
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -723,8 +724,10 @@ def test_a_job_requeued_after_not_taken_or_retry_waits_before_it_is_claimed_agai
 
 
 # ---- a requeue drops what the previous attempt's account made --------------------------------------------------------
-RESET_STATE = 'return dict(external_ref=None, provider_state=_Raw("%s::jsonb", (_state(patch),)))'
+RESET_STATE = 'return dict(external_ref=None, provider_state=_Raw(keep + " || %s::jsonb", (_state(patch),)))'
 KEEP_STATE = 'return dict(provider_state=_Raw("provider_state || %s::jsonb", (_state(patch),)))'
+KEEP_REFUSED = ("    keep = \"jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))\" % "
+                "(REFUSED_BY, REFUSED_BY)\n")
 DROPPED_TEXT = 'return " (dropped reference %s)" % job.external_ref if job.external_ref else ""'
 
 
@@ -757,6 +760,44 @@ def test_a_requeue_clears_the_reference_and_state_of_the_previous_attempt_and_re
     assert state == ({"seen": 1} if how == "not_taken" else {})
     texts = [r[0] for r in db.all("SELECT text FROM job_events WHERE job_id = %s AND stage = 'requeued'", got.job_id)]
     assert any("conv-A" in t for t in texts), texts
+
+
+@mutation(A, KEEP_REFUSED, "    keep = \"'{}'::jsonb\"\n", expect="a requeue reset the accounts that refused the job")
+@pytest.mark.parametrize("how", ["not_taken", "retry", "interrupted", "not_sent"])
+def test_the_accounts_that_refused_a_job_outlive_every_requeue_and_a_restart(db, how):
+    """Owner's ruling 25/10 caps the accounts a refused job may try (dola.refusal_max_accounts). The count is the job's
+    `refused_by`: a requeue of any kind in between (a page fault, an interrupted submit, a proven-not-sent order)
+    keeps it, and a new worker reads it from the job; a refusal's own patch replaces it."""
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        got = await start(p, k)
+        refused = SubmitResult(NotTaken("pool.account_throttled", {REFUSED_BY: ["acct-A"], "seen": 1}))
+        assert await submit(p, got, engine_with(unsent(refused))) == "queued"
+        again = await claim(p)
+        await store.report_ref(p, again, "conv-B", {"conv": "B"})
+        if how == "not_sent":
+            await submit(p, again, engine_with(sent(SubmitResult(Ambiguous("lost")))))
+            db.run("UPDATE jobs SET sent_at = clock_timestamp() - interval '500 seconds', submit_timeout_s = 60 "
+                   "WHERE id = %s", got.job_id)
+            assert await reconcile(p, again, NotSent(True)) == "queued"
+        else:
+            if how == "interrupted":
+                await store.apply_interrupted(p, again, caps=CAPS, pools=POOLS)
+            else:
+                result = SubmitResult(NotTaken("pool.account_logged_out") if how == "not_taken"
+                                      else Retry("pool.account_logged_out"))
+                await submit(p, again, engine_with(unsent(result)))
+        later = await claim(p)                     # what the next submit sees, on this worker or a restarted one
+        view = await store.job_view(p, later.job_id)
+        await submit(p, later, engine_with(unsent(SubmitResult(
+            NotTaken("pool.account_throttled", {REFUSED_BY: ["acct-A", "acct-C"]})))))
+        return got, view
+
+    got, view = run(db, scenario)
+    assert view.provider_state == {REFUSED_BY: ["acct-A"]}, \
+        "a requeue reset the accounts that refused the job: %r" % (view.provider_state,)
+    assert cols(db, got.job_id, "provider_state")[0] == {REFUSED_BY: ["acct-A", "acct-C"]}, "a patch replaces it"
 
 
 # ---- mark_sent refuses a job that left this claim ---------------------------------------------------------------

@@ -637,6 +637,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or any video but Seedance 2.0 5 s or 10 s at 16:9 always goes by browser | browser |
 | `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
 | `dola.signer_alarm_window_s` | HTTP send only: that window, and how long HTTP sends pause after the alarm (at least 60) | 900 |
+| `dola.refusal_max_accounts` | how many accounts one job may try when dola refuses to take it (710022002, the throttle 710022004, its "something went wrong" reply); each refusal rests that account and sends the job to another, the last one ends the job failed and refunded; 1 ends it at the first (1 to 9; see "Refusals") | 2 |
 
 The range or rule of every setting is shown on the Settings page.
 
@@ -657,8 +658,9 @@ is read per job at the send; flipping it never moves a job that is already sent.
   - `SSE_ACK` with a conversation: dola has the order; the conversation becomes the job's reference and the reply is
     judged as on the browser path (images finish in the session or by the poll, a video by the poll). There is no
     re-send over HTTP: a confirmation question stays unclear and the poll decides.
-  - `STREAM_ERROR` before any acknowledgement: dola made no conversation. 710022002 ends the job refunded
-    (`dola.refused_710022002`), 710022004 rests the account (throttle), 710022003 is the region; 710020702 (a replay
+  - `STREAM_ERROR` before any acknowledgement: dola made no conversation. 710022002 and 710022004 are refusals (the
+    account rests; the job goes to another account or, on the last one `dola.refusal_max_accounts` allows, ends
+    refunded: see "Refusals"), 710022003 is the region; 710020702 (a replay
     of ids dola saw before: never expected, relay never re-sends) and any other code are unknown.
   - anything else (a drop, a timeout, an HTTP error, a stream with neither): unknown. Reconcile lists the account's
     conversations over HTTP and looks for the job's exact `local_message_id`; not found is a proof only by the usual
@@ -740,8 +742,8 @@ conversation's own messages (dola's API, through the page), never the page text,
 | accepted, taken | dola accepted; the job waits for the poll |
 | accepted, not proven | unclear or still gated after the re-sends; the conversation is kept and the poll decides |
 | completed | image whose pictures are already there |
-| not taken | out of credit, temporary error, throttle (710022004); the job goes elsewhere or later. Also a send proven not to have left the page (below) |
-| fail | content refused; dola's stream code 710022002 (`dola.refused_710022002`) |
+| not taken | out of credit; a refusal (temporary error, throttle 710022004, 710022002) before the last account `dola.refusal_max_accounts` allows; the job goes elsewhere or later. Also a send proven not to have left the page (below) |
+| fail | content refused; a refusal on the last account allowed (`dola.refused_710022002`, else `dola.refused_on_accounts`) |
 | retry | a failure before the send (nothing was sent) |
 | ambiguous | a failure after the send, or no conversation appeared; reconcile reads the account's own conversation list |
 
@@ -760,18 +762,28 @@ Rules an operator must know:
   only finishes its cleanup. Only zero traffic is the proof. Then the send is proven not sent: not taken
   (`dola.ui_send_failed`, one attempt), the job goes back to the queue as a new attempt, and nothing more is pressed
   in that session (23/10: such a job sat 11 min in unknown).
-- **dola's code 710022002 ends the job.** dola's `/chat/completion` stream answering a send (the first or a gated
-  re-send) with 710022002 means
-  dola will not take this order (23/10: 9 of 18 tries in 3 h, all on one prompt, on 7 accounts; 5 of those accounts
-  were logged out by dola within the hour). The job fails at once with `dola.refused_710022002`, refunded, and is never
-  tried on another account (owner's ruling 23/10). dola's own message goes to the timeline, the stream is kept as
+- **Refusals: at most `dola.refusal_max_accounts` accounts per job (default 2).** Owner's ruling 25/10, which
+  replaces the 23/10 one (710022002 ended the job at the first): 22-23/10 single jobs were re-queued across all 9
+  accounts within minutes and 6 were logged out by dola's risk system right after. A refusal is dola not taking the
+  order: its stream code 710022002 (dola will not take this order; 23/10: 9 of 18 tries in 3 h, all on one prompt, on
+  7 accounts) or 710022004 (throttle), or its "something went wrong" reply. Each refusal rests the account as before
+  and adds it to the job's `provider_state.refused_by`; the core keeps that list across every requeue (a page fault,
+  an interrupted submit, a proven-not-sent order) and a restart, so nothing in between resets the count. Before the
+  last allowed account the job goes back to the queue (no attempt used for 710022002 and 710022004); the refusal on
+  the last one ends it failed with the full refund: `dola.refused_710022002` for 710022002, `dola.refused_on_accounts`
+  otherwise. At 1 the first refusal ends the job. Not refusals, so not counted: a proxy failure, a login doubt or
+  signed-out page, a page fault, out of credit, the region (710022003) and the HTTP signer alarm.
+- **dola's code 710022002.** dola's `/chat/completion` stream answering a send (the first or a gated re-send) with
+  710022002 is a refusal (above). dola's own message goes to the timeline, the stream is kept as
   evidence (`refused-710022002-stream.txt`), and the account rests 30 min (`THROTTLE_COOLDOWN_S`) with its next check
   due then: the code is about the prompt, but an account that just sent such a prompt is at risk, and the check finds
-  a logout before a job does. 710022004 stays a throttle (the account rests, the job goes elsewhere). The stream is
+  a logout before a job does. The stream is
   parsed event by event: a code counts only in an error envelope (`error_code` at the top of an event or of its
   `event_data`), never inside a reply's text, and a stream that also delivered anything (an event other than a
-  heartbeat, an acknowledgement, an empty object or `[DONE]`) is no error at all. When a conversation had already
-  appeared it is kept: it becomes the job's reference (`provider_state.refused_conversation`, named in the timeline).
+  heartbeat, an acknowledgement, an empty object or `[DONE]`) is no error at all. When the refusal ends the job and a
+  conversation had already appeared, it is kept: it becomes the job's reference
+  (`provider_state.refused_conversation`, named in the timeline); a job that goes to another account only names it in
+  the timeline.
   dola can refuse and still deliver about 25 min later; such a delivery is NOT fetched by itself (the job stays failed
   and refunded), but an admin Re-check of the job sends it back to waiting (the key is charged again) and the poll
   reads that conversation. Without a conversation there is nothing to re-check. On a refusal the conversation is

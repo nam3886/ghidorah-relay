@@ -21,7 +21,7 @@ LIVE_KEYS = {
     "dola.claims_enabled", "dola.render_deadline_s", "dola.prices", "dola.costs",
     "dola.pools", "dola.master_quality", "dola.alert_duration_mismatch_rate", "dola.alert_watermark_only_rate",
     "dola.alert_content_refused_rate", "dola.browser_slots", "dola.send_path", "dola.signer_alarm_accounts",
-    "dola.signer_alarm_window_s", "dola.disabled_models"}
+    "dola.signer_alarm_window_s", "dola.refusal_max_accounts", "dola.disabled_models"}
 
 
 SLOTS = "BROWSER_SLOTS_MIN, BROWSER_SLOTS_MAX = 1, 12"
@@ -166,7 +166,7 @@ def test_every_dola_setting_states_what_it_allows():
         "dola.alert_duration_mismatch_rate": "0\u20131", "dola.alert_watermark_only_rate": "0\u20131",
         "dola.alert_content_refused_rate": "0\u20131", "dola.browser_slots": "1\u201312",
         "dola.send_path": "browser or http", "dola.signer_alarm_accounts": "at least 2",
-        "dola.signer_alarm_window_s": "at least 60",
+        "dola.signer_alarm_window_s": "at least 60", "dola.refusal_max_accounts": "1–9",
         "dola.disabled_models": "a list of dola model ids: seedance-2.5, seedance-2.0, seedance-1.0, seedream-5.0-pro, "
                                 "seedream-4.5"}
 

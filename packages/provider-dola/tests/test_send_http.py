@@ -15,6 +15,7 @@ from kit_c import FakeCtx, make_job, sync
 
 from relay_browser.session import BrowserLaunchError
 from relay_core.providers import (
+    REFUSED_BY,
     AccountView,
     Ambiguous,
     Completed,
@@ -242,11 +243,19 @@ async def test_a_video_ack_keeps_the_conversation_for_the_poll():
 async def test_an_error_before_any_ack_is_not_taken():
     log: list = []
     _, refused = await run(Dola(log, stream=BADSIG_SSE))
-    assert isinstance(refused.job, Fail) and refused.job.code == errors.REFUSED_710022002, "not taken"
+    assert refused.job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["acct-1"]}), "not taken"
     _, throttled = await run(Dola(log, stream=THROTTLE_SSE), acct=account("acct-2"))
-    assert isinstance(throttled.job, NotTaken) and throttled.job.code == "pool.account_throttled", "not taken"
+    assert throttled.job == NotTaken("pool.account_throttled", {REFUSED_BY: ["acct-2"]}), "not taken"
     assert any(isinstance(e, Cooldown) for e in throttled.account)
-    assert log.count("POST") == 2
+    # the last account the setting allows: both end the job (refunded), as on the browser path
+    send_http.ALARM.__init__()          # two more refusing accounts would trip the signer alarm
+    second = image_job(provider_state={REFUSED_BY: ["acct-0"]})
+    _, last = await run(Dola(log, stream=BADSIG_SSE), second, acct=account("acct-3"))
+    assert isinstance(last.job, Fail) and last.job.code == errors.REFUSED_710022002, "not taken"
+    _, last = await run(Dola(log, stream=THROTTLE_SSE), second, acct=account("acct-4"))
+    assert isinstance(last.job, Fail) and last.job.code == errors.REFUSED_ON_ACCOUNTS, "not taken"
+    assert last.job.state_patch == {REFUSED_BY: ["acct-0", "acct-4"]}
+    assert log.count("POST") == 4
 
 
 @mutation(SEND, "        if stream.conversation is None:\n",
@@ -299,7 +308,7 @@ async def test_refusals_on_several_accounts_blame_the_signer_rest_no_account_and
     log: list = []
     clock = Clock()
     first = [await run(Dola(log, stream=BADSIG_SSE), acct=account("a%d" % i), clock=clock) for i in (1, 2)]
-    assert all(isinstance(r.job, Fail) for _, r in first)
+    assert all(r.job.code == errors.REFUSED_710022002 for _, r in first)
     _, third = await run(Dola(log, stream=BADSIG_SSE), acct=account("a3"), clock=clock)
     assert isinstance(third.job, NotTaken) and third.job.code == errors.SIGNER_SUSPECT, "signer suspect"
     assert not any(isinstance(e, Cooldown) for e in third.account)
@@ -324,7 +333,7 @@ async def test_a_captcha_decision_blames_the_signer_at_once_and_an_ack_clears_th
     await run(Dola(log, stream=BADSIG_SSE), acct=account("b2"), clock=clock)
     await run(Dola(log), acct=account("b3"), clock=clock)          # an acknowledged send: the signer works
     _, again = await run(Dola(log, stream=BADSIG_SSE), acct=account("b4"), clock=clock)
-    assert isinstance(again.job, Fail) and again.job.code == errors.REFUSED_710022002
+    assert again.job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["b4"]})
 
 
 @sync
@@ -527,9 +536,9 @@ REFUSED_AFTER_ACK = IMAGE_SSE[:next(i for i, line in enumerate(IMAGE_SSE) if "ac
 @sync
 async def test_a_refusal_after_the_ack_ends_the_job_and_keeps_the_conversation_for_a_recheck():
     log: list = []
-    ctx, result = await run(Dola(log, stream=REFUSED_AFTER_ACK))
+    ctx, result = await run(Dola(log, stream=REFUSED_AFTER_ACK), image_job(provider_state={REFUSED_BY: ["acct-0"]}))
     assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED_710022002
-    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV}
+    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV, REFUSED_BY: ["acct-0", "acct-1"]}
     assert (IMAGE_CONV, {"refused_conversation": IMAGE_CONV}) in ctx.refs
     assert log.count("POST") == 1
 

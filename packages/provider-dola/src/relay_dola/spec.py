@@ -142,6 +142,11 @@ _SETTINGS = dict((
     _setting("signer_alarm_window_s", int, 900,
              "HTTP send only: the window of dola.signer_alarm_accounts, and how long HTTP sends pause after it trips.",
              min=60),
+    _setting("refusal_max_accounts", int, 2,
+             "How many accounts one job may try when dola refuses to take it (710022002, the throttle 710022004, or "
+             "its \"something went wrong\" reply). Each refusal rests that account and sends the job to another one; "
+             "the refusal on the last account ends the job failed, with its full refund. 1 ends it at the first "
+             "refusal. A proxy, login or page failure is not a refusal and is not counted.", min=1, max=9),
     _setting("browser_slots", int, 4,
              "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX, basic=True),
