@@ -102,11 +102,15 @@ function saveThreshold(key: string): void {
             class="ar-switch"
             :model-value="r.enabled"
             :label="`${r.kind} on`"
-            :disabled="writing"
+            :disabled="writing || r.money"
+            :title="r.money ? 'A money alert is never turned off' : undefined"
             @change="(on: boolean) => toggle(r, on)"
           />
         </div>
         <span class="ar-text">{{ r.text }}</span>
+        <span v-if="r.money" class="ar-help" data-testid="alert-rule-money"
+          >Money alert: always on; a mute lasts at most a day and the banner still counts it.</span
+        >
         <div v-for="t in r.thresholds" :key="t.setting" class="ar-threshold">
           <label :for="`ar-${t.setting}`" class="mono ar-help">{{ t.setting }}</label>
           <input :id="`ar-${t.setting}`" v-model="typed[t.setting]" class="ar-input num" inputmode="decimal" />

@@ -14,13 +14,16 @@ const stats = useStatsStore();
 const { isPhone } = useBreakpoint();
 
 const alerts = computed(() => stats.data?.alerts ?? []);
-const visible = computed(() => alerts.value.length > 0 || stats.openGroups > 0);
+// a muted alert never vanishes: with nothing else open the banner still says how many are muted, quietly
+const visible = computed(() => alerts.value.length > 0 || stats.openGroups > 0 || stats.muted > 0);
 // 200 is the page cap of the groups call.
 const groupCount = computed(() => (stats.openGroups === 200 ? "200+" : String(stats.openGroups)));
 const headline = computed(() =>
   stats.openGroups > 0
     ? `${groupCount.value} open alert ${stats.openGroups === 1 ? "group" : "groups"}.`
-    : "Needs attention.",
+    : alerts.value.length
+      ? "Needs attention."
+      : "Nothing open.",
 );
 const detail = computed(() => {
   if (stats.firstGroup) return groupSentence(stats.firstGroup, stats.firstReply);
@@ -38,6 +41,9 @@ const detail = computed(() => {
         <strong class="attention-head" data-testid="banner-headline">{{ headline }}</strong>
         {{ " " }}
         <span v-if="detail" class="attention-detail" data-testid="banner-detail">{{ detail }}</span>
+        <span v-if="stats.muted" class="attention-detail num" data-testid="banner-muted"
+          >{{ detail ? " · " : "" }}{{ stats.muted }} muted</span
+        >
       </span>
     </div>
     <router-link class="banner-link" :to="{ name: 'alerts' }" data-testid="review-alerts">

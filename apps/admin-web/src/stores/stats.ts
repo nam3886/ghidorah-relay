@@ -15,6 +15,8 @@ export const useStatsStore = defineStore("stats", () => {
   const scope = useScopeStore();
   const data = shallowRef<Stats | null>(null);
   const openGroups = ref(0);
+  // the muted groups and live conditions (Alert rules): never counted as open, but the banner says how many there are
+  const muted = ref(0);
   // the first open group (the most pressing) and, for an unclear reply, its newest reply as stored: the Jobs banner
   // words them. The reply is read again only when the group or its newest row changes; a failed read leaves it out
   // (the banner then quotes the group's title) and toasts nothing.
@@ -48,6 +50,7 @@ export const useStatsStore = defineStore("stats", () => {
       // a group of a muted kind (Alert rules) is listed on the Alerts page but never counted or worded here
       const raised = groups.items.filter((g) => !g.muted_until_ms);
       openGroups.value = raised.length;
+      muted.value = groups.items.length - raised.length + (stats.muted_alerts?.length ?? 0);
       firstGroup.value = raised[0] ?? null;
       await readReply(firstGroup.value, ticket);
     } catch (err) {
@@ -62,11 +65,12 @@ export const useStatsStore = defineStore("stats", () => {
     latest.invalidate();
     data.value = null;
     openGroups.value = 0;
+    muted.value = 0;
     firstGroup.value = null;
     firstReply.value = null;
     replyOf = "";
     loading.value = false;
   });
 
-  return { data, openGroups, firstGroup, firstReply, loading, refresh };
+  return { data, openGroups, muted, firstGroup, firstReply, loading, refresh };
 });

@@ -795,3 +795,16 @@ def test_the_alerts_view_mutes_a_kind_counts_only_what_is_raised_and_opens_jobs_
 @pytest.mark.web_unit
 def test_the_shell_never_counts_a_muted_group():
     vitest("tests/unit/stores.spec.ts")
+
+
+BANNER_MUTED = ("FAILED tests/unit/app-shell.spec.ts > the shell > a muted alert never vanishes: with nothing open the "
+                "banner still says quietly how many are muted")
+
+
+@mutation(STATS_STORE, "muted.value = groups.items.length - raised.length + (stats.muted_alerts?.length ?? 0);",
+          "muted.value = groups.items.length - raised.length;", expect=BANNER_MUTED)
+@mutation(SRC + "/components/layout/AttentionBanner.vue", "|| stats.openGroups > 0 || stats.muted > 0);",
+          "|| stats.openGroups > 0);", expect=BANNER_MUTED)
+@pytest.mark.web_unit
+def test_the_banner_still_counts_the_muted_alerts():
+    vitest("tests/unit/app-shell.spec.ts")

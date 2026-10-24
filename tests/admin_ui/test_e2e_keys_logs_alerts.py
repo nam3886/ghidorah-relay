@@ -704,14 +704,16 @@ def test_mute_resolved_today_the_rules_and_open_jobs_filtered_work_against_the_r
     expect(resolved.get_by_test_id("alerts-resolved-count")).to_have_text("1")
     resolved.locator("button[aria-expanded]").click()
     expect(resolved.get_by_test_id("alert-resolved")).to_contain_text("Seen and acknowledged wording")
-    # the rules drawer turns the clamp off: its group leaves the list
+    # the rules drawer: a money alert's switch is locked on; unclear replies turned off leave the list
     page.get_by_role("button", name="Alert rules").click()
-    page.get_by_test_id("alert-rule").filter(has_text="clamp").get_by_role("switch").click()
-    expect(page.get_by_text("clamp turned off")).to_be_visible()
+    expect(page.get_by_test_id("alert-rule").filter(has_text="clamp").get_by_role("switch")).to_be_disabled()
+    page.get_by_test_id("alert-rule").filter(has_text="unclear_reply").get_by_role("switch").click()
+    expect(page.get_by_text("unclear_reply turned off")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(group_row(page, "points wallet")).to_have_count(1)            # the drift is still listed
+    expect(group_row(page, "plain wording")).to_have_count(0)
+    expect(group_row(page, "points wallet")).to_have_count(2)            # the clamp and the drift stay
     # Open Jobs filtered on the drift's group opens Jobs on its key
-    open_group(page, "points wallet")
+    open_group(page, "drift ·")
     page.get_by_test_id("alert-detail").get_by_role("button", name="Open Jobs filtered").click()
     expect(page).to_have_url(re.compile(r"#/jobs\?key_id=[0-9a-f-]{36}$"))
 

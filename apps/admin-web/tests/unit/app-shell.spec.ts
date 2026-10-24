@@ -306,6 +306,16 @@ describe("the shell", () => {
     expect(wrapper.find('[data-testid="review-alerts"]').text()).toBe("Review in Alerts");
   });
 
+  it("a muted alert never vanishes: with nothing open the banner still says quietly how many are muted", async () => {
+    vi.mocked(shell.getStats).mockResolvedValue(
+      stats({ muted_alerts: [{ kind: "disk_low", severity: "error", message: "2 GB free", muted_until_ms: 1 }] }),
+    );
+    vi.mocked(shell.getOpenAlertGroups).mockResolvedValue({ items: [group({ muted_until_ms: Date.now() + 60_000 })] });
+    const { wrapper } = await openBanner();
+    expect(wrapper.find('[data-testid="banner-headline"]').text()).toBe("Nothing open.");
+    expect(wrapper.find('[data-testid="banner-muted"]').text()).toBe("2 muted");
+  });
+
   it("draws the banner with a warn fill and no side border", () => {
     const source = readFileSync(join(process.cwd(), "src/components/layout/AttentionBanner.vue"), "utf8");
     expect(source).toContain("background: var(--rl-warn-bg);");

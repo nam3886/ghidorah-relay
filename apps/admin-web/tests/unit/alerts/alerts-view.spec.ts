@@ -1222,6 +1222,8 @@ describe("mute, rules, Open Jobs filtered and Resolved today", () => {
           text: "A provider has fewer usable accounts than the threshold.",
           fixed: null,
           thresholds: [{ setting: "alert_accounts_low", value: 3 }],
+          money: false,
+          max_mute_minutes: 10080,
           enabled: true,
           muted_until_ms: null,
           updated_by: null,

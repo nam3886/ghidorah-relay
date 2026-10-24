@@ -208,6 +208,7 @@ describe("stats store", () => {
     await stats.refresh();
     expect(stats.openGroups).toBe(1);
     expect(stats.firstGroup?.kind).toBe("drift");
+    expect(stats.muted).toBe(1);
   });
 
   it("keeps the first group and its newest reply, read again only when the group or its newest row changes", async () => {

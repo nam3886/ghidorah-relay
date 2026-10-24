@@ -96,6 +96,9 @@ export interface AlertRule {
   text: string;
   fixed: string | null;
   thresholds: Array<{ setting: string; value: unknown }>;
+  // a money-integrity kind (clamp, wallet drift): never off, muted `max_mute_minutes` (a day) at most
+  money: boolean;
+  max_mute_minutes: number;
   enabled: boolean;
   muted_until_ms: number | null;
   updated_by: string | null;
