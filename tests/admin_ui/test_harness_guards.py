@@ -33,6 +33,7 @@ ELEMENT_WIDTH = {
     "test_e2e_settings_nav_scroll.py": 1,   # the scrollbar root's own range
     "test_e2e_settings_limits.py": 1,      # the allowed line's own width against its box
     "test_e2e_shell.py": 1,                # elements wider than the page, named in a failure message
+    "test_e2e_keys_logs_alerts.py": 1,     # a code block of the request drawer against its own box
     "test_harness_guards.py": 10,           # the patterns of this file
 }
 

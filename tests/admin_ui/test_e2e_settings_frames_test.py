@@ -699,7 +699,7 @@ def test_the_frames_page_fits_each_width_in_both_themes_the_list_and_an_inline_e
     settle(page)
     assert sideways(page) <= 0
     if SHOTS:
-        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-list.png" % (width, color_scheme)), full_page=False)
+        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-list.png" % (width, color_scheme)))
     text.click()
     text.press("ControlOrMeta+End")
     text.type(" Keep camera moves smooth.")
@@ -708,7 +708,7 @@ def test_the_frames_page_fits_each_width_in_both_themes_the_list_and_an_inline_e
     settle(page)
     assert sideways(page) <= 0
     if SHOTS:
-        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-edit.png" % (width, color_scheme)), full_page=False)
+        page.screenshot(path=os.path.join(SHOTS, "%d-%s-frames-edit.png" % (width, color_scheme)))
 
 
 FRAMES_SHOT_OWN = ("Create one single video from the scene below. Do not ask questions and do not split it into parts. "
