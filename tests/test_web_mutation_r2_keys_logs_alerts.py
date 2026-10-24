@@ -258,8 +258,8 @@ def test_the_keys_view_folds_for_a_tablet_and_a_phone():
           expect=FORM + "an edit names the key in its title and tells the balance and what each cap has used")
 @mutation(KEY_FORM, ':disabled="form.any || (m.disabled === true && !picked(m.id))"',
           ':disabled="form.any || m.disabled === true"',
-          expect=FORM + "the models are grouped by provider in the drawn order; a paused one can come off a key but not "
-                        "go on")
+          expect=FORM + "the models are grouped by provider in the drawn order; a paused one can come off a key "
+                        "but not go on")
 @mutation(KEY_MODEL, "  count += Number(models(a) !== models(b));\n", "",
           expect=FORM + "the footer counts what changed")
 @pytest.mark.web_unit
@@ -383,9 +383,11 @@ def test_a_wallet_change_moves_the_total_and_never_deducts_past_the_balance():
 
 
 @mutation(KEYS, "await patchKey(k.id, { wallets: [body] });", "await patchKey(k.id, { wallets: [] });",
-          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher total")
+          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher "
+                          "total")
 @mutation(KEYS, "      walletKey.value = null;\n      notify.success", "      notify.success",
-          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher total")
+          expect=ADJUST + "the wallet figure opens it from its row; a top-up sends the points wallet with a higher "
+                          "total")
 @pytest.mark.web_unit
 def test_adjust_wallet_sends_the_points_wallet_and_closes():
     vitest(KEYS_VIEW_SPEC)

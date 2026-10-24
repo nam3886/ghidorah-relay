@@ -26,9 +26,10 @@ ELEMENT_WIDTH = {
     "page_helpers.py": 2,                   # the helper: the document and the page scroller
     "test_e2e_accounts.py": 1,              # an element of the Accounts page cut by its box
     "test_e2e_jobs.py": 1,
-    "test_e2e_jobs_providers.py": 2,        # a table element or a job card cut by its box; a title's ellipsis
+    "test_e2e_jobs_providers.py": 1,        # a table element or a job card cut by its box
     "test_e2e_accounts_providers.py": 1,    # an element of a lane cut by its box
-    "test_e2e_settings_providers.py": 1,    # an element of a provider card cut by its box
+    "test_e2e_settings_providers.py": 2,    # an element cut by its box; the arrow scroller's 6 px past its sides
+    "test_e2e_form_drawers.py": 1,          # an element of the key form drawer cut by its box
     "test_e2e_provider_pages.py": 1,        # an element of a provider page or the strip cut by its box
     "test_e2e_settings_nav_scroll.py": 1,   # the scrollbar root's own range
     "test_e2e_settings_limits.py": 1,      # the allowed line's own width against its box

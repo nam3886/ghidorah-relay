@@ -112,6 +112,7 @@ def live(db, request):
 # The admin is what /manage serves; the tests open it by this one constant.
 APP_URL = "/manage"
 ROUTES = ("jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test")
+BROWSER_TZ = "Asia/Ho_Chi_Minh"     # every browser context's zone (display only), as the owner reads times
 
 # Markup a hostile server string could carry: if it ever reached the DOM as HTML, the image would run its handler.
 PLANTED = "<img src=x onerror=window.__pwned=1><b>planted</b>"
@@ -198,8 +199,10 @@ def is_handled_api_failure(message) -> bool:
 
 def new_app_page(chrome, live, color_scheme: str = "light"):
     """A fresh context and page for the Vue admin: CSP watch registered first, then the usual console and script error
-    list (`page.problems`, which a test may allow to hold a line it expects; the CSP entries are not in it)."""
-    context = chrome.new_context(base_url=live.url, viewport={"width": 1500, "height": 1000}, color_scheme=color_scheme)
+    list (`page.problems`, which a test may allow to hold a line it expects; the CSP entries are not in it). The browser
+    runs in the owner's zone (GMT+7): only what the page displays changes, the database and the API stay in UTC."""
+    context = chrome.new_context(base_url=live.url, viewport={"width": 1500, "height": 1000}, color_scheme=color_scheme,
+                                 timezone_id=BROWSER_TZ)
     context.grant_permissions(["clipboard-read", "clipboard-write"], origin=live.url)
     watch = CspWatch(context)
     page = watch.watch(context.new_page())
