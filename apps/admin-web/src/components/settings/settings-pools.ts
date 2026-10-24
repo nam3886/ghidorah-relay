@@ -127,5 +127,5 @@ export function nextResetText(tz: string, at: Date = new Date()): string {
   if (off === null) return "";
   const local = (((Math.floor(at.getTime() / 60000) + off) % DAY_MIN) + DAY_MIN) % DAY_MIN;
   const left = DAY_MIN - local;
-  return `Next reset in ${Math.floor(left / 60)} h ${left % 60} min.`;
+  return `Next reset in ${Math.floor(left / 60)}h ${left % 60}m.`;
 }

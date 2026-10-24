@@ -667,7 +667,7 @@ describe("the pools editor", () => {
     expect(tzForReset("soon")).toBeNull();
     const all = JSON.parse(withTz(undefined, pools(), "Etc/GMT-7"));
     expect(all.video.windows[0].tz).toBe("Etc/GMT-7");
-    expect(nextResetText("UTC", new Date(Date.UTC(2026, 9, 24, 7, 32)))).toBe("Next reset in 16 h 28 min.");
+    expect(nextResetText("UTC", new Date(Date.UTC(2026, 9, 24, 7, 32)))).toBe("Next reset in 16h 28m.");
   });
 });
 

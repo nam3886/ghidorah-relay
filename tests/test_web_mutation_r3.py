@@ -327,8 +327,7 @@ OPTION_VALUE = FORM_SPEC + "optionValue > takes the value a provider takes, and 
 @mutation(TEST_RESULT_MODEL, 'if (typeof job.points === "number") {', "if (false) {", expect=RESULT_CARD)
 @mutation(TEST_RESULT_MODEL, "job.refunded === true", "false", expect=REFUNDED_POINTS)
 @mutation(TEST_RESULT_MODEL, 'if (took) rows.push({ label: "Took", value: took });', "", expect=DONE_FRAME)
-@mutation(TEST_RESULT_MODEL, "minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`", "`${seconds} s`",
-          expect=DONE_FRAME)
+@mutation(TEST_RESULT_MODEL, "return fmtTook(ms);", "return `${Math.round(ms / 1000)}s`;", expect=DONE_FRAME)
 @mutation(TEST_RESULT_MODEL, 'const rows = [{ label: "Job", value: shortJobId(job.id) }];',
           "const rows: Array<{ label: string; value: string }> = [];", expect=DONE_FRAME)
 @pytest.mark.web_unit

@@ -150,13 +150,7 @@ describe("drawer formats", () => {
   });
 
   it("how long a job took reads in seconds, minutes or hours", () => {
-    expect([0, 35_000, 95_000, 252_000, 3_720_000].map(fmtTook)).toEqual([
-      "0 s",
-      "35 s",
-      "1 min 35 s",
-      "4 min 12 s",
-      "1 h 2 min",
-    ]);
+    expect([0, 35_000, 95_000, 252_000, 3_720_000].map(fmtTook)).toEqual(["0s", "35s", "1m 35s", "4m 12s", "1h 2m"]);
   });
 
   it("a size reads in bytes, KB or MB, powers of 1000", () => {

@@ -355,7 +355,7 @@ describe("conclusion, ledger, prompt and technical", () => {
       }),
     );
     expect(section("conclusion").text()).toContain("Delivered 2 images");
-    expect(section("conclusion").text()).toContain("· net charged 1 point · 1 min 35 s");
+    expect(section("conclusion").text()).toContain("· net charged 1 point · 1m 35s");
     expect(section("conclusion").classes()).toContain("is-ok");
   });
 
@@ -388,24 +388,24 @@ describe("conclusion, ledger, prompt and technical", () => {
     };
     expect(await said({ status: "queued", net_charged: 0 })).toEqual([
       "Waiting for an account",
-      "· step 1 of 4 · nothing charged yet · 4 min 0 s so far",
+      "· step 1 of 4 · nothing charged yet · 4m 0s so far",
     ]);
     expect(await said({ status: "submitting", net_charged: 2 })).toEqual([
       "Sending it to dola",
-      "· step 2 of 4 · charged 2 points · 4 min 0 s so far",
+      "· step 2 of 4 · charged 2 points · 4m 0s so far",
     ]);
     expect(await said({ status: "waiting", net_charged: 2 })).toEqual([
       "Dola is making it",
-      "· step 2 of 4 · charged 2 points · 4 min 0 s so far",
+      "· step 2 of 4 · charged 2 points · 4m 0s so far",
     ]);
     expect(await said({ status: "fetching", net_charged: 1 })).toEqual([
       "Fetching the result",
-      "· step 3 of 4 · charged 1 point · 4 min 0 s so far",
+      "· step 3 of 4 · charged 1 point · 4m 0s so far",
     ]);
     // unknown is not on the list's bar: no step
     expect(await said({ status: "unknown", net_charged: 2 })).toEqual([
       "Dola has not confirmed it yet",
-      "· charged 2 points · 4 min 0 s so far",
+      "· charged 2 points · 4m 0s so far",
     ]);
     vi.restoreAllMocks();
   });

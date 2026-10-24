@@ -1005,7 +1005,7 @@ describe("the result card frames", () => {
     expect(card.find(".status-chip").text()).toBe("done");
     expect(
       card.findAll(".result__done .result__row").map((r) => `${r.find("dt").text()} ${r.find("dd").text()}`),
-    ).toEqual(["Job 3b9e1f0a", "Model veo-3", "Duration 5 s", "Took 1 m 48 s"]);
+    ).toEqual(["Job 3b9e1f0a", "Model veo-3", "Duration 5 s", "Took 1m 48s"]);
     expect(card.find(".result__id").exists()).toBe(false);
     await card.find('a[aria-label="Open job 3b9e1f0a"]').trigger("click");
     expect(useUiStore().openJobId).toBe(done.id);

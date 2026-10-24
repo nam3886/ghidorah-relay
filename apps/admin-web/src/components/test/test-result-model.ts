@@ -1,4 +1,5 @@
 import type { PublicJob } from "@/api/test";
+import { fmtTook } from "@/components/jobs/job-text";
 
 // What the Result card says about a job, from the PUBLIC status body (doors.job_status): the status word is `stage` for
 // a running job (submitting, waiting, fetching, unknown) and `status` otherwise (queued, done, failed).
@@ -65,13 +66,13 @@ export function jobLedger(job: PublicJob): LedgerRow[] {
   return rows;
 }
 
-// "1 m 48 s", or "48 s" under a minute: from the job's creation to its end. Empty when either time is missing.
+// "1m 48s", or "48s" under a minute (the Jobs page's fmtTook): from the job's creation to its end. Empty when either
+// time is missing.
 export function tookText(from: unknown, to: unknown): string {
   if (typeof from !== "string" || typeof to !== "string") return "";
-  const seconds = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000);
-  if (!Number.isFinite(seconds) || seconds < 0) return "";
-  const minutes = Math.floor(seconds / 60);
-  return minutes ? `${minutes} m ${seconds % 60} s` : `${seconds} s`;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  if (!Number.isFinite(ms) || Math.round(ms / 1000) < 0) return "";
+  return fmtTook(ms);
 }
 
 // The ledger beside the media of a done job, as drawn: its short id, then what the status body carries.

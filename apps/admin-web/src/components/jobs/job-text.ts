@@ -82,14 +82,14 @@ export function fmtDayClock(ms: number | null | undefined): string {
   return `${two(d.getDate())}/${two(d.getMonth() + 1)} ${fmtClock(ms)}`;
 }
 
-// "35 s", "1 min 35 s", "1 h 2 min": the time a job took.
+// "35s", "1m 35s", "1h 2m": the time a job took, the one way the admin writes a duration of minutes or hours.
 export function fmtTook(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  if (h) return `${h} h ${m} min`;
-  return m ? `${m} min ${s} s` : `${s} s`;
+  if (h) return `${h}h ${m}m`;
+  return m ? `${m}m ${s}s` : `${s}s`;
 }
 
 // "120 B", "4.0 KB", "18.4 MB" (powers of 1000).
