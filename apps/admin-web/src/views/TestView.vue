@@ -489,193 +489,202 @@ onMounted(async () => {
           </p>
         </fieldset>
 
-        <!-- the prompt, its templates and the title -->
-        <div class="blk">
-          <div class="blk__head">
-            <label for="test-prompt" class="lbl">Prompt</label>
-            <span v-if="promptMax" class="help num"
-              >{{ thousands(form.prompt.length) }} / {{ thousands(promptMax) }}</span
-            >
-          </div>
-          <textarea
-            id="test-prompt"
-            v-model="form.prompt"
-            :rows="isPhone ? 5 : 3"
-            class="ctl ctl--area"
-            @input="persist"
-          />
-          <ArrowScroller v-if="templates.length" label="Prompt templates" :active-key="null">
-            <!-- the whole template in the shared hint look (HintTip's), on the chip itself: no second tab stop -->
-            <el-tooltip
-              v-for="(t, i) in templates"
-              :key="i"
-              :content="t.show_value || t.prompt"
-              placement="top"
-              effect="light"
-              :trigger="['hover', 'focus']"
-              popper-class="rl-tip test-chip-tip"
-              :show-after="150"
-              :show-arrow="false"
-            >
-              <button type="button" class="chip" @click="applyTemplate(t)">
-                {{ t.show_value || t.prompt }}
-              </button>
-            </el-tooltip>
-          </ArrowScroller>
-          <div class="field">
-            <span class="blk__head"
-              ><label for="test-title" class="lbl">Title</label><span class="help">optional</span></span
-            >
-            <input id="test-title" v-model="form.title" type="text" class="ctl" @input="persist" />
-          </div>
-        </div>
-
-        <!-- the options: Duration and Ratio as segments, the Outputs stepper, Resolution and Style -->
-        <div class="blk opts">
-          <div v-if="durations.length" class="opt">
-            <span class="lbl" aria-hidden="true">Duration</span>
-            <ArrowScroller class="seg" label="Duration" :active-key="form.duration">
-              <button
-                v-for="o in durationOptions"
-                :key="o.value"
-                type="button"
-                class="seg__btn num"
-                :data-value="o.value"
-                :aria-pressed="form.duration === o.value"
-                @click="setField('duration', String(o.value))"
+        <!-- the prompt and the options: one card of their own on a phone (TestPhone, "Prompt and options") -->
+        <div class="pgroup" data-testid="test-prompt-card">
+          <h2 v-if="isPhone" class="pgroup__title">Prompt and options</h2>
+          <!-- the prompt, its templates and the title -->
+          <div class="blk">
+            <div class="blk__head">
+              <label for="test-prompt" class="lbl">Prompt</label>
+              <span v-if="promptMax" class="help num"
+                >{{ thousands(form.prompt.length) }} / {{ thousands(promptMax) }}</span
               >
-                {{ o.label }}
-              </button>
-            </ArrowScroller>
-          </div>
-          <div v-if="hasRatio" class="opt">
-            <span class="lbl" aria-hidden="true">Ratio</span>
-            <ArrowScroller class="seg" label="Ratio" :active-key="form.ratio">
-              <button
-                v-for="o in ratioOptions"
-                :key="o.value"
-                type="button"
-                class="seg__btn num"
-                :data-value="o.value"
-                :aria-pressed="form.ratio === o.value"
-                @click="setField('ratio', String(o.value))"
-              >
-                {{ o.label }}
-              </button>
-            </ArrowScroller>
-          </div>
-          <div class="opt">
-            <span id="test-out" class="lbl">Outputs</span>
-            <span v-if="maxOut <= 1" class="one-out num" aria-describedby="test-out-hint" data-testid="test-one-output"
-              >1 output</span
-            >
-            <div v-else class="stepper" role="group" aria-labelledby="test-out" aria-describedby="test-out-hint">
-              <button type="button" aria-label="One output fewer" :disabled="outputs <= 1" @click="step(-1)">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.4"
-                  stroke-linecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14" />
-                </svg>
-              </button>
-              <input
-                id="test-count"
-                class="num"
-                type="number"
-                min="1"
-                placeholder="1"
-                aria-label="Outputs"
-                :value="form.count"
-                @input="setField('count', ($event.target as HTMLInputElement).value)"
-              />
-              <button type="button" aria-label="One output more" :disabled="outputs >= maxOut" @click="step(1)">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.4"
-                  stroke-linecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14M12 5v14" />
-                </svg>
-              </button>
             </div>
-            <span id="test-out-hint" class="help">{{ outputsHint(chosen) }}</span>
-          </div>
-          <FilterSelect
-            v-if="resolutionsOf(chosen).length"
-            class="opt opt--select"
-            variant="field"
-            block
-            label="Resolution"
-            :model-value="form.resolution"
-            :options="resolutionOptions"
-            @update:model-value="setField('resolution', String($event))"
-          />
-          <FilterSelect
-            v-if="hasStyle"
-            class="opt opt--select"
-            variant="field"
-            block
-            label="Style"
-            :model-value="form.style"
-            :options="styleOptions"
-            @update:model-value="setField('style', String($event))"
-          />
-        </div>
-
-        <!-- the reference images: the attached tiles, and the https links -->
-        <div v-if="hasImages" class="blk">
-          <TestImages :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
-          <div class="field">
-            <label for="test-refs" class="lbl">Reference image URLs <span class="opt-word">one per line</span></label>
             <textarea
-              id="test-refs"
-              v-model="form.images"
-              rows="2"
-              placeholder="https://..."
-              class="ctl ctl--area ctl--mono"
+              id="test-prompt"
+              v-model="form.prompt"
+              :rows="isPhone ? 5 : 3"
+              class="ctl ctl--area"
               @input="persist"
             />
+            <ArrowScroller v-if="templates.length" label="Prompt templates" :active-key="null">
+              <!-- the whole template in the shared hint look (HintTip's), on the chip itself: no second tab stop -->
+              <el-tooltip
+                v-for="(t, i) in templates"
+                :key="i"
+                :content="t.show_value || t.prompt"
+                placement="top"
+                effect="light"
+                :trigger="['hover', 'focus']"
+                popper-class="rl-tip test-chip-tip"
+                :show-after="150"
+                :show-arrow="false"
+              >
+                <button type="button" class="chip" @click="applyTemplate(t)">
+                  {{ t.show_value || t.prompt }}
+                </button>
+              </el-tooltip>
+            </ArrowScroller>
+            <div class="field">
+              <span class="blk__head"
+                ><label for="test-title" class="lbl">Title</label><span class="help">optional</span></span
+              >
+              <input id="test-title" v-model="form.title" type="text" class="ctl" @input="persist" />
+            </div>
+          </div>
+
+          <!-- the options: Duration and Ratio as segments, the Outputs stepper, Resolution and Style -->
+          <div class="blk opts">
+            <div v-if="durations.length" class="opt">
+              <span class="lbl" aria-hidden="true">Duration</span>
+              <ArrowScroller class="seg" label="Duration" :active-key="form.duration">
+                <button
+                  v-for="o in durationOptions"
+                  :key="o.value"
+                  type="button"
+                  class="seg__btn num"
+                  :data-value="o.value"
+                  :aria-pressed="form.duration === o.value"
+                  @click="setField('duration', String(o.value))"
+                >
+                  {{ o.label }}
+                </button>
+              </ArrowScroller>
+            </div>
+            <div v-if="hasRatio" class="opt">
+              <span class="lbl" aria-hidden="true">Ratio</span>
+              <ArrowScroller class="seg" label="Ratio" :active-key="form.ratio">
+                <button
+                  v-for="o in ratioOptions"
+                  :key="o.value"
+                  type="button"
+                  class="seg__btn num"
+                  :data-value="o.value"
+                  :aria-pressed="form.ratio === o.value"
+                  @click="setField('ratio', String(o.value))"
+                >
+                  {{ o.label }}
+                </button>
+              </ArrowScroller>
+            </div>
+            <div class="opt">
+              <span id="test-out" class="lbl">Outputs</span>
+              <span
+                v-if="maxOut <= 1"
+                class="one-out num"
+                aria-describedby="test-out-hint"
+                data-testid="test-one-output"
+                >1 output</span
+              >
+              <div v-else class="stepper" role="group" aria-labelledby="test-out" aria-describedby="test-out-hint">
+                <button type="button" aria-label="One output fewer" :disabled="outputs <= 1" @click="step(-1)">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+                <input
+                  id="test-count"
+                  class="num"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  aria-label="Outputs"
+                  :value="form.count"
+                  @input="setField('count', ($event.target as HTMLInputElement).value)"
+                />
+                <button type="button" aria-label="One output more" :disabled="outputs >= maxOut" @click="step(1)">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12h14M12 5v14" />
+                  </svg>
+                </button>
+              </div>
+              <span id="test-out-hint" class="help">{{ outputsHint(chosen) }}</span>
+            </div>
+            <FilterSelect
+              v-if="resolutionsOf(chosen).length"
+              class="opt opt--select"
+              variant="field"
+              block
+              label="Resolution"
+              :model-value="form.resolution"
+              :options="resolutionOptions"
+              @update:model-value="setField('resolution', String($event))"
+            />
+            <FilterSelect
+              v-if="hasStyle"
+              class="opt opt--select"
+              variant="field"
+              block
+              label="Style"
+              :model-value="form.style"
+              :options="styleOptions"
+              @update:model-value="setField('style', String($event))"
+            />
+          </div>
+
+          <!-- the reference images: the attached tiles, and the https links -->
+          <div v-if="hasImages" class="blk">
+            <TestImages :files="files" :note="shownNote" @add="onAdd" @remove="onRemove" />
+            <div class="field">
+              <label for="test-refs" class="lbl">Reference image URLs <span class="opt-word">one per line</span></label>
+              <textarea
+                id="test-refs"
+                v-model="form.images"
+                rows="2"
+                placeholder="https://..."
+                class="ctl ctl--area ctl--mono"
+                @input="persist"
+              />
+            </div>
+          </div>
+
+          <!-- the extra options, checked as they are typed -->
+          <div class="blk">
+            <div class="blk__head">
+              <label for="test-extra" class="lbl">Extra options (JSON) <span class="opt-word">optional</span></label>
+              <span class="help">Sent as the request’s options, as written</span>
+            </div>
+            <textarea
+              id="test-extra"
+              v-model="form.options"
+              rows="4"
+              spellcheck="false"
+              class="ctl ctl--area ctl--mono"
+              :aria-invalid="extraCheck && !extraCheck.ok ? 'true' : undefined"
+              aria-describedby="test-extra-check"
+              @input="persist"
+            />
+            <span
+              v-if="extraCheck"
+              id="test-extra-check"
+              class="json-check"
+              :class="extraCheck.ok ? 'is-ok' : 'is-bad'"
+              role="status"
+              >{{ extraCheck.text }}</span
+            >
           </div>
         </div>
 
-        <!-- the extra options, checked as they are typed -->
-        <div class="blk">
-          <div class="blk__head">
-            <label for="test-extra" class="lbl">Extra options (JSON) <span class="opt-word">optional</span></label>
-            <span class="help">Sent as the request’s options, as written</span>
-          </div>
-          <textarea
-            id="test-extra"
-            v-model="form.options"
-            rows="4"
-            spellcheck="false"
-            class="ctl ctl--area ctl--mono"
-            :aria-invalid="extraCheck && !extraCheck.ok ? 'true' : undefined"
-            aria-describedby="test-extra-check"
-            @input="persist"
-          />
-          <span
-            v-if="extraCheck"
-            id="test-extra-check"
-            class="json-check"
-            :class="extraCheck.ok ? 'is-ok' : 'is-bad'"
-            role="status"
-            >{{ extraCheck.text }}</span
-          >
-        </div>
-
-        <div class="form__foot">
+        <!-- on a phone the foot is the Send bar at the bottom of the screen, after the result (TestPhone) -->
+        <div class="form__foot" data-testid="test-send-bar">
           <span class="cost">
             <svg
               width="16"
@@ -1288,6 +1297,11 @@ onMounted(async () => {
   cursor: not-allowed;
 }
 
+/* the prompt and options group: no box of its own above a phone */
+.pgroup {
+  display: contents;
+}
+
 /* a tablet and a phone: the form and the result stack; the foot stays at the bottom of the screen */
 .is-compact .tt-grid {
   flex-direction: column;
@@ -1313,6 +1327,41 @@ onMounted(async () => {
 }
 .is-phone .blk {
   padding: 16px;
+}
+/* a phone (TestPhone): the key, the models, the prompt and options and the result are cards of their own, and the
+   Send bar sits at the bottom of the screen after them all, edge to edge */
+.is-phone .form {
+  display: contents;
+}
+.is-phone .blk.key,
+.is-phone .blk.models,
+.is-phone .pgroup {
+  display: block;
+  border: 0;
+  border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
+}
+.is-phone .pgroup {
+  padding: 16px 0 4px;
+}
+.is-phone .pgroup .blk {
+  padding: 4px 16px 12px;
+  border-bottom: 0;
+}
+.pgroup__title {
+  margin: 0 16px 8px;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+}
+.is-phone .form__foot {
+  order: 2;
+  margin: 0 -16px;
+  padding: 12px 16px;
+  border-radius: 0;
+  border-top: 1px solid var(--rl-rule);
+  box-shadow: 0 -4px 12px rgba(16, 24, 40, 0.06);
 }
 .is-phone .form__foot {
   flex-direction: column;
