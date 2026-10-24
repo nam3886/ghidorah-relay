@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   acknowledgeGroup,
@@ -76,6 +76,10 @@ const { run } = useBusy();
 const latest = useLatest();
 const { isPhone, isTablet } = useBreakpoint();
 const compact = computed(() => isPhone.value || isTablet.value);
+// A phone's head buttons go to the top bar (AlertsPhone) when the shell drew its target; a spec without it keeps them.
+const barThere = ref(false);
+onMounted(() => (barThere.value = !!document.getElementById("topbar-actions")));
+const inBar = computed(() => isPhone.value && barThere.value);
 
 const asked = ref<AlertAsk>({ status: "open", kind: "", open: null });
 const groups = shallowRef<AlertGroup[]>([]);
@@ -391,10 +395,17 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
         </p>
       </div>
       <h1 v-else class="sr-only">Alerts</h1>
-      <span class="av-head__actions">
-        <IconButton icon="settings" label="Alert rules" placement="bottom-end" @click="rulesOpen = true" />
-        <IconButton icon="rotate" label="Refresh" placement="bottom-end" :disabled="loading > 0" @click="reload" />
-      </span>
+      <Teleport to="#topbar-actions" :disabled="!inBar" defer>
+        <!-- a tablet draws them as text buttons (AlertsTablet), a desktop and a phone as icons -->
+        <span v-if="isTablet" class="av-head__actions">
+          <button type="button" class="av-secondary" @click="rulesOpen = true">Alert rules</button>
+          <button type="button" class="av-secondary" :disabled="loading > 0" @click="reload">Refresh</button>
+        </span>
+        <span v-else class="av-head__actions">
+          <IconButton icon="settings" label="Alert rules" placement="bottom-end" @click="rulesOpen = true" />
+          <IconButton icon="rotate" label="Refresh" placement="bottom-end" :disabled="loading > 0" @click="reload" />
+        </span>
+      </Teleport>
     </div>
     <p v-if="compact && updatedAt" class="av-sub av-sub--compact" data-testid="alerts-summary">{{ summary }}</p>
 
