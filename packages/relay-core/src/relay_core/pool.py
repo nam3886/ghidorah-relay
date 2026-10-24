@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from psycopg import AsyncConnection
 
-from relay_core import failpoints
+from relay_core import failpoints, history
 from relay_core.db import lock_account
 from relay_core.providers import (
     AccountEffect,
@@ -416,7 +416,7 @@ def _reason(text: str) -> str:
 
 
 async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[AccountEffect], caps: Caps,
-                        pools: Mapping[str, PoolConfig]) -> None:
+                        pools: Mapping[str, PoolConfig], *, job_id=None) -> None:
     """Apply a result's account effects in the caller's transaction, with the job transition they belong to.
 
     - `Rest` and `Cooldown` never shorten a longer one (GREATEST); there is no rank.
@@ -427,12 +427,17 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
     - `Balance` records the pool's reported balance; a balance above 0 ends that pool's rest, a balance of 0 rests the
       pool until the refill the upstream named, else the pool's next window boundary.
-    The account row is locked first, whatever the effects touch."""
+    The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a
+    death's reason, else a cooldown's) is kept in the account's errors with `job_id`, the job it came from."""
     require_tx(conn)
-    await lock_account(conn, account_id)
+    exists = await lock_account(conn, account_id)
     effects = tuple(effects)
     # a strike's or a bad proxy's reason is the cause; a cooldown in the same result is only what follows from it
     cause = any(isinstance(e, (Suspect, ProxyBad)) for e in effects)
+    error = next((e.reason for e in effects if isinstance(e, (Suspect, ProxyBad, Dead))),
+                 next((e.reason for e in effects if isinstance(e, Cooldown)), None))
+    if error and exists:
+        await history.record_error(conn, account_id, error, job_id)
     for e in effects:
         if isinstance(e, Balance):
             cfg = _cfg(pools, e.pool)

@@ -248,7 +248,7 @@ def test_a_login_that_raced_a_password_change_gets_no_session(db, monkeypatch):
 @mutation(ROUTER, '(b"content-security-policy", CSP.encode())', '(b"content-security-policy", b"")',
           expect="default-src 'self'")
 def test_every_admin_response_carries_csp_and_nosniff_and_no_public_one_does(db):
-    csp = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'"
+    csp = "default-src 'self'; script-src 'self'; img-src 'self' blob:; object-src 'none'; frame-ancestors 'none'"
 
     async def scenario(env):
         headers = await env.admin_headers()

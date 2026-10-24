@@ -65,6 +65,8 @@ def fill(db, store, account):
     db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'image')", account)
     db.run("INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now() - interval '1 h')",
            account)
+    db.run("INSERT INTO account_health (account_id, hour, worst) VALUES (%s, date_trunc('hour', now()), 1)", account)
+    db.run("INSERT INTO account_errors (account_id, code) VALUES (%s, 'x.err')", account)
     old = [new_command(db, "check", account_id=account), new_command(db, "wake", account_id=account)]
     db.run("UPDATE commands SET status = 'done', finished_at = now() WHERE account_id = %s", account)
     return shot, *old
@@ -73,6 +75,9 @@ def fill(db, store, account):
 # ---- delete: an unused account ------------------------------------------------------------------------------------
 @mutation(CHECKS, "    for key in keys:\n        await env.store.remove(key)", "    for key in keys:\n        pass",
           expect="assert keys(store) == [keep_shot]                                   # the other")
+@mutation("packages/relay-core/src/relay_core/db/accounts.py",
+          '    await conn.execute("DELETE FROM account_health WHERE account_id = %s", (account_id,))\n', "",
+          expect="assert children(db, a) == dict.fromkeys(children(db, a), 0)")
 def test_delete_removes_an_unused_account_with_its_shots_objects_commands_and_capacity_rows(db, store):
     a = new_account(db, checked=True)
     other = new_account(db, checked=True)

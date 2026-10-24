@@ -6,8 +6,12 @@ one. The api also cannot delete an account or write a worker-owned column (`chec
 row and answer with its id; the provider's worker runs it and the page polls `GET /commands/{id}`. A proxy edit also
 queues the proxy re-check, since the api cannot refresh `proxy_ok` itself.
 
-An import never learns an account's identity (only the first check does), so a credential for a known identity is
-inserted like any other; the worker's first check merges it into the existing row.
+An import learns an account's identity only when the operator gives it (`identity`, the gemini Google account email);
+otherwise the first check does. A credential for a known identity is inserted like any other (with no identity when
+another account already holds it); the worker's first check merges it into the existing row.
+
+The detail's history (`GET /accounts/{id}/history`) is what the worker recorded from check and job outcomes: the
+health per hour and the newest errors.
 """
 
 import logging
@@ -43,20 +47,33 @@ _LIST = (
     "a.cooldown_reason, a.last_error, a.last_used_at, a.last_checked_at, a.check_due_at, a.credential_gen, "
     "a.created_at, (SELECT count(*) FROM leases l WHERE l.account_id = a.id AND l.until > clock_timestamp()) > 0, "
     "EXISTS (SELECT 1 FROM account_shots s WHERE s.account_id = a.id), a.provider_state->>'composer', "
+    "(SELECT count(*) FROM leases l WHERE l.account_id = a.id AND l.purpose = 'job' AND l.until > clock_timestamp()), "
+    "a.proxy_exit_ip, a.proxy_latency_ms, a.proxy_exit_at, a.check_failed_at, "
+    "(SELECT taken_at FROM account_shots s WHERE s.account_id = a.id), "
     "a.tier, a.tier_read_at IS NOT NULL, a.cycle_start "
     "FROM accounts a WHERE (%(p)s::text IS NULL OR a.provider = %(p)s) "
     "ORDER BY a.created_at DESC, a.id LIMIT %(limit)s OFFSET %(offset)s")
 _COLUMNS = ("id", "provider", "label", "identity", "display_name", "state", "state_reason", "proxy_host", "proxy_port",
             "has_proxy_auth", "proxy_ok", "proxy_checked_at", "strikes", "cooldown_until", "cooldown_reason",
             "last_error", "last_used_at", "last_checked_at", "check_due_at", "credential_gen", "created_at", "in_use",
-            "has_screenshot", "composer", "tier", "tier_read", "cycle_start")
-_TIMES = ("proxy_checked_at", "cooldown_until", "last_used_at", "last_checked_at", "check_due_at", "created_at")
+            "has_screenshot", "composer", "jobs_in_use", "proxy_exit_ip", "proxy_latency_ms", "proxy_exit_at",
+            "check_failed_at", "screenshot_at", "tier", "tier_read", "cycle_start")
+_TIMES = ("proxy_checked_at", "cooldown_until", "last_used_at", "last_checked_at", "check_due_at", "created_at",
+          "proxy_exit_at", "check_failed_at", "screenshot_at")
+# the jobs each account of the page took since the start of the admin's day (`dashboard_tz`), and how many failed
+_TODAY = ("SELECT account_id, count(*), count(*) FILTER (WHERE status = 'failed') FROM jobs "
+          "WHERE account_id = ANY(%(ids)s) "
+          "AND created_at >= date_trunc('day', clock_timestamp() AT TIME ZONE %(tz)s) AT TIME ZONE %(tz)s "
+          "GROUP BY account_id")
+HISTORY_DAYS = 14
 
 
 class ImportItem(Strict):
     credential: str = Field(min_length=1, max_length=MAX_CREDENTIAL_CHARS)
     label: str = Field(default="", max_length=100)
     proxy: str | None = Field(default=None, max_length=500)
+    # who the credential belongs to, when the operator knows it (gemini: the Google account email)
+    identity: str | None = Field(default=None, max_length=320)
 
 
 class ImportBody(Strict):
@@ -81,7 +98,7 @@ async def import_accounts(body: ImportBody, request: Request, pool: AsyncConnect
     reaches a log: only the counts do."""
     spec = spec_of(registry, body.provider)
     public = crypto.public_key_from_env()
-    ready: list[tuple[int, str, bytes, tuple[str, int, bytes | None] | None]] = []
+    ready: list[tuple[int, str, bytes, tuple[str, int, bytes | None] | None, str | None]] = []
     rejected: list[dict[str, Any]] = []
     for index, item in enumerate(body.items):
         try:
@@ -97,16 +114,21 @@ async def import_accounts(body: ImportBody, request: Request, pool: AsyncConnect
                 rejected.append({"index": index, "reason": "proxy_invalid"})
                 continue
             proxy = (host, port, None if auth is None else crypto.seal(public, auth.encode()))
-        ready.append((index, item.label or parsed.hint, crypto.seal(public, parsed.blob), proxy))
+        ready.append((index, item.label or parsed.hint, crypto.seal(public, parsed.blob), proxy,
+                      (item.identity or "").strip() or None))
     imported = []
     if ready:
         async with tx(pool) as conn:
-            for index, label, sealed, proxy in ready:
+            for index, label, sealed, proxy, identity in ready:
                 host, port, auth = proxy if proxy else (None, None, None)
+                # an identity another account of the provider already has is left for the first check to merge
                 row = await (await conn.execute(
-                    "INSERT INTO accounts (provider, label, credential_enc, proxy_host, proxy_port, proxy_auth_enc, "
-                    "check_due_at) VALUES (%s, %s, %s, %s, %s, %s, clock_timestamp()) RETURNING id",
-                    (body.provider, label, sealed, host, port, auth))).fetchone()
+                    "INSERT INTO accounts (provider, label, identity, credential_enc, proxy_host, proxy_port, "
+                    "proxy_auth_enc, check_due_at) VALUES (%(p)s, %(l)s, CASE WHEN NOT EXISTS (SELECT 1 FROM accounts "
+                    "WHERE provider = %(p)s AND identity = %(i)s::text) THEN %(i)s::text END, %(c)s, %(h)s, %(o)s, "
+                    "%(a)s, clock_timestamp()) RETURNING id",
+                    {"p": body.provider, "l": label, "i": identity, "c": sealed, "h": host, "o": port, "a": auth})
+                ).fetchone()
                 imported.append({"index": index, "id": str(row[0]), "label": label})
     log.info("account import: provider=%s count=%d rejected=%d", body.provider, len(imported), len(rejected))
     request.state.provider = body.provider
@@ -135,6 +157,7 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
         made = await (await conn.execute(
             "SELECT account_id, media_type, count(*) FROM jobs WHERE account_id = ANY(%s) AND status = 'done' "
             "GROUP BY account_id, media_type", (ids,))).fetchall()
+        today = await (await conn.execute(_TODAY, {"ids": ids, "tz": settings.get("dashboard_tz")})).fetchall()
     items = []
     for row in rows:
         item = dict(zip(_COLUMNS, row, strict=True))
@@ -144,11 +167,37 @@ async def list_accounts(provider: str | None = None, limit: int = 100, offset: i
         item["cycle_start"] = None if item["cycle_start"] is None else str(item["cycle_start"])
         item["capacity"] = [pool_view(cfg, states[(row[0], name)]) for name, cfg in configs.get(row[1], {}).items()]
         item["made"] = {"video": 0, "image": 0}
+        item["jobs_today"] = {"total": 0, "failed": 0}
         items.append(item)
     by_id = {item["id"]: item for item in items}
     for account_id, media_type, count in made:
         by_id[str(account_id)]["made"][media_type] = count
+    for account_id, count, failed in today:
+        by_id[str(account_id)]["jobs_today"] = {"total": count, "failed": failed}
     return {"items": items, "total": total}
+
+
+@router.get("/accounts/{account_id}/history")
+async def account_history(account_id: uuid.UUID, pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """What the detail draws beyond the list: `hours`, the account's health per UTC hour of the last HISTORY_DAYS
+    days as [hour_ms, worst] (0 usable, 1 asleep, 2 dead or proxy down; an hour with no check or job outcome is
+    absent), oldest first; and `errors`, its newest errors with their time, the job they came from (null for a check)
+    and that job's own error code and text."""
+    async with tx(pool) as conn:
+        if await (await conn.execute("SELECT 1 FROM accounts WHERE id = %s", (account_id,))).fetchone() is None:
+            raise ApiError("resource.not_found")
+        hours = await (await conn.execute(
+            "SELECT hour, worst FROM account_health WHERE account_id = %s "
+            "AND hour >= date_trunc('hour', clock_timestamp(), 'UTC') - make_interval(days => %s) ORDER BY hour",
+            (account_id, HISTORY_DAYS))).fetchall()
+        errors = await (await conn.execute(
+            "SELECT e.at, e.code, e.job_id, j.error_code, j.error FROM account_errors e "
+            "LEFT JOIN jobs j ON j.id = e.job_id WHERE e.account_id = %s ORDER BY e.id DESC", (account_id,))
+        ).fetchall()
+    return {"hours": [[ms(h), w] for h, w in hours],
+            "errors": [{"at_ms": ms(at), "code": code, "job_id": None if job is None else str(job),
+                        "job_error_code": job_code, "job_error": job_text}
+                       for at, code, job, job_code, job_text in errors]}
 
 
 @router.patch("/accounts/{account_id}")

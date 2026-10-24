@@ -474,3 +474,43 @@ def parse_proxy(text: str | None) -> Proxy | None:
         raise ProxyError("a proxy with a user also needs a password")
     host, port = _hostport(p)
     return Proxy(scheme, host, port, user, pwd)
+
+
+# ---- the exit address of an account proxy -----------------------------------------------------------------------
+EXIT_IP_URL = "https://api.ipify.org"
+EXIT_TIMEOUT_S = 10.0
+
+
+def account_proxy_url(proxy) -> str:
+    """`http://user:pass@host:port` of a run's `providers.Proxy` (`auth` is `user:pass`), quoted for httpx."""
+    auth = ""
+    if proxy.auth:
+        user, _, secret = proxy.auth.partition(":")
+        auth = quote(user, safe="") + (":" + quote(secret, safe="") if secret else "") + "@"
+    host = "[%s]" % proxy.host if ":" in proxy.host else proxy.host
+    return "http://%s%s:%d" % (auth, host, proxy.port)
+
+
+async def exit_address(proxy, *, transport: httpx.AsyncBaseTransport | None = None) -> tuple[str | None, int | None]:
+    """The address the world sees for this proxy and how long one request through it took (ms), asked of an echo
+    service THROUGH the proxy only: there is no direct attempt, so a proxy that fails gives (None, None), never this
+    machine's own address. `transport` (tests) stands in for the proxy route."""
+    assert_no_tx()
+    loop = asyncio.get_running_loop()
+    try:
+        async with httpx.AsyncClient(proxy=None if transport else account_proxy_url(proxy), transport=transport,
+                                     timeout=EXIT_TIMEOUT_S, follow_redirects=False, trust_env=False) as client:
+            start = loop.time()
+            resp = await client.get(EXIT_IP_URL)
+            took = round((loop.time() - start) * 1000)
+    except (httpx.HTTPError, ValueError) as e:
+        log.info("exit address of %s:%d: %s", proxy.host, proxy.port, type(e).__name__)
+        return None, None
+    text = resp.text.strip()[:45]
+    if resp.status_code != 200:
+        return None, None
+    try:
+        ipaddress.ip_address(text)
+    except ValueError:
+        return None, None
+    return text, took

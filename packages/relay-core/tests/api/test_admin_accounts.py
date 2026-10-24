@@ -48,6 +48,7 @@ EXPECTED = {
     ("POST", "/admin/jobs/{job_id}/recover"), ("POST", "/admin/jobs/{job_id}/fetch-title"),
     ("POST", "/admin/jobs/{job_id}/regenerate"),
     ("GET", "/admin/settings"), ("PUT", "/admin/settings/{key}"), ("DELETE", "/admin/settings/{key}"),
+    ("GET", "/admin/settings/history"), ("GET", "/admin/accounts/{account_id}/history"),
     ("GET", "/admin/alerts"), ("POST", "/admin/alerts/{alert_id}/acknowledge"), ("GET", "/admin/models"),
 }
 

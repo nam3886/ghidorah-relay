@@ -101,11 +101,15 @@ def build_items(cookie_lines: list[str], proxy_lines: list[str], prefix: str) ->
     items = []
     for i, (cookies, proxy) in enumerate(zip(cookie_lines, proxy_lines, strict=True)):
         try:
-            jar = json.loads(cookies)["cookies"]
+            line = json.loads(cookies)
+            jar = line["cookies"]
         except (ValueError, KeyError, TypeError):
             raise Refused('cookie line %d is not JSON with a "cookies" list' % (i + 1)) from None
-        items.append({"credential": json.dumps({"cookies": jar}), "proxy": proxy_of(proxy),
-                      "label": "%s-%02d" % (prefix, i)})
+        item = {"credential": json.dumps({"cookies": jar}), "proxy": proxy_of(proxy), "label": "%s-%02d" % (prefix, i)}
+        email = line.get("email")
+        if isinstance(email, str) and email.strip():
+            item["identity"] = email.strip()          # the account's identity (gemini: its Google account email)
+        items.append(item)
     return items
 
 

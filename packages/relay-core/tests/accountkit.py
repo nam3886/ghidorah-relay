@@ -65,6 +65,16 @@ class KitEngine(MediaEngine):
         return self.verdict
 
 
+EXIT = ("203.0.113.9", 42)      # what the stand-in exit probe answers
+EXIT_PROBED: list[Proxy] = []   # the proxies it was asked about, across a test (a test clears it)
+
+
+async def exit_probe(proxy: Proxy) -> tuple[str | None, int | None]:
+    """The stand-in for `net.exit_address`: no network in the account tests."""
+    EXIT_PROBED.append(proxy)
+    return EXIT
+
+
 def make_env(p, engine: KitEngine | None = None, *, spec: KitSpec | None = None, store: ObjectStore | None = None,
              budget: BrowserBudget | None = None, settings: FakeSettings | None = None, owner: str = "w1",
              **kw) -> Env:
@@ -80,6 +90,7 @@ def make_env(p, engine: KitEngine | None = None, *, spec: KitSpec | None = None,
         proxy = Proxy(row[1], row[2]) if row[1] else None
         return AccountView(str(account_id), row[0] or "", b"credential", row[4], proxy, row[3], {})
 
+    kw.setdefault("exit_probe", exit_probe)
     return Env(db=p, spec=spec, engine=engine or KitEngine(), settings=settings or FakeSettings(spec), owner=owner,
                keeper=keeper, load_account=load_account, store=store, budget=budget, **kw)
 
@@ -149,7 +160,8 @@ def account_row(db, account_id) -> dict:
 def children(db, account_id) -> dict[str, int]:
     """Rows that reference the account, per table: all zero once it is gone."""
     return {t: db.one("SELECT count(*) FROM %s WHERE account_id = %%s" % t, account_id)[0]
-            for t in ("leases", "account_shots", "commands", "account_pools", "account_charges", "jobs")}
+            for t in ("leases", "account_shots", "commands", "account_pools", "account_charges", "jobs",
+                      "account_health", "account_errors")}
 
 
 def minio_settings() -> tuple[str, str, str]:

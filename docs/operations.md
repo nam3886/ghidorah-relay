@@ -450,7 +450,8 @@ token sent as the `X-Admin-Session` header (no cookie).
 `/manage` is the admin, a Vue single-page app built into `relay_core/admin/static/app/` (its entry is `app/index.html`,
 also at `/ui/app/index.html`); `/login` and `/test` redirect into it (`/manage#/login`, `/manage#/test`), as `/` does
 to `/manage`. `/reference` (the API reference) is a static page beside it. All are served on the api's port with the
-admin CSP (`default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'`): no inline script,
+admin CSP (`default-src 'self'; script-src 'self'; img-src 'self' blob:; object-src 'none'; frame-ancestors 'none'`;
+`blob:` for images only, the account screenshot the page fetched itself): no inline script,
 handler or style, nothing loaded from another host. The files are read once when the api starts; the api refuses to
 start when `app/index.html` is missing. Files under `app/assets/` carry a content hash in their name and are served
 `immutable`; everything else is `no-cache`.

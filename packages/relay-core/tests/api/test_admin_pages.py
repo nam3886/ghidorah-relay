@@ -9,7 +9,7 @@ from relay_core.testing.mutation import mutation
 
 PAGES_PY = "packages/relay-core/src/relay_core/admin/pages.py"
 APP = "packages/relay-core/src/relay_core/api/app.py"
-CSP = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'"
+CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob:; object-src 'none'; frame-ancestors 'none'"
 PAGE_ROUTES = ["/manage", "/ui/app/index.html", "/ui/app/theme-init.js", "/ui/reference.js", "/ui/reference.css",
                "/ui/vendor/scalar.min.js", "/ui/app/brand/ghidorah-favicon.svg", "/ui/app/brand/FONT-LICENSE.txt"]
 REFERENCE_CSP = CSP.replace("script-src 'self';", "script-src 'self'; style-src 'self' 'unsafe-inline';")

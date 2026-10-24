@@ -22,7 +22,7 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import alerts, failpoints, leases, pool, storage
+from relay_core import alerts, failpoints, history, leases, pool, storage
 from relay_core.db import lock_account, tx
 from relay_core.errors import rule
 from relay_core.jobs.events import add_event
@@ -196,7 +196,13 @@ async def _charge_taken(conn: AsyncConnection, job: _Job, pools: Mapping[str, po
 
 async def _effects(conn: AsyncConnection, job: _Job, effects, caps: Caps, pools) -> None:
     if effects and job.account_id is not None:
-        await pool.apply_effects(conn, job.account_id, effects, caps, pools)
+        await pool.apply_effects(conn, job.account_id, effects, caps, pools, job_id=job.id)
+
+
+async def _health(conn: AsyncConnection, job: _Job) -> None:
+    """The account's health after the outcome: the last statement of the transaction (`history.record_health`)."""
+    if job.account_id is not None:
+        await history.record_health(conn, job.account_id)
 
 
 async def _lock_effect_account(conn: AsyncConnection, job: _Job, effects) -> None:
@@ -327,6 +333,7 @@ async def apply_submit(db: AsyncConnectionPool, claim, result: SubmitResult, *, 
         await _effects(conn, job, result.account, caps, pools)
         await _decorate(conn, job.id, result)
         await leases.release(conn, claim.lease_id)
+        await _health(conn, job)
         return status
 
 
@@ -399,6 +406,8 @@ async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollRe
                 raise TypeError("unknown poll outcome %r" % (out,))
         await _effects(conn, job, result.effects, caps, pools)
         await _decorate(conn, job_id, result)
+        if status != "waiting" or result.effects:          # an outcome, not a "still rendering"
+            await _health(conn, job)
         return status
 
 

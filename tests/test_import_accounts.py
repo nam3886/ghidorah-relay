@@ -447,3 +447,14 @@ def test_more_lines_than_one_import_takes_are_refused_before_any_request(rig, ca
     code, shown = run(rig, capsys)
     assert code == 2 and not rig.server.calls and "between 1 and 200" in shown, \
         "more lines than the server takes were sent"
+
+
+@mutation(SCRIPT, "if isinstance(email, str) and email.strip():", "if False:",
+          expect="the email was not sent as the identity")
+def test_a_jar_line_with_an_email_sends_it_as_the_account_identity_and_one_without_sends_none():
+    jar = [dict(name="sid", value="v")]
+    lines = [json.dumps(dict(email=" a@example.com ", cookies=jar)), json.dumps(dict(cookies=[]))]
+    items = imp.build_items(lines, ["10.0.0.1:80:u:p"] * 2, "g")
+    assert items[0].get("identity") == "a@example.com", "the email was not sent as the identity"
+    assert "identity" not in items[1]
+    assert json.loads(items[0]["credential"]) == dict(cookies=jar)

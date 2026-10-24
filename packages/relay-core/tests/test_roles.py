@@ -27,6 +27,7 @@ API = {
     "admin_users": ALL, "admin_sessions": ALL, "admin_login_attempts": ALL, "schema_migrations": (),
     "billing_pin": (S,), "billing_alerts": (S, INS), "prompt_frames": (S, INS), "prompt_frame_locks": (S, INS),
     "unclear_replies": (S,),                       # UPDATE of the two acknowledge columns is column-level, below
+    "account_health": (S,), "account_errors": (S,), "settings_history": (S, INS, D),
 }
 WORKER = {
     "api_keys": (S,), "key_wallets": (S, U), "ledger": (S, INS), "jobs": (S, INS, U),
@@ -36,6 +37,7 @@ WORKER = {
     "admin_users": (), "admin_sessions": (), "admin_login_attempts": (), "schema_migrations": (), "billing_pin": (S,),
     "billing_alerts": (S, INS), "prompt_frames": (), "prompt_frame_locks": (),
     "unclear_replies": (INS,),                     # append only: the writers insert with ON CONFLICT DO NOTHING
+    "account_health": ALL, "account_errors": ALL, "settings_history": (S, INS, D),
 }
 API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at",
                        "tier", "cycle_start"}
@@ -64,6 +66,10 @@ def as_role(db, role, statements):
     return failed
 
 
+@mutation("packages/relay-core/src/relay_core/db/migrations/0021_account_history.sql",
+          "GRANT SELECT ON account_health, account_errors TO relay_api;",
+          "GRANT SELECT, INSERT ON account_health, account_errors TO relay_api;",
+          expect="'account_errors': ('INSERT', 'SELECT')")
 @mutation(UNCLEAR, "GRANT SELECT ON unclear_replies TO relay_api;",
           "GRANT SELECT, DELETE ON unclear_replies TO relay_api;",
           expect="'unclear_replies': ('DELETE', 'SELECT')")

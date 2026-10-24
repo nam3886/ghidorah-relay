@@ -16,6 +16,7 @@ TABLES = {
     "account_charges", "leases", "account_shots", "admin_login_attempts", "commands", "settings_kv", "admin_users",
     "admin_sessions", "request_logs", "worker_heartbeats", "provider_snapshots", "schema_migrations",
     "billing_pin", "billing_alerts", "prompt_frames", "prompt_frame_locks", "unclear_replies",
+    "account_health", "account_errors", "settings_history",
 }
 # the unique indexes the money and lease rules stand on
 INDEXES = {
@@ -232,7 +233,7 @@ def test_0020_wipes_jobs_and_money_and_keeps_keys_accounts_settings_frames(tmp_p
         with _owner(dsn) as c:
             key, account = _plant_the_0019_schema(c)
             before = {(t, w): _rows(c, t, w) for t, w in KEPT}
-        assert run_migrations(dsn) == [20]
+        assert run_migrations(dsn)[0] == 20          # with the later ones, which wipe nothing
         with _owner(dsn) as c:
             after = {(t, w): _rows(c, t, w) for t, w in KEPT}
             def count(table):

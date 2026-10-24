@@ -77,5 +77,7 @@ async def delete_unused_account(conn: AsyncConnection, account_id, own_leases: C
         "DELETE FROM account_shots WHERE account_id = %s RETURNING object_key", (account_id,))).fetchall()]
     await conn.execute("DELETE FROM commands WHERE account_id = %s", (account_id,))
     await conn.execute("DELETE FROM account_pools WHERE account_id = %s", (account_id,))
+    await conn.execute("DELETE FROM account_health WHERE account_id = %s", (account_id,))
+    await conn.execute("DELETE FROM account_errors WHERE account_id = %s", (account_id,))
     await conn.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
     return sorted(keys)

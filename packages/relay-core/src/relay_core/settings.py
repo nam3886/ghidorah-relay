@@ -21,6 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
+from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core.db import tx
@@ -28,6 +29,7 @@ from relay_core.db import tx
 log = logging.getLogger(__name__)
 
 NOTIFY_SQL = "SELECT pg_notify('relay_settings', %s)"
+HISTORY_KEEP = 1000         # rows of settings_history kept
 BOOT_ONLY_SUFFIXES = ("_url", "_uri", "_host", "_hosts", "_endpoint", "_origin", "_base", "proxy", "user_agent")
 
 
@@ -60,7 +62,8 @@ class Spec:
     `on_load`: turns a STORED value into one `validate` accepts before the cache takes it (a write is still checked
     strictly); it may drop what a newer catalog no longer knows, so the rest of the stored value keeps its effect.
     `keys`: for a dict setting whose keys are a fixed list (a provider's price options), that list, so the settings page
-    can draw an input for a key the value does not hold yet."""
+    can draw an input for a key the value does not hold yet.
+    `secret`: the change history keeps only that it changed, never a value."""
 
     key: str
     type: type
@@ -73,6 +76,7 @@ class Spec:
     basic: bool = False
     on_load: Callable[[Any], Any] | None = None
     keys: tuple[str, ...] | None = None
+    secret: bool = False
 
     @property
     def allowed(self) -> str | None:
@@ -229,27 +233,44 @@ class Settings:
             # the lock makes the read and the write one step even for a row that does not exist yet
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("settings_kv:" + key,))
             # Postgres compares the jsonb (Python would call a stored 1 equal to true)
-            row = await (await conn.execute("SELECT value IS DISTINCT FROM %s::jsonb FROM settings_kv WHERE key = %s",
-                                            (json.dumps(value), key))).fetchone()
+            row = await (await conn.execute("SELECT value IS DISTINCT FROM %s::jsonb, value FROM settings_kv "
+                                            "WHERE key = %s", (json.dumps(value), key))).fetchone()
             changed = row is None or row[0]
             await conn.execute(
                 "INSERT INTO settings_kv (key, value, updated_by) VALUES (%s, %s::jsonb, %s) "
                 "ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = clock_timestamp(), "
                 "updated_by = excluded.updated_by", (key, json.dumps(value), by))
+            if changed:
+                await self._history(conn, key, by, None if row is None else row[1], value)
             await conn.execute(NOTIFY_SQL, (key,))
         await self.reload()
         return changed
 
-    async def delete(self, key: str) -> bool:
+    async def delete(self, key: str, *, by: str | None = None) -> bool:
         """Drop the stored value: the default applies again. True when a value was stored."""
         self._registry.spec(key)
         async with tx(self._pool) as conn:
             # the same lock as a write: a delete never lands between a write's read and its upsert
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("settings_kv:" + key,))
-            cur = await conn.execute("DELETE FROM settings_kv WHERE key = %s", (key,))
+            old = await (await conn.execute("DELETE FROM settings_kv WHERE key = %s RETURNING value", (key,))
+                         ).fetchone()
+            if old is not None:
+                await self._history(conn, key, by, old[0], None)
             await conn.execute(NOTIFY_SQL, (key,))
         await self.reload()
-        return cur.rowcount > 0
+        return old is not None
+
+    async def _history(self, conn, key: str, by: str | None, old: Any, new: Any) -> None:
+        """One row of the change history, in the write's transaction (None = no stored value). A secret setting keeps
+        only that it changed. The newest HISTORY_KEEP rows are kept."""
+        secret = self._registry.spec(key).secret
+        if secret:
+            old = new = None
+        await conn.execute(
+            "INSERT INTO settings_history (key, by, old_value, new_value, secret) VALUES (%s, %s, %s, %s, %s)",
+            (key, by, None if old is None else Jsonb(old), None if new is None else Jsonb(new), secret))
+        await conn.execute("DELETE FROM settings_history WHERE id <= (SELECT id FROM settings_history "
+                           "ORDER BY id DESC OFFSET %s LIMIT 1)", (HISTORY_KEEP,))
 
     async def reload(self) -> None:
         """Replace the cache with what the table holds now. A stored value that no longer validates (a spec was

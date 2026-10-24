@@ -4,7 +4,9 @@ A check is a task under `asyncio.timeout`, holding a `check` lease with a hard b
 token from the semaphore. The probe of a declared proxy runs first. The outcome is applied in one shielded
 transaction fenced by the lease id: the `Health` effects through `pool.apply_effects`, the `state_patch` merged into
 the account's `provider_state`, the schedule columns, and the identity (a known identity merges this new account into
-the existing row and removes it through the same cleanup as a delete).
+the existing row and removes it through the same cleanup as a delete). A check that reads the account also measures its
+proxy's exit address and latency (through the proxy only, never direct) and stores them with the result; every outcome
+ends with the account's health recorded for its history, and a failure is kept among its errors.
 
 `disabled` accounts are never checked (a person's decision, no sending); `dead` ones still are. Never-checked accounts
 come first, then by `check_due_at`. An unreadable result changes nothing and keeps `last_checked_at`, so an account
@@ -24,7 +26,7 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import failpoints, leases, pool
+from relay_core import failpoints, history, leases, net, pool
 from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import AccountInUse, delete_unused_account, tx
 from relay_core.jobs.runctx import Merge, Renewal
@@ -75,6 +77,8 @@ class Env:
     retry_s: float = RETRY_S
     ttl_s: float = leases.LEASE_TTL_S
     command_hard_s: Callable[[str], float] = leases.command_hard_s
+    # the proxy's exit address and latency, measured through the account's proxy by every check (a test replaces it)
+    exit_probe: Callable[[Any], Coroutine[Any, Any, tuple[str | None, int | None]]] = net.exit_address
 
     @property
     def caps(self) -> Caps:
@@ -192,6 +196,7 @@ class _Report:
     proxy: ProxyVerdict | None = None
     error: str | None = None
     credential_gen: int | None = None    # the credential the engine read; None when it never got that far
+    exit: tuple[str | None, int | None] = (None, None)   # the proxy's exit address and latency (ms); none without one
 
 
 async def check_account(env: Env, account_id, *, command_id=None) -> CheckResult:
@@ -269,6 +274,11 @@ async def _run(env: Env, account_id, lease_id: int, token: Token | None) -> _Rep
                 report.proxy = await env.engine.probe_proxy(view.proxy)
             if report.proxy is None or report.proxy.ok:
                 report.health = await env.engine.check_account(AccountCtx(env, lease_id, view, token))
+                if view.proxy is not None:      # never measured direct: an account without a proxy has no exit
+                    try:
+                        report.exit = await env.exit_probe(view.proxy)
+                    except Exception as e:      # a bonus fact: it never fails the check it rides on
+                        log.warning("exit address of %s: %s", account_id, error_text(e))
     except TimeoutError:
         report.error = TIME_LIMIT
     except leases.LeaseLost:
@@ -383,18 +393,21 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
         if report.error is not None:
             await _fail(conn, env, account_id, report.error)
             await leases.release(conn, lease_id)
+            await history.record_health(conn, account_id)
             return CheckResult("failed", report.error), []
         if report.proxy is not None and not report.proxy.ok:
             await pool.apply_effects(conn, account_id, proxy_bad_effects(env, report.proxy.reason), env.caps,
                                      env.pools())
             await _fail(conn, env, account_id, None)
             await leases.release(conn, lease_id)
+            await history.record_health(conn, account_id)
             return CheckResult("proxy_bad", report.proxy.reason), []
         if merging and await _twin_in(conn, account_id, health.identity) != twin:
             # the other account changed while this check ran (it took the identity, or lost it): the locks held are
             # not the ones the merge needs, so nothing is merged now; the next check starts from the new state
             await _fail(conn, env, account_id, "the identity match changed while the check was recorded")
             await leases.release(conn, lease_id)
+            await history.record_health(conn, account_id)
             return CheckResult("failed", "the identity match changed; the check is retried"), []
         if twin is not None:
             await pool.ensure_rows(conn, twin, env.pools())         # the survivor has every declared pool row
@@ -402,9 +415,10 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
             return CheckResult("merged", account_id=twin), dropped
         await pool.ensure_rows(conn, account_id, env.pools())
         was = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
-        await _record(conn, env, account_id, health, report.proxy)
+        await _record(conn, env, account_id, health, report.proxy, report.exit)
         now = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
         await leases.release(conn, lease_id)
+        await history.record_health(conn, account_id)
         if health.state == "unknown":
             # a check that read nothing for certain but whose strike ended the account tells the admin so
             why = next((e.reason for e in health.effects if isinstance(e, Suspect)), "")
@@ -413,14 +427,19 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
 
 
 async def _fail(conn: AsyncConnection, env: Env, account_id, error: str | None) -> None:
-    """A failure or a bad proxy: the account keeps its state, the next try is `retry_s` away."""
+    """A failure or a bad proxy: the account keeps its state, the next try is `retry_s` away. A failure (`error`, a
+    check that could not read the account) is kept in its errors and stamps `check_failed_at`."""
     await conn.execute(
         "UPDATE accounts SET last_error = COALESCE(%(e)s, last_error), updated_at = clock_timestamp(), "
+        "check_failed_at = CASE WHEN %(e)s::text IS NULL THEN check_failed_at ELSE clock_timestamp() END, "
         "check_due_at = clock_timestamp() + make_interval(secs => %(s)s) WHERE id = %(a)s",
         {"e": error, "s": env.retry_s, "a": account_id})
+    if error is not None:
+        await history.record_error(conn, account_id, error)
 
 
-async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, proxy: ProxyVerdict | None) -> None:
+async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, proxy: ProxyVerdict | None,
+                  exit_: tuple[str | None, int | None] = (None, None)) -> None:
     base: list = []
     if health.state == "alive":
         base = [Revive("the check found the account alive"), Success()]
@@ -440,10 +459,12 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         "ELSE clock_timestamp() + make_interval(secs => %(due)s) END, "
         "proxy_ok = CASE WHEN %(px)s THEN true ELSE proxy_ok END, "
         "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
+        "proxy_exit_ip = %(ip)s, proxy_latency_ms = %(ms)s, "
+        "proxy_exit_at = CASE WHEN proxy_host IS NULL THEN NULL ELSE clock_timestamp() END, check_failed_at = NULL, "
         "updated_at = clock_timestamp() WHERE id = %(a)s",
         {"i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
          "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s,
-         "px": proxy is not None and proxy.ok,
+         "px": proxy is not None and proxy.ok, "ip": exit_[0], "ms": exit_[1],
          "ru": max(recheck) if recheck else None, "a": account_id})
 
 

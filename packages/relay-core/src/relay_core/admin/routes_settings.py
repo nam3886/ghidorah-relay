@@ -6,7 +6,8 @@ was); a delete restores the default. Each item names its `group` (the provider, 
 says whether it is `basic` (one the admin changes often) so the page can group them and fold the rest away. The list
 also carries `fixed`, the limits that are code and not settings. The boot-only values (an upstream URL, the billing
 timezone, the proxy list...) are configuration of the deployment: they are listed read-only under `env_only` and a put
-or delete of one is refused.
+or delete of one is refused. Every put that changes the stored value and every delete of one adds a row to the change
+history (`GET /settings/history`); the list's `last_saved` is its newest row.
 """
 
 from typing import Any
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, Request
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core import cgroup
-from relay_core.admin.routes_common import Strict, ms
+from relay_core.admin.routes_common import MAX_PAGE, Strict, ms
 from relay_core.admin.routes_stats import HEARTBEAT_STALE_S
 from relay_core.api.deps import get_pool, get_settings
 from relay_core.api.errors_http import ApiError
@@ -78,6 +79,7 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
         pin = await (await conn.execute("SELECT tz FROM billing_pin")).fetchone()
         workers = await (await conn.execute(WORKER_ROWS, (HEARTBEAT_STALE_S + LOOKBACK_S, MAX_WORKER_ROWS))
                          ).fetchall()
+        saved = await (await conn.execute("SELECT at, by FROM settings_history ORDER BY id DESC LIMIT 1")).fetchone()
     state = request.app.state
     env_only = [
         {"name": "BILLING_TZ", "value": pin[0] if pin else None, "read_only": True},
@@ -85,7 +87,26 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
         {"name": "TRUSTED_PROXIES", "value": ",".join(str(n) for n in state.trusted_proxies), "read_only": True},
     ]
     return {"items": [_item(settings, k) for k in sorted(settings.specs())], "env_only": env_only,
-            "fixed": fixed_limits(state.registry), "containers": _containers(state, workers)}
+            "fixed": fixed_limits(state.registry), "containers": _containers(state, workers),
+            "last_saved": None if saved is None else {"at_ms": ms(saved[0]), "by": saved[1]}}
+
+
+@router.get("/settings/history")
+async def settings_history(limit: int = 100, before: int | None = None,
+                           pool: AsyncConnectionPool = Depends(get_pool)) -> dict:
+    """The change history, newest first: who changed which key, from what stored value to what (null = none stored:
+    the default), and when. A secret setting's row says only that it changed (`secret`, both values null). `before`
+    (an id) pages back; `next` is the id to pass for the next page, null at the end."""
+    if not 1 <= limit <= MAX_PAGE:
+        raise ApiError("input.invalid", "limit")
+    async with tx(pool) as conn:
+        rows = await (await conn.execute(
+            "SELECT id, at, key, by, old_value, new_value, secret FROM settings_history "
+            "WHERE (%(b)s::bigint IS NULL OR id < %(b)s) ORDER BY id DESC LIMIT %(n)s",
+            {"b": before, "n": limit + 1})).fetchall()
+    items = [{"id": r[0], "at_ms": ms(r[1]), "key": r[2], "by": r[3], "old": r[4], "new": r[5], "secret": r[6]}
+             for r in rows[:limit]]
+    return {"items": items, "next": items[-1]["id"] if len(rows) > limit else None}
 
 
 @router.put("/settings/{key}")
@@ -100,7 +121,7 @@ async def put_setting(key: str, body: SettingPut, request: Request,
 
 
 @router.delete("/settings/{key}")
-async def delete_setting(key: str, settings: Settings = Depends(get_settings)) -> dict:
+async def delete_setting(key: str, request: Request, settings: Settings = Depends(get_settings)) -> dict:
     _known(settings, key)
-    stored = await settings.delete(key)
+    stored = await settings.delete(key, by=request.state.admin_user.username)
     return {**_item(settings, key), "deleted": stored}

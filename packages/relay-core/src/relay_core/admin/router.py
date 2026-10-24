@@ -27,7 +27,8 @@ IMPORT_PATH = ADMIN_PREFIX + "/accounts/import"
 MAX_BODY = 1 << 20          # every admin body but the import: a few small fields
 # The import is the one big body: every item at its field limit plus slack for the JSON around them.
 MAX_IMPORT_BODY = routes_accounts.MAX_IMPORT * (routes_accounts.MAX_CREDENTIAL_CHARS + 1024) + (1 << 16)
-CSP = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none'"
+# img-src adds blob: only: the account detail shows its screenshot inline from a blob the page fetched itself
+CSP = "default-src 'self'; script-src 'self'; img-src 'self' blob:; object-src 'none'; frame-ancestors 'none'"
 
 
 class _Strict(BaseModel):
