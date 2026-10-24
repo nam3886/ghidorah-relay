@@ -39,7 +39,7 @@ const ALERT = ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 8v4", "M12 16h.01"];
 <template>
   <div
     class="field"
-    :class="[`field--${layout}`, { 'is-edited': edited, 'has-error': !!error, 'is-busy': busy }]"
+    :class="[`field--${layout}`, { 'is-edited': edited, 'has-error': !!error, 'is-busy': busy, 'is-switch': bool }]"
     :data-key="item.key"
   >
     <div class="field__text">
@@ -299,8 +299,9 @@ const ALERT = ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 8v4", "M12 16h.01"];
   font-family: var(--rl-mono);
 }
 
-/* a tablet and a phone: the row's label stacks over its input (JobsTablet `field`), the inputs at the touch height */
-@media (max-width: 1279px) {
+/* stacked (below 968 px): the row's label stacks over its input (JobsTablet `field`), the inputs at the touch height; a
+   narrow desktop keeps the row (SettingsNarrow) */
+@media (max-width: 967px) {
   .field--row {
     flex-wrap: wrap;
     gap: 6px 12px;
@@ -328,6 +329,32 @@ const ALERT = ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 8v4", "M12 16h.01"];
   }
   .field--row .field__input.is-bool {
     flex: none;
+  }
+}
+/* stacked (SettingsTablet, SettingsPhone): the label, then the input the full width, then its help; a switch stays at
+   the right of its label */
+@media (max-width: 967px) {
+  .field--row .field__text {
+    display: contents;
+  }
+  .field--row .field__label {
+    flex-basis: 100%;
+    order: 0;
+  }
+  .field--row.is-switch .field__label {
+    flex: 1 1 0;
+    flex-basis: auto;
+  }
+  .field--row .field__input {
+    order: 1;
+  }
+  .field--row .changed {
+    order: 1;
+  }
+  .field--row .help,
+  .field--row .error {
+    flex-basis: 100%;
+    order: 2;
   }
 }
 @media (max-width: 767px) {

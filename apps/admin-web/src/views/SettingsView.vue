@@ -16,6 +16,7 @@ import {
 import ContainerLimits from "@/components/settings/ContainerLimits.vue";
 import SettingsHistory from "@/components/settings/SettingsHistory.vue";
 import { SHOWN_OFFSET_MIN } from "@/components/settings/settings-pools";
+import { useStacked } from "@/components/settings/settings-media";
 import IconButton from "@/components/shared/IconButton.vue";
 import PasswordForm from "@/components/settings/PasswordForm.vue";
 import ProviderSettings from "@/components/settings/ProviderSettings.vue";
@@ -48,6 +49,8 @@ const providers = useProvidersStore();
 const router = useRouter();
 const { isPhone, isTablet } = useBreakpoint();
 const compact = computed(() => isPhone.value || isTablet.value);
+// below 968 px the sections stack (SettingsTablet, SettingsPhone): chip tabs, titles inside the cards
+const stacked = useStacked();
 const { busy, run } = useBusy();
 
 const items = ref<SettingItem[]>([]);
@@ -262,8 +265,11 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
       <h1 class="settings__title sr-only">Settings</h1>
       <!-- a phone's Change history sits in the top bar (SettingsPhone has no head row); a tablet keeps the row -->
       <div v-if="!inBar" class="settings__compact-head">
-        <span v-if="lastSaved" class="settings__subtitle"
-          >Last saved <span class="num">{{ lastSaved.at }}</span> by {{ lastSaved.by }}.</span
+        <span class="settings__subtitle"
+          ><template v-if="!stacked">Changes apply to jobs claimed after you save. </template
+          ><template v-if="lastSaved"
+            >Last saved <span class="num">{{ lastSaved.at }}</span> by {{ lastSaved.by }}.</template
+          ></span
         >
         <IconButton icon="history" label="Change history" @click="historyOpen = true" />
       </div>
@@ -273,7 +279,8 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
     </template>
     <SettingsHistory v-model="historyOpen" />
 
-    <nav class="stabs" :class="{ 'stabs--chips': compact }" aria-label="Settings areas">
+    <!-- SettingsNarrow keeps the underline tabs; SettingsTablet and SettingsPhone draw them as chips -->
+    <nav class="stabs" :class="{ 'stabs--chips': stacked }" aria-label="Settings areas">
       <ArrowScroller label="Settings areas" :active-key="tab">
         <button
           v-for="g in groups.length ? groups : ['core']"

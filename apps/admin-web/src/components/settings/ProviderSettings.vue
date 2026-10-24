@@ -10,7 +10,9 @@ import PoolsEditor from "./PoolsEditor.vue";
 import SettingField from "./SettingField.vue";
 import SettingsCard from "./SettingsCard.vue";
 import { type Card, fieldLabel } from "./settings-cards";
+import { useStacked } from "./settings-media";
 import { valueText } from "./settings-value";
+import { useBreakpoint } from "@/composables/use-breakpoint";
 
 // One provider's tab of the Settings page (B Ledger): its line (how it sends, its accounts, today's jobs), then the
 // sections: Taking jobs (`<p>.claims_enabled` and the provider's basic settings), Send path (`<p>.send_path`), Models
@@ -26,6 +28,11 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ draft: [key: string, text: string]; reset: [key: string]; accounts: [] }>();
 
+// Below 968 px (SettingsTablet, SettingsPhone) each title sits inside its card with the board's few words beside it,
+// the provider's line is plain text (none on a phone), the claim switch tells its state in words, the send path is
+// one full-width choice, and Advanced is a button. Nothing is dropped that edits: only words and pictures go.
+const stacked = useStacked();
+const { isPhone } = useBreakpoint();
 const p = computed(() => props.card.group);
 const own = computed(() => props.card.own);
 const isEdited = (item: SettingItem | undefined): boolean =>
@@ -80,6 +87,17 @@ const hasModels = computed(
 const units = computed(() => Object.fromEntries((props.summary?.pools ?? []).map((x) => [x.pool, x.unit])));
 
 const advOpen = ref(false);
+// the stacked card's few words: the first three names ("poll, back-off, timeouts" on the board)
+const advShort = computed(() =>
+  props.card.advanced
+    .slice(0, 3)
+    .map((i) =>
+      fieldLabel(i)
+        .replace(/ \(.*\)$/, "")
+        .toLowerCase(),
+    )
+    .join(", "),
+);
 const advNames = computed(() => {
   const names = props.card.advanced.map((i) =>
     fieldLabel(i)
@@ -93,7 +111,8 @@ const advNames = computed(() => {
 
 <template>
   <div class="ptab-body" :class="providerClass(p)" :data-testid="`settings-card-${p}`">
-    <div class="pline">
+    <p v-if="stacked && !isPhone && line" class="pline pline--text num">{{ p }} · {{ line }}</p>
+    <div v-else-if="!stacked" class="pline">
       <span class="pchip">{{ p }}</span>
       <span v-if="line" class="pline__text num">{{ line }}</span>
       <a href="#/accounts" class="pline__link" @click.prevent="emit('accounts')">Open {{ p }} accounts</a>
@@ -121,15 +140,20 @@ const advNames = computed(() => {
       :id="`${p}-taking`"
       title="Taking jobs"
       :note="`Turn off to stop ${p} claiming new jobs. Running jobs finish; queued jobs wait for you.`"
+      :short="isPhone ? '' : 'Running jobs finish; queued jobs wait'"
     >
       <div v-if="claims" class="claims" :data-key="claims.key">
         <div class="claims__text">
           <span class="claims__name">Claim new jobs</span>
-          <span class="help">{{ p }} takes jobs from the queue while this is on.</span>
+          <span v-if="stacked" class="help num"
+            >{{ taking ? "Claiming" : "Paused"
+            }}<template v-if="taking && summary"> · {{ summary.running }} in flight</template></span
+          >
+          <span v-else class="help">{{ p }} takes jobs from the queue while this is on.</span>
           <span v-if="errors[claims.key]" class="error" role="alert">{{ errors[claims.key] }}</span>
         </div>
         <span v-if="isEdited(claims)" class="changed">Changed</span>
-        <span class="pill" :class="taking ? 'pill--ok' : 'pill--warn'"
+        <span v-if="!stacked" class="pill" :class="taking ? 'pill--ok' : 'pill--warn'"
           >{{ taking ? "Claiming" : "Paused"
           }}<template v-if="taking && summary">
             · <span class="num">{{ summary.running }}</span> in flight</template
@@ -164,6 +188,7 @@ const advNames = computed(() => {
       :note="`How a job reaches ${p}. Both paths go through the account's own proxy.`"
       pad
     >
+      <span v-if="stacked" class="seg-label">How a job reaches {{ p }}</span>
       <div role="group" aria-label="Send path" class="seg">
         <button
           v-for="x in PATHS"
@@ -174,10 +199,14 @@ const advNames = computed(() => {
           :disabled="busy"
           @click="emit('draft', sendPath!.key, x.id)"
         >
-          <PathIcon :paths="x.icon" :size="16" :stroke="2" />{{ x.label }}
+          <template v-if="stacked">{{ x.label }}{{ x.pill ? ` · ${x.pill.toLowerCase()}` : "" }}</template>
+          <template v-else><PathIcon :paths="x.icon" :size="16" :stroke="2" />{{ x.label }}</template>
         </button>
       </div>
-      <div class="paths">
+      <span v-if="stacked" class="help"
+        >Both paths go through the account's own proxy. Running jobs keep theirs; new jobs use the new one.</span
+      >
+      <div v-if="!stacked" class="paths">
         <div v-for="x in PATHS" :key="x.id" class="paths__item">
           <span class="paths__name"
             >{{ x.label }}
@@ -187,7 +216,7 @@ const advNames = computed(() => {
           <span class="help">{{ x.text }}</span>
         </div>
       </div>
-      <div class="notice">
+      <div v-if="!stacked" class="notice">
         <PathIcon :paths="INFO" :size="16" :stroke="2" />
         <span>The path is read at each send: running jobs keep theirs, new jobs use the new one.</span>
       </div>
@@ -199,6 +228,7 @@ const advNames = computed(() => {
       :id="`${p}-models`"
       title="Models and prices"
       :note="`What a customer pays in points against what ${p} takes from the account. Margin counts 1 credit or 1 image use as 1 point.`"
+      :short="isPhone ? 'one row per model' : 'tap a model to edit it'"
     >
       <ModelPrices
         :card="card"
@@ -235,8 +265,25 @@ const advNames = computed(() => {
       :id="`${p}-advanced`"
       title="Advanced"
       note="Timings and limits. The defaults suit most days."
+      :short="isPhone ? '' : advShort"
+      :headless="isPhone"
     >
+      <!-- stacked (SettingsTablet, SettingsPhone): a plain button that shows them -->
+      <div v-if="stacked" class="adv-btn-row">
+        <button
+          type="button"
+          class="adv-btn"
+          :aria-expanded="advOpen"
+          :aria-controls="`${p}-advanced-fields`"
+          @click="advOpen = !advOpen"
+        >
+          {{ advOpen ? "Hide" : "Show" }} {{ card.advanced.length }} advanced
+          {{ card.advanced.length === 1 ? "setting" : "settings" }}
+          <span v-if="card.advanced.some(isEdited)" class="tag">edited</span>
+        </button>
+      </div>
       <button
+        v-else
         type="button"
         class="disclosure"
         :aria-expanded="advOpen"
@@ -287,6 +334,39 @@ const advNames = computed(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+.pline--text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--rl-muted);
+}
+.seg-label {
+  margin-bottom: -10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.adv-btn-row {
+  padding: 12px 20px 20px;
+}
+.adv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.adv-btn:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
 }
 .pchip {
   display: inline-flex;
@@ -528,7 +608,7 @@ const advNames = computed(() => {
   box-shadow: none;
   border: 1px solid var(--rl-rule);
 }
-@media (max-width: 1279px) {
+@media (max-width: 967px) {
   .claims {
     padding: 14px 20px;
     gap: 12px;
@@ -558,6 +638,16 @@ const advNames = computed(() => {
 @media (max-width: 767px) {
   .claims {
     padding: 14px 16px;
+  }
+  /* SettingsPhone: "Show 9 advanced settings" is the whole card, one full-width button */
+  .adv-btn-row {
+    padding: 0;
+  }
+  .adv-btn {
+    width: 100%;
+    height: 52px;
+    border: 0;
+    border-radius: 0;
   }
   .disclosure {
     padding: 12px 16px;

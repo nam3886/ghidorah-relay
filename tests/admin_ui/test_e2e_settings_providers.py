@@ -1,7 +1,7 @@
 """The provider tabs of the Settings page in Chrome against the real app with the four real provider specs (browser
 tier): a row of tabs offers General and each provider (no provider strip); a provider's tab has its line, Taking jobs
-with the claims switch, Models and prices (a row per model with its switch and its sale and cost inputs; a bottom sheet
-on a phone), Pools and budgets and the rest under Advanced; the page's bar saves every change. At a desktop width, a
+with the claims switch, Models and prices (a row per model with its switch and its sale and cost inputs; below 968 px a
+read-only table on a tablet and a row per model on a phone, each model edited in a bottom sheet), Pools and budgets and the rest under Advanced; the page's bar saves every change. At a desktop width, a
 tablet's 820 px and a phone's 390 px, in both themes, where no text may be cut. With RELAY_SCREENSHOTS_DIR set, the
 page, a form open and the states are saved as settings-<width>-<theme>-<what>.png."""
 
@@ -23,7 +23,7 @@ SIZES = ((1440, 1000), (820, 1100), (390, 844))
 # scrolls by design (its arrows say so), the 6 px its arrows reach past its sides is no text, and a hint's own
 # ellipsis has its whole text in the hint.
 CUT_JS = """() => [...document.querySelectorAll('#settings *, .stab, .sbar *, .rl-sheet *')]
-    .filter((el) => el.offsetParent && !el.closest('.hint-tip') && !el.matches('.asc__row'))
+    .filter((el) => el.offsetParent && !el.closest('.hint-tip, .sr-only') && !el.matches('.asc__row'))
     .filter((el) => !(el.querySelector('.asc') && el.scrollWidth - el.clientWidth <= 6))
     .filter((el) => el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
     .map((el) => el.className + ': ' + (el.value || el.textContent).trim().slice(0, 40))"""
@@ -69,9 +69,9 @@ def open_settings(app, page, width: int, height: int) -> None:
     settle(page)
 
 
-def models_scope(page, card, model: str, phone: bool):
-    """Where a model's inputs are: its table row, or on a phone the bottom sheet its Edit opens."""
-    if not phone:
+def models_scope(page, card, model: str, sheet: bool):
+    """Where a model's inputs are: its table row, or below 968 px the bottom sheet its Edit opens."""
+    if not sheet:
         return card
     card.get_by_role("button", name="Edit %s prices" % model).click()
     sheet = page.get_by_role("dialog", name=model)
@@ -79,8 +79,8 @@ def models_scope(page, card, model: str, phone: bool):
     return sheet
 
 
-def close_sheet(page, phone: bool) -> None:
-    if phone:
+def close_sheet(page, sheet: bool) -> None:
+    if sheet:
         done = page.get_by_role("dialog").get_by_role("button", name="Done")
         done.click()
         expect(done).to_be_hidden()
@@ -93,6 +93,7 @@ def test_the_provider_tabs_edit_models_prices_claims_and_pools_and_the_bar_saves
         app, app_page, live, db, real_providers, width, height, color_scheme):
     page = app_page
     phone = width < 768
+    sheet = width < 968                 # stacked: the models are read in a table or a list and edited in a sheet
     theme = "%d-%s" % (width, color_scheme)
     open_settings(app, page, width, height)
     tabs = page.get_by_role("navigation", name="Settings areas")
@@ -110,24 +111,29 @@ def test_the_provider_tabs_edit_models_prices_claims_and_pools_and_the_bar_saves
 
     tabs.get_by_test_id("settings-tab-dola").click()
     dola = page.get_by_test_id("settings-card-dola")
-    expect(dola.locator(".pline")).to_contain_text("accounts")
+    if not phone:                       # SettingsPhone draws no provider line
+        expect(dola.locator(".pline")).to_contain_text("accounts")
     expect(page.locator("#password")).to_have_count(0)
-    if not phone:
+    if not sheet:
         expect(dola.locator("tr[data-model='seedance-2.5'] .price")).to_have_count(5)
         expect(dola.locator("tr[data-model='seedance-2.5'] .cost")).to_have_count(5)
-    expect(dola.locator("button.disclosure")).to_have_attribute("aria-expanded", "false")
+    elif not phone:                     # SettingsTablet: read-only, On/Off chips, the sale points as figures
+        expect(dola.locator("tr[data-model='seedance-2.5'] .pill")).to_have_text("On")
+        expect(dola.locator("tr[data-model='seedance-2.5'] input")).to_have_count(0)
+    advanced = dola.locator("button.disclosure, button.adv-btn")
+    expect(advanced).to_have_attribute("aria-expanded", "false")
     no_cut_text(page)
     shot(page, "%s-dola" % theme)
 
-    scope = models_scope(page, dola, "seedance-1.0", phone)
+    scope = models_scope(page, dola, "seedance-1.0", sheet)
     scope.get_by_role("switch", name="Offer seedance-1.0").click()
-    close_sheet(page, phone)
-    scope = models_scope(page, dola, "seedream-4.5", phone)
+    close_sheet(page, sheet)
+    scope = models_scope(page, dola, "seedream-4.5", sheet)
     scope.get_by_label("seedream-4.5 points price").fill("2")
     if phone:
         no_cut_text(page)
         shot(page, "%s-form-sheet" % theme, whole=False)
-    close_sheet(page, phone)
+    close_sheet(page, sheet)
     dola.get_by_label(re.compile(r"^Video \w+ per day$")).fill("5")
     bar = page.get_by_role("region", name="Unsaved changes")
     expect(bar).to_contain_text("3 unsaved changes")
@@ -137,7 +143,7 @@ def test_the_provider_tabs_edit_models_prices_claims_and_pools_and_the_bar_saves
         expect(dola.locator("li[data-model='seedance-1.0']")).to_have_class(re.compile(r"\bis-off\b"))
     else:
         expect(dola.locator("tr[data-model='seedance-1.0']")).to_have_class(re.compile(r"\bis-off\b"))
-    dola.locator("button.disclosure").click()
+    advanced.click()
     expect(dola.locator(".adv-fields")).to_be_visible()
     no_cut_text(page)
     shot(page, "%s-form-edited" % theme)
@@ -152,9 +158,9 @@ def test_the_provider_tabs_edit_models_prices_claims_and_pools_and_the_bar_saves
     assert stored(db, "dola.pools")["video"]["windows"][0]["budget"]["free"] == 5
 
     # a price that is not a whole number is refused under the Models block, and nothing is written
-    scope = models_scope(page, dola, "seedream-4.5", phone)
+    scope = models_scope(page, dola, "seedream-4.5", sheet)
     scope.get_by_label("seedream-4.5 points price").fill("1.5")
-    close_sheet(page, phone)
+    close_sheet(page, sheet)
     bar.get_by_role("button", name="Save changes").click()
     expect(dola.locator(".mp__foot [role=alert]")).to_contain_text("(value)")
     assert stored(db, "dola.prices")["seedream-4.5"] == 2
@@ -163,9 +169,9 @@ def test_the_provider_tabs_edit_models_prices_claims_and_pools_and_the_bar_saves
     shot(page, "%s-refused" % theme)
     bar.get_by_role("button", name="Discard changes").click()
     expect(bar).to_have_count(0)
-    scope = models_scope(page, dola, "seedream-4.5", phone)
+    scope = models_scope(page, dola, "seedream-4.5", sheet)
     expect(scope.get_by_label("seedream-4.5 points price")).to_have_value("2")
-    close_sheet(page, phone)
+    close_sheet(page, sheet)
 
 
 STATES = (

@@ -23,6 +23,7 @@ import {
   withModelOn,
   withPrice,
 } from "./settings-cards";
+import { useStacked } from "./settings-media";
 
 // Models and prices of one provider (Settings, "Models and prices"): a Video table and an Image table, a row per model
 // of the catalog with its Offered switch (`<p>.disabled_models`), its sale points per tier (`<p>.prices`) and its
@@ -40,6 +41,10 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ draft: [key: string, text: string]; reset: [key: string] }>();
 const { isPhone } = useBreakpoint();
+// SettingsTablet: one read-only table (On/Off, the sale points, the credits joined); a tap on a model's name opens the
+// same sheet the phone edits in. The board draws no way to edit there: the name as a button is the least that adds one.
+const stacked = useStacked();
+const readOnly = computed(() => stacked.value && !isPhone.value);
 
 const own = computed(() => props.card.own);
 const prices = computed(() =>
@@ -62,6 +67,9 @@ const costHead = (kind: string): string => {
   return kind === "image" && unit === "uses" ? "Image uses" : `Upstream ${unit}`;
 };
 const unitWord = (kind: string): string => props.units[kind] ?? "units";
+// "4 uses", "1 use", "— uses": a count with its word, singular for one
+const counted = (text: string | undefined, word: string): string =>
+  `${text || "—"} ${text === "1" ? word.replace(/s$/, "") : word}`;
 
 interface Row {
   m: CatalogModel;
@@ -156,10 +164,26 @@ function edit(table: (typeof tables.value)[number], id: string): void {
   sheetOpen.value = true;
 }
 const join = (list: Array<PriceInput | undefined>): string => list.map((p) => p?.text || "—").join(" · ");
+
+// the tablet's one table: the video tiers as its columns; an image model shows its one price in the first and its uses
+const flat = computed(() => {
+  const lead = tables.value.find((t) => t.kind === "video") ?? tables.value[0];
+  const cols = lead?.cols ?? [];
+  const unit = lead ? unitWord(lead.kind) : "credits";
+  const rows = tables.value.flatMap((t) =>
+    t.rows.map((r) => ({
+      t,
+      r,
+      sale: t === lead ? r.sale : cols.map((_c, i) => (i === 0 ? r.sale[0] : undefined)),
+      credits: t === lead ? join(r.cost) : counted(r.cost[0]?.text, unitWord(t.kind)),
+    })),
+  );
+  return { cols, rows, head: unit.charAt(0).toUpperCase() + unit.slice(1) };
+});
 function phoneSub(t: (typeof tables.value)[number], r: Row): string {
   if (t.single) {
     const per = t.kind === "video" ? "job" : "image";
-    return `${r.sale[0]?.text || "—"} points per ${per} · ${r.cost[0]?.text || "—"} ${unitWord(t.kind)}`;
+    return `${counted(r.sale[0]?.text, "points")} per ${per} · ${counted(r.cost[0]?.text, unitWord(t.kind))}`;
   }
   // the model's own tiers only: one it has no price or cost for is left out, not drawn as a dash
   const own = t.cols.map((_c, i) => i).filter((i) => r.sale[i] || r.cost[i]);
@@ -171,7 +195,42 @@ function phoneSub(t: (typeof tables.value)[number], r: Row): string {
 
 <template>
   <div class="mp" :data-testid="`model-prices-${card.group}`">
-    <template v-for="(t, n) in tables" :key="t.kind">
+    <ArrowScroller v-if="readOnly && flat.rows.length" :label="`${card.group} prices`" table>
+      <table class="mp__table mp__table--ro">
+        <thead>
+          <tr>
+            <th class="first">Model</th>
+            <th class="center">Offered</th>
+            <th v-for="c in flat.cols" :key="c" class="tier num">{{ tierHead(c, "job") }}</th>
+            <th class="last right">{{ flat.head }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="x in flat.rows" :key="x.r.m.id" :class="{ 'is-off': !x.r.on }" :data-model="x.r.m.id">
+            <td class="first">
+              <button
+                type="button"
+                class="mp__open mono mp__name"
+                :aria-label="`Edit ${x.r.m.id} prices`"
+                :disabled="busy"
+                @click="edit(x.t, x.r.m.id)"
+              >
+                {{ x.r.m.id }}
+              </button>
+              <div class="mono mp__kinds">{{ kindsText(x.r.m) }}</div>
+            </td>
+            <td class="center">
+              <span class="pill" :class="x.r.on ? 'pill--ok' : 'pill--neutral'">{{ x.r.on ? "On" : "Off" }}</span>
+            </td>
+            <td v-for="(s, i) in x.sale" :key="i" class="tier num" :class="{ 'is-changed-ro': s && changedPrice(s) }">
+              {{ s?.text || "—" }}
+            </td>
+            <td class="last right num">{{ x.credits }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </ArrowScroller>
+    <template v-for="(t, n) in readOnly ? [] : tables" :key="t.kind">
       <div class="mp__head" :class="{ 'is-ruled': n > 0 }">
         <h3>{{ t.title }}</h3>
         <span class="help">{{ t.note }}</span>
@@ -474,6 +533,52 @@ function phoneSub(t: (typeof tables.value)[number], r: Row): string {
 .mp__table td.first {
   padding: 12px 8px 12px 20px;
   min-width: 180px;
+}
+/* SettingsTablet: the read-only table, its figures plain, an edited one bold */
+.mp__table--ro {
+  min-width: 640px;
+}
+.mp__table--ro th.tier {
+  padding: 10px 6px;
+}
+.mp__table--ro th.center,
+.mp__table--ro td.center {
+  text-align: center;
+}
+.mp__table--ro td.tier {
+  padding: 12px 6px;
+  text-align: center;
+  color: var(--rl-body);
+}
+.mp__table--ro td.last {
+  color: var(--rl-body);
+}
+.mp__table--ro .is-changed-ro {
+  font-weight: 800;
+  color: var(--rl-fg);
+}
+.mp__open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-family: var(--rl-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.mp__open:hover {
+  color: var(--rl-brand-ink);
+  text-decoration: underline;
+}
+.mp__open:focus-visible {
+  outline: 2px solid var(--rl-focus);
+  outline-offset: 2px;
+}
+.mp__kinds {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--rl-faint);
 }
 .mp__table td.offer {
   padding: 12px 8px;

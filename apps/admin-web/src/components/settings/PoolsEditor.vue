@@ -357,4 +357,12 @@ const n = (x: number): string => x.toLocaleString("en-US");
     height: 44px;
   }
 }
+/* stacked (SettingsTablet, SettingsPhone): one field a row, the full width of the card */
+@media (max-width: 967px) {
+  .pools__grid,
+  .pools__weights {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
 </style>
