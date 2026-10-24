@@ -263,7 +263,7 @@ async def charged_job(env, db, key_id, points, *, failed=False, days_back=0):
 @mutation(CATALOG, "AND c.billing_day = (clock_timestamp()", "AND c.billing_day <= (clock_timestamp()",
           expect="an earlier day's charge is not today's spend")
 @mutation(CATALOG, "WHERE c.key_id = %s AND c.scope = '*'", "WHERE c.key_id = %s AND true",
-          expect="the cap's rows repeat the points wallet's")
+          expect="a refund gives the spend back")
 @mutation(CATALOG, TOTAL_LEFT, '"total": star["total_limit"]}', expect="the total limit less what was used")
 @mutation(CATALOG, '"name": key.label or None', '"name": key.label', expect="a key without a label has no name")
 def test_points_name_the_key_and_show_what_the_limits_leave_and_todays_spend_net_of_refunds(db):

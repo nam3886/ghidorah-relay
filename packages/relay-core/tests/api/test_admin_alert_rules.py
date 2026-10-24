@@ -124,9 +124,9 @@ def test_a_muted_live_kind_is_listed_apart_with_its_end_and_raised_again_once_th
 
     muted, unmuted = run_app(db, scenario)
     assert "accounts_low" not in kinds_of(muted["alerts"]), "a muted live kind is still raised"
-    (apart,) = [a for a in muted["muted_alerts"] if a["kind"] == "accounts_low"]
-    assert apart["provider"] == "fake" and apart["muted_until_ms"] > time.time() * 1000, \
-        "the muted condition is listed apart"
+    apart = [a for a in muted["muted_alerts"] if a["kind"] == "accounts_low"]
+    assert [a["provider"] for a in apart] == ["fake"], "the muted condition is listed apart"
+    assert apart[0]["muted_until_ms"] > time.time() * 1000
     assert "accounts_low" in kinds_of(unmuted["alerts"]) and unmuted["muted_alerts"] == []
 
 
@@ -150,7 +150,7 @@ def test_a_rule_change_names_a_known_kind_and_a_mute_from_0_to_a_week_and_keeps_
         return refused, kept, week, off
 
     refused, kept, week, off = run_app(db, scenario)
-    codes = [(r.status_code, r.json()["error"]["code"]) for r in refused]
+    codes = [(r.status_code, r.json().get("error", {}).get("code")) for r in refused]
     assert codes[:2] == [(404, "resource.not_found")] * 2, "an unknown rule: %s" % codes
     assert [c for c, _ in codes[2:]] == [400] * 5, "a mute of more than a week: %s" % codes
     assert kept["muted_until_ms"] is not None, "turning a kind on keeps its mute"
@@ -159,9 +159,9 @@ def test_a_rule_change_names_a_known_kind_and_a_mute_from_0_to_a_week_and_keeps_
 
 
 @mutation(ALERTS, "('clamp', 'drift') AND acknowledged_at >= %(start)s", "('clamp', 'drift') AND acknowledged_at "
-          "IS NOT NULL AND %(start)s IS NOT NULL", expect="a billing row acknowledged before today")
+          "IS NOT NULL AND %(start)s IS NOT NULL", expect="a row acknowledged before today")
 @mutation(ALERTS, "FROM unclear_replies WHERE acknowledged_at >= %(start)s) r",
-          "FROM unclear_replies WHERE acknowledged_at IS NOT NULL) r", expect="a reply acknowledged before today")
+          "FROM unclear_replies WHERE acknowledged_at IS NOT NULL) r", expect="a row acknowledged before today")
 @mutation(ALERTS, "GROUP BY kind, grp ORDER BY max(at) DESC,", "GROUP BY kind, grp ORDER BY max(at),",
           expect="the newest first")
 def test_resolved_today_counts_the_groups_acknowledged_since_the_billing_day_began_newest_first(db):

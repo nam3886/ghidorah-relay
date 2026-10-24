@@ -151,9 +151,14 @@ async function read(at: AlertAsk): Promise<View> {
       detailError = err;
     }
   }
-  // the muted conditions are listed with their mute's end (they are never counted)
-  const live = [...stat.alerts, ...(stat.muted_alerts ?? [])];
-  return { groups: list.items, live, opened: detail, detailError, resolved: done };
+  // the muted conditions are listed too, with their mute's end (they are never counted)
+  return {
+    groups: list.items,
+    live: stat.alerts.concat(stat.muted_alerts ?? []),
+    opened: detail,
+    detailError,
+    resolved: done,
+  };
 }
 
 function draw(view: View, at: AlertAsk): void {
@@ -298,19 +303,19 @@ function openJob(jobId: string): void {
 
 const detailHeading = computed(() => (shownDetail.value ? alertTitle(shownDetail.value) : "Alert details"));
 
-// `g` is the group as it was drawn, from the list or from the open detail: its newest row is the one the operator saw.
-async function acknowledge(g: AlertGroup) {
+// A write of the page (Acknowledge, Mute 1 h): it runs alone, the list is read again so the cards show what it did, the
+// toast says it (and a reload that failed), and the banner counts follow. `action` answers what the toast says.
+async function write(action: () => Promise<string>) {
   await run(async () => {
     writing.value = true;
     try {
-      const result = await acknowledgeGroup(g, g.newest_id);
+      const said = await action();
       let failure: unknown = null;
       try {
         await load();
       } catch (err) {
         failure = err;
       }
-      const said = ackToast(result.acknowledged);
       if (failure) notify.error(`${said}, but the list could not be reloaded: ${errorText(failure)}`);
       else notify.success(said);
     } finally {
@@ -321,27 +326,16 @@ async function acknowledge(g: AlertGroup) {
   });
 }
 
-// Mute 1 h: the row's kind is muted from now for an hour; the list is read again, so the row shows the mute's end.
-async function mute(source: RuleSource, kind: string) {
-  await run(async () => {
-    writing.value = true;
-    try {
-      const rule = await changeAlertRule(source, kind, { mute_minutes: MUTE_MINUTES });
-      let failure: unknown = null;
-      try {
-        await load();
-      } catch (err) {
-        failure = err;
-      }
-      const said = rule.muted_until_ms ? `${kind} muted until ${dayClock(rule.muted_until_ms)}` : `${kind} muted`;
-      if (failure) notify.error(`${said}, but the list could not be reloaded: ${errorText(failure)}`);
-      else notify.success(said);
-    } finally {
-      writing.value = false;
-    }
-    await stats.refresh();
+// `g` is the group as it was drawn, from the list or from the open detail: its newest row is the one the operator saw.
+const acknowledge = (g: AlertGroup) =>
+  write(async () => ackToast((await acknowledgeGroup(g, g.newest_id)).acknowledged));
+
+// Mute 1 h: the row's kind is muted from now for an hour; the row then shows the mute's end.
+const mute = (source: RuleSource, kind: string) =>
+  write(async () => {
+    const rule = await changeAlertRule(source, kind, { mute_minutes: MUTE_MINUTES });
+    return rule.muted_until_ms ? `${kind} muted until ${dayClock(rule.muted_until_ms)}` : `${kind} muted`;
   });
-}
 
 // Open Jobs filtered: the Jobs page with the group's provider on the strip and its key (when it has one) in `key_id`,
 // the query that page reads; an empty `key_id` clears a key filter left from before.
@@ -352,11 +346,8 @@ function openJobs(g: AlertGroup): void {
   void router.push({ name: "jobs", query: { key_id: f.keyId } });
 }
 
-// a rule changed in the rules drawer: the cards and the counts follow
-async function rulesChanged(): Promise<void> {
-  await run(load);
-  await stats.refresh();
-}
+// a rule changed in the rules drawer: the cards and the counts follow (the banner through the stats store)
+const rulesChanged = () => run(() => Promise.all([load(), stats.refresh()]));
 
 const groupCount = computed(() => `${groups.value.length} ${groups.value.length === 1 ? "group" : "groups"}`);
 

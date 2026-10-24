@@ -246,8 +246,8 @@ DURATION_SELECT = PICKER + "a model with a duration list gets a select of them, 
 NOT_TAKEN = (PICKER + "a model that takes no ratio, style or image (meta) shows none of them and sends none, even "
              + "ones saved for another model")
 OWN_STYLES = PICKER + "a dola image model offers its own styles when the provider's options name none"
-DISPLAY_NAME = (PICKER + "a model chip shows its display name, else its id; the chosen one has a check and what "
-                + "it sends below")
+DISPLAY_NAME = (PICKER + "a model chip shows its display name, else its id; the chosen one is filled and what "
+                + "it sends is below")
 RESULT_CARD = (VIEW_SPEC + "the result card > shows the step and word of a job in progress, its short id "
                + "and the fields it carries, and the id opens the job")
 FAILED_JOB = VIEW_SPEC + "the result card > a finished job has no empty slot, and a failed one shows the reason"
@@ -698,7 +698,7 @@ ONE_OUTPUT = (VIEW_SPEC + "the form's foot and checks > a model that returns one
 @mutation(TEST_MODELS, "const left = room ? (num(room.total) ?? num(room.day)) : null;",
           "const left = room ? num(room.day) : null;",
           expect=WALLET_TIMELINE + "names the key, shows what its points wallet has left and today's spend")
-@mutation(TEST_RESULT_MODEL, "reached: d.sent_ms !== null,", "reached: true,",
+@mutation(TEST_RESULT_MODEL, 'reached: doneAt !== null || d.status === "done",', "reached: true,",
           expect=WALLET_TIMELINE + "draws the steps of the shown job from its admin detail, the claim without a time")
 @mutation(TEST_RESULT_MODEL, "reached: d.account_id !== null,", "reached: false,",
           expect=WALLET_TIMELINE + "draws the steps of the shown job from its admin detail, the claim without a time")

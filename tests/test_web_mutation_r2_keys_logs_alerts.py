@@ -779,7 +779,7 @@ STATS_STORE = SRC + "/stores/stats.ts"
           expect=MUTED + "Mute 1 h mutes the row's kind for 60 minutes; a muted row shows its end and is not counted")
 @mutation(ALERTS, "if (!a.muted_until_ms) n[", "if (a) n[",
           expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
-@mutation(ALERTS, "const live = [...stat.alerts, ...(stat.muted_alerts ?? [])];", "const live = [...stat.alerts];",
+@mutation(ALERTS, "stat.alerts.concat(stat.muted_alerts ?? [])", "stat.alerts.concat([])",
           expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
 @mutation(ALERTS_MODEL, 'return { provider: scope && scope !== POINTS ? scope : "", keyId: key ?? "" };',
           'return { provider: scope ?? "", keyId: key ?? "" };',

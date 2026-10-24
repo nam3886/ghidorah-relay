@@ -1171,10 +1171,12 @@ describe("mute, rules, Open Jobs filtered and Resolved today", () => {
   });
 
   it("Open Jobs filtered opens Jobs on the group's provider and key", async () => {
+    // a points-wallet group (`<key>.*`): its key, and no provider (the wallet is every provider's)
+    list.mockResolvedValue({ items: [group({ group: "k1.*" })] });
+    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail({ group: "k1.*" }));
     const w = await open();
-    await listButtons(w, "Details of Clamp on fake")[0]!.trigger("click");
+    await titleButtons(w)[0]!.trigger("click");
     await settle();
-    vi.mocked(alerts.getAlertGroup).mockResolvedValue(detail());
     const go = dr()
       .findAll("button")
       .find((b) => b.text() === "Open Jobs filtered")!;
@@ -1182,7 +1184,7 @@ describe("mute, rules, Open Jobs filtered and Resolved today", () => {
     await go.trigger("click");
     await settle();
     expect(useScopeStore().provider).toBe("");
-    expect(push).toHaveBeenCalledWith({ name: "jobs", query: { key_id: "g1" } });
+    expect(push).toHaveBeenCalledWith({ name: "jobs", query: { key_id: "k1" } });
     void w;
   });
 
