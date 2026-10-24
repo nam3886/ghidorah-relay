@@ -391,7 +391,7 @@ def test_the_hint_tip_is_a_focusable_note_on_the_menu_surface():
 # ---- page-frames-settings round: the toast drawn as B-States (its body, the ×N pill, the X, over Element Plus) ------
 NOTIFY_SPEC = "tests/unit/shared/notify.spec.ts"
 REPEAT = "a repeat while the toast is open is the same body"
-DRAWN_BODY = "draws the body as B-States"
+DRAWN_BODY = "draws the body as MenusToasts"
 AFTER_CLEAR = "the same words right after clear are a new toast"
 AFTER_X = "the same error right after a click on its X is a new toast"
 
@@ -403,10 +403,11 @@ AFTER_X = "the same error right after a click on its X is a new toast"
 @mutation(NOTIFY, "      shown.clear();\n      message.closeAll();", "      message.closeAll();", expect=AFTER_CLEAR)
 @mutation(NOTIFY, "            forget(made);\n            made.handle?.close?.();",
           "            made.handle?.close?.();", expect=AFTER_X)
-@mutation(NOTIFY, '"aria-label": "Close message"', '"aria-label": "Close"', expect=DRAWN_BODY)
-@mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2 })", "h(IconClose, { size: 16, stroke: 2 })", expect=DRAWN_BODY)
+@mutation(NOTIFY, '"aria-label": "Dismiss"', '"aria-label": "Close"', expect=DRAWN_BODY)
+@mutation(NOTIFY, "h(IconClose, { size: 14, stroke: 2.4 })", "h(IconClose, { size: 16, stroke: 2.4 })",
+          expect=DRAWN_BODY)
 @pytest.mark.web_unit
-def test_the_toast_body_is_drawn_as_b_states():
+def test_the_toast_body_is_drawn_as_menus_toasts():
     vitest(NOTIFY_SPEC)
 
 
