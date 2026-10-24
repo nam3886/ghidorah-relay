@@ -36,7 +36,15 @@ IMAGE_TOOL = 14                       # inner[49] of a send with the image tool 
 VIDEO_TOOL = 11                       # inner[49] of a send with the video tool ("Create video") chosen
 MAX_ACCOUNTS = 10                     # a Google session holds at most 10 signed-in accounts: /u/0../u/9
 GENERATING_MARK = "video_generation"  # the "I'm generating your video" item of a video send that was taken
-VIDEO_LIMIT_TEXT = "create more videos"   # "I can't create more videos for you today, ..." (measured 23/10)
+# The video limit answer, in `submit.plain` form (lowercase, straight apostrophes, "cannot" as "can't", no other
+# punctuation). Measured 23/10: "I can't create more videos for you today, ..."; the others are its likely rewordings.
+VIDEO_LIMIT_PHRASES = ("can't create more videos", "can't make more videos", "can't generate more videos",
+                       "no more videos today", "reached your video limit", "reached the video limit",
+                       "reached your daily video limit", "video generation limit")
+# Words of a quota-like answer (English, Vietnamese, Spanish, French, German, Japanese/Chinese): a video refusal that
+# holds one also rests the account's video pool, since it may be the limit answer worded otherwise.
+QUOTA_WORDS = ("limit", "quota", "today", "tomorrow", "try again later", "giới hạn", "hôm nay", "ngày mai", "límite",
+               "hoy", "limite", "aujourd'hui", "heute", "上限", "今日", "今天")
 CAPABILITIES = [4, 5, 6, 8, 16, 19, 20, 4, 5, 6, 8, 16, 19, 20]     # the web app's capability list (23/10)
 # A desktop Chrome, as the web app is used.
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "

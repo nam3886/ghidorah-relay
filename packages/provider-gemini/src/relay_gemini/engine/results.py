@@ -25,7 +25,6 @@ import httpx
 
 from relay_core.net import stream_download, system_resolver
 from relay_core.providers import Done, Failed, Found, Output, Pending, PollResult, Reconciled, StillUnknown, Success
-from relay_gemini import errors
 from relay_gemini.constants import (
     BYTES_HOST,
     FIND_AFTER_S,
@@ -39,7 +38,7 @@ from relay_gemini.constants import (
 )
 from relay_gemini.engine.http import Sessions, Site, proxy_url
 from relay_gemini.engine.reply import Turn, chats, same_text, turns
-from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, is_video, judge, limit_rest, outputs_of, sent_text
+from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, is_video, judge, outputs_of, refusal_rests, sent_text
 
 LIST_CHATS = "MaZiqc"
 READ_CHAT = "hNvQHb"
@@ -82,7 +81,7 @@ async def reconcile(ctx, job, settings, sessions: Sessions, *, transport=None) -
     state = job.provider_state or {}
     try:
         async with Site(ctx, sessions, settings, transport=transport) as site:
-            if not (await site.load()).signed_in:
+            if await site.open_account() is None:      # never a chat or a prompt of another Google account
                 return StillUnknown()
             chat = state.get(CHAT_KEY)
             if chat:
@@ -112,8 +111,9 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
         return PollResult(Pending("no chat to read", wait, answered=False))
     try:
         async with Site(ctx, sessions, settings, transport=transport) as site:
-            if not (await site.load()).signed_in:
-                return PollResult(Pending("gemini's page is signed out", wait, answered=False))
+            if await site.open_account() is None:
+                return PollResult(Pending("gemini's page is signed out or not the account's Google account", wait,
+                                          answered=False))
             turn, answered = await read_chat(site, chat)
     except httpx.HTTPError as e:
         return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))
@@ -124,8 +124,8 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
         return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
     if verdict == "refused":
         code, text = what
-        limited = (limit_rest(settings, now()),) if code == errors.VIDEO_LIMIT else ()
-        return PollResult(Failed(code, "gemini answered: %s" % text[:300]), effects=limited)
+        return PollResult(Failed(code, "gemini answered: %s" % text[:300]),
+                          effects=refusal_rests(settings, now(), code, text, is_video(job)))
     return PollResult(Pending("gemini is generating the video" if verdict == "taken" else what, wait))
 
 
@@ -136,6 +136,8 @@ async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=Non
     that does not resolve raises (the fetcher retries; the render deadline bounds it)."""
     video = out.mime.startswith("video/")
     async with Site(ctx, sessions, settings, transport=transport) as site:
+        if await site.open_account() is None:
+            raise RuntimeError("the account's Google account could not be verified")
         link = await site.resolve(out.ref, VIDEO_SIZE if video else FULL_SIZE)
     if link is None:
         raise RuntimeError("the result link did not resolve to the file")

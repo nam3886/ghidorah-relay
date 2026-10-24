@@ -940,8 +940,11 @@ direct only for an account with none).
 the export under `cookies` and the address of the Google account meant under `email`. The check then finds that
 account's `/u/N` index (the owner's 24/10 session: five accounts, the AI Pro one at `/u/4`) and keeps it with the account's default mode in the
 account's provider state; every job goes there. Without `email` the jobs go to `/u/0`. An email the session does not
-hold makes the check unknown with a 10-min rest and a recheck (no strike). A job on an account whose page is not that
-email, or that no check has resolved yet, is retried before anything is sent (`gemini.account_unresolved`). The check
+hold makes the check unknown with a 10-min rest and a recheck (no strike); so does a mode list that cannot be read
+(the kept mode is cleared). A job on an account whose page is not that email, or that no check has resolved yet, is
+retried before anything is sent (`gemini.account_unresolved`). Every read of a job (reconcile, poll, fetch) first loads
+the page and checks it is that email, looking for its index again if the session's order moved; when it cannot, it
+reads nothing (still unknown, or pending). The check
 names the account by its email. Before the import, stop anything else
 that rotates that session (the spike's keeper container `gemini-spike-keeper` on the box): two rotators end it.
 
@@ -961,12 +964,15 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 - A complete answer (every line read, closed by gemini's end item) with an image is `Completed`: the image's link is
   resolved with the session (`=d-I`, a few text hops on lh3/work.fife/lh3.google.com, `authuser=N` on `/u/N`) and the
   PNG downloaded from lh3 through the proxy.
-- A complete video answer with the "generating your video" item and a chat is accepted; the poll reads the chat every
+- A complete video answer with the "generating your video" item and a chat is accepted, whatever other text comes
+  with it (only the two proven refusals below win over it); the poll reads the chat every
   `gemini.poll_interval_s` until the video record is there (done), and the fetch resolves its link with `=m22` to the
   720p MP4 on a googlevideo.com host, downloaded through the proxy with no cookie.
 - A complete answer with a final text and no result fails the job with its refund: `gemini.not_entitled` for the
-  "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today" (the account's
-  video pool also rests `gemini.video_limit_rest_s`), `gemini.refused` for any other, the text kept.
+  "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today" and its
+  rewordings (case and punctuation ignored; the account's video pool also rests `gemini.video_limit_rest_s`),
+  `gemini.refused` for any other, the text kept. A video refusal that reads like a quota (limit, quota, today,
+  tomorrow, or the same in Vietnamese, Spanish, French, German, Japanese or Chinese) also rests the video pool.
 - Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not 200, an error item, an answer
   that promises an image with no record) is `unknown`. The reconciler reads the chat the answer named, or else the
   chat list (`MaZiqc`, the newest 13): a chat started within 60 s before / 300 s after the send whose prompt is the job's

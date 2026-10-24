@@ -10,7 +10,8 @@ A session can be signed in to several Google accounts (`/u/0`, `/u/1`, ...; FIND
 email and the page at the account's index is another account, the check looks through the indexes for it and keeps
 the one found in `provider_state.authuser`; none found is an unknown read and a rest with a recheck (no strike: the
 session is alive, it holds no such account). The account's default mode (the modes differ by plan) is kept in
-`provider_state.mode`. Every order of the account goes to that index with that mode.
+`provider_state.mode`. Every order of the account goes to that index with that mode. A mode list that cannot be read
+clears the kept mode (no send without it: `gemini.account_unresolved`) and is an unknown read with a rest and a recheck.
 """
 
 import time
@@ -20,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from relay_core.providers import Cooldown, Health, Suspect
-from relay_gemini.constants import SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
+from relay_gemini.constants import NETWORK_REST_S, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_gemini.engine.http import Sessions, Site
 
 
@@ -53,7 +54,12 @@ async def check_account(ctx, settings, sessions: Sessions, *, transport: httpx.A
                         Cooldown(why, now() + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True),))
                 page = site.page
             mode = await site.mode()
-            patch = {"authuser": site.authuser, **({"mode": mode} if mode else {})}
+            patch = {"authuser": site.authuser, "mode": mode}
+            if mode is None:        # no send without the account's own mode: the stale one is cleared, rest, recheck
+                rest = Cooldown("gemini's mode list could not be read", now() + timedelta(seconds=NETWORK_REST_S),
+                                recheck=True)
+                return Health("unknown", identity=page.email, display_name=page.email, state_patch=patch,
+                              effects=(rest,))
             return Health("alive", identity=page.email, display_name=page.email, state_patch=patch)
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out

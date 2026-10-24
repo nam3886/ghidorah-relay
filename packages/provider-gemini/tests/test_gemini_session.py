@@ -238,6 +238,19 @@ def test_the_check_finds_the_index_of_the_account_the_credential_names_and_keeps
     assert health.state_patch["authuser"] == 2 and log.count("page") == 1
 
 
+@mutation(CHECK_FILE, "            if mode is None:        # no send", "            if False:        # no send",
+          expect="ready with no mode")
+def test_a_mode_list_that_cannot_be_read_clears_the_kept_mode_and_is_a_rest_with_a_recheck():
+    for answer in ('%s\n' % ")]}'", httpx.Response(500, text="x")):
+        log = []
+        health = check(Gemini(log, rpc={"otAQ7b": answer}), Ctx(log, state={"authuser": 0, "mode": "0" * 16}))
+        assert health.state == "unknown", "reported ready with no mode: %s" % (health,)
+        assert health.state_patch == {"authuser": 0, "mode": None}, "the stale mode was kept: %s" % (health,)
+        (rest,) = health.effects
+        assert isinstance(rest, Cooldown) and rest.recheck and rest.until == NOW + timedelta(seconds=300)
+        assert health.identity == EMAIL
+
+
 @mutation(HTTP_FILE, LIST_END, "", expect="past the last account")
 def test_an_email_no_account_of_the_session_has_is_a_rest_and_a_recheck_never_a_strike():
     log = []

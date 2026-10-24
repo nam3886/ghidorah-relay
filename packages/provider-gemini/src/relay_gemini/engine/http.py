@@ -54,6 +54,7 @@ _AT = re.compile(r'"SNlM0e":"([^"]+)"')
 _FSID = re.compile(r'"FdrFJe":"(-?\d+)"')
 _BL = re.compile(r'"cfb2h":"([^"]+)"')
 _EMAIL = re.compile(r'"oPEP7c":"([^"@]+@[^"]+)"')
+SESSION_LINK_HOSTS = tuple(h for h in LINK_HOSTS if h != BYTES_HOST)   # the link hops that read the session
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -267,6 +268,19 @@ class Site:
                 return n
         return None
 
+    async def open_account(self) -> Page | None:
+        """Load the page and make sure it is the Google account the credential names before any account-scoped
+        read: at the kept index, or, when the session's account order moved, at the index `find_account` finds now
+        (for this run). None when the page is signed out or the account cannot be found: the caller reads nothing."""
+        page = await self.load()
+        if not page.signed_in:
+            return None
+        if self.email and (page.email or "").lower() != self.email:
+            if await self.find_account(self.email) is None:
+                return None
+            page = self.page
+        return page
+
     async def mode(self) -> str | None:
         """The account's default mode id (otAQ7b), sent with every order: the modes differ by plan (FINDINGS 6)."""
         status, body = await self.rpc("otAQ7b", [])
@@ -323,7 +337,8 @@ class Site:
         """A result link (`/gg-dl/` of a reply, `/gg/` of a chat read) to the link of the file's bytes: the link with
         `size` (`=d-I` an image's original, `=m22` a video's 720p MP4) and `alr=yes` answers the next link as text, the
         session's cookies going only where their domain covers the host (FINDINGS 3, 7). On `/u/N` the first link and
-        every hop off lh3.googleusercontent.com name the account (`authuser=N`): without it the last hop is 403. Every
+        every hop on a host that reads the session (`SESSION_LINK_HOSTS`) name the account (`authuser=N`): without it
+        the last hop is 403. The bytes host (lh3, googlevideo.com) gets neither the account nor a cookie. Every
         hop must be https on `LINK_HOSTS` or, for a video's bytes, a googlevideo.com host. None when a hop is not, or
         the chain does not end, inside `LINK_HOPS`, in an answer that is not text."""
         au = "&authuser=%d" % self.authuser if self.authuser else ""
@@ -341,8 +356,8 @@ class Site:
                 text = (await resp.aread()).decode("utf-8", "replace").strip()
             if not text.startswith("https://"):
                 return None
-            current = text if not au or urlsplit(text).hostname == BYTES_HOST \
-                else text + ("&" if "?" in text else "?") + au[1:]
+            current = text + ("&" if "?" in text else "?") + au[1:] \
+                if au and urlsplit(text).hostname in SESSION_LINK_HOSTS else text
         return None
 
 

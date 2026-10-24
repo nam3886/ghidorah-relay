@@ -353,8 +353,8 @@ def poll(g, j):
     return asyncio.run(R.poll(Ctx(g.log), j, settings(), Sessions(), transport=g.transport, rand=lambda: 0.0))
 
 
-@mutation(RESULTS_FILE, '    if verdict == "refused":\n        code, text = what\n        limited',
-          '    if False:\n        code, text = what\n        limited', expect="a refused chat")
+@mutation(RESULTS_FILE, '    if verdict == "refused":\n        code, text = what\n        return PollResult(Failed(',
+          '    if False:\n        code, text = what\n        return PollResult(Failed(', expect="a refused chat")
 def test_poll_reads_the_found_chat_an_image_is_done_a_plain_answer_fails_anything_else_waits():
     state = {"chat": T2I_CHAT}
     done = poll(Gemini([], rpc={"hNvQHb": READ}), job(state=state))

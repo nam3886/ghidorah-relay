@@ -23,6 +23,7 @@ from geminikit import (
     Gemini,
     answer,
     blob_for,
+    frames,
     inner_of,
     job,
     settings,
@@ -46,8 +47,8 @@ from relay_core.testing.mutation import mutation
 from relay_gemini import errors
 from relay_gemini.engine import results as R
 from relay_gemini.engine.http import Sessions
-from relay_gemini.engine.reply import read_answer, turns
-from relay_gemini.engine.submit import submit
+from relay_gemini.engine.reply import Turn, read_answer, turns
+from relay_gemini.engine.submit import judge, submit
 
 SUBMIT_FILE = "packages/provider-gemini/src/relay_gemini/engine/submit.py"
 RESULTS_FILE = "packages/provider-gemini/src/relay_gemini/engine/results.py"
@@ -88,8 +89,8 @@ def cid_of(text: str) -> str:
 
 
 # ---- the send -----------------------------------------------------------------------------------------------------
-TAKEN_IF = "    if video and answer.generating and not final:"
-TAKEN = TAKEN_IF + '      # the free plan\'s "upgrade" answer carries the item too\n        return "taken", None\n'
+TAKEN_IF = "    if video and answer.generating:"
+TAKEN = TAKEN_IF + "     # taken, whatever other text comes with it: never a refusal while it renders\n"
 
 
 @mutation(SUBMIT_FILE, TAKEN, "", expect="a taken video")
@@ -172,13 +173,13 @@ def test_a_generating_answer_that_names_no_chat_is_unknown():
     assert isinstance(result.job, Ambiguous), "a generating answer with no chat became %s" % (result.job,)
 
 
-LIMIT = "    if video and VIDEO_LIMIT_TEXT in final:\n"
-LIMIT_REST = "        limited = (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT else ()\n"
+LIMIT = "    if video and is_video_limit(final):\n"
+LIMIT_REST = "    return (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT or quota else ()"
 
 
 @mutation(SUBMIT_FILE, LIMIT, "    if False:\n", expect="the video limit")
-@mutation(SUBMIT_FILE, TAKEN_IF, "    if video and answer.generating:", expect="the upgrade answer")
-@mutation(SUBMIT_FILE, LIMIT_REST, "        limited = ()\n", expect="the video pool did not rest")
+@mutation(SUBMIT_FILE, "    if NOT_ENTITLED_LINK in final:\n", "    if False:\n", expect="the upgrade answer")
+@mutation(SUBMIT_FILE, LIMIT_REST, "    return ()", expect="the video pool did not rest")
 def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_video_pool():
     text = "I can't create more videos for you today, but I can still find videos from the web."
     log = []
@@ -235,9 +236,9 @@ def test_poll_reads_the_chat_until_the_video_is_there():
     for pending, done, chat, size in ((T2V_PENDING, T2V_DONE, T2V_CHAT, 3748734), (I2V_PENDING, I2V_DONE, I2V_CHAT,
                                                                                   2132282)):
         state = {"chat": chat}
-        waiting = poll(Gemini([], rpc={"hNvQHb": pending}), video_job(state=state))
+        waiting = poll(pro_site([], rpc={"hNvQHb": pending}), video_job(state=state))
         assert isinstance(waiting.outcome, Pending), "a chat still generating became %s" % (waiting.outcome,)
-        got = poll(Gemini([], rpc={"hNvQHb": done}), video_job(state=state))
+        got = poll(pro_site([], rpc={"hNvQHb": done}), video_job(state=state))
         assert isinstance(got.outcome, Done), "the video was not read: %s" % (got.outcome,)
         (out,) = got.outcome.outputs
         assert out.mime == "video/mp4" and out.ref.startswith("https://lh3.googleusercontent.com/gg/")
@@ -247,12 +248,12 @@ def test_poll_reads_the_chat_until_the_video_is_there():
     assert turns(I2V_PENDING)[0][0].images == () and turns(I2V_PENDING)[0][0].videos == ()
 
 
-POLL_LIMIT = "        limited = (limit_rest(settings, now()),) if code == errors.VIDEO_LIMIT else ()\n"
+POLL_LIMIT = "                          effects=refusal_rests(settings, now(), code, text, is_video(job)))"
 
 
-@mutation(RESULTS_FILE, POLL_LIMIT, "        limited = ()\n", expect="the video pool did not rest")
+@mutation(RESULTS_FILE, POLL_LIMIT, "                          effects=())", expect="the video pool did not rest")
 def test_a_chat_that_answered_the_video_limit_fails_refunded_and_rests_the_video_pool():
-    got = poll(Gemini([], rpc={"hNvQHb": VIDEO_LIMIT}), video_job(state={"chat": "c_000000000000a000"}))
+    got = poll(pro_site([], rpc={"hNvQHb": VIDEO_LIMIT}), video_job(state={"chat": "c_000000000000a000"}))
     assert isinstance(got.outcome, Failed) and got.outcome.code == errors.VIDEO_LIMIT, got.outcome
     assert [e.pool for e in got.effects if isinstance(e, Rest)] == ["video"], "the video pool did not rest"
 
@@ -260,7 +261,7 @@ def test_a_chat_that_answered_the_video_limit_fails_refunded_and_rests_the_video
 def test_a_lost_video_send_is_found_by_its_exact_text_like_an_image():
     from geminikit import chat_read, listing
     start = video_job().sent_at.timestamp()
-    g = Gemini([], rpc={"MaZiqc": listing(("c_00000000000000b2", start + 1)),
+    g = pro_site([], rpc={"MaZiqc": listing(("c_00000000000000b2", start + 1)),
                         "hNvQHb": chat_read(T2V_PROMPT, "", image=False, cid="c_00000000000000b2")})
     found = asyncio.run(R.reconcile(pro_ctx(g.log), video_job(), settings(), Sessions(), transport=g.transport))
     assert found.ref == "c_00000000000000b2" and "SEND" not in g.log
@@ -268,16 +269,19 @@ def test_a_lost_video_send_is_found_by_its_exact_text_like_an_image():
 
 FIRST_LINK = '        current = re.sub(r"=[A-Za-z0-9-]+$", "", link) + size + "?alr=yes"'
 SIZE = "        link = await site.resolve(out.ref, VIDEO_SIZE if video else FULL_SIZE)"
-LINK_AU = ('            current = text if not au or urlsplit(text).hostname == BYTES_HOST \\\n'
-           '                else text + ("&" if "?" in text else "?") + au[1:]')
+LINK_AU = ('            current = text + ("&" if "?" in text else "?") + au[1:] \\\n'
+           '                if au and urlsplit(text).hostname in SESSION_LINK_HOSTS else text')
+CDN_AU = "                if au and urlsplit(text).hostname in SESSION_LINK_HOSTS else text"
 
 
 @mutation(RESULTS_FILE, SIZE, "        link = await site.resolve(out.ref)", expect="the video's MP4")
 @mutation(HTTP_FILE, LINK_AU, "            current = text", expect="did not name the account")
+@mutation(HTTP_FILE, CDN_AU, "                if au and urlsplit(text).hostname != BYTES_HOST else text",
+          expect="the CDN request carried")
 @mutation(HTTP_FILE, FIRST_LINK + " + au", FIRST_LINK, expect="did not name the account")
 def test_a_video_is_fetched_as_its_720p_mp4_from_googlevideo_naming_the_account_on_every_session_hop():
     log = []
-    g = Gemini(log, chain={
+    g = pro_site(log, chain={
         "lh3.googleusercontent.com": (200, "text/plain", "https://lh3.google.com/rd/abc?x=1"),
         "lh3.google.com": (200, "text/plain", "https://rr1---sn-abc.googlevideo.com/videoplayback?id=1")})
     mp4 = b"\0\0\0\x18ftypmp42" + b"\0" * 32
@@ -295,13 +299,17 @@ def test_a_video_is_fetched_as_its_720p_mp4_from_googlevideo_naming_the_account_
     hop = next(r for r in g.seen if r.url.host == "lh3.google.com")
     assert hop.url.params.get("authuser") == "4" and hop.url.params.get("x") == "1", \
         "the lh3.google.com hop did not name the account: %s" % hop.url
-    assert "cookie" not in next(r for r in g.seen if r.url.host.endswith("googlevideo.com")).headers
-    assert site.routes, "the bytes were not downloaded"
+    cdn = [r for r in g.seen if r.url.host.endswith("googlevideo.com")] + [r for _, r in site.requests]
+    assert len(cdn) == 2, "the bytes were not downloaded: %s" % cdn
+    for r in cdn:
+        assert "authuser" not in r.url.params and "cookie" not in r.headers, \
+            "the CDN request carried the account or a cookie: %s" % r.url
 
 
 def test_a_video_link_that_leaves_the_google_hosts_is_never_followed():
     log = []
-    g = Gemini(log, chain={"lh3.googleusercontent.com": (200, "text/plain", "https://googlevideo.com.evil.example/x")})
+    evil = "https://googlevideo.com.evil.example/x"
+    g = pro_site(log, chain={"lh3.googleusercontent.com": (200, "text/plain", evil)})
 
     async def go():
         return [p async for p in R.fetch(pro_ctx(log), Output("https://lh3.googleusercontent.com/gg/V", "video/mp4", 0),
@@ -324,3 +332,136 @@ def test_the_recorded_video_answers_read_as_measured():
     assert (vid.width, vid.height, vid.duration_s, vid.mime) == (1280, 720, 10.005, "video/mp4")
     limit = turns(VIDEO_LIMIT)[0][0]
     assert not limit.generating and "create more videos" in limit.texts[-1]
+
+
+# ---- every account-scoped read checks the Google account first ---------------------------------------------------
+VERIFY = ('        if self.email and (page.email or "").lower() != self.email:\n'
+          '            if await self.find_account(self.email) is None:\n'
+          '                return None\n'
+          '            page = self.page\n'
+          '        return page\n')
+VERIFY_NONE = ("            if await self.find_account(self.email) is None:\n                return None\n"
+               "            page")
+MOVED = ["a@example.com", "b@example.com", EMAIL, "c@example.com", "someone.else@example.com"]   # /u/4 is not ours
+GONE = ["a@example.com", "b@example.com", "c@example.com", "d@example.com", "e@example.com"]   # none is ours
+
+
+def chat_reads(g):
+    return [r.url.path for r in g.seen if "hNvQHb" in str(r.url) or "MaZiqc" in str(r.url)]
+
+
+@mutation(HTTP_FILE, VERIFY, "        return page\n", expect="read another account")
+@mutation(HTTP_FILE, VERIFY_NONE, "            await self.find_account(self.email)\n            page",
+          expect="read with no verified account")
+@mutation(RESULTS_FILE, "            if await site.open_account() is None:\n                return PollResult(",
+          "            if await site.open_account() is None and False:\n                return PollResult(",
+          expect="read with no verified account")
+def test_poll_reads_the_chat_only_on_the_verified_account_re_resolving_a_moved_index():
+    g = Gemini([], accounts=MOVED, rpc={"hNvQHb": T2V_DONE})
+    got = poll(g, video_job(state={"chat": T2V_CHAT}))
+    assert chat_reads(g) and all(p.startswith("/u/2/") for p in chat_reads(g)), \
+        "the poll read another account: %s" % chat_reads(g)
+    assert isinstance(got.outcome, Done)
+    g = Gemini([], accounts=GONE, rpc={"hNvQHb": T2V_DONE})
+    got = poll(g, video_job(state={"chat": T2V_CHAT}))
+    assert chat_reads(g) == [], "the poll read with no verified account: %s" % chat_reads(g)
+    assert isinstance(got.outcome, Pending) and got.outcome.answered is False
+
+
+@mutation(RESULTS_FILE, "            if await site.open_account() is None:      # never a chat",
+          "            if await site.open_account() is None and False:      # never a chat",
+          expect="reconcile read with no verified account")
+def test_reconcile_never_matches_a_prompt_in_another_account():
+    from geminikit import chat_read, listing
+    start = video_job().sent_at.timestamp()
+    rpc = {"MaZiqc": listing(("c_00000000000000b2", start + 1)),
+           "hNvQHb": chat_read(T2V_PROMPT, "", image=False, cid="c_00000000000000b2")}
+    g = Gemini([], accounts=GONE, rpc=rpc)       # the same prompt sits in an account that is not ours
+    found = asyncio.run(R.reconcile(pro_ctx(g.log), video_job(), settings(), Sessions(), transport=g.transport))
+    assert found == R.StillUnknown() and chat_reads(g) == [], \
+        "reconcile read with no verified account: %s %s" % (found, chat_reads(g))
+    g = Gemini([], accounts=MOVED, rpc=rpc)
+    found = asyncio.run(R.reconcile(pro_ctx(g.log), video_job(), settings(), Sessions(), transport=g.transport))
+    assert found.ref == "c_00000000000000b2" and all(p.startswith("/u/2/") for p in chat_reads(g))
+
+
+@mutation(RESULTS_FILE, "        if await site.open_account() is None:\n            raise RuntimeError(",
+          "        if await site.open_account() is None and False:\n            raise RuntimeError(",
+          expect="fetched with no verified account")
+def test_fetch_resolves_a_link_only_on_the_verified_account():
+    log = []
+    g = Gemini(log, accounts=GONE)
+    out = Output("https://lh3.googleusercontent.com/gg/V", "video/mp4", 0)
+
+    async def go():
+        return [p async for p in R.fetch(pro_ctx(log), out, settings(), Sessions(), transport=g.transport,
+                                         media_transport=MediaSite(b""), media_resolver=public_resolver)]
+    raised = None
+    try:
+        asyncio.run(go())
+    except Exception as e:      # noqa: BLE001 - which exception is asserted below
+        raised = e
+    assert all(r.url.host in ("gemini.google.com", "accounts.google.com") for r in g.seen), \
+        "fetched with no verified account: %s" % [str(r.url.host) for r in g.seen]
+    assert isinstance(raised, RuntimeError) and "could not be verified" in str(raised), \
+        "fetched with no verified account: %r" % (raised,)
+
+
+# ---- the generating item wins over any text but the proven refusals ----------------------------------------------
+def generating_answer(text: str, cid: str = "c_00000000000000f1") -> str:
+    """A send's answer that carries the "generating your video" item, the chat, and a candidate with `text`."""
+    item = {"7": ["I'm generating your video.", ["video_generation", [None, None, "Video Generation"], 1]]}
+    cand = ["rc_00000000000000f3", [text], None, None, None, None, None, None, [1], "en"]
+    return frames([None, [cid, "r_00000000000000f2"], item], [None, [cid, "r_00000000000000f2"], None, None, [cand]])
+
+
+@mutation(SUBMIT_FILE, TAKEN, "", expect="a generating answer with text")
+@mutation(SUBMIT_FILE, LIMIT, "    if video and is_video_limit(final) and not answer.generating:\n",
+          expect="the limit beside the generating item")
+def test_a_generating_answer_with_any_other_text_is_accepted_never_refunded_and_the_proven_refusals_still_win():
+    for text in ("Sure! Here is a calm video of a paper boat.", "Something unexpected happened, I'll keep going."):
+        log = []
+        result = run(pro_site(log, send=generating_answer(text)), pro_ctx(log), video_job())
+        assert isinstance(result.job, Accepted) and result.job.ref == "c_00000000000000f1", \
+            "a generating answer with text became %s" % (result.job,)
+    log = []
+    result = run(pro_site(log, send=generating_answer("I can't create more videos for you today.")), pro_ctx(log),
+                 video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
+        "the limit beside the generating item became %s" % (result.job,)
+    # a chat read with text beside the item stays pending
+    turn = turns(T2V_PENDING)[0][0]
+    pending = Turn(turn.prompt, ("Working on it",), (), (), (), True)
+    assert judge(200, pending.answer(T2V_CHAT), video=True) == ("taken", None), "a generating answer with text"
+
+
+# ---- the limit answer, worded otherwise --------------------------------------------------------------------------
+LOWER = '    t = text.lower().replace("\\u2019", "\'")'
+CANNOT = '    t = t.replace("cannot", "can\'t").replace("can not", "can\'t")'
+PUNCT = "    return \" \".join(re.sub(r\"[^\\w']+\", \" \", t).split())"
+QUOTA = "    quota = video and code == errors.REFUSED and any(w in plain(text) for w in QUOTA_WORDS)"
+
+
+@mutation(SUBMIT_FILE, LOWER, '    t = text.replace("\\u2019", "\'")', expect="a variant of the limit")
+@mutation(SUBMIT_FILE, CANNOT, "    t = t", expect="a variant of the limit")
+@mutation(SUBMIT_FILE, PUNCT, "    return t", expect="a variant of the limit")
+@mutation(SUBMIT_FILE, QUOTA, "    quota = False", expect="a quota-like answer")
+def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_any_language_rests_the_video_pool():
+    for text in ("I CAN'T CREATE MORE VIDEOS FOR YOU TODAY.", "I can’t create more videos for you today",
+                 "Sorry, I cannot create more videos right now.", "You've reached your daily video limit!",
+                 "I can't   create\nmore videos, sorry."):
+        log = []
+        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+        assert result.job.code == errors.VIDEO_LIMIT, "a variant of the limit became %s: %r" % (result.job, text)
+    for text in ("Hôm nay tôi không thể tạo thêm video cho bạn.", "Has alcanzado el límite de videos.",
+                 "I can't make any more of these until tomorrow."):
+        log = []
+        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+        assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED
+        assert [e.pool for e in result.account if isinstance(e, Rest) and e.until > NOW + timedelta(hours=1)] \
+            == ["video"], "a quota-like answer did not rest the video pool: %r" % text
+    log = []
+    result = run(pro_site(log, send=answer("I can't make videos of real people.")), pro_ctx(log), video_job())
+    assert result.job.code == errors.REFUSED
+    assert not any(isinstance(e, Rest) and e.until > NOW + timedelta(hours=1) for e in result.account), \
+        "a content refusal rested the video pool"

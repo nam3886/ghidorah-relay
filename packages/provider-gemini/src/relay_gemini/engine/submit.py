@@ -60,7 +60,8 @@ from relay_gemini.constants import (
     IMAGE_TOOL,
     NETWORK_REST_S,
     NOT_ENTITLED_LINK,
-    VIDEO_LIMIT_TEXT,
+    QUOTA_WORDS,
+    VIDEO_LIMIT_PHRASES,
     VIDEO_TOOL,
 )
 from relay_gemini.engine.check import doubt_effects, signed_out_why
@@ -177,15 +178,36 @@ def judge(status: int, answer: Answer | None, *, video: bool = False) -> tuple[s
     if media:
         return "done", media
     final = answer.texts[-1].strip() if answer.texts else ""
-    if video and answer.generating and not final:      # the free plan's "upgrade" answer carries the item too
+    # the proven refusals first: the free plan's "upgrade" answer carries the "generating" item too (measured 23/10)
+    if NOT_ENTITLED_LINK in final:
+        return "refused", (errors.NOT_ENTITLED, final)
+    if video and is_video_limit(final):
+        return "refused", (errors.VIDEO_LIMIT, final)
+    if video and answer.generating:     # taken, whatever other text comes with it: never a refusal while it renders
         return "taken", None
     if not final or IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:
         return "unknown", "the answer named no %s record" % ("video" if video else "image")
-    if NOT_ENTITLED_LINK in final:
-        return "refused", (errors.NOT_ENTITLED, final)
-    if video and VIDEO_LIMIT_TEXT in final:
-        return "refused", (errors.VIDEO_LIMIT, final)
     return "refused", (errors.REFUSED, final)
+
+
+def plain(text: str) -> str:
+    """The text lowercased, its apostrophes made straight, "cannot" made "can't", every other punctuation a space."""
+    t = text.lower().replace("\u2019", "'").replace("\u2018", "'").replace("\u02bc", "'")
+    t = t.replace("cannot", "can't").replace("can not", "can't")
+    return " ".join(re.sub(r"[^\w']+", " ", t).split())
+
+
+def is_video_limit(text: str) -> bool:
+    """Is it gemini's "no more videos for now" answer (measured: "I can't create more videos for you today, ...")?"""
+    t = plain(text)
+    return any(p in t for p in VIDEO_LIMIT_PHRASES)
+
+
+def refusal_rests(settings, now: datetime, code: str, text: str, video: bool) -> tuple[Rest, ...]:
+    """A video refusal that is the limit answer, or reads like a quota (in any of the languages listed), rests the
+    account's video pool: the account is not sent another video until the rest ends."""
+    quota = video and code == errors.REFUSED and any(w in plain(text) for w in QUOTA_WORDS)
+    return (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT or quota else ()
 
 
 def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
@@ -201,9 +223,8 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, *
         return _result(Accepted(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid}), Success(), *rest)
     if verdict == "refused":
         code, text = what
-        limited = (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT else ()
         return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest,
-                       *limited)
+                       *refusal_rests(settings, now, code, text, video))
     return _result(Ambiguous(what), *rest)
 
 
