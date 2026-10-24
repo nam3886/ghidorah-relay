@@ -899,13 +899,13 @@ describe("the login page", () => {
     expect(login.find('button[type="submit"]').text()).toBe("Sign in");
   });
 
-  it("has its own theme toggle and the LAN-only footer, and no shell", async () => {
+  it("has its own theme toggle and the host under the card, and no shell", async () => {
     const { wrapper } = await open("/login", false);
     expect(wrapper.find("header").exists()).toBe(false);
     expect(wrapper.find('[data-testid="theme-toggle"]').attributes("aria-label")).toBe("Switch theme");
     await wrapper.find('[data-testid="theme-toggle"]').trigger("click");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(wrapper.find(".login-foot").text()).toBe("Ghidorah admin · LAN only");
+    expect(wrapper.find(".login-foot").text()).toBe(location.host);
   });
 
   it("signs in and opens Jobs", async () => {

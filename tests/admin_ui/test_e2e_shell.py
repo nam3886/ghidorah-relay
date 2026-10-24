@@ -519,13 +519,13 @@ def test_the_top_bar_and_its_popovers_have_the_drawn_sizes(app, app_session, wid
     page.csp.check()
 
 
-@pytest.mark.parametrize("width, card, field, button", [(1440, 400, 36, 40), (390, 358, 48, 48)])
+@pytest.mark.parametrize("width, card, field, button", [(1440, 400, 44, 44), (820, 400, 44, 44), (390, 358, 44, 44)])
 def test_the_login_page_has_the_drawn_card_and_fields(app, app_page, width, card, field, button):
     page = app_page
     page.set_viewport_size({"width": width, "height": 900})
     page.goto(app.url + "#/login")
     expect(page.get_by_role("button", name="Sign in")).to_be_visible()
-    assert sizes(page.get_by_role("main"))[0] == card
+    assert sizes(page.get_by_role("form", name="Sign in to Ghidorah"))[0] == card
     assert sizes(page.get_by_label("Username"))[1] == field
     assert sizes(page.get_by_role("button", name="Sign in"))[1] == button
     assert page.locator("#loginError").count() == 0                # absent, not hidden, until a sign-in fails

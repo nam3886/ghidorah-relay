@@ -31,13 +31,14 @@ def test_the_page_is_titled_ghidorah_admin_and_its_favicon_is_a_same_origin_svg(
     assert b"<svg" in served.body()
 
 
-def test_the_login_page_has_the_logo_and_the_admin_heading(app, app_page):
+def test_the_login_page_has_the_mark_and_the_heading(app, app_page):
     page = app_page
     page.goto(app.url + "#/login")
-    expect(page.get_by_role("heading", name="Sign in to the admin")).to_be_visible()
-    logo = page.get_by_alt_text("Ghidorah", exact=True)
+    expect(page.get_by_role("heading", name="Sign in to Ghidorah")).to_be_visible()
+    logo = page.get_by_role("main").get_by_role("img", name="Ghidorah", exact=True)
     expect(logo).to_be_visible()
-    assert page.evaluate("el => el.naturalWidth", logo.element_handle()) > 0, "the logo did not load"
+    box = logo.bounding_box()
+    assert round(box["width"]) == 30 and round(box["height"]) == 30, box
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
