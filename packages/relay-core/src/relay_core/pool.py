@@ -422,13 +422,17 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     - `Rest` and `Cooldown` never shorten a longer one (GREATEST); there is no rank.
     - `Suspect` adds a strike (not when it comes within its `min_gap_s` of the last counted one); at
       `caps.suspect_threshold` the account dies with the strike effect's reason. `Success` clears the counter and the
-      time of the last counted strike.
+      time of the last counted strike. A `Cooldown` writes its reason to `last_error`, except beside a `Suspect`: the
+      strike's reason is kept.
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
     - `Balance` records the pool's reported balance; a balance above 0 ends that pool's rest, a balance of 0 rests the
       pool until the refill the upstream named, else the pool's next window boundary.
     The account row is locked first, whatever the effects touch."""
     require_tx(conn)
     await lock_account(conn, account_id)
+    effects = tuple(effects)
+    # a strike's reason is the cause; a cooldown in the same result is only what follows from it
+    strike = any(isinstance(e, Suspect) for e in effects)
     for e in effects:
         if isinstance(e, Balance):
             cfg = _cfg(pools, e.pool)
@@ -457,7 +461,8 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                            "cooldown_reason = CASE WHEN %(u)s > COALESCE(cooldown_until, '-infinity') THEN %(r)s "
                            "ELSE cooldown_reason END, cooldown_until = GREATEST(cooldown_until, %(u)s), "
                            "check_due_at = CASE WHEN %(rc)s AND state <> 'dead' THEN %(u)s ELSE check_due_at END, "
-                           "last_error = %(r)s", u=e.until, r=_reason(e.reason), rc=e.recheck)
+                           "last_error = CASE WHEN %(s)s THEN last_error ELSE %(r)s END",
+                           u=e.until, r=_reason(e.reason), rc=e.recheck, s=strike)
         elif isinstance(e, Suspect):
             # The account row is locked (above), so reading whether the strike counts and writing it are one step.
             counted = (await (await conn.execute(

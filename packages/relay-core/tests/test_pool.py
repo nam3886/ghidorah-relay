@@ -564,6 +564,24 @@ def test_wake_clears_the_cooldown_and_every_rest(db):
     assert db.all("SELECT rest_until FROM account_pools WHERE account_id = %s", a) == [(None,), (None,)]
 
 
+@mutation(P, '"last_error = CASE WHEN %(s)s THEN last_error ELSE %(r)s END"', '"last_error = %(r)s"',
+          expect="assert last_error(\"not signed in (RotateCookies answered 401)\")")
+def test_a_strike_keeps_its_reason_over_the_cooldown_that_comes_with_it(db):
+    a = account(db)
+
+    def last_error(want):
+        return db.one("SELECT last_error FROM accounts WHERE id = %s", a)[0] == want
+
+    async def scenario(p):
+        await effects(p, a, Suspect("not signed in (RotateCookies answered 401)"),
+                      Cooldown("signed-out read, to be checked again", FUTURE, recheck=True))
+        assert last_error("not signed in (RotateCookies answered 401)")
+        await effects(p, a, Cooldown("throttled", FUTURE))    # a cooldown alone still writes its reason
+
+    run(db, scenario)
+    assert last_error("throttled")
+
+
 # ---- effects: strikes, Dead, Revive ----------------------------------------------------------------------------
 def state(db, a):
     return db.one("SELECT state, state_reason, strikes FROM accounts WHERE id = %s", a)

@@ -39,6 +39,7 @@ from relay_core.providers import (
     Rest,
     Revive,
     Success,
+    Suspect,
 )
 from relay_core.redact import redact, redact_log
 from relay_core.storage import ObjectStore
@@ -406,7 +407,8 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
         await leases.release(conn, lease_id)
         if health.state == "unknown":
             # a check that read nothing for certain but whose strike ended the account tells the admin so
-            return CheckResult("signed_out" if now == "dead" and was != "dead" else "unknown"), []
+            why = next((e.reason for e in health.effects if isinstance(e, Suspect)), "")
+            return CheckResult("signed_out" if now == "dead" and was != "dead" else "unknown", why), []
         return CheckResult("checked"), []
 
 
