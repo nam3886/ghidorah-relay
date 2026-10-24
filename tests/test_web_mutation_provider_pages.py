@@ -57,7 +57,8 @@ def test_the_keys_page_by_provider():
     vitest(KEY_SPEC, KEYS_SPEC)
 
 
-@mutation(LOGS_TABLE, '<span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>',
+@mutation(LOGS_TABLE,
+          '<span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>',
           '<span class="pchip" :class="providerClass(r.provider ?? \'\')">{{ r.provider }}</span>',
           expect=LOGS_PROVIDER + "a phone row has the chip too, and none when there is no provider")
 @pytest.mark.web_unit

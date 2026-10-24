@@ -469,7 +469,11 @@ def test_the_range_picker_holds_two_named_inputs_a_word_between_them_and_its_ico
 
 
 TOOLBAR_JS = """() => {
-  const rect = (e) => { if (!e) return null; const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; };
+  const rect = (e) => {
+    if (!e) return null;
+    const b = e.getBoundingClientRect();
+    return [b.left, b.top, b.right, b.bottom];
+  };
   const card = document.querySelector('section[aria-label="Request log list"]');
   const status = card.querySelector('.lf__seg') || card.querySelector('[role=group][aria-label=Status]');
   return {card: rect(card), status: rect(status), search: rect(card.querySelector('.lf__search')),

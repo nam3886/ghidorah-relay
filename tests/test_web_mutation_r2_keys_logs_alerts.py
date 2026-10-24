@@ -515,10 +515,13 @@ def test_the_logs_view_pages_and_hands_a_job_to_its_drawer():
 @mutation(LOG_DRAWER, "prompt.value || props.log?.job_title ||", "props.log?.job_title || prompt.value ||",
           expect=LOGS_DETAIL + "shows the request and the answer as text, titled with the prompt")
 @mutation(LOG_JSON, 'else if (m[4]) parts.push({ text: m[4], kind: "lit" });',
-          'else if (m[4]) parts.push({ text: m[4], kind: "str" });', expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in their own class")
+          'else if (m[4]) parts.push({ text: m[4], kind: "str" });',
+          expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in "
+          "their own class")
 @mutation(LOG_JSON, 'if (m[1] && m[2]) parts.push({ text: m[1], kind: "key" }, { text: m[2], kind: "pun" });',
           'if (m[1] && m[2]) parts.push({ text: m[1], kind: "str" }, { text: m[2], kind: "pun" });',
-          expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in their own class")
+          expect=LOGS_DETAIL + "colours the JSON of a body: keys, strings, numbers and literals each in "
+          "their own class")
 @pytest.mark.web_unit
 def test_the_request_drawer_shows_its_bodies_and_facts_as_text():
     vitest(LOGS_VIEW_SPEC)
@@ -696,12 +699,14 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
           expect=LOGS_LIST + "an empty list with no filter says there are no requests yet, and offers nothing")
 @mutation(LOG_TABLE, '<td><span class="bar bar--pill" /></td>', '<td><span class="bar bar--time" /></td>',
-          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, the request, the duration")
+          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, "
+          "the request, the duration")
 @mutation(LOG_TABLE, '<div v-for="i in SKELETON" :key="i" class="p-row p-row--skel">',
           '<div v-for="i in 3" :key="i" class="p-row p-row--skel">',
           expect=LOGS_LIST + "a phone's loading skeleton is a list of bars")
 @mutation(LOG_TABLE, "const SKELETON = [0, 1, 2, 3, 4];", "const SKELETON = [0, 1, 2];",
-          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, the request, the duration")
+          expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, "
+          "the request, the duration")
 @mutation(LOG_TABLE, "row.error_code && row.status_code < 400 ?", "row.error_code && row.status_code < 600 ?",
           expect=f"FAILED {LOGS_VIEW_SPEC} > the tablet > keeps five columns, the status first, folds the error code "
                  "or the job title, and the key, under the route")

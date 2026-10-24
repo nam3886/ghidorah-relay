@@ -22,7 +22,8 @@ ROWS = [
     (28, 201, "POST /v1/images", "Watercolor lotus pond, morning mist", "gemini", 3, None, 388),
     (32, 429, "POST /v1/videos", None, "dola", 1, "key.cap_reached", 19),
     (50, 503, "POST /v1/images", None, "qwen", 2, "provider.no_account", 24),
-    (63, 200, "GET /v1/jobs/e2d7f019", "Ao dai walk through the Hue citadel gate", "dola", 0, "dola.content_refused", 41),
+    (63, 200, "GET /v1/jobs/e2d7f019", "Ao dai walk through the Hue citadel gate", "dola", 0,
+     "dola.content_refused", 41),
     (81, 401, "POST /v1/videos", None, "", None, "auth.invalid_key", 6),
     (99, 201, "POST /v1/videos", "Bowl of pho, steam rising, overhead", "flow", 0, None, 506),
     (120, 500, "GET /v1/jobs/8a51f0c7", "Cyclo ride through the old quarter", "dola", 3, "internal.error", 1840),
@@ -33,9 +34,11 @@ ROWS = [
     (205, 200, "GET /v1/jobs/3a90cc5e", "Bowl of pho, steam rising, overhead", "flow", 0, None, 41),
     (222, 201, "POST /v1/videos", "Cyclo ride through the old quarter", "dola", 2, None, 431),
 ]
-PROMPT = {"model": "vibes-video", "prompt": "Neon alley in the rain, handheld, reflections on wet asphalt, a cyclist passes",
+PROMPT = {"model": "vibes-video",
+          "prompt": "Neon alley in the rain, handheld, reflections on wet asphalt, a cyclist passes",
           "duration": 8, "ratio": "9:16", "n": 1, "external_ref": "pt-0091"}
-ANSWER = {"error": {"code": "wallet.empty", "message": "This key has 0 points; the job needs 1.", "balance": 0, "needed": 1}}
+ANSWER = {"error": {"code": "wallet.empty", "message": "This key has 0 points; the job needs 1.", "balance": 0,
+                    "needed": 1}}
 
 
 def seed(db):
