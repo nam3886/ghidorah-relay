@@ -502,6 +502,17 @@ describe("filters", () => {
     await open("/jobs?key_id=k9");
     expect(lastQuery().keyId).toBe("k9");
   });
+
+  it("a link from Alerts sets a comma status, the range and the search before the first load", async () => {
+    await open("/jobs?status=failed,unknown&range=7d&q=%20dola-01%20");
+    expect(listJobs).toHaveBeenCalledTimes(1);
+    expect([lastQuery().status, lastQuery().range, lastQuery().q]).toEqual(["failed,unknown", "7d", "dola-01"]);
+  });
+
+  it("a range or a status list in the link that is not one of ours is ignored", async () => {
+    await open("/jobs?status=failed,nope&range=1y");
+    expect([lastQuery().status, lastQuery().range]).toEqual(["", "today"]);
+  });
 });
 
 describe("paging", () => {

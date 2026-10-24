@@ -29,6 +29,10 @@ FP = "FAILED " + PICK_SPEC + " > "
 FT = "FAILED " + TEXT_SPEC + " > "
 FA = "FAILED " + API_SPEC + " > "
 FV = "FAILED " + VIEW_SPEC + " > "
+RANGE_FROM_LINK = ('if (typeof asked === "string" && JOB_RANGES.some((r) => r.value === asked)) '
+                   'range.value = asked as JobRange;')
+FROM_ALERTS = FV + "filters > a link from Alerts sets a comma status, the range and the search before the first load"
+NOT_OURS = FV + "filters > a range or a status list in the link that is not one of ours is ignored"
 TODAY = (FV + "time zones > today's header counts its jobs on this page and says shown, an earlier day says its "
          "total, and one job is 1 job")
 TOTALS = (FV + "time zones > asks for the day totals in the zone of the browser, exactly as the browser reports it ")
@@ -134,6 +138,11 @@ CLEARS_FIRST = "const sent = ids.value; picked.value = new Set(); const out = aw
           expect=FV + "filters > a status in the link that is not one of ours is ignored")
 @mutation(VIEW, 'if (typeof route.query.key_id === "string") keyId.value = route.query.key_id;', "",
           expect=FV + "filters > a key id in the link sets the key filter")
+@mutation(VIEW, RANGE_FROM_LINK, "", expect=FROM_ALERTS)
+@mutation(VIEW, 'if (typeof route.query.q === "string") search.value = q.value = route.query.q.trim();', "",
+          expect=FROM_ALERTS)
+@mutation(VIEW, "JOB_RANGES.some((r) => r.value === asked)", "true", expect=NOT_OURS)
+@mutation(VIEW, 'wanted.split(",").every(knownStatus)', "true", expect=NOT_OURS)
 @mutation(VIEW, "if (!latest.isCurrent(ticket)) return;", "",
           expect=FV + "the list > drops an old answer that arrives after a newer one")
 @mutation(VIEW, BULK_ANCHOR, f"const out = await bulkRegenerate({ALL_IDS});", expect=TICKED)

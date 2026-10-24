@@ -715,7 +715,7 @@ def test_mute_resolved_today_the_rules_and_open_jobs_filtered_work_against_the_r
     # Open Jobs filtered on the drift's group opens Jobs on its key
     open_group(page, "drift ·")
     page.get_by_test_id("alert-detail").get_by_role("button", name="Open Jobs filtered").click()
-    expect(page).to_have_url(re.compile(r"#/jobs\?key_id=[0-9a-f-]{36}$"))
+    expect(page).to_have_url(re.compile(r"#/jobs\?key_id=[0-9a-f-]{36}&range=today$"))
 
 
 def test_the_detail_shows_outcomes_and_opens_a_job_and_acknowledge_sends_what_it_showed(app, app_session, db):

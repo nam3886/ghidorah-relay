@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AlertDetail } from "@/api/alerts";
 import {
+  jobsLink,
+  rangeFor,
   ackToast,
   alertTime,
   alertTitle,
@@ -261,5 +263,65 @@ describe("liveWord (the word before a live condition)", () => {
     expect(liveWord("new_kind")).toBe("new_kind");
     expect(liveWord("constructor")).toBe("constructor");
     expect(liveWord("__proto__")).toBe("__proto__");
+  });
+});
+
+describe("jobsLink (Open Jobs filtered)", () => {
+  const now = new Date(2026, 9, 24, 15, 0).getTime();
+  const at = (days: number, hour = 9): number => new Date(2026, 9, 24 - days, hour, 0).getTime();
+  const unclear = (over: Record<string, unknown> = {}) =>
+    ({
+      kind: "unclear_reply",
+      group: "abc",
+      provider: "dola",
+      first_ms: at(0),
+      outcomes: { done: 0, failed: 2, open: 0 },
+      items: [
+        { account_label: "dola-01", key_label: "Shop A" },
+        { account_label: "dola-01", key_label: "Shop B" },
+      ],
+      ...over,
+    }) as unknown as Parameters<typeof jobsLink>[0];
+
+  it("the range holds the group's first row: today, 7 days, else 30", () => {
+    expect(rangeFor(at(0, 0), now)).toBe("today");
+    expect(rangeFor(at(1, 23), now)).toBe("7d");
+    expect(rangeFor(at(6, 0), now)).toBe("7d");
+    expect(rangeFor(at(7, 23), now)).toBe("30d");
+    expect(rangeFor(null, now)).toBe("today");
+  });
+
+  it("an unclear group searches the one account its rows share, else the one key, else nothing", () => {
+    expect(jobsLink(unclear(), now)).toEqual({
+      provider: "dola",
+      query: { range: "today", q: "dola-01", status: "failed" },
+    });
+    const twoAccounts = unclear({
+      items: [
+        { account_label: "dola-01", key_label: "Shop A" },
+        { account_label: "dola-02", key_label: "Shop A" },
+      ],
+    });
+    expect(jobsLink(twoAccounts, now).query.q).toBe("Shop A");
+    const nothingShared = unclear({
+      items: [
+        { account_label: "dola-01", key_label: "Shop A" },
+        { account_label: "dola-02", key_label: "Shop B" },
+      ],
+    });
+    expect(jobsLink(nothingShared, now).query.q).toBeUndefined();
+  });
+
+  it("an unclear group asks for failed jobs only when every one of them was refunded", () => {
+    expect(jobsLink(unclear({ outcomes: { done: 1, failed: 2, open: 0 } }), now).query.status).toBeUndefined();
+    expect(jobsLink(unclear({ outcomes: { done: 0, failed: 2, open: 1 } }), now).query.status).toBeUndefined();
+  });
+
+  it("a drift of a cap names its key and its provider and no status", () => {
+    const drift = { kind: "drift", group: "k9.flow", provider: "flow", first_ms: at(3), items: [] };
+    expect(jobsLink(drift as unknown as Parameters<typeof jobsLink>[0], now)).toEqual({
+      provider: "flow",
+      query: { range: "7d", key_id: "k9" },
+    });
   });
 });

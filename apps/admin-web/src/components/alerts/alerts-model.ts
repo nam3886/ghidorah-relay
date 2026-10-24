@@ -206,13 +206,46 @@ export const dayClock = (ms: number, now: number = Date.now()): string =>
 // The chip of a muted row: `Muted until 15:27`.
 export const mutedText = (ms: number, now: number = Date.now()): string => `Muted until ${dayClock(ms, now)}`;
 
-// What "Open Jobs filtered" asks the Jobs page for (its strip provider and its `key_id` query): an unclear group's
-// provider; a billing group's key (the group id is `<key>.<scope>`) and, for a cap, its provider. The Jobs list has no
-// account filter, so an account is never part of it.
-export function jobsFilter(g: Pick<AlertGroup, "kind" | "group" | "provider">): { provider: string; keyId: string } {
-  if (g.kind === "unclear_reply") return { provider: g.provider, keyId: "" };
-  const [key, scope] = g.group.split(".");
-  return { provider: scope && scope !== POINTS ? scope : "", keyId: key ?? "" };
+const DAY_MS = 86_400_000;
+
+// The Jobs range that holds a group's whole life, from its first row (the last is later, so it is inside too): today,
+// the last 7 days or the last 30 (local days, as the Jobs page counts them).
+export function rangeFor(firstMs: number | null | undefined, now: number = Date.now()): "today" | "7d" | "30d" {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const start = midnight.getTime();
+  if (!firstMs || firstMs >= start) return "today";
+  return firstMs >= start - 6 * DAY_MS ? "7d" : "30d";
+}
+
+// The one value every item names, else "" (a search on a label only narrows when the whole group shares it).
+const onlyOne = (values: Array<string | null | undefined>): string => {
+  const set = new Set(values.filter((v): v is string => !!v));
+  return set.size === 1 ? [...set][0]! : "";
+};
+
+// What "Open Jobs filtered" asks the Jobs page for: the provider (the shared filter) and the query it reads, `range`
+// (covering the group's first and last row), `status` and either `key_id` or a `q` search.
+//   a billing group (`<key>.<scope>`): its key, a cap's provider; a clamp is a refund, so the refunded jobs (failed)
+//   an unclear group: its provider, the one account (or else the one key) its rows share as the search, and failed
+//   when every job of it was refunded
+export function jobsLink(
+  d: Pick<AlertDetail, "kind" | "group" | "provider" | "first_ms" | "outcomes" | "items">,
+  now: number = Date.now(),
+): { provider: string; query: Record<string, string> } {
+  const query: Record<string, string> = { range: rangeFor(d.first_ms, now) };
+  if (d.kind !== "unclear_reply") {
+    const [key, scope] = d.group.split(".");
+    query.key_id = key ?? "";
+    if (d.kind === "clamp") query.status = "failed";
+    return { provider: scope && scope !== POINTS ? scope : "", query };
+  }
+  const rows = d.items as Array<{ account_label?: string | null; key_label?: string | null }>;
+  const search = onlyOne(rows.map((r) => r.account_label)) || onlyOne(rows.map((r) => r.key_label));
+  if (search) query.q = search;
+  const o = d.outcomes;
+  if (o && o.failed > 0 && o.done === 0 && o.open === 0) query.status = "failed";
+  return { provider: d.provider, query };
 }
 
 // The line under "Resolved today": the newest acknowledge, `Latest: <name> acknowledged at 13:12 by ann`.

@@ -133,10 +133,15 @@ const clearPicked = (): void => {
   picked.value = new Set();
 };
 
-// The stats cells link to /jobs?status=done|failed; a key id may come the same way, and a job id opens its drawer.
+// The stats cells link to /jobs?status=done|failed (Alerts' Open Jobs filtered sends a comma list, a `range` and a `q`
+// search too); a key id may come the same way, and a job id opens its drawer. A value the page does not know is left out.
+const knownStatus = (wanted: string): boolean => (JOB_STATUSES as readonly string[]).includes(wanted);
 function applyQuery(): void {
   const wanted = route.query.status;
-  if (typeof wanted === "string" && (JOB_STATUSES as readonly string[]).includes(wanted)) status.value = wanted;
+  if (typeof wanted === "string" && wanted.split(",").every(knownStatus)) status.value = wanted;
+  const asked = route.query.range;
+  if (typeof asked === "string" && JOB_RANGES.some((r) => r.value === asked)) range.value = asked as JobRange;
+  if (typeof route.query.q === "string") search.value = q.value = route.query.q.trim();
   if (typeof route.query.key_id === "string") keyId.value = route.query.key_id;
   if (typeof route.query.job === "string" && route.query.job) ui.openJob(route.query.job);
 }

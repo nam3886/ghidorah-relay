@@ -1184,7 +1184,8 @@ describe("mute, rules, Open Jobs filtered and Resolved today", () => {
     await go.trigger("click");
     await settle();
     expect(useScopeStore().provider).toBe("");
-    expect(push).toHaveBeenCalledWith({ name: "jobs", query: { key_id: "k1" } });
+    // a clamp is a refund: the refunded (failed) jobs of its key, over a range that holds its first row
+    expect(push).toHaveBeenCalledWith({ name: "jobs", query: { key_id: "k1", range: "30d", status: "failed" } });
     void w;
   });
 

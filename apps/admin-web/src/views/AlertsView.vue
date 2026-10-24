@@ -24,7 +24,7 @@ import {
   GROUP_LIMIT,
   dayClock,
   groupLine,
-  jobsFilter,
+  jobsLink,
   liveWord,
   loadFailedText,
   MUTE_MINUTES,
@@ -339,11 +339,12 @@ const mute = (source: RuleSource, kind: string) =>
 
 // Open Jobs filtered: the Jobs page with the group's provider on the strip and its key (when it has one) in `key_id`,
 // the query that page reads; an empty `key_id` clears a key filter left from before.
-function openJobs(g: AlertGroup): void {
-  const f = jobsFilter(g);
+function openJobs(d: AlertDetail): void {
+  const link = jobsLink(d);
   closeDetail();
-  scope.provider = f.provider;
-  void router.push({ name: "jobs", query: { key_id: f.keyId } });
+  scope.provider = link.provider;
+  // `key_id` is always sent (empty clears a key filter left from before)
+  void router.push({ name: "jobs", query: { key_id: "", ...link.query } });
 }
 
 // a rule changed in the rules drawer: the cards and the counts follow (the banner through the stats store)

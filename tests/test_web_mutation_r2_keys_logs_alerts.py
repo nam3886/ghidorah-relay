@@ -781,8 +781,10 @@ STATS_STORE = SRC + "/stores/stats.ts"
           expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
 @mutation(ALERTS, "stat.alerts.concat(stat.muted_alerts ?? [])", "stat.alerts.concat([])",
           expect=MUTED + "a live condition can be muted, and a muted one from the stats is listed with its end")
-@mutation(ALERTS_MODEL, 'return { provider: scope && scope !== POINTS ? scope : "", keyId: key ?? "" };',
-          'return { provider: scope ?? "", keyId: key ?? "" };',
+@mutation(ALERTS_MODEL, 'return { provider: scope && scope !== POINTS ? scope : "", query };',
+          'return { provider: scope ?? "", query };',
+          expect=MUTED + "Open Jobs filtered opens Jobs on the group's provider and key")
+@mutation(ALERTS_MODEL, 'if (d.kind === "clamp") query.status = "failed";', "",
           expect=MUTED + "Open Jobs filtered opens Jobs on the group's provider and key")
 @pytest.mark.web_unit
 def test_the_alerts_view_mutes_a_kind_counts_only_what_is_raised_and_opens_jobs_filtered():
@@ -808,3 +810,20 @@ BANNER_MUTED = ("FAILED tests/unit/app-shell.spec.ts > the shell > a muted alert
 @pytest.mark.web_unit
 def test_the_banner_still_counts_the_muted_alerts():
     vitest("tests/unit/app-shell.spec.ts")
+
+
+JOBS_LINK = f"FAILED {ALERTS_MODEL_SPEC} > jobsLink (Open Jobs filtered) > "
+
+
+@mutation(ALERTS_MODEL, "return firstMs >= start - 6 * DAY_MS ? \"7d\" : \"30d\";", "return \"30d\";",
+          expect=JOBS_LINK + "the range holds the group's first row: today, 7 days, else 30")
+@mutation(ALERTS_MODEL, "if (!firstMs || firstMs >= start) return \"today\";", "if (!firstMs) return \"today\";",
+          expect=JOBS_LINK + "the range holds the group's first row: today, 7 days, else 30")
+@mutation(ALERTS_MODEL, "return set.size === 1 ? [...set][0]! : \"\";", "return [...set][0] ?? \"\";",
+          expect=JOBS_LINK + "an unclear group searches the one account its rows share, else the one key, else nothing")
+@mutation(ALERTS_MODEL, "if (o && o.failed > 0 && o.done === 0 && o.open === 0) query.status = \"failed\";",
+          "if (o && o.failed > 0) query.status = \"failed\";",
+          expect=JOBS_LINK + "an unclear group asks for failed jobs only when every one of them was refunded")
+@pytest.mark.web_unit
+def test_open_jobs_filtered_carries_the_range_the_search_and_the_statuses():
+    vitest(ALERTS_MODEL_SPEC)
