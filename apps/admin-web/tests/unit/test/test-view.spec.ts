@@ -55,7 +55,9 @@ async function open(store: FileStore = memoryStore()) {
   await flushPromises();
   return { wrapper, store };
 }
-const button = (name: string) => wrapper!.findAll("button").find((b) => b.text() === name)!;
+// a text button by its words, an icon button by its name
+const button = (name: string) =>
+  wrapper!.findAll("button").find((b) => b.text() === name || b.attributes("aria-label") === name)!;
 async function loadModels(key = "rk-1") {
   await wrapper!.find("input[type=password]").setValue(key);
   await button("Load models").trigger("click");
@@ -82,14 +84,34 @@ const attach = async (...picked: File[]) => {
   await input.trigger("change");
   await flushPromises();
 };
-// The form's selects (FilterSelect fields), found by their label: their options, their value, a choice.
+// The form's fields: Resolution and Style are selects (FilterSelect fields), Duration and Ratio segments (a group of
+// pressed buttons named by the field). Found by their label: their options, their value, a choice.
 const selectField = (label: string) => wrapper!.findAllComponents(FilterSelect).find((c) => c.props("label") === label);
-const fieldOptions = (label: string) => (selectField(label)?.props("options") ?? []) as SelectOption[];
-const fieldValue = (label: string) => selectField(label)?.props("modelValue");
+const segments = (label: string) =>
+  wrapper!
+    .findAll(`[role="group"][aria-label="${label}"] button`)
+    .filter((b) => b.attributes("data-value") !== undefined);
+const hasField = (label: string) => !!selectField(label) || segments(label).length > 0;
+const fieldOptions = (label: string): SelectOption[] =>
+  selectField(label)
+    ? (selectField(label)!.props("options") as SelectOption[])
+    : segments(label).map((b) => ({ value: b.attributes("data-value")!, label: b.text() }));
+const fieldValue = (label: string) =>
+  selectField(label)
+    ? selectField(label)!.props("modelValue")
+    : segments(label)
+        .find((b) => b.attributes("aria-pressed") === "true")
+        ?.attributes("data-value");
 async function choose(label: string, value: string) {
-  selectField(label)!.vm.$emit("update:modelValue", value);
+  const select = selectField(label);
+  if (select) select.vm.$emit("update:modelValue", value);
+  else
+    await segments(label)
+      .find((b) => b.attributes("data-value") === value)!
+      .trigger("click");
   await flushPromises();
 }
+const providerRows = () => wrapper!.findAll('[data-testid="test-provider"]').map((g) => g.text());
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -115,7 +137,7 @@ describe("the tab", () => {
   it("loads models grouped by kind, shows the points, picks a model and fills ratio, style and templates", async () => {
     await open();
     await loadModels();
-    expect(wrapper!.findAll('[data-testid="test-models"] h2').map((g) => g.text())).toEqual(["Video", "Image"]);
+    expect(providerRows()).toEqual(["flow"]);
     expect(text()).toContain('"points": 9');
     expect(text()).toContain("Pick a model");
     await pickModel("veo-3");
@@ -127,7 +149,7 @@ describe("the tab", () => {
         .filter(Boolean);
     expect(options("Ratio")).toEqual(["16:9", "1:1"]);
     // the style belongs to an image model
-    expect(selectField("Style")).toBeUndefined();
+    expect(hasField("Style")).toBe(false);
     await pickModel("imagen-4");
     expect(options("Style")).toEqual(["noir"]);
     await pickModel("veo-3");
@@ -159,7 +181,7 @@ describe("the tab", () => {
     expect(api.listModels).toHaveBeenCalledWith("rk-kept");
     expect((wrapper!.find("textarea").element as HTMLTextAreaElement).value).toBe("restored prompt");
     expect(text()).toContain("imagen-4");
-    expect(button("Generate").attributes("disabled")).toBeUndefined();
+    expect(button("Send test job").attributes("disabled")).toBeUndefined();
   });
 
   it("Forget key clears the key from storage and the box; Clear form clears form, images and model", async () => {
@@ -176,7 +198,7 @@ describe("the tab", () => {
     expect(localStorage.getItem("relay_test_form")).toBeNull();
     expect(store.value()).toBeUndefined();
     expect((wrapper!.find("textarea").element as HTMLTextAreaElement).value).toBe("");
-    expect(button("Generate").attributes("disabled")).toBeDefined();
+    expect(button("Send test job").attributes("disabled")).toBeDefined();
     expect(text()).toContain("Pick a model");
   });
 });
@@ -218,7 +240,7 @@ describe("the key on the page", () => {
     await pickModel("veo-3");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     await wrapper!.find("textarea").setValue("a cat");
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await flushPromises();
     expect((wrapper!.find("input[type=password]").element as HTMLInputElement).value).toBe(SECRET);
     expect(leaks()).toBe(false);
@@ -240,7 +262,7 @@ describe("the empty state", () => {
     );
     expect(models()).toHaveLength(0);
     expect(wrapper!.find(".test-tab__points-box").exists()).toBe(false);
-    expect(button("Generate").attributes("disabled")).toBeDefined();
+    expect(button("Send test job").attributes("disabled")).toBeDefined();
     await loadModels();
     expect(wrapper!.find('[data-testid="test-models-empty"]').exists()).toBe(false);
     expect(models()).toHaveLength(2);
@@ -258,13 +280,13 @@ describe("the empty state", () => {
     expect(wrapper!.find("#test-ratio").exists()).toBe(false);
     // no model names lengths yet: no Duration field of any kind
     expect(wrapper!.find("#test-duration").exists()).toBe(false);
-    expect(selectField("Duration")).toBeUndefined();
+    expect(hasField("Duration")).toBe(false);
   });
 
   it("Clear form is a plain button, not a danger one", async () => {
     await open();
-    expect(button("Clear form").classes()).not.toContain("el-button--danger");
-    expect(button("Clear form").classes()).toContain("test-tab__clear");
+    expect(button("Clear form").classes()).toContain("ib");
+    expect(button("Clear form").classes()).not.toContain("ib--danger");
   });
 });
 
@@ -433,7 +455,7 @@ describe("blocked storage", () => {
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "done", result_urls: ["/m/a.png"] });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "done", result_urls: ["/m/a.png"] });
     await wrapper!.find("textarea").setValue("a cat");
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     expect(text()).toContain("Job j1 done");
@@ -452,7 +474,7 @@ describe("a running job", () => {
     await pickModel("imagen-4");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "running" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
   }
 
@@ -492,7 +514,7 @@ describe("a running job", () => {
     await flushPromises();
     expect(text()).toContain("Job j1 done");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j2", status: "queued" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     expect(text()).toContain("Job j2 queued");
   });
@@ -505,19 +527,19 @@ describe("a running job", () => {
     let made!: (j: { id: string; status: string }) => void;
     vi.mocked(api.createJob).mockReturnValue(new Promise((resolve) => (made = resolve)));
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "running" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
-    expect(button("Generate").attributes("disabled")).toBeDefined();
+    expect(button("Send test job").attributes("disabled")).toBeDefined();
     made({ id: "j1", status: "queued" });
     await vi.advanceTimersByTimeAsync(0);
-    expect(button("Generate").attributes("disabled")).toBeUndefined();
+    expect(button("Send test job").attributes("disabled")).toBeUndefined();
   });
 
   it("a second Generate while the first job is polling ends the first loop and starts a new one", async () => {
     await startRunning();
     vi.mocked(api.createJob).mockResolvedValue({ id: "j2", status: "queued" });
     vi.mocked(api.getJob).mockImplementation(async (_k, _kind, id) => ({ id, status: "running" }));
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     expect(api.createJob).toHaveBeenCalledTimes(2);
     expect(text()).toContain("Job j2 queued");
@@ -570,7 +592,7 @@ describe("the model picker and the wallet", () => {
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
     expect(body.ratio).toBe("16:9");
@@ -616,7 +638,7 @@ describe("the model picker and the wallet", () => {
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).ratio).toBe("16:9");
   });
@@ -635,7 +657,7 @@ describe("the model picker and the wallet", () => {
     await wrapper!.find("#test-prompt").setValue("a cat");
     vi.mocked(api.createJob).mockResolvedValue({ id: "j1", status: "queued" });
     vi.mocked(api.getJob).mockResolvedValue({ id: "j1", status: "queued" });
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
     expect(body.style).toBe("oil_painting");
@@ -672,9 +694,9 @@ describe("the model picker and the wallet", () => {
     expect(fieldOptions("Duration").map((o) => o.label)).toEqual(["Default", "5 s", "10 s", "20 s", "25 s", "30 s"]);
     await choose("Duration", "30");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").duration).toBe("30");
-    // the design's select drawn by us, never the browser's
+    // the design's segments drawn by us, never the browser's select
     expect(wrapper!.find("select").exists()).toBe(false);
-    expect(selectField("Duration")!.props("block")).toBe(true);
+    expect(fieldValue("Duration")).toBe("30");
   });
 
   it("a model with no durations list shows no Duration field and sends no duration, even one saved for another model", async () => {
@@ -687,10 +709,10 @@ describe("the model picker and the wallet", () => {
     await pickModel("veo-3");
     await choose("Duration", "10");
     await pickModel("veo-plain");
-    expect(selectField("Duration")).toBeUndefined();
+    expect(hasField("Duration")).toBe(false);
     expect(wrapper!.find("#test-duration").exists()).toBe(false);
     expect(text()).not.toContain("Duration");
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await flushPromises();
     expect(api.createJob).toHaveBeenCalledWith(
       "rk-1",
@@ -698,7 +720,7 @@ describe("the model picker and the wallet", () => {
       expect.not.objectContaining({ duration: expect.anything() }),
     );
     await pickModel("imagen-4");
-    expect(selectField("Duration")).toBeUndefined();
+    expect(hasField("Duration")).toBe(false);
   });
 
   it("a model that takes no ratio, style or image (meta) shows none of them and sends none, even ones saved for another model", async () => {
@@ -715,12 +737,12 @@ describe("the model picker and the wallet", () => {
     await wrapper!.find("#test-refs").setValue("https://example.com/a.png");
     await attach(new File(["x"], "a.png", { type: "image/png" }));
     await pickModel("meta-image", "meta");
-    expect(selectField("Ratio")).toBeUndefined();
-    expect(selectField("Style")).toBeUndefined();
+    expect(hasField("Ratio")).toBe(false);
+    expect(hasField("Style")).toBe(false);
     expect(wrapper!.find("#test-refs").exists()).toBe(false);
     expect(wrapper!.find('[data-testid="attach-input"]').exists()).toBe(false);
     await wrapper!.find("textarea").setValue("a cat");
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await flushPromises();
     const body = vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>;
     expect(body).toEqual({ model: "meta-image", prompt: "a cat" });
@@ -743,13 +765,13 @@ describe("the model picker and the wallet", () => {
     await choose("Resolution", "720p");
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").resolution).toBe("720p");
     await wrapper!.find("textarea").setValue("a cat");
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await flushPromises();
     expect((vi.mocked(api.createJob).mock.calls[0]![2] as Record<string, unknown>).options).toEqual({
       resolution: "720p",
     });
     await pickModel("imagen-4", "flow");
-    expect(selectField("Resolution")).toBeUndefined();
+    expect(hasField("Resolution")).toBe(false);
   });
 
   it("a dola image model offers its own styles when the provider's options name none", async () => {
@@ -777,10 +799,10 @@ describe("the model picker and the wallet", () => {
   });
 });
 
-describe("the provider strip", () => {
+describe("the provider rows", () => {
   const dola = { id: "seedream", kind: "image", owned_by: "dola", prices: { default: 1 }, limits: {} };
 
-  it("starts on the first provider in the drawn order that has a model, shows its models only, and a paused one is a disabled chip", async () => {
+  it("starts on the first provider in the drawn order that has a model, draws a row per provider, and a paused one is a disabled chip", async () => {
     vi.mocked(api.listModels).mockResolvedValue({ data: [video, image] });
     await open();
     useScopeStore().models = [
@@ -792,22 +814,23 @@ describe("the provider strip", () => {
     expect(useScopeStore().only).toBe("flow");
     expect(models().map((m) => m.text())).toEqual(["veo-3", "Veo OldPaused", "imagen-4"]);
     expect(models()[1]!.attributes("disabled")).toBeDefined();
-    expect(wrapper!.findAll('[data-testid="test-models"] h2').map((g) => g.text())).toEqual(["Video", "Image"]);
+    expect(providerRows()).toEqual(["flow"]);
   });
 
-  it("another provider shows its models and picks its first; a provider the key has none of says so", async () => {
+  it("another provider picks its first model; a provider the key has none of leaves no model picked", async () => {
     vi.mocked(api.listModels).mockResolvedValue({ data: [video, image, dola] });
     await open();
     await loadModels();
     expect(useScopeStore().only).toBe("dola");
+    expect(providerRows()).toEqual(["dola", "flow"]);
+    expect(models().map((m) => m.attributes("title"))).toEqual(["seedream", "veo-3", "imagen-4"]);
     await pickModel("veo-3", "flow");
     useScopeStore().only = "dola";
     await flushPromises();
-    expect(models().map((m) => m.attributes("title"))).toEqual(["seedream"]);
     expect(wrapper!.find('[data-testid="test-chosen"]').text()).toBe("Sends seedream · 1 point · seedream");
     useScopeStore().only = "meta";
     await flushPromises();
-    expect(wrapper!.find('[data-testid="test-models-none"]').text()).toBe("This key may use no meta model.");
+    expect(wrapper!.find("#test-form-title").text()).toBe("Pick a model");
     expect(wrapper!.find('[data-testid="test-chosen"]').exists()).toBe(false);
   });
 });
@@ -830,7 +853,7 @@ describe("the result card", () => {
     };
     vi.mocked(api.createJob).mockResolvedValue(running);
     vi.mocked(api.getJob).mockResolvedValue(running);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     const chip = wrapper!.find(".status-chip");
     expect(chip.text()).toBe("2/4waiting");
@@ -859,7 +882,7 @@ describe("the result card", () => {
     const failed = { id: "j1", status: "failed", error: "the prompt was refused" };
     vi.mocked(api.createJob).mockResolvedValue(failed);
     vi.mocked(api.getJob).mockResolvedValue(failed);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     expect(wrapper!.find(".status-chip").text()).toBe("failed");
@@ -875,7 +898,7 @@ describe("the result card", () => {
     const failed = { id: "j1", status: "failed", error: "refused", points: 2, refunded: true };
     vi.mocked(api.createJob).mockResolvedValue(failed);
     vi.mocked(api.getJob).mockResolvedValue(failed);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     const points = wrapper!.findAll(".result__row").find((r) => r.find("dt").text() === "Points")!;
@@ -891,7 +914,7 @@ describe("the result card", () => {
     const failed = { id: "j1", status: "failed", error: "the prompt was refused", error_code: "dola.content_refused" };
     vi.mocked(api.createJob).mockResolvedValue(failed);
     vi.mocked(api.getJob).mockResolvedValue(failed);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     const alert = wrapper!.find('.result [role="alert"]');
@@ -914,7 +937,7 @@ describe("media", () => {
     };
     vi.mocked(api.createJob).mockResolvedValue(done);
     vi.mocked(api.getJob).mockResolvedValue(done);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     expect(wrapper!.findAll(".test-result__media img").map((i) => i.attributes("src"))).toEqual(["/m/ok.png"]);
@@ -934,7 +957,7 @@ describe("media", () => {
     const done = { id: "j1", status: "done", result_urls: ["/m/v.mp4"] };
     vi.mocked(api.createJob).mockResolvedValue(done);
     vi.mocked(api.getJob).mockResolvedValue(done);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     // nothing is fetched before the play button is pressed
@@ -974,7 +997,7 @@ describe("the result card frames", () => {
     };
     vi.mocked(api.createJob).mockResolvedValue(done);
     vi.mocked(api.getJob).mockResolvedValue(done);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(3000);
     await flushPromises();
     const card = wrapper!.find(".result");
@@ -996,9 +1019,40 @@ describe("the result card frames", () => {
     const queued = { id: "j1", status: "queued" };
     vi.mocked(api.createJob).mockResolvedValue(queued);
     vi.mocked(api.getJob).mockResolvedValue(queued);
-    await button("Generate").trigger("click");
+    await button("Send test job").trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     expect(wrapper!.find(".result").classes()).not.toContain("result--bar");
     expect(wrapper!.find(".result__done").exists()).toBe(false);
+  });
+});
+
+describe("the form's foot and checks", () => {
+  it("says the outputs and what the job costs at the chosen length, and the stepper never goes under 1", async () => {
+    vi.mocked(api.listModels).mockResolvedValue({
+      data: [{ ...video, prices: { "5s": 2, "10s": 4 }, limits: { durations: [5, 10] } }, image],
+    });
+    await open();
+    await loadModels();
+    await pickModel("veo-3");
+    await choose("Duration", "10");
+    expect(wrapper!.find(".cost").text()).toBe("1 output · 4 points");
+    await button("One output more").trigger("click");
+    expect(wrapper!.find(".cost").text()).toBe("2 outputs · 8 points");
+    expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "").count).toBe("2");
+    await button("One output fewer").trigger("click");
+    await button("One output fewer").trigger("click");
+    expect((wrapper!.find("#test-count").element as HTMLInputElement).value).toBe("1");
+  });
+
+  it("checks the extra options as they are typed", async () => {
+    await open();
+    const box = wrapper!.find("#test-extra");
+    await box.setValue('{"seed": 1, "a": 2}');
+    expect(wrapper!.find(".json-check").text()).toBe("Valid JSON · 2 keys · sent as the request's options");
+    await box.setValue("{");
+    expect(wrapper!.find(".json-check").classes()).toContain("is-bad");
+    expect(box.attributes("aria-invalid")).toBe("true");
+    await box.setValue("");
+    expect(wrapper!.find(".json-check").exists()).toBe(false);
   });
 });

@@ -177,20 +177,17 @@ def test_frames_and_test_work_on_the_one_provider_they_pick(app, app_page, live,
     expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
     shot(page, "frames-%d-vibes" % width)
 
-    # Test: the strip's provider (shared with Prompt frames) shows its models as chips by kind; a paused one is off
+    # Test: no strip; a row of chips per provider; a paused one is off
     api_key = live.call(live.env.new_key())
     open_tab(page, "Test")
+    expect(page.get_by_role("navigation", name="Provider", exact=True)).to_have_count(0)
     page.get_by_role("textbox", name="API key", exact=True).fill(api_key.raw)
     page.get_by_role("button", name="Load models").click()
     expect(page.get_by_test_id("test-model").first).to_be_visible()
-    expect(strip(page).get_by_test_id("provider-tab-vibes")).to_have_attribute("aria-pressed", "true")
-    strip(page).get_by_test_id("provider-tab-dola").click()
+    expect(page.get_by_test_id("test-provider")).to_contain_text(["dola", "meta", "vibes"])
     expect(page.get_by_test_id("test-model").filter(has_text="Paused")).to_be_disabled()
     page.get_by_test_id("test-model").filter(has_text="Seedance 2.5").click()
     expect(page.get_by_test_id("test-chosen")).to_contain_text("2–4 points · 5–30 s · seedance-2.5")
     expect(page.get_by_test_id("test-model").filter(has_text="Seedance 2.5")).to_have_attribute("aria-pressed", "true")
     no_cut_text(page, ".models *")
     shot(page, "test-%d-dola" % width, ".form")
-    strip(page).get_by_test_id("provider-tab-vibes").click()
-    expect(page.get_by_test_id("test-chosen")).to_contain_text("vibes-")
-    shot(page, "test-%d-vibes" % width)

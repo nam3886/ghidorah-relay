@@ -384,16 +384,15 @@ describe("the shell", () => {
     expect(wrapper.find("main section").element).not.toBe(first);
   });
 
-  it("has no Provider list in the top bar: every tab but Request logs, Prompt frames and Settings, which have their own lists, filters by provider in its strip, and Jobs only below the desktop", async () => {
+  it("has no Provider list in the top bar: every tab but Request logs, Prompt frames, Settings and Test, which have their own lists, filters by provider in its strip, and Jobs only below the desktop", async () => {
     const { wrapper, router } = await open("/jobs");
     for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push(`/${name}`);
       await flushPromises();
       expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
-      // Request logs, Prompt frames and Settings have their provider chips or tabs in the page; Jobs its provider cards
-      expect(wrapper.find("nav.pstrip").exists()).toBe(
-        name !== "logs" && name !== "frames" && name !== "settings" && name !== "jobs",
-      );
+      // Request logs, Prompt frames, Settings and Test (a row per provider) have their provider chips or tabs in the
+      // page; Jobs its provider cards
+      expect(wrapper.find("nav.pstrip").exists()).toBe(!["logs", "frames", "settings", "test", "jobs"].includes(name));
     }
   });
 

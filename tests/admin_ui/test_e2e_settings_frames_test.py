@@ -784,7 +784,7 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     expect(items).to_have_count(1)
     expect(items).to_contain_text("ref.png")
     expect(items.locator("img")).to_have_count(0)            # names only: no thumbnail
-    page.get_by_role("button", name="Generate", exact=True).click()
+    page.get_by_role("button", name="Send test job", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")
     assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a cat'")[0] == 1
 
@@ -810,7 +810,7 @@ def test_the_test_tab_generates_keeps_form_and_images_over_a_reload_and_the_key_
     page.get_by_role("button", name="Clear form").click()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("")
     expect(page.get_by_role("heading", level=2, name="Pick a model")).to_be_visible()
-    expect(page.get_by_role("button", name="Generate", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Send test job", exact=True)).to_be_disabled()
     page.reload()
     expect(page.get_by_label("Prompt", exact=True)).to_have_value("")
     expect(page.get_by_test_id("attachment")).to_have_count(0)
@@ -886,14 +886,22 @@ def test_the_test_tab_still_works_when_localstorage_and_indexeddb_are_blocked(ap
         files=[{"name": "ref.png", "mimeType": "image/png", "buffer": PNG}])
     expect(page.get_by_test_id("attach-note")).to_contain_text(
         "The attached images could not be saved in this browser: they are lost on reload.")
-    page.get_by_role("button", name="Generate", exact=True).click()
+    page.get_by_role("button", name="Send test job", exact=True).click()
     expect(page.locator(".test-result__status")).to_contain_text("Job")
     assert db.one("SELECT count(*) FROM jobs WHERE prompt = 'a dog'")[0] == 1
     assert page.evaluate("sessionStorage.getItem('relay_test_key')") == api_key.raw
 
 
 def offered_then_pick(page, field: str, offered: list, option: str) -> None:
-    """Open one of the Test form's selects (the design's select, drawn by us), check what it offers, pick `option`."""
+    """Check what one of the Test form's fields offers and pick `option`: Duration and Ratio are segments (a group of
+    pressed buttons named by the field), Resolution and Style the design's select, drawn by us."""
+    if field in ("Duration", "Ratio"):
+        group = page.locator('[role="group"][aria-label="%s"]' % field)
+        segments = group.locator("button[data-value]")
+        expect(segments).to_have_text(offered)
+        segments.filter(has_text=option).first.click()
+        expect(segments.filter(has_text=option).first).to_have_attribute("aria-pressed", "true")
+        return
     page.get_by_role("combobox", name=field, exact=True).click()
     options = page.get_by_role("listbox").get_by_role("option")
     expect(options).to_have_text(offered)
@@ -912,7 +920,7 @@ def test_a_ratio_labelled_in_words_is_offered_and_sent_by_its_value(app_session,
     offered_then_pick(page, "Ratio", ["Default", "16:9"], "16:9")
     page.get_by_label("Prompt", exact=True).fill("a cat")
     with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
-        page.get_by_role("button", name="Generate", exact=True).click()
+        page.get_by_role("button", name="Send test job", exact=True).click()
     assert sent.value.post_data_json["ratio"] == "16:9"
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
@@ -941,7 +949,7 @@ def test_a_video_model_offers_its_own_ratios_21_9_and_not_2_3_and_sends_the_one_
     offered_then_pick(page, "Ratio", ["Default", *video], "21:9")
     page.get_by_label("Prompt", exact=True).fill("a cat")
     with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
-        page.get_by_role("button", name="Generate", exact=True).click()
+        page.get_by_role("button", name="Send test job", exact=True).click()
     assert sent.value.post_data_json["ratio"] == "21:9"
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
@@ -958,7 +966,7 @@ def test_a_style_is_shown_by_its_label_and_sent_by_its_value(app_session, live, 
     offered_then_pick(page, "Style", ["Default", "Oil painting"], "Oil painting")
     page.get_by_label("Prompt", exact=True).fill("a cat")
     with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
-        page.get_by_role("button", name="Generate", exact=True).click()
+        page.get_by_role("button", name="Send test job", exact=True).click()
     assert sent.value.post_data_json["style"] == "oil_painting"
     expect(page.locator(".test-result__status")).to_contain_text("Job")
 
@@ -995,7 +1003,7 @@ def test_a_model_that_takes_no_ratio_style_or_image_shows_none_of_them_and_sends
     expect(form.locator("#test-refs")).to_have_count(0)
     expect(page.get_by_test_id("attach-input")).to_have_count(0)
     with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
-        page.get_by_role("button", name="Generate", exact=True).click()
+        page.get_by_role("button", name="Send test job", exact=True).click()
     assert sent.value.post_data_json == {"model": "fake-image", "prompt": "a cat"}
 
 
@@ -1022,7 +1030,7 @@ def test_a_model_with_resolutions_offers_them_and_sends_the_one_picked_in_option
     offered_then_pick(page, "Resolution", ["Default", "480p", "720p"], "720p")
     page.get_by_label("Prompt", exact=True).fill("a cat")
     with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
-        page.get_by_role("button", name="Generate", exact=True).click()
+        page.get_by_role("button", name="Send test job", exact=True).click()
     assert sent.value.post_data_json["options"] == {"resolution": "720p"}
 
 
@@ -1042,7 +1050,7 @@ def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_
     page.route(re.compile(r"/v1/images/generations(/j-1)?$"), answer)
     page.route(re.compile(r"/m/test-pixel$"), lambda route: route.fulfill(body=PNG, content_type="image/png"))
     page.get_by_label("Prompt", exact=True).fill("a cat")
-    page.get_by_role("button", name="Generate", exact=True).click()
+    page.get_by_role("button", name="Send test job", exact=True).click()
     expect(page.locator(".test-result__status")).to_have_text("Job j-1 done (finished)", timeout=15000)
     media = page.locator(".test-result__media")
     expect(media.locator("img")).to_have_count(1)
@@ -1054,7 +1062,7 @@ def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_
     expect(unsafe.nth(2)).to_have_text('link not shown: <img src=x onerror="window.__pwned=1">')
     assert page.evaluate("window.__pwned", isolated_context=False) is None
     assert not [u for u in requests if "evil.example" in u], "a foreign link was requested"
-    expect(page.get_by_role("button", name="Generate", exact=True)).to_be_enabled(timeout=10000)
+    expect(page.get_by_role("button", name="Send test job", exact=True)).to_be_enabled(timeout=10000)
 
 
 # ---- phone and tablet: each screen draws, fits the width and keeps its main action in reach --------------------------
@@ -1062,7 +1070,8 @@ def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_
 SMOKE = [
     ("Prompt frames", "frames", lambda page: page.get_by_role("heading", name="Prompt frames", level=1)),
     ("Settings", "settings", lambda page: page.get_by_role("heading", name="Settings", level=1)),
-    ("Test", "test", lambda page: page.get_by_role("heading", name="Test", level=1)),
+    # the Test page's title is the top bar's below 1280 px, its h1 kept for screen readers
+    ("Test", "test", lambda page: page.get_by_test_id("page-title").filter(has_text="Test")),
 ]
 
 

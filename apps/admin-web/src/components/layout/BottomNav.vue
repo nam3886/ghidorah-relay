@@ -90,6 +90,7 @@ watch(
           :class="{ 'is-current': route.name === tab.name }"
           :to="{ name: tab.name }"
           :aria-current="route.name === tab.name ? 'page' : undefined"
+          @click="sheet = false"
         >
           <PathIcon :paths="NAV_ICONS[tab.name as NavIconName]" :size="22" :stroke="2" />
           {{ tab.label }}

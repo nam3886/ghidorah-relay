@@ -66,6 +66,32 @@ export function modelMeta(m: PublicModel | null): string {
   return [cost, length, size].filter(Boolean).join(" · ");
 }
 
+// The points one job costs, as the form's foot says it: the price of the chosen length (`<n>s`), else the model's one
+// price (`default`, or its only one), times the outputs asked for. Null when the catalog gives no price to go by.
+export function pointsFor(m: PublicModel | null, duration: string, count: string): number | null {
+  const prices = m?.prices && typeof m.prices === "object" ? (m.prices as Record<string, unknown>) : null;
+  if (!prices) return null;
+  const at = (k: string): number | undefined => (typeof prices[k] === "number" ? (prices[k] as number) : undefined);
+  const all = Object.values(prices).filter((p): p is number => typeof p === "number");
+  const one = (duration ? at(`${duration}s`) : undefined) ?? at("default") ?? (all.length === 1 ? all[0] : undefined);
+  if (one === undefined) return null;
+  return one * Math.max(1, Math.floor(Number(count) || 1));
+}
+
+// What the Extra options box says about its text: nothing while it is empty, else whether it is a JSON object.
+export function optionsCheck(text: string): { ok: boolean; text: string } | null {
+  if (!text.trim()) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (err) {
+    return { ok: false, text: `Not valid JSON: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, text: "Must be a JSON object" };
+  const n = Object.keys(value).length;
+  return { ok: true, text: `Valid JSON · ${n} ${n === 1 ? "key" : "keys"} · sent as the request's options` };
+}
+
 interface Wallet {
   day_limit: number | null;
   used_day: number;

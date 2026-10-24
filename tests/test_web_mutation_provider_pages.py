@@ -33,7 +33,7 @@ KEYS_STRIP = f"FAILED {KEYS_SPEC} > the provider strip > "
 LOGS_PROVIDER = f"FAILED {LOGS_SPEC} > the provider of a request > "
 ALERTS_STRIP = f"FAILED {ALERTS_SPEC} > the provider strip > "
 FRAMES = f"FAILED {FRAMES_SPEC} > "
-TEST_STRIP = f"FAILED {TEST_SPEC} > the provider strip > "
+TEST_ROWS = f"FAILED {TEST_SPEC} > the provider rows > "
 
 
 @mutation(STRIP, "    scope.only = name;\n    return;", "    return;", expect=ONLY)
@@ -88,12 +88,12 @@ def test_the_frames_page_by_provider():
     vitest(FRAMES_SPEC)
 
 
-@mutation(TEST_VIEW, "m.owned_by === provider.value && m.disabled === true &&", "m.owned_by === provider.value &&",
-          expect=TEST_STRIP + "starts on the first provider in the drawn order that has a model, shows its models "
-                              "only, and a paused one is a disabled chip")
+@mutation(TEST_VIEW, "m.owned_by === p && m.disabled === true &&", "m.owned_by === p &&",
+          expect=TEST_ROWS + "starts on the first provider in the drawn order that has a model, draws a row per "
+                             "provider, and a paused one is a disabled chip")
 @mutation(TEST_VIEW, "if (first) void pick(first.model);", "if (first) void first;",
-          expect=TEST_STRIP + "another provider shows its models and picks its first; a provider the key has none of "
-                              "says so")
+          expect=TEST_ROWS + "another provider picks its first model; a provider the key has none of leaves no model "
+                             "picked")
 @pytest.mark.web_unit
 def test_the_test_page_by_provider():
     vitest(TEST_SPEC)

@@ -77,7 +77,6 @@ describe("the provider strip", () => {
       accounts: "all",
       keys: "all",
       alerts: "all",
-      test: "only",
     });
   });
 

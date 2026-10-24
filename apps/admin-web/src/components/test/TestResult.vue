@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { PublicJob } from "@/api/test";
+import { highlight } from "@/components/logs/log-json";
+import { copyText } from "@/components/shared/clipboard";
+import IconButton from "@/components/shared/IconButton.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
+import { useBreakpoint } from "@/composables/use-breakpoint";
+import { notify } from "@/lib/notify";
 import { IconAlertCircleJoined, IconImage, IconPlay } from "@/components/shared/icons";
 import { safeMediaUrl } from "@/lib/safe-media-url";
 import { useUiStore } from "@/stores/ui";
@@ -15,6 +20,7 @@ import {
   shortJobId,
   statusWord,
   stepOf,
+  tookText,
 } from "./test-result-model";
 
 // The status of the job and its media, in the three cards the design draws: nothing made yet (a title bar and the
@@ -51,12 +57,48 @@ watch(
 const openJob = (): void => {
   if (props.job) ui.openJob(props.job.id);
 };
+
+// The head: what the job is (its kind and model) and, once it is over, how long it took.
+const subline = computed(() =>
+  props.job ? [props.kind, typeof props.job.model === "string" ? props.job.model : ""].filter(Boolean).join(" · ") : "",
+);
+const took = computed(() => (props.job ? tookText(props.job.created_at, props.job.finished_at) : ""));
+
+// The answer as the API sent it, coloured; a phone shows it behind a button (TestPhone, "Show the JSON answer").
+const { isPhone } = useBreakpoint();
+const answer = computed(() => (props.job ? JSON.stringify(props.job, null, 2) : ""));
+const answerLines = computed(() => highlight(answer.value));
+const showAnswer = ref(false);
+const answerPre = ref<HTMLElement | null>(null);
+const copied = ref(false);
+let timer: ReturnType<typeof setTimeout> | undefined;
+const abort = new AbortController();
+onBeforeUnmount(() => {
+  abort.abort();
+  clearTimeout(timer);
+});
+async function copyAnswer(): Promise<void> {
+  const outcome = await copyText(answer.value, () => answerPre.value, abort.signal);
+  if (outcome === "aborted") return;
+  if (outcome === "select") notify.info("Press Ctrl+C to copy the selected text");
+  else if (outcome === "failed") notify.error("Could not copy: select the text and copy it by hand");
+  else {
+    copied.value = true;
+    notify.success("Copied the JSON answer");
+    clearTimeout(timer);
+    timer = setTimeout(() => (copied.value = false), 2000);
+  }
+}
 </script>
 
 <template>
   <section class="result" :class="{ 'result--bar': !job || done }" aria-labelledby="result-title">
     <div class="result__head">
-      <h2 id="result-title">Result</h2>
+      <div class="result__title">
+        <h2 id="result-title">Result</h2>
+        <span v-if="subline" class="result__sub mono">{{ subline }}</span>
+      </div>
+      <span v-if="took" class="result__took num">{{ took }}</span>
       <StatusChip
         v-if="job"
         :status="statusWord(job)"
@@ -167,47 +209,78 @@ const openJob = (): void => {
         </div>
       </div>
     </template>
+
+    <div v-if="job" class="result__answer">
+      <div class="result__answer-head">
+        <span class="result__answer-title">Response</span>
+        <span class="result__sub mono">application/json</span>
+        <span class="result__copy">
+          <IconButton
+            v-if="!isPhone || showAnswer"
+            :icon="copied ? 'check' : 'copy'"
+            label="Copy JSON answer"
+            placement="top-end"
+            @click="copyAnswer"
+          />
+        </span>
+      </div>
+      <button v-if="isPhone && !showAnswer" type="button" class="result__show" @click="showAnswer = true">
+        Show the JSON answer
+      </button>
+      <pre
+        v-else
+        ref="answerPre"
+        class="result__json mono"
+        tabindex="0"
+      ><template v-for="(l, i) in answerLines" :key="i"><span v-for="(part, j) in l" :key="j" :class="part.kind">{{ part.text }}</span>{{ "\n" }}</template></pre>
+    </div>
   </section>
 </template>
 
 <style scoped>
+/* the Result card (Test.dc.html): the head over a rule (title and what the job is, the time taken, the pill), the
+   body, then the Response with its Copy icon over the coloured JSON */
 .result {
-  flex: 1 1 320px;
+  flex: 1 1 440px;
+  max-width: 560px;
   min-width: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  background: var(--rl-surface);
-  border: 1px solid var(--rl-line);
+  overflow: hidden;
   border-radius: 16px;
+  background: var(--rl-surface);
+  box-shadow: var(--rl-shadow-card);
 }
 .result__head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rl-rule);
+}
+.result__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
 }
 .result h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 22px;
-  font-weight: 600;
+  font-weight: 700;
 }
-/* nothing made yet, and a done job: a title bar over the body */
-.result--bar {
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
+.result__sub,
+.result__took {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--rl-faint);
+  overflow-wrap: anywhere;
 }
-.result--bar .result__head {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--rl-line);
-}
-.result--bar h2 {
-  line-height: 20px;
+.result__took {
+  flex: none;
 }
 .result__empty {
   padding: 44px 24px 52px;
@@ -218,6 +291,8 @@ const openJob = (): void => {
 }
 .result__id {
   align-self: flex-start;
+  margin: 16px 20px 0;
+  color: var(--rl-link);
   font-family: var(--rl-mono);
   font-size: 13px;
   text-underline-offset: 3px;
@@ -227,6 +302,9 @@ const openJob = (): void => {
   font-size: 13px;
   color: var(--rl-muted);
   overflow-wrap: anywhere;
+}
+.result__id ~ .test-result__status:not(.sr-only) {
+  margin: 8px 20px 0;
 }
 .sr-only {
   position: absolute;
@@ -242,6 +320,7 @@ const openJob = (): void => {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  margin: 16px 20px 0;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--rl-bad-bg);
@@ -254,7 +333,7 @@ const openJob = (): void => {
   color: var(--rl-bad);
 }
 .result__error strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--rl-bad);
 }
 .result__error-text {
@@ -265,37 +344,48 @@ const openJob = (): void => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 16px 20px 20px;
 }
+/* the facts: a ruled ledger, label at the left and value at the right */
 .result__ledger {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 6px;
   margin: 0;
-  padding: 12px 14px;
+  overflow: hidden;
+  border: 1px solid var(--rl-rule);
   border-radius: 12px;
-  background: var(--rl-raised);
-  font-size: 13px;
 }
 .result__row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-top: 1px solid var(--rl-rule);
+}
+.result__row:first-child {
+  border-top: 0;
 }
 .result__row dt {
-  color: var(--rl-muted);
-  white-space: nowrap;
+  flex: none;
+  font-size: 13px;
+  color: var(--rl-faint);
 }
 .result__leader {
-  flex: 1;
-  border-bottom: 1px dotted var(--rl-line-strong);
-  transform: translateY(-4px);
+  display: none;
 }
 .result__row dd {
+  min-width: 0;
   margin: 0;
   font-family: var(--rl-mono);
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .result__was {
   color: var(--rl-muted);
@@ -316,20 +406,20 @@ const openJob = (): void => {
   justify-content: center;
   aspect-ratio: 16 / 9;
   padding: 16px;
-  border: 1px solid var(--rl-line);
+  border: 1px solid var(--rl-rule);
   border-radius: 12px;
-  background: var(--rl-raised);
+  background: var(--rl-head);
   text-align: center;
   font-size: 13px;
   color: var(--rl-muted);
 }
 
-/* a done job: the media and the ledger side by side, wrapping under each other when the card is narrow */
+/* a done job: the media, then its ledger */
 .result__done {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 16px;
+  padding: 16px 20px 20px;
 }
 .result__done .test-result__media {
   display: contents;
@@ -337,32 +427,26 @@ const openJob = (): void => {
 .result__frame {
   flex: 1 1 280px;
   min-width: 0;
-}
-.result__frame {
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--rl-line);
   border-radius: 12px;
-  background: var(--rl-raised);
+  background: var(--rl-media);
 }
 .result__play {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  padding: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0 0 0 3px;
+  box-sizing: border-box;
   border: 0;
-  border-radius: 26px;
-  background: var(--rl-primary);
-  color: var(--rl-on-primary);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1b25;
   cursor: pointer;
-}
-.result__play:hover {
-  background: var(--rl-primary-hover);
 }
 .result__video {
   width: 100%;
@@ -379,19 +463,13 @@ const openJob = (): void => {
   color: var(--rl-muted);
 }
 .result__ledger--done {
-  flex: 1 1 200px;
-  align-self: center;
-  padding: 0;
-  border-radius: 0;
-  background: none;
+  flex: 1 1 100%;
 }
-/* the job id in the ledger opens the job, a quiet link as the job titles of the list */
 .result__job {
-  color: inherit;
+  color: var(--rl-link);
   text-decoration: none;
 }
 .result__job:hover {
-  color: var(--rl-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -406,35 +484,101 @@ const openJob = (): void => {
   flex-basis: 100%;
 }
 
-@media (min-width: 768px) and (max-width: 1279px) {
+/* the answer */
+.result__answer {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--rl-rule);
+}
+.result__answer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+}
+.result__copy {
+  display: flex;
+  margin-left: auto;
+}
+.result__answer-title {
+  font-weight: 700;
+}
+.result__json {
+  margin: 0 20px 20px;
+  max-height: 360px;
+  padding: 14px 16px;
+  overflow: auto;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 12px;
+  background: var(--rl-code);
+  color: var(--rl-body);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  --rl-json-num: #c2410c;
+}
+:global(html.dark) .result__json {
+  --rl-json-num: #fdba74;
+}
+.result__json .key {
+  color: var(--rl-brand-ink);
+}
+.result__json .str {
+  color: var(--rl-ok);
+}
+.result__json .num {
+  color: var(--rl-json-num);
+}
+.result__json .lit {
+  color: var(--rl-neutral);
+  font-style: italic;
+}
+.result__json .pun {
+  color: var(--rl-faint);
+}
+.result__show {
+  box-sizing: border-box;
+  height: 44px;
+  margin: 0 16px 16px;
+  border: 1px solid var(--rl-line-strong);
+  border-radius: 10px;
+  background: var(--rl-surface);
+  color: var(--rl-fg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* a tablet and a phone: the card takes the column under the form */
+@media (max-width: 1279px) {
   .result {
     flex: none;
     width: 100%;
-  }
-  .result__body {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  .result__body .result__ledger {
-    flex: 1 1 260px;
-  }
-  .result__body .test-result__media {
-    flex: 1 1 320px;
+    max-width: none;
   }
 }
 @media (max-width: 767px) {
-  .result {
-    flex: none;
-    width: 100%;
+  .result__head,
+  .result__answer-head {
+    padding-left: 16px;
+    padding-right: 16px;
   }
-  .result:not(.result--bar) {
+  .result__body,
+  .result__done {
     padding: 16px;
   }
   .result__id {
     display: flex;
     align-items: center;
     min-height: 44px;
+    margin: 8px 16px 0;
+  }
+  .result__error {
+    margin: 16px 16px 0;
+  }
+  .result__json {
+    margin: 0 16px 16px;
   }
 }
 </style>
