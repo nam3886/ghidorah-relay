@@ -4,6 +4,8 @@ Numbered `migrations/NNNN_name.sql` files run in order, each in its own transact
 one advisory lock, so a second `relay migrate` is a no-op and two at once do not interleave. Migrations are
 expand/contract: the previous build keeps working on the new schema, so a file only adds, never drops
 what a running build still reads.
+0020 is the one owner-approved exception: a contract migration that wipes the jobs and the money tables and runs with
+every service stopped (plans/money-v2.md section 8).
 """
 
 import re

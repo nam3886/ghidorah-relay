@@ -12,7 +12,6 @@ import uuid
 
 import psycopg
 import pytest
-from conftest import JOB_INSERT, job_args
 from jobkit import PROVIDER, account, claim, key, run, submit
 from lifecyclekit import age, claim_new, due, pass_once, poller, reconciler
 from test_roles import as_role
@@ -188,7 +187,7 @@ FROZEN = ("sent_text = 'another text'", "prompt = 'another prompt'", "marker = '
 @mutation(M14, "BEFORE UPDATE OF sent_text, frame_id, marker, prompt ON jobs",
           "BEFORE UPDATE OF sent_text, frame_id ON jobs", expect="a frozen column was changed")
 def test_no_role_can_change_sent_text_frame_id_marker_or_prompt_of_a_job_after_the_insert(db):
-    k = db.key(("p1", "video", None, None))
+    k = db.key(("p1", None, None))
     frame = db.one(INSERT_VERSION, None, CORE)[0]
     job = db.job(k)
     for role in ("relay_api", "relay_worker"):
@@ -223,6 +222,15 @@ def test_the_table_refuses_a_text_outside_the_placeholder_rule_and_a_default_wit
     db.run(INSERT_VERSION.replace(" RETURNING id", ""), "a-model", None)           # a model that follows the default
 
 
+OLD_JOB = ("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, completion, "
+           "after_sent, submit_timeout_s, wallet_kind, price) VALUES (%s, 'p1', %s, 'generate', 'video', 'm', "
+           "'a prompt', %s, 'queued', 'detach', 'reconcile', 60, 'video', 0)")      # the jobs table as 0013 left it
+
+
+def old_job(c, job_id, key_id) -> None:
+    c.execute(OLD_JOB, (job_id, key_id, "marker-" + str(job_id)[:8]))
+
+
 @contextlib.contextmanager
 def database_at_0013(tmp_path, monkeypatch, *, ended: bool | None):
     """A migrated-to-0013 database holding one job (`ended` True or False: ended or still queued; None: no job); yields
@@ -238,7 +246,7 @@ def database_at_0013(tmp_path, monkeypatch, *, ended: bool | None):
         with psycopg.connect(dsn, autocommit=True, options="-c search_path=relay") as c:
             c.execute("INSERT INTO api_keys (id, key_hash, key_prefix) VALUES (%s, 'h', 'rk-t')", (key_id,))
             if ended is not None:
-                c.execute(JOB_INSERT, job_args(job_id, key_id))
+                old_job(c, job_id, key_id)
             if ended:
                 c.execute("UPDATE jobs SET status = 'failed', error_code = 'render.deadline', finished_at = now() "
                           "WHERE id = %s", (job_id,))
@@ -248,7 +256,11 @@ def database_at_0013(tmp_path, monkeypatch, *, ended: bool | None):
 
 def test_0014_applies_on_a_database_at_0013_whose_jobs_have_all_ended(tmp_path, monkeypatch):
     with database_at_0013(tmp_path, monkeypatch, ended=True) as (dsn, (_, job_id)):
-        assert run_migrations(dsn)[0] == 14, "0014 is the first migration applied after 0013"
+        for version, path in migration_files():          # stop at 0014: 0020 wipes the jobs table
+            if version == 14:
+                (tmp_path / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(migrate, "MIGRATIONS", tmp_path)
+        assert run_migrations(dsn) == [14], "0014 is the first migration applied after 0013"
         with psycopg.connect(dsn, autocommit=True, options="-c search_path=relay") as c:
             assert c.execute("SELECT sent_text, frame_id, prompt FROM jobs WHERE id = %s", (job_id,)).fetchone() == (
                 None, None, "a prompt"), "a job made before 0014 keeps NULL sent_text and frame_id"
@@ -287,7 +299,7 @@ def test_a_job_committed_while_0014_waits_is_still_seen_by_its_guard(tmp_path, m
                 outcome.append(e)
 
         with psycopg.connect(dsn, options="-c search_path=relay") as writer:     # a creation that has not committed
-            writer.execute(JOB_INSERT, job_args(job_id, key_id))
+            old_job(writer, job_id, key_id)
             runner = threading.Thread(target=migrate_now)
             runner.start()
             time.sleep(1.0)                                             # the migration is waiting for the writer

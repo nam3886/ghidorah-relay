@@ -12,6 +12,7 @@ from relay_core.db import open_pool, tx
 from relay_core.testing.mutation import mutation
 
 GRANTS = "packages/relay-core/src/relay_core/db/migrations/0006_grants.sql"
+MONEY = "packages/relay-core/src/relay_core/db/migrations/0020_money_v2.sql"
 UNCLEAR = "packages/relay-core/src/relay_core/db/migrations/0015_unclear_replies.sql"
 STRIKE_AT = "packages/relay-core/src/relay_core/db/migrations/0016_account_strike_at.sql"
 S, INS, U, D = "SELECT", "INSERT", "UPDATE", "DELETE"
@@ -21,7 +22,7 @@ ALL = (S, INS, U, D)
 API = {
     "api_keys": ALL, "key_wallets": ALL, "ledger": (S, INS), "jobs": (S, INS, U), "job_events": ALL, "job_media": ALL,
     "accounts": (S, INS),                          # UPDATE is column-level, below; deleting is a worker action
-    "account_capacity": (S,), "account_charges": (S,), "leases": (S,), "worker_heartbeats": (S,),
+    "account_pools": (S,), "account_charges": (S,), "leases": (S,), "worker_heartbeats": (S,),
     "account_shots": (S,), "provider_snapshots": (S,), "commands": (S, INS), "settings_kv": ALL, "request_logs": ALL,
     "admin_users": ALL, "admin_sessions": ALL, "admin_login_attempts": ALL, "schema_migrations": (),
     "billing_pin": (S,), "billing_alerts": (S, INS), "prompt_frames": (S, INS), "prompt_frame_locks": (S, INS),
@@ -29,17 +30,18 @@ API = {
 }
 WORKER = {
     "api_keys": (S,), "key_wallets": (S, U), "ledger": (S, INS), "jobs": (S, INS, U),
-    "job_events": ALL, "job_media": ALL, "accounts": ALL, "account_capacity": ALL, "account_charges": ALL,
+    "job_events": ALL, "job_media": ALL, "accounts": ALL, "account_pools": ALL, "account_charges": ALL,
     "leases": ALL, "worker_heartbeats": ALL,
     "account_shots": ALL, "provider_snapshots": ALL, "commands": ALL, "settings_kv": ALL, "request_logs": ALL,
     "admin_users": (), "admin_sessions": (), "admin_login_attempts": (), "schema_migrations": (), "billing_pin": (S,),
     "billing_alerts": (S, INS), "prompt_frames": (), "prompt_frame_locks": (),
     "unclear_replies": (INS,),                     # append only: the writers insert with ON CONFLICT DO NOTHING
 }
-API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at"}
+API_ACCOUNT_COLUMNS = {"label", "proxy_host", "proxy_port", "proxy_auth_enc", "state", "state_reason", "updated_at",
+                       "tier", "cycle_start"}
 SECRET_COLUMNS = ("credential_enc", "credential_gen", "identity", "display_name", "provider_state", "last_error",
                   "proxy_ok", "proxy_checked_at", "strikes", "strike_at", "cooldown_until", "cooldown_reason",
-                  "check_due_at")
+                  "check_due_at", "tier_read_at")
 
 
 def privileges(db, role):
@@ -82,6 +84,8 @@ def test_every_table_has_a_decision_and_the_grants_match_the_matrix(db):
            expect="assert {'credential_")
 @mutation("packages/relay-core/src/relay_core/db/migrations/0008_account_restrict.sql",
           "cooldown_reason, check_due_at)", "cooldown_reason)", expect="assert {'check_due_a")
+@mutation(MONEY, "GRANT UPDATE (tier, cycle_start) ON accounts TO relay_api;",
+          "GRANT UPDATE (tier, tier_read_at, cycle_start) ON accounts TO relay_api;", expect="assert {'tier_read_at'")
 def test_the_api_cannot_update_a_credential_or_worker_owned_account_columns(db):
     with db.connect() as c:
         cols = {r[0] for r in c.execute("SELECT column_name FROM information_schema.columns "
@@ -108,7 +112,7 @@ def test_the_api_updates_only_the_two_acknowledge_columns_of_an_unclear_reply_an
 
 
 def test_every_statement_the_api_makes_runs_under_relay_api(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     job = uuid.uuid4()
     account = uuid.uuid4()
 
@@ -116,12 +120,13 @@ def test_every_statement_the_api_makes_runs_under_relay_api(db):
         pool = await open_pool(db.api_dsn, max_size=4)
         try:
             async with tx(pool) as conn:      # create a job: the charge and the job row
-                charged = await billing.charge(conn, key, "p1", "video", 5, job)
+                charged = await billing.charge(conn, key, "p1", 5, job)
                 await conn.execute(JOB_INSERT, job_args(job, key, price=5))
             async with tx(pool) as conn:
-                assert (await billing.refund(conn, charged.ledger_id)).refunded
-                await billing.ensure_wallets(conn, "p2", ["video"])
-                await billing.create_wallets(conn, key, [("p3", "image")], day_limit=1)
+                for row in charged.ledger_ids:
+                    assert (await billing.refund(conn, row)).refunded
+                await billing.ensure_wallets(conn, "p2")
+                await billing.create_wallets(conn, key, {"p3": (1, None)})
         finally:
             await pool.close()
 
@@ -130,6 +135,7 @@ def test_every_statement_the_api_makes_runs_under_relay_api(db):
         ("INSERT INTO api_keys (id, key_hash, key_prefix) VALUES (%s, 'api-hash', 'rk-a')", (uuid.uuid4(),)),
         ("UPDATE api_keys SET enabled = false, label = 'x', models = '{a}', max_unfinished = 3 WHERE id = %s", (key,)),
         ("UPDATE key_wallets SET day_limit = 9, total_limit = 99 WHERE key_id = %s", (key,)),
+        ("UPDATE accounts SET tier = 'pro', cycle_start = current_date WHERE id = %s", (account,)),
         ("UPDATE jobs SET status = 'failed', error_code = 'x', title = 't', callback_status = 'pending' "
          "WHERE id = %s", (job,)),
         ("INSERT INTO job_events (job_id, source, stage, text) VALUES (%s, 'system', 's', 't')", (job,)),
@@ -151,17 +157,18 @@ def test_every_statement_the_api_makes_runs_under_relay_api(db):
         ("DELETE FROM admin_login_attempts WHERE at < now()", ()),
         ("INSERT INTO request_logs (route, status_code, duration_ms) VALUES ('/v1/x', 200, 1)", ()),
         ("DELETE FROM request_logs WHERE at < now()", ()),
-        ("SELECT * FROM leases, account_capacity, account_charges, worker_heartbeats, account_shots, "
+        ("SELECT * FROM leases, account_pools, account_charges, worker_heartbeats, account_shots, "
          "provider_snapshots, ledger", ()),
         ("DELETE FROM job_events WHERE at < now()", ()),
     ]
     assert as_role(db, "relay_api", statements) == []
 
 
-@mutation(GRANTS, "GRANT SELECT ON account_capacity,", "GRANT SELECT, INSERT, UPDATE ON account_capacity,",
-           expect="INSERT INTO account_charges (account_id, job_id, pool, amount, account_day)")
+@mutation(MONEY, "GRANT SELECT ON account_pools, account_charges TO relay_api;",
+          "GRANT SELECT, INSERT, UPDATE ON account_pools, account_charges TO relay_api;",
+          expect="INSERT INTO account_charges (account_id, job_id, pool, amount)")
 def test_the_api_is_refused_what_belongs_to_the_worker(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     account = uuid.uuid4()
     db.one("INSERT INTO accounts (id, provider, credential_enc) VALUES (%s, 'p1', '\\x01') RETURNING 1", account)
     refused = [
@@ -178,9 +185,10 @@ def test_the_api_is_refused_what_belongs_to_the_worker(db):
         ("UPDATE accounts SET identity = 'someone' WHERE id = %s", (account,)),
         ("INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now())", (account,)),
         ("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES ('w', 'p1', now(), now())", ()),
-        ("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", (account,)),
-        ("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-         "VALUES (%s, gen_random_uuid(), 'video', 1, current_date)", (account,)),
+        ("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", (account,)),
+        ("INSERT INTO account_charges (account_id, job_id, pool, amount) "
+         "VALUES (%s, gen_random_uuid(), 'video', 1)", (account,)),
+        ("UPDATE accounts SET tier_read_at = now() WHERE id = %s", (account,)),
         ("INSERT INTO provider_snapshots (provider, name, data) VALUES ('p1', 'n', '{}')", ()),
         ("UPDATE commands SET status = 'done'", ()),
         ("UPDATE ledger SET amount = 0", ()),
@@ -196,7 +204,7 @@ def test_the_api_is_refused_what_belongs_to_the_worker(db):
 
 
 def test_the_worker_does_what_it_needs_and_not_ddl_the_ledger_or_the_admin_tables(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     job = db.job(key)
     account = uuid.uuid4()
     ok = [
@@ -206,9 +214,9 @@ def test_the_worker_does_what_it_needs_and_not_ddl_the_ledger_or_the_admin_table
         ("UPDATE leases SET until = now() WHERE owner = 'w'", ()),
         ("DELETE FROM leases WHERE owner = 'w'", ()),
         ("INSERT INTO worker_heartbeats (worker_id, provider, started_at, at) VALUES ('w', 'p1', now(), now())", ()),
-        ("INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')", (account,)),
-        ("INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-         "VALUES (%s, %s, 'video', 1, current_date)", (account, job)),
+        ("INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')", (account,)),
+        ("INSERT INTO account_charges (account_id, job_id, pool, amount) "
+         "VALUES (%s, %s, 'video', 1)", (account, job)),
         ("UPDATE jobs SET status = 'submitting' WHERE id = %s", (job,)),
         ("UPDATE commands SET status = 'done'", ()),
         ("INSERT INTO provider_snapshots (provider, name, data) VALUES ('p1', 'n', '{}')", ()),
@@ -225,7 +233,7 @@ def test_the_worker_does_what_it_needs_and_not_ddl_the_ledger_or_the_admin_table
 
 
 def test_the_worker_refunds_a_charge_under_its_own_role(db):
-    key = db.key(("p1", "video", None, None))
+    key = db.key(("p1", None, None))
     job = db.job(key)
 
     async def scenario():
@@ -233,9 +241,10 @@ def test_the_worker_refunds_a_charge_under_its_own_role(db):
         worker_pool = await open_pool(db.worker_dsn, max_size=2)
         try:
             async with tx(owner_pool) as conn:
-                charged = await billing.charge(conn, key, "p1", "video", 4, job)
+                charged = await billing.charge(conn, key, "p1", 4, job)
             async with tx(worker_pool) as conn:
-                assert (await billing.refund(conn, charged.ledger_id)).refunded
+                for row in charged.ledger_ids:
+                    assert (await billing.refund(conn, row)).refunded
         finally:
             await owner_pool.close()
             await worker_pool.close()
@@ -247,9 +256,9 @@ def test_the_worker_refunds_a_charge_under_its_own_role(db):
 # Every table that points at an account, with a statement that makes one row point at the given account.
 CHILDREN = {
     "leases": "INSERT INTO leases (account_id, purpose, owner, until) VALUES (%s, 'check', 'w', now())",
-    "account_capacity": "INSERT INTO account_capacity (account_id, pool, source) VALUES (%s, 'video', 'reported')",
-    "account_charges": "INSERT INTO account_charges (account_id, job_id, pool, amount, account_day) "
-                       "SELECT %s, id, 'video', 2, current_date FROM jobs LIMIT 1",
+    "account_pools": "INSERT INTO account_pools (account_id, pool) VALUES (%s, 'video')",
+    "account_charges": "INSERT INTO account_charges (account_id, job_id, pool, amount) "
+                       "SELECT %s, id, 'video', 2 FROM jobs LIMIT 1",
     "account_shots": "INSERT INTO account_shots (account_id, object_key) VALUES (%s, 'k')",
     "commands": "INSERT INTO commands (provider, kind, account_id) VALUES ('p1', 'check', %s)",
     "jobs": "UPDATE jobs SET account_id = %s",
@@ -267,7 +276,7 @@ def test_a_plain_delete_of_a_used_account_is_refused_by_the_database_and_removes
     # Referential actions run as the table owner: with CASCADE or SET NULL a plain DELETE would reach worker and
     # money rows that the roles' grants forbid them to touch.
     for table, child in CHILDREN.items():
-        db.job(db.key(("p1", "video", None, None)))
+        db.job(db.key(("p1", None, None)))
         account = uuid.uuid4()
         db.one("INSERT INTO accounts (id, provider, credential_enc) VALUES (%s, 'p1', '\\x01') RETURNING 1", account)
         db.run(child, account)
