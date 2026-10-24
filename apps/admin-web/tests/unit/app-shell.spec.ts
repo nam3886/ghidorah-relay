@@ -202,10 +202,9 @@ describe("the shell", () => {
   it("frames the page: the top bar first, then the scroll area around one main with the view inside", async () => {
     const { wrapper } = await open("/keys");
     const shellEl = wrapper.find(".app-shell");
-    // API keys has the provider strip between the bar and the scroll area, outside the scroll area
-    expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "NAV", "DIV"]);
-    expect(shellEl.element.children[1]?.classList.contains("pstrip")).toBe(true);
-    expect(shellEl.element.children[2]?.classList.contains("app-scroll")).toBe(true);
+    // API keys has no provider strip: the scroll area follows the bar
+    expect([...shellEl.element.children].map((el) => el.tagName)).toEqual(["HEADER", "DIV"]);
+    expect(shellEl.element.children[1]?.classList.contains("app-scroll")).toBe(true);
     expect(wrapper.find(".app-scroll__wrap > .app-scroll__view > main").exists()).toBe(true);
     expect(wrapper.find("header").element.closest(".app-scroll")).toBeNull();
     expect(wrapper.find("main h2").text()).toBe("API keys");
@@ -386,17 +385,14 @@ describe("the shell", () => {
     expect(wrapper.find("main section").element).not.toBe(first);
   });
 
-  it("has no Provider list in the top bar: every tab but Accounts, Request logs, Prompt frames, Settings and Test, which have their own lists, filters by provider in its strip, and Jobs only below the desktop", async () => {
+  it("has no Provider list in the top bar and no provider strip on a desktop: only Jobs has the strip, below the desktop", async () => {
     const { wrapper, router } = await open("/jobs");
     for (const name of ["jobs", "accounts", "keys", "logs", "alerts", "frames", "settings", "test"]) {
       await router.push(`/${name}`);
       await flushPromises();
       expect(wrapper.find('[data-testid="provider-filter"]').exists()).toBe(false);
-      // Accounts, Request logs, Prompt frames, Settings and Test (a row per provider) have their provider chips or tabs
-      // in the page; Jobs its provider cards
-      expect(wrapper.find("nav.pstrip").exists()).toBe(
-        !["accounts", "logs", "frames", "settings", "test", "jobs"].includes(name),
-      );
+      // Keys and Alerts draw no strip (Keys.dc, Alerts.dc); the others have their own chips, tabs or cards
+      expect(wrapper.find("nav.pstrip").exists()).toBe(false);
     }
   });
 

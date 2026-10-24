@@ -29,12 +29,11 @@ export const TABS = [
   { name: "test", label: "Test", component: () => import("@/views/TestView.vue") },
 ] as const;
 
-// The tabs whose provider filter is the strip, and its mode there; the others (Accounts, Request logs, Prompt frames,
-// Settings and Test, which draw their own provider chips, tabs or lists) have no strip.
+// The tabs whose provider filter is the strip, and its mode there: only Jobs, below the desktop, where it is the one
+// provider filter (the B boards draw no strip; Keys and Alerts have none). Accounts, Request logs, Prompt frames,
+// Settings and Test draw their own provider chips, tabs or lists.
 const STRIP_TABS: Record<string, StripMode> = {
   jobs: "all",
-  keys: "all",
-  alerts: "all",
 };
 
 const routes: RouteRecordRaw[] = [

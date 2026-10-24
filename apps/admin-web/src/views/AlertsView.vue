@@ -34,13 +34,12 @@ import { useLatest } from "@/composables/use-latest";
 import { errorText } from "@/lib/errors";
 import { notify } from "@/lib/notify";
 import { providerClass } from "@/lib/providers";
-import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
 
 // Alerts (Alerts, AlertsTablet, AlertsPhone, AlertsStates, AlertDetail): one card per severity (Critical, Warnings,
 // Info), each listing its stored groups (with an Acknowledge) and the live conditions the dashboard computes (no
-// acknowledge: they clear themselves). The provider strip filters both. Titles and reply texts hold
+// acknowledge: they clear themselves). The page has no provider filter (Alerts draws no strip). Titles and reply texts hold
 // customer-influenced words, so every one reaches the page as text.
 //
 // `asked` is what the operator asked for last (the filters and the group whose detail is open); what is drawn (`groups`,
@@ -53,7 +52,6 @@ import { useUiStore } from "@/stores/ui";
 // drawer is shown while a detail is asked for (`asked.open`), reads while it loads and keeps the error of a read that
 // failed.
 const stats = useStatsStore();
-const scope = useScopeStore();
 const ui = useUiStore();
 const { run } = useBusy();
 const latest = useLatest();
@@ -74,22 +72,15 @@ const writing = ref(false);
 // While a view loads, only the controls that ask for another view stay usable: they are how it is replaced. While a
 // write is in flight nothing is.
 const locked = computed(() => writing.value || loading.value > 0);
-// The provider strip filters the groups and the live conditions here, in the page.
-const shownGroups = computed(() =>
-  scope.provider ? groups.value.filter((g) => g.provider === scope.provider) : groups.value,
-);
-const shownLive = computed(() =>
-  scope.provider ? live.value.filter((a) => a.provider === scope.provider) : live.value,
-);
 // a group or a condition of no provider is the relay's own, in grey
 const providerOf = (p: string | null | undefined): string => p || "relay";
 // A group is named by its kind and its own key; a list wants one unique id per row.
-const groupRows = computed(() => shownGroups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
+const groupRows = computed(() => groups.value.map((g) => ({ ...g, id: `${g.kind}/${g.group}` })));
 type GroupRow = (typeof groupRows.value)[number];
 
 // A live condition is open by nature and has no kind of the stored ones: the Acknowledged view and a Kind filter leave
 // them out (filtered as drawn, after the answer).
-const liveShown = computed(() => (asked.value.status === "acknowledged" || asked.value.kind ? [] : shownLive.value));
+const liveShown = computed(() => (asked.value.status === "acknowledged" || asked.value.kind ? [] : live.value));
 // The cards: a severity with nothing in it is not drawn.
 const cards = computed(() =>
   SEVERITIES.map((sev) => ({
@@ -102,7 +93,7 @@ const cards = computed(() =>
 // what is open, by severity: the open groups and the live conditions
 const summary = computed(() => {
   const n: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
-  for (const g of shownGroups.value) if (g.open_count > 0) n[severityOf(g.severity)]++;
+  for (const g of groups.value) if (g.open_count > 0) n[severityOf(g.severity)]++;
   for (const a of liveShown.value) n[severityOf(a.severity)]++;
   return openSummary(n);
 });
@@ -186,9 +177,8 @@ function pick(filter: "status" | "kind", value: string | number): void {
       : { ...asked.value, kind: String(value) };
   void reload();
 }
-const filtered = computed(() => asked.value.status !== "open" || asked.value.kind !== "" || !!scope.provider);
+const filtered = computed(() => asked.value.status !== "open" || asked.value.kind !== "");
 function clearFilters(): void {
-  scope.provider = "";
   asked.value = { ...asked.value, status: "open", kind: "" };
   void reload();
 }
@@ -295,7 +285,7 @@ async function acknowledge(g: AlertGroup) {
   });
 }
 
-const groupCount = computed(() => `${shownGroups.value.length} ${shownGroups.value.length === 1 ? "group" : "groups"}`);
+const groupCount = computed(() => `${groups.value.length} ${groups.value.length === 1 ? "group" : "groups"}`);
 
 // the count a stacked row shows at its right: `×3 · since 14:05` on a tablet, `×3` on a phone
 const rowRight = (g: AlertGroup): string =>

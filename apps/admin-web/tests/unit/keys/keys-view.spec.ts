@@ -570,7 +570,7 @@ describe("Copy", () => {
   });
 });
 
-describe("the provider strip", () => {
+describe("no provider filter", () => {
   beforeEach(() => {
     vi.mocked(shell.getModels).mockResolvedValue({
       data: [
@@ -593,17 +593,13 @@ describe("the provider strip", () => {
     });
   });
 
-  it("a provider shows the keys that may use its models, and only its cap chip", async () => {
+  it("a provider picked on another tab narrows nothing: every key and every cap chip stays (Keys has no strip)", async () => {
     const w = await open();
-    expect(w.findAll("tbody tr")[0]!.findAll('[data-testid="cap-chip"]')).toHaveLength(2);
     useScopeStore().provider = "dola";
     await settle();
     const rows = w.findAll("tbody tr");
-    expect(rows.map((r) => r.find(".k-label").text())).toEqual(["any", "dola only"]);
-    expect(rows.map((r) => r.findAll('[data-testid="cap-chip"]').map((c) => c.text().split(" ")[0]))).toEqual([
-      ["dola"],
-      ["dola"],
-    ]);
+    expect(rows.map((r) => r.find(".k-label").text())).toEqual(["any", "dola only", "vibes only"]);
+    expect(rows[0]!.findAll('[data-testid="cap-chip"]')).toHaveLength(2);
   });
 });
 

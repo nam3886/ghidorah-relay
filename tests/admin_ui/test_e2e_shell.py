@@ -128,7 +128,8 @@ def test_a_stale_token_at_login_is_dropped_and_the_form_stays(app, app_page, liv
     page.reload()
     expect(page.get_by_role("button", name="Sign in")).to_be_visible()
     expect(page).to_have_url(re.compile(r"#/login$"))
-    assert page.evaluate("sessionStorage.getItem('relay_admin_token')") is None
+    # the check's 401 clears the token once it answers, which may be after the form is drawn: wait for it
+    page.wait_for_function("() => sessionStorage.getItem('relay_admin_token') === null", timeout=5000)
     page.problems.clear()                                       # the 401 of the check is a console line
 
 
@@ -372,7 +373,7 @@ def test_the_tabs_are_in_the_top_bar_on_a_desktop_and_in_a_bottom_bar_below_it(
     menu = bar.get_by_role("button", name=re.compile(r"^Account menu"))
     for part in (logo, menu):
         expect(part).to_be_visible()
-    # every tab filters by provider in its strip: the bar has no Provider list
+    # the bar has no Provider list (Jobs filters by its cards or strip, other pages by their own chips)
     expect(bar.get_by_test_id("provider-filter")).to_have_count(0)
     assert abs(box(bar)["height"] - bar_height) <= 1, box(bar)
     assert box(bar)["y"] == 0

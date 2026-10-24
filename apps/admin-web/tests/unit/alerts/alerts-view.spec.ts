@@ -200,13 +200,12 @@ describe("the provider strip", () => {
     expect(live[0]!.classes()).toContain("p-other");
   });
 
-  it("a provider keeps its own groups and live conditions, and the count says so", async () => {
+  it("a provider picked on another tab narrows nothing (Alerts has no strip)", async () => {
     const w = await open();
+    const before = rowsOf(w).length;
     useScopeStore().provider = "dola";
     await settle();
-    expect(rowsOf(w).map((r) => r.find(".g-title").text())).toEqual(["dola clamp", "dola drift"]);
-    expect(w.find('[data-testid="alerts-count"]').text()).toBe("2 groups");
-    expect(w.findAll('[data-testid="alert-live"]')).toHaveLength(0);
+    expect(rowsOf(w)).toHaveLength(before);
   });
 });
 
@@ -302,18 +301,14 @@ describe("the lists", () => {
     expect(w.find('[data-testid="alert-live"]').exists()).toBe(false);
   });
 
-  it("an empty list says so, and under a filter offers to clear it", async () => {
+  it("an empty list says so, and a provider picked on another tab is no filter here", async () => {
     list.mockResolvedValue({ items: [] });
     vi.mocked(shell.getStats).mockResolvedValue({ ...(await shell.getStats("")), alerts: [] });
     const w = await open();
     expect(w.find('[data-testid="alerts-empty"]').text()).toContain("No alerts");
     useScopeStore().provider = "dola";
     await settle();
-    const box = w.find('[data-testid="alerts-empty"]');
-    expect(box.text()).toContain("No alert groups with this filter");
-    await box.find("button").trigger("click");
-    await settle();
-    expect(useScopeStore().provider).toBe("");
+    expect(w.find('[data-testid="alerts-empty"]').text()).toContain("No alerts");
   });
 
   it("says the list is cut at 200 groups, and only then", async () => {

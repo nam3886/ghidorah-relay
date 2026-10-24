@@ -29,7 +29,6 @@ TEST_SPEC = "tests/unit/test/test-view.spec.ts"
 ONLY = (f"FAILED {STRIP_SPEC} > the provider strip > for a one-provider page lists the providers alone, picks `only` "
         "(not the filter) and is off while locked")
 GROUPS = f"FAILED {KEY_SPEC} > modelGroups > "
-KEYS_STRIP = f"FAILED {KEYS_SPEC} > the provider strip > "
 LOGS_PROVIDER = f"FAILED {LOGS_SPEC} > the provider of a request > "
 ALERTS_STRIP = f"FAILED {ALERTS_SPEC} > the provider strip > "
 FRAMES = f"FAILED {FRAMES_SPEC} > "
@@ -48,9 +47,6 @@ def test_the_strip_of_a_one_provider_page():
 @mutation(KEY_MODEL, "paused: m?.disabled === true", "paused: false",
           expect=GROUPS + "groups by provider in the drawn order, finds aliases, marks paused, and puts unknown names "
                           "last")
-@mutation(KEYS, "scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value",
-          "items.value",
-          expect=KEYS_STRIP + "a provider shows the keys that may use its models, and only its cap chip")
 @pytest.mark.web_unit
 def test_the_keys_page_by_provider():
     vitest(KEY_SPEC, KEYS_SPEC)
@@ -65,9 +61,6 @@ def test_the_logs_page_by_provider():
     vitest(LOGS_SPEC)
 
 
-@mutation(ALERTS, "scope.provider ? groups.value.filter((g) => g.provider === scope.provider) : groups.value",
-          "groups.value",
-          expect=ALERTS_STRIP + "a provider keeps its own groups and live conditions, and the count says so")
 @mutation(ALERTS, 'const providerOf = (p: string | null | undefined): string => p || "relay";',
           'const providerOf = (p: string | null | undefined): string => p || "";',
           expect=ALERTS_STRIP + "the rows and live conditions carry their provider tile, none is the relay")

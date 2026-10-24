@@ -25,7 +25,6 @@ import {
   KEY_FILTERS,
   type KeyFilter,
   keyName,
-  keyReaches,
   loadFailedText,
   summaryText,
 } from "@/components/keys/key-model";
@@ -43,8 +42,8 @@ import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
 
 // API keys (Keys, KeysTablet, KeysPhone, KeysStates). The list answers whole (a deployment has a handful of keys), so
-// there is no pager: the Show chips, the search and the provider strip filter it here, in the page. A provider shows
-// the keys that may use any of its models, and only its cap chip in each row.
+// there is no pager: the Show chips and the search filter it here, in the page. The page has no provider filter (Keys
+// draws no provider strip), so a provider picked on another tab does not narrow it.
 const scope = useScopeStore();
 const auth = useAuthStore();
 const { busy, run } = useBusy();
@@ -100,24 +99,18 @@ onBeforeUnmount(() => {
 scope.loadCatalog().catch((err) => notify.error(errorText(err)));
 const known = computed(() => scope.models ?? []);
 
-// ---- the filters: the provider strip, the Show chips and the search --------------------------------------------
+// ---- the filters: the Show chips and the search ----------------------------------------------------------------
 const show = ref<KeyFilter>("all");
 const q = ref("");
-const reachable = computed(() =>
-  scope.provider ? items.value.filter((k) => keyReaches(k, scope.provider, known.value)) : items.value,
-);
-const shown = computed(() => reachable.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value)));
+const shown = computed(() => items.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value)));
 const counts = computed(() =>
-  Object.fromEntries(KEY_FILTERS.map((f) => [f.value, reachable.value.filter((k) => inFilter(k, f.value)).length])),
+  Object.fromEntries(KEY_FILTERS.map((f) => [f.value, items.value.filter((k) => inFilter(k, f.value)).length])),
 );
 const filtered = computed(() => items.value.length > 0);
-const emptyText = computed(() =>
-  q.value.trim() || show.value !== "all" ? "No key matches these filters" : `No key may use a ${scope.provider} model.`,
-);
+const emptyText = "No key matches these filters";
 function clearFilters(): void {
   show.value = "all";
   q.value = "";
-  scope.provider = "";
 }
 // A tablet or phone folds the search behind a button of the head.
 const searchOpen = ref(false);
@@ -131,7 +124,7 @@ async function toggleSearch(): Promise<void> {
 
 // "6 keys, 4 used today." in bold, the rest after it
 const summary = computed(() => {
-  const text = summaryText(reachable.value, isPhone.value);
+  const text = summaryText(items.value, isPhone.value);
   const cut = text.indexOf(". ");
   return cut < 0 ? { head: text, rest: "" } : { head: text.slice(0, cut + 1), rest: text.slice(cut + 2) };
 });
@@ -352,7 +345,7 @@ function formClosed(): void {
         :filtered="filtered"
         :empty-text="emptyText"
         :catalog="known"
-        :only="scope.provider"
+        only=""
         :created-id="createdId"
         :wallet-id="walletKey?.id ?? null"
         :busy="busy"

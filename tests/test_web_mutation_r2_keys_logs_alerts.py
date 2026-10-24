@@ -268,8 +268,8 @@ def test_the_key_form_shows_what_the_design_shows():
 # ---- Keys: the Show chips, the search, an empty result and a failed list ------------------------------------------
 @mutation(KEYS, "const filtered = computed(() => items.value.length > 0);", "const filtered = computed(() => false);",
           expect=SHOW + "the search finds a label or a prefix, and an empty result offers Clear filters")
-@mutation(KEYS, "reachable.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value))",
-          "reachable.value.filter((k) => inSearch(k, q.value))",
+@mutation(KEYS, "items.value.filter((k) => inFilter(k, show.value) && inSearch(k, q.value))",
+          "items.value.filter((k) => inSearch(k, q.value))",
           expect=SHOW + "each chip counts its keys and shows only them")
 @mutation(KEYS, "error.value = loadFailedText(err, errorText(err));", "error.value = errorText(err);",
           expect=DESIGN + "a list that fails to load says why in the canvas's words")

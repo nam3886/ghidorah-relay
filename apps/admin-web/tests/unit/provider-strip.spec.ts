@@ -67,16 +67,12 @@ describe("the provider strip", () => {
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
   });
 
-  it("is shown on the tabs that filter by provider, in each one's mode; Accounts, Request logs, Settings and Test draw their own", () => {
+  it("is shown on Jobs alone (below the desktop); Keys and Alerts draw none, the other tabs their own chips", () => {
     const routes = createAppRouter().getRoutes();
     const strip = Object.fromEntries(
       routes.filter((r) => r.meta.providerStrip).map((r) => [r.name, r.meta.providerStrip]),
     );
-    expect(strip).toEqual({
-      jobs: "all",
-      keys: "all",
-      alerts: "all",
-    });
+    expect(strip).toEqual({ jobs: "all" });
   });
 
   it("for a one-provider page lists the providers alone, picks `only` (not the filter) and is off while locked", async () => {
