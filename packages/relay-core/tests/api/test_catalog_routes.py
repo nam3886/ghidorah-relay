@@ -113,7 +113,7 @@ def test_the_aliases_list_has_one_entry_per_alias_naming_its_base(db):
 
     data = run_app(db, scenario).json()["data"]
     assert [(m["id"], m["base_model"], m["is_alias"], m["owned_by"], m["prices"]) for m in data] \
-        == [("other-fast", "other-video", True, "other", {"default": 7})]
+        == [("other-fast", "other-video", True, "other", {"default": 10})]
 
 
 @mutation(

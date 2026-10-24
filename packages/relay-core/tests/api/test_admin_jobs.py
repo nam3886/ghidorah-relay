@@ -42,9 +42,9 @@ SERVED_AS_STORED = "media_type=mime"
 REASON = 'raise ApiError(e.code) from None\n    return {"id": str(job_id), "recharged"'
 ANY_REASON = 'raise ApiError("job.busy") from None\n    return {"id": str(job_id), "recharged"'
 DOORS = "packages/relay-core/src/relay_core/api/doors.py"
-TODAYS_PLAN = "        return spec, spec.plan(creq, gate.settings, snapshots)"
-OLD_PRICE_PLAN = ('        return spec, __import__("dataclasses").replace(spec.plan(creq, gate.settings, snapshots), '
-                  "price=3)")
+TODAYS_PLAN = "        return spec, pricing.price_plan(spec, plan, gate.settings)"
+OLD_PRICE_PLAN = ('        return spec, __import__("dataclasses").replace('
+                  "pricing.price_plan(spec, plan, gate.settings), price=3)")
 ALLOW_LIST = "        ok = keys.model_allowed(allowed, requested, catalog)"
 NO_ALLOW_LIST = "        ok = True"
 PLAN_REFUSAL = "if isinstance(exc, InputError) and exc.code"

@@ -33,8 +33,8 @@ def test_a_missing_sale_price_refuses_model_unpriced():
 @mutation(PRICING, "    if cost is None:\n        raise Uncosted(", "    if False:\n        raise Uncosted(",
           expect="DID NOT RAISE")
 def test_a_missing_upstream_cost_refuses_model_uncosted():
-    with pytest.raises(pricing.Uncosted) as caught:
-        priced(cfg=FakeSettings(SPEC, fake__costs={"fake-image": 1}))
+    with pytest.raises(pricing.Uncosted) as caught:          # an image: its pool has no budget to compare with
+        priced("fake-image", cfg=FakeSettings(SPEC, fake__costs={"fake-video": 1}))
     assert caught.value.code == "model.uncosted"
     assert errors.rule("model.uncosted").http_status == 403 and not errors.rule("model.uncosted").job_scoped
 
