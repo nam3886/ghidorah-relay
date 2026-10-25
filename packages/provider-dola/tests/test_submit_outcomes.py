@@ -686,7 +686,7 @@ async def test_failures_that_are_not_dolas_refusal_are_not_counted():
 
 
 STREAM_DELIVERED = "        return None\n    return error\n"
-QUIET = "        if name in QUIET_EVENTS or obj == {}:\n            continue\n"
+QUIET = "        if name in QUIET_EVENTS or obj == {} or (name, obj) == BARE_REPLY_END:\n            continue\n"
 ERROR_THEN_REPLY = ('event: STREAM_ERROR\ndata: {"error_code": 710022002, "error_msg": "busy"}\n\n'
                     'event: CHUNK_DELTA\ndata: {"message": {"content": "{\\"text\\": \\"a lantern\\"}"}}\n\n')
 CODE_IN_CONTENT = ('event: SSE_ACK\ndata: {"conversation_id": "1"}\n\n'
@@ -1118,8 +1118,7 @@ REFUSAL_GUEST = ("        guest = await self._guest_after_send()\n        if gue
                  "            await self._say(\"after dola's refusal")
 
 
-@mutation(SUB, 'QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK", "SSE_REPLY_END"})',
-          'QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})', expect="the live 710022002 stream")
+@mutation(SUB, " or (name, obj) == BARE_REPLY_END:\n", ":\n", expect="the live 710022002 stream")
 @mutation(SUB, REFUSAL_GUEST, "        guest = None\n        if guest is not None:\n"
           "            await self._say(\"after dola's refusal", expect="the guest page after the refusal")
 @sync
@@ -1139,6 +1138,48 @@ async def test_a_live_710022002_then_a_guest_page_is_a_refusal_and_the_logout_st
                        probe_after_send=GUEST_AFTER_SEND).run()
     assert isinstance(last.job, Fail) and last.job.code == errors.REFUSED_710022002, \
         "the live 710022002 stream did not end the job at the cap: %r" % (last.job,)
+
+
+def recorded_reply_ends() -> list[str]:
+    """The SSE_REPLY_END data lines of a delivered image send (23/10, fixtures/dola/api-spike-261023/send_sse.json)."""
+    import json
+
+    from kit_c import FIXTURES
+    lines = [line for _, line in json.loads((FIXTURES / "api-spike-261023" / "send_sse.json").read_text("utf-8"))]
+    return [lines[i + 1] for i, line in enumerate(lines) if line == "event: SSE_REPLY_END"]
+
+
+@mutation(SUB, " or (name, obj) == BARE_REPLY_END:\n", " or name == \"SSE_REPLY_END\":\n",
+          expect="a reply end with a payload was read as quiet")
+def test_only_the_bare_reply_end_is_quiet_one_with_a_payload_is_a_delivery():
+    """Codex 25/10: dola ends a delivered reply with SSE_REPLY_END `end_type` 1 (`msg_finish_attr`) and 2
+    (`answer_finish_attr`) before the bare `end_type` 3. Only the bare one is quiet: an error next to a reply end that
+    carries anything is never a pure refusal that may move the job to another account."""
+    ends = recorded_reply_ends()
+    assert [e.split(",")[0] for e in ends] == ['data: {"end_type":1', 'data: {"end_type":2', 'data: {"end_type":3}']
+    error = 'event: STREAM_ERROR\ndata: {"error_code": 710022002, "error_msg": "busy"}\n\n'
+    for end in ends[:2]:
+        assert stream_error(error + "event: SSE_REPLY_END\n" + end + "\n\n") is None, \
+            "a reply end with a payload was read as quiet: %s" % end[:60]
+    assert stream_error(error + "event: SSE_REPLY_END\n" + ends[2] + "\n\n") == (710022002, "busy")
+
+
+UNCLEAR_AFTER_SEND = {"cells": 0, "ids": [], "name": "", "modal": False, "passport": None}   # the passport call failed
+GUEST_EVIDENCE = "        if not (state.signed_out or state.modal_visible):\n"
+
+
+@mutation(SUB, GUEST_EVIDENCE, "        if state.logged_in:\n", expect="an unclear read after the send struck")
+@sync
+async def test_an_unclear_login_read_after_the_send_gives_no_strike():
+    """Codex 25/10: only positive evidence of a logout strikes (dola says signed out, or the login dialog shows). A
+    passport call that failed on a page with no conversation is a doubt: no strike, after a refusal or without one."""
+    refused = await Scene(polls=False, on_send=refusal_on_send(stream_text(LIVE_REFUSAL)),
+                          probe_after_send=UNCLEAR_AFTER_SEND).run()
+    assert refused.job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["acct-1"]})
+    assert "Suspect" not in types(refused), "an unclear read after the send struck: %r" % (refused.account,)
+    plain = await Scene(polls=False, probe_after_send=UNCLEAR_AFTER_SEND).run()
+    assert isinstance(plain.job, Ambiguous), plain.job
+    assert "Suspect" not in types(plain), "an unclear read after the send struck: %r" % (plain.account,)
 
 
 @sync

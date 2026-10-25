@@ -28,8 +28,11 @@ row did not appear after clicking Create Videos" (`dola.ui_mode_not_ready`). No 
 - **Every real dola stream ends with `SSE_REPLY_END` (`{"end_type":3}`), a refused one too** (also the 23/10 captures
   in `fixtures/dola/api-spike-261023/*_sse.json`). `stream_error` read that event as a delivery, so a browser send never
   saw a 710022002 or 710022004 (the hand-built fixtures in `fixtures/dola/sse/` lacked it). The live job fell to the
-  logout read and stayed unknown. `SSE_REPLY_END` is now a quiet event: the refusal decides the job (account 2, or
-  refunded at `dola.refusal_max_accounts`), and a guest page after it still adds its spaced strike to the account.
+  logout read and stayed unknown. Only that bare terminator is quiet now; a reply end with a payload (`end_type` 1 with
+  `msg_finish_attr`, 2 with `answer_finish_attr`, as a delivered reply sends them) is still a delivery. The refusal
+  decides the job (account 2, or refunded at `dola.refusal_max_accounts`). A guest page after it still adds its
+  spaced strike, but only on positive evidence (dola says signed out, or the login dialog shows), never on a failed
+  read.
 
 ## HTTP send spike 23/10
 

@@ -92,10 +92,12 @@ REFUSED_CODE = 710022002
 REFUSAL_MAX_ACCOUNTS = "dola.refusal_max_accounts"
 SSE_MESSAGE_CHARS = 200
 # Events of a `/chat/completion` stream that deliver nothing: a heartbeat and the acknowledgement of the send.
-# Events that carry no delivery. dola closes every stream with SSE_REPLY_END (`{"end_type": 3}`), a refused one too:
-# read as a delivery it hid each real 710022002 (25/10 live, and the 23/10 captures in fixtures/dola/api-spike-261023),
-# and the job fell to the logout read and stayed unknown instead of going through the refusal path.
-QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK", "SSE_REPLY_END"})
+QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})
+# dola closes every stream with the bare terminator `SSE_REPLY_END {"end_type": 3}`, a refused one too. Read as a
+# delivery, it hid each real 710022002 (25/10 live, and the 23/10 captures in fixtures/dola/api-spike-261023): the job
+# fell to the logout read and stayed unknown. Only that exact payload is quiet. An SSE_REPLY_END with anything more
+# (`end_type` 1 with `msg_finish_attr`, 2 with `answer_finish_attr`) ends a reply, so it is a delivery, as before.
+BARE_REPLY_END = ("SSE_REPLY_END", {"end_type": 3})
 _CONV_ID = re.compile(r'"conversation_id"\s*:\s*"(\d+)"')
 _ANCHOR = re.compile(r'"anchor_index"\s*:\s*(\d+)')
 # The anchor of a FULL read of a conversation (the newest messages, whole): the one `CHAIN_FETCH_JS` asks for. The
@@ -541,7 +543,7 @@ def stream_error(body: str) -> StreamError | None:
                 said = " ".join(said.split())[:SSE_MESSAGE_CHARS] if isinstance(said, str) else ""
                 error = StreamError(int(env["error_code"]), said)
             continue
-        if name in QUIET_EVENTS or obj == {}:
+        if name in QUIET_EVENTS or obj == {} or (name, obj) == BARE_REPLY_END:
             continue
         return None
     return error
@@ -1404,8 +1406,9 @@ class _Run:
     async def _guest_after_send(self) -> tuple[str, str, tuple] | None:
         """The login read of the page after the send, when it reads as a guest: (why, code, the account's effects) and
         the screenshot kept. A guest page gets one spaced strike and a rest; a browser that lost the cookies itself gets
-        the rest and no strike. This run then clears no strike. None when the read says logged in, says nothing, or
-        there is no page (the HTTP send)."""
+        the rest and no strike. This run then clears no strike. Only positive evidence counts: dola says signed out
+        (passport guest, no conversation, no name) or the login dialog shows. None otherwise (logged in, a failed or
+        unclear read: Codex 25/10, a failed passport read must not strike), and with no page (the HTTP send)."""
         if self.page is None:
             return None
         try:
@@ -1413,8 +1416,8 @@ class _Run:
         except Exception as exc:      # noqa: BLE001 - a page that cannot be read proves nothing
             log.info("login read after the send failed: %s", str(exc)[:80])
             return None
-        if state.logged_in or not (state.signed_out or state.cells >= 0 or state.modal_visible):
-            return None
+        if not (state.signed_out or state.modal_visible):
+            return None         # only positive evidence of a logout: a failed or unclear read gives no strike
         self.logged_in = False
         present = await self.driver.identity_cookie_names(self.session)
         lost = lost_identity_cookies(present, self.injected)
