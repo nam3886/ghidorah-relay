@@ -963,17 +963,22 @@ deadline with its refund. Both pools rest after any generate.
 
 ## The gemini provider (`relay worker --provider gemini`)
 
-Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. Three models. `gemini-nano-banana-2`
+Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. Four models. `gemini-nano-banana-2`
 (Nano Banana 2): an image from text (ratios 1:1, 9:16, 3:4, 4:3, 16:9, or none: gemini picks), or one input image edited
 as the text asks (its shape kept, no ratio); one image per job, about 30 s, a 1408x768 PNG for 16:9 with Gemini's
 visible watermark. It is sent with the account's default mode: on a free account Google draws it with "Nano Banana 2",
 on the AI Pro account (default Flash-Lite) with "Nano Banana 2 Lite" (25/10). `gemini-nano-banana-2.1`: the same
 requests sent with the account's "Pro" mode and its kind, drawn by "Nano Banana 2.1"; it takes the `image_pro` pool,
 whose budget is 0 for a free account (and one whose tier was never read), so only a pro or ultra account claims it.
-`gemini-omni-video` (Gemini Omni, the web app's "Create video"): a 10 s 1280x720 MP4 with sound from
-text, or from one image and text; 16:9 only (two portrait sends came back landscape, 25/10); about 1-2 min. Video needs
-an account whose plan includes it (AI Pro measured; a free account answers `gemini.not_entitled`, refunded). The
-protocol is in `fixtures/gemini/FINDINGS.md`.
+`gemini-omni-video` (Gemini Omni, the web app's "Create video"): a 10 s 720p MP4 with sound from
+text, or from one image and text; 16:9 (1280x720) or 9:16 (720x1280, 25/10); about 1-3 min; optionally in the style of
+a video gallery template (`options.template`, a card name from the model's `limits.templates`). Video needs
+an account whose plan includes it (AI Pro measured; a free account answers `gemini.not_entitled`, refunded).
+`gemini-music` (Lyria 3.5, the web app's "Create music"): a song with lyrics from text, sold as the MP4 gemini makes of
+its cover art over the song (a job of the video kind; gemini's MP3 and lyrics are not kept); `options.length` short
+(about 1 min) or standard (about 3 min), `options.vocals` on or instrumental, `options.genre` (17 genres) or
+`options.template` (a music gallery card), each optional; answered in the send's own stream in about 1-1.5 min. It
+takes the `music` pool, 0 for a free account. The protocol is in `fixtures/gemini/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-gemini.env` (from the `.example`): the usual worker variables, no secret of its
 own. Each account should have a proxy: every call to Google and every result download goes through it (owner, 23/10;
@@ -1002,17 +1007,20 @@ counted strikes end the account.
 
 **A job.** Load the page at the account's `/u/N`; for an edit or an image to video, upload the input image
 (`push.clients6.google.com`, free, `?authuser=N`; not taken: `gemini.upload_failed`, retried); write the job's request
-id; mark sent; ONE `StreamGenerate` POST with the image or the video tool, the account's mode and the customer's words
-verbatim (a tracking code typed in the prompt was drawn into the image, so the core frame renders none). An image
-answer streams until the image is drawn; a video answer says in 10-33 s that the video is being made.
+id; mark sent; ONE `StreamGenerate` POST with the image, the video or the music tool, the account's mode and the
+customer's words verbatim (a tracking code typed in the prompt was drawn into the image, so the core frame renders
+none). An image answer streams until the image is drawn, a song's until the song is made; a video answer says in
+3-33 s that the video is being made.
 
 - A complete answer (every line read, closed by gemini's end item) with an image is `Completed`: the image's link is
   resolved with the session (`=d-I`, a few text hops on lh3/work.fife/lh3.google.com, `authuser=N` on `/u/N`) and the
-  PNG downloaded from lh3 through the proxy.
+  PNG downloaded from lh3 through the proxy. A song's is `Completed` the same way with its MP4; the fetch first reads
+  the chat for the MP4's `/gg/` link (the answer's own link serves only the poster), then as a video.
 - A complete video answer with the "generating your video" item and a chat is accepted, whatever other text comes
   with it (only the two proven refusals below win over it); the poll reads the chat every
   `gemini.poll_interval_s` until the video record is there (done), and the fetch resolves its link with `=m22` to the
-  720p MP4 on a googlevideo.com host, downloaded through the proxy with no cookie.
+  720p MP4 on a googlevideo.com host (following a redirect to another googlevideo.com host), downloaded through the
+  proxy with no cookie.
 - A complete answer with a final text and no result fails the job with its refund: `gemini.not_entitled` for the
   "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today", "I can create more
   videos as soon as your limit resets" and their rewordings (case and punctuation ignored; the account's video pool also rests `gemini.video_limit_rest_s`),
@@ -1024,7 +1032,7 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
   exact text is the job's (found: the poll reads it, an image is done, a plain answer fails refunded). Not found stays
   unknown until `gemini.render_deadline_s` (900) fails the job with its refund (a cut send left no chat in the spike).
   It is never sent again.
-- After any send the account's image, image_pro and video pools rest `gemini.account_min_gap_s` (30).
+- After any send the account's image, image_pro, video and music pools rest `gemini.account_min_gap_s` (30).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1033,8 +1041,8 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10); 1 use each | points per job; one use of its pool |
-| `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15 | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week). The free 0 of image_pro is what keeps Nano Banana 2.1 off free accounts |
+| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10), 2 (song, proposed 25/10); 1 use each | points per job; one use of its pool |
+| `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15; music free 0, pro 39 per 5 h block | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week, a song 51-61). The free 0 of image_pro and music is what keeps Nano Banana 2.1 and songs off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 

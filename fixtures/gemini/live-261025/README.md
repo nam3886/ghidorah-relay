@@ -10,3 +10,10 @@ client with no cookie, once per User-Agent (see ../FINDINGS.md section 7).
   production database, the session rotated only by the relay): six t2i sends with the mode id and kind each used and
   the image model the answer named, and the two t2v sends with the portrait option and what came back (FINDINGS 7, 8).
   Numbers and labels only: no link, id or token.
+- `web_requests_video_music.json` (09:4x-09:5xZ, headless Chrome on a copy of the session, every StreamGenerate and
+  accounts.google.com call aborted, so nothing was sent): the web app's own `inner` and first header for a landscape
+  and a portrait text to video, a video gallery template, and songs with each length, vocals and genre choice, none,
+  and a music gallery template (FINDINGS 7, 9). The page's anti-bot token is replaced by `!<token>`.
+- `music_reply.txt` (09:3xZ): one song's StreamGenerate answer (Standard, vocals, Pop), the ids frame and the final
+  payload only: its MP3, MP4 and lyrics records. Links replaced by `SONG<n>`/`REDACTED<n>`, tokens by `<token>`, the
+  conversation ids by fixed fakes.

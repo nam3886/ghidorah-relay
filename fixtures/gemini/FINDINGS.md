@@ -133,8 +133,12 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   reference sends it with NO ratio string in the message (the second send meant to try that and repeated the first by
   mistake). 07:02Z that reference shape (inner[55] = [[17]], the message `[text, 0, null, null, null, null, 0]` with no
   `[9]`): a complete answer in 6 s, "Sorry, something went wrong. Please try your request again.", no video and no
-  "generating" item (`gemini.refused`, refunded). Portrait is not sold; the web app's own portrait request (a capture
-  with the send aborted, as `web_request_i2v.json`) is what is missing.
+  "generating" item (`gemini.refused`, refunded). The web app's own requests, captured unsent 25/10 09:4xZ
+  (`web_requests_video_music.json`), name the orientation as a code in the message, not as text:
+  `[9][6] = [[null, null, null, 1]]` landscape and `[[null, null, null, 2]]` portrait, from text and from an image
+  alike, with inner[55] = [[16]] / [[17]]. Sent so (09:45Z, one t2v): taken in 3.2 s, a 720×1280 video record
+  (10.005 s); the relay sells 9:16. Its googlevideo.com link answered 302 to another googlevideo host (the landscape
+  ones answered 200): `Site.resolve` hands such a link to the fetcher, which follows it within googlevideo.com.
 
 ## 8. The image model follows the mode's kind (AI Pro, 25/10)
 - Each mode row of otAQ7b payload[15] carries a number at [17], its kind: Auto 6, Flash-Lite 6, Flash 1, Pro 3, Argon
@@ -151,9 +155,38 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   Flash-Lite) is drawn by "Nano Banana 2 Lite". The provider sells `gemini-nano-banana-2.1` (the "Pro" mode and its
   kind, `provider_state.pro_mode = [id, kind]`) to pro and ultra accounts only: its `image_pro` pool has no free budget.
 
+## 9. The AI Pro tool menu, music and the gallery templates (25/10, live-261025)
+- The tool menu ("Upload & tools", headless Chrome on a copy of the session with every StreamGenerate and every
+  accounts.google.com call aborted): Search Google, Create image, Create video, Create music, Canvas, Deep research,
+  and under "More tools" Guided learning and Personal Intelligence. Only image, video and music make media; the others
+  answer text and are not sold.
+- Music (otAQ7b tool 230; inner[49] = 21): Length (42 Short, 43 Standard), Vocals (69 Custom, 27 Vocals on, 26
+  Instrumental), Genre (41 Custom and 17 genres). The chosen ids go at inner[55] in one list (length, vocals, genre);
+  the length and vocals also as codes at `[9][6] = [null, null, [length 4|5, vocals 1|2]]` (a trailing one not chosen
+  left out, `[null, 1]` for vocals alone); only a genre: `[9][6] = []`; nothing chosen: no `[9]` (7 captures).
+- A song is answered in the send's own stream after 58-80 s (no "generating" answer, no poll): the text "I've
+  created ... http://googleusercontent.com/generated_music_content/0" and three records: an MP3 (`[null, 4, "<name>.mp3",
+  ..., "audio/mpeg"]`), an MP4 (`[null, 2, "<name>.mp4", ..., "video/mp4", ..., [[secs, nanos], 1024, 1024]]`, the
+  cover art held still over the song) and the lyrics (`text/vtt`), with the title, genre, moods and the model
+  `bard/llm/lyria_3_5_fullsong`. Measured: Standard + vocals + Pop 178 s (172.7 s MP4, 15 MB, h264 720×720 + aac),
+  Short + Instrumental + Ambient 64 s, the Ringtone template with no length 180 s. Each took 51-61 units of the 5 h
+  window (2400): about 39 songs per block.
+- The relay sells the MP4 (the core's video kind; its probe needs a picture, so a bare MP3 would need an audio kind
+  in the core). The MP4's `/gg-dl/` link from the send resolves (`=m22`) to 404 through work.fife.usercontent and only
+  its poster answers (`=d-I`, `=s0`); the chat read (`hNvQHb`) names the same MP4 by a `/gg/` link that resolves to
+  googlevideo.com as a video does: the fetch reads the chat first.
+- Templates: the video gallery (XhaU0b `[4, null, 3]`, 33 cards) and the music gallery (`[4, [3], 3]`, 24 cards) list
+  `[id, name, [[asset link, kind], ...], ..., [hint], ...]`. A send names one in the message after the orientation (a
+  video) or the codes (a song): `[..., null, null, id, [id, name, assets, ""], null, "all", <card place>]`. Sent with
+  the place left null: an "8-bit adventure" video (09:53Z, 1280×720, 10.005 s) and a Ringtone song (180 s) were made.
+  "Doodle effects" restyles an uploaded video and is not offered; cards that ask for a photo may answer a question
+  when none comes (refused, refunded).
+
 ## Open questions
-- Portrait (9:16) video: the web app's own request for it (neither shape tried so far makes one).
 - Whether any send makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".
 - The free plan's daily image limit and its refusal text; rate limits per account; the exact video quota (453 units
   of 2400 per 5 h suggests 5 per 5 h).
 - Whether a cut stream can ever still produce an image (two cuts produced none).
+- Songs from a photo (the Soundscape card asks for one), a song template combined with a length or genre, and
+  videos from an uploaded video or an avatar ("Create from anything", "Put yourself into any scene"): not measured,
+  not sold.

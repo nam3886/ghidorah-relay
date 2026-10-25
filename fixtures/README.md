@@ -391,14 +391,16 @@ describes each file and `fixtures/gemini/FINDINGS.md` sums them up.
 - `gemini/live-261024/t2v_accepted_reply.json`
 - `gemini/live-261024/web_request_i2v.json`
 
-## Gemini video download User-Agent, portrait and image modes (25/10/2026)
+## Gemini video download User-Agent, portrait and image modes, music and templates (25/10/2026)
 
-The googlevideo.com link answers 403 to any User-Agent but the one that resolved it, and the t2i sends per mode with
-the t2v portrait sends (`gemini/live-261025/`; its README.md describes the probe, redacted to parameter names,
-statuses and headers, and the sends, numbers and labels only).
+The googlevideo.com link answers 403 to any User-Agent but the one that resolved it, the t2i sends per mode with
+the t2v portrait sends, the web app's own portrait, template and music requests captured unsent, and one song's
+answer (`gemini/live-261025/`; its README.md describes the probe, redacted to parameter names, statuses and headers,
+the sends, numbers and labels only, and the captures).
 
 - `gemini/live-261025/googlevideo_user_agent.json`
 - `gemini/live-261025/portrait_and_image_modes.json`
+- `gemini/live-261025/web_requests_video_music.json`
 
 ## chat.qwen.ai live spike (23/10/2026)
 
