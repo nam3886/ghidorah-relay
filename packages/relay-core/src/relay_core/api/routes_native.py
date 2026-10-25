@@ -41,6 +41,9 @@ class _Common(Strict):
         "Id of an earlier finished job of this API key whose output this request works on (an extend, an edit). Only "
         "for a model that takes a source (its `limits.source` names the kind of output it needs). The job is made "
         "where the source was made, and fails at once, refunded, when it can no longer be made there."))
+    source_index: StrictInt | None = Field(default=None, description=(
+        "Which output of the source job to work on, from 0 (the default) for a job that made several. Only with "
+        "source_job_id."))
 
 
 class VideoBody(_Common):
@@ -74,7 +77,7 @@ async def create_video(request: Request, key: ApiKey = Depends(require_key), gat
     return await _create(request, gate, key, DoorRequest(
         "video", "native", b.model, b.prompt, duration=b.duration, ratio=b.ratio, n=b.n, images=_refs(b),
         options=b.options or {}, title=b.title, callback_url=b.callback_url, idem_key=idempotency_key,
-        media_type="video", source_job_id=b.source_job_id))
+        media_type="video", source_job_id=b.source_job_id, source_index=b.source_index))
 
 
 @router.post("/v1/images/generations")
@@ -86,7 +89,8 @@ async def create_image(request: Request, key: ApiKey = Depends(require_key), gat
     return await _create(request, gate, key, DoorRequest(
         "image", "native", b.model, b.prompt, ratio=b.ratio, n=b.n, images=_refs(b),
         options={**(b.options or {}), **extra}, title=b.title, callback_url=b.callback_url,
-        idem_key=idempotency_key, media_type="image", source_job_id=b.source_job_id))
+        idem_key=idempotency_key, media_type="image", source_job_id=b.source_job_id,
+        source_index=b.source_index))
 
 
 @router.get("/v1/video/generations/{job_id}")

@@ -152,6 +152,16 @@ def test_the_extend_picks_the_item_the_source_job_delivered():
     assert body(fake.sent("generate")[0])["inputs"][0]["mediaEntId"] == SOURCE_ITEM["mediaEntId"]
 
 
+def test_an_image_edit_works_on_the_output_the_request_named():
+    src = source_job("image")
+    second = {**src.provider_state["outputs"][0], "idx": 1, "ref": "other", "upstream_id": "4242"}
+    two = SourceJob(src.id, src.model, src.operation, src.external_ref,
+                    {**src.provider_state, "outputs": [src.provider_state["outputs"][0], second]}, idx=1)
+    fake = Vibes([], generate=answer(EDIT))
+    run_submit(fake, job("vibes-image-edit", source=two))
+    assert body(fake.sent("generate")[0])["sourceImageEntId"] == "4242"
+
+
 # ---- image edit ------------------------------------------------------------------------------------------------------
 EDIT_MARK = ("        await ctx.mark_sent()                               # immediately before the POST\n"
              "        try:\n            resp = await client.post(IMAGE_EDIT_PATH")

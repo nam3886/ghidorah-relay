@@ -71,7 +71,7 @@ __all__ = [
 # a pinned job also carries its source job's reference and state (the engine finds the output it works on there)
 _VIEW = ("SELECT j.id, j.provider, j.operation, j.model, j.params, j.prompt, j.marker, j.sent_text, j.render_since, "
          "j.sent_at, j.external_ref, j.provider_state, j.frame_id, "
-         "s.id, s.model, s.operation, s.external_ref, s.provider_state "
+         "s.id, s.model, s.operation, s.external_ref, s.provider_state, j.source_idx "
          "FROM jobs j LEFT JOIN jobs s ON s.id = j.source_job_id WHERE j.id = %s")
 
 

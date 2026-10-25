@@ -79,6 +79,7 @@ class NewJob:
     request: Mapping[str, Any] | None = None     # what the client sent (7.1); a regenerated job keeps its source's
     request_hash: str | None = None
     source_job_id: uuid.UUID | None = None       # a pinned job: it runs on the account that made this job
+    source_idx: int = 0                          # ... and works on this output of it
 
     def __post_init__(self):
         if (self.source_job_id is None) == self.plan.uses_source:
@@ -159,11 +160,11 @@ async def _check_cap(conn, new: NewJob, limit: int) -> None:
 _INSERT = (
     "INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, params, prompt, "
     "title, marker, status, completion, after_sent, submit_timeout_s, price_key, price, pool, account_cost, "
-    "callback_url, warnings, request, request_hash, sent_text, frame_id, source_job_id, pin_account_id) "
+    "callback_url, warnings, request, request_hash, sent_text, frame_id, source_job_id, source_idx, pin_account_id) "
     "VALUES (%(id)s, %(provider)s, %(key)s, %(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, %(params)s, %(prompt)s, "
     "%(title)s, %(marker)s, 'queued', "
     "%(completion)s, %(after_sent)s, %(timeout)s, %(price_key)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, "
-    "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s, %(source)s, %(pin)s)")
+    "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s, %(source)s, %(source_idx)s, %(pin)s)")
 
 # The account a pinned job runs on: the one that made its source, read in the creation transaction, so a source that is
 # not a finished job of this key and provider (another key's job, one still running) is refused before the charge.
@@ -206,6 +207,7 @@ async def _insert(conn, new: NewJob, pin: Any) -> None:
         "callback": new.callback_url, "rhash": new.request_hash,
         "request": None if new.request is None else Jsonb(dict(new.request)), "sent": sent_text, "frame": frame_id,
         "source": new.source_job_id, "pin": pin,
+        "source_idx": None if new.source_job_id is None else new.source_idx,
         "warnings": Jsonb([{"code": w.code, "text": redact_log(w.text)} for w in p.warnings])})
     for m in new.inputs:
         await conn.execute(

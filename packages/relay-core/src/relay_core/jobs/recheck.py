@@ -222,7 +222,8 @@ async def regenerate_job(db: AsyncConnectionPool, job_id, settings: Settings, *,
     provider, key_id, prompt, title, request = row
     source = (request or {}).get("source_job_id")      # a pinned job's copy is pinned to the same source's account
     new = NewJob(provider, key_id, plan, prompt, title, request=request,   # kept, so the new job can be regenerated
-                 source_job_id=None if source is None else uuid.UUID(source))
+                 source_job_id=None if source is None else uuid.UUID(source),
+                 source_idx=(request or {}).get("source_index") or 0)
     if idem_key is not None:
         new = replace(new, idem_key=idem_key, idem_body_hash=body_hash({"regenerate": str(job_id)}))
     if old:

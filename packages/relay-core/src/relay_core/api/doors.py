@@ -135,6 +135,7 @@ class DoorRequest:
     media_type: str | None = None
     retry_count: int = 0       # a facade's `x-stainless-retry-count`: how many times the SDK re-sent the request
     source_job_id: str | None = None   # an earlier job of this key whose output the request works on (native doors)
+    source_index: int | None = None    # which output of that job (None: the first)
 
 
 @dataclass(frozen=True)
@@ -322,22 +323,28 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
 
 # The source of a pinned job: a finished job of the same key that ran on an account. The provider, the plan and the
 # creation transaction judge the rest (same provider, a mode that takes a source, still finished at the charge).
-_SOURCE = ("SELECT provider, model, media_type, operation FROM jobs WHERE id = %s AND key_id = %s AND status = 'done' "
-           "AND account_id IS NOT NULL")
+_SOURCE = ("SELECT provider, model, media_type, operation FROM jobs j WHERE id = %s AND key_id = %s "
+           "AND status = 'done' AND account_id IS NOT NULL AND EXISTS (SELECT 1 FROM job_media m "
+           "WHERE m.job_id = j.id AND m.role = 'output' AND m.idx = %s)")
 
 
-async def source_of(pool: AsyncConnectionPool, key_id, job_id: str) -> tuple[uuid.UUID, SourceIn]:
-    """The job a request names in `source_job_id`, or 400 `input.bad_source`: not an id, another key's job, a job that
-    is not done. Another key's job and a missing one answer alike, so a key learns nothing of other keys' jobs."""
+async def source_of(pool: AsyncConnectionPool, key_id, job_id: str, idx: int | None = None
+                    ) -> tuple[uuid.UUID, SourceIn]:
+    """The job a request names in `source_job_id` and its output `idx` (the first when None), or 400
+    `input.bad_source`: not an id, another key's job, a job that is not done, an output it does not have. Another
+    key's job and a missing one answer alike, so a key learns nothing of other keys' jobs."""
+    idx = 0 if idx is None else idx
     try:
         wanted = uuid.UUID(job_id)
     except (ValueError, AttributeError, TypeError):
         raise ApiError("input.bad_source", "source_job_id") from None
+    if type(idx) is not int or idx < 0:
+        raise ApiError("input.bad_source", "source_index")
     async with pool.connection() as conn:
-        row = await (await conn.execute(_SOURCE, (wanted, key_id))).fetchone()
+        row = await (await conn.execute(_SOURCE, (wanted, key_id, idx))).fetchone()
     if row is None:
         raise ApiError("input.bad_source", "source_job_id")
-    return wanted, SourceIn(str(wanted), *row)
+    return wanted, SourceIn(str(wanted), *row, idx=idx)
 
 
 # ---- inputs -------------------------------------------------------------------------------------------------------
@@ -446,7 +453,10 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
     error. Images are hashed as the client sent them (the reference text), not as downloaded."""
     prompt = _check_text(gate.registry, req)
     # a request without a source hashes as it always did, so a retry across this build still finds its job
-    named = {} if req.source_job_id is None else {"source_job_id": req.source_job_id}
+    named = {} if req.source_job_id is None else {"source_job_id": req.source_job_id,
+                                                   "source_index": req.source_index or 0}
+    if req.source_index is not None and req.source_job_id is None:
+        raise ApiError("input.invalid", "source_index")
     request_hash = body_hash({
         "endpoint": req.endpoint, "model": req.model, "prompt": prompt, "duration": req.duration,
         "ratio": req.ratio, "n": req.n, "options": dict(req.options), "title": req.title,
@@ -463,8 +473,8 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
             return retried
     if req.callback_url is not None:
         await check_callback(req.callback_url)
-    source_id, source = (None, None) if req.source_job_id is None else await source_of(gate.pool, key.id,
-                                                                                         req.source_job_id)
+    source_id, source = (None, None) if req.source_job_id is None else await source_of(
+        gate.pool, key.id, req.source_job_id, req.source_index)
     loaded = [(ref, *await load_image(ref)) for ref in req.images]
     media = tuple([MediaIn(await asyncio.to_thread(_sha256, data), mime, len(data)) for _, data, mime in loaded])
     creq = CreateRequest(model=req.model, prompt=prompt, duration=req.duration, ratio=req.ratio, n=req.n,
@@ -486,7 +496,8 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
             "images": [{"input": i.idx} for i in inputs], **named}
     new = NewJob(spec.name, key.id, plan, prompt, title=req.title, callback_url=req.callback_url,
                  idem_key=req.idem_key, idem_body_hash=idem_hash, inputs=tuple(inputs), job_id=job_id,
-                 request=sent, request_hash=request_hash, source_job_id=source_id)
+                 request=sent, request_hash=request_hash, source_job_id=source_id,
+                 source_idx=0 if source is None else source.idx)
     try:
         created = await create_job(gate.pool, new, gate.settings)
     except (IdempotencyConflict, TooManyQueued, billing.BillingError) as refused:

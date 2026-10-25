@@ -454,6 +454,7 @@ class SourceIn:
     model: str
     media_type: str
     operation: str
+    idx: int = 0          # which output of the source the request works on (0 = the first)
 
 
 @dataclass(frozen=True)
@@ -571,6 +572,7 @@ class SourceJob:
     operation: str
     external_ref: str | None
     provider_state: Mapping[str, Any]
+    idx: int = 0          # the output the pinned job works on: `provider_state["outputs"]` entry with this `idx`
 
 
 @dataclass(frozen=True)

@@ -487,8 +487,8 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
     sent, allowed, key_id = job
     prompt = checked_prompt(sent["prompt"], prompt_cap(gate.registry, sent["model"]))
     # a pinned job's source is looked up again: it must still be a finished job of the key
-    source = None if sent.get("source_job_id") is None else (await source_of(gate.pool, key_id,
-                                                                             sent["source_job_id"]))[1]
+    source = None if sent.get("source_job_id") is None else (await source_of(
+        gate.pool, key_id, sent["source_job_id"], sent.get("source_index")))[1]
     request = CreateRequest(
         model=sent["model"], prompt=prompt, duration=sent.get("duration"),
         ratio=sent.get("ratio"), n=sent.get("n"),

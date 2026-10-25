@@ -25,7 +25,7 @@ INDEXES = {
     "account_charges_window",
 }
 # members built later, by expand migrations
-NOT_YET = [("jobs", "source_idx"), ("accounts", "credential_version"), ("accounts", "slots")]
+NOT_YET = [("accounts", "credential_version"), ("accounts", "slots")]
 
 
 def schema_state(dsn):

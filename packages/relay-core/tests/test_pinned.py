@@ -176,8 +176,8 @@ def test_the_engine_sees_the_source_jobs_reference_and_state(db):
 
     view, plain = run(db, scenario)
     assert view.source is not None, "the engine sees the source"
-    assert (view.source.id, view.source.external_ref, dict(view.source.provider_state)) == (
-        str(src), "batch-src", {"batch": "batch-src", "outputs": [{"ref": "c-0"}]})
+    assert (view.source.id, view.source.external_ref, dict(view.source.provider_state), view.source.idx) == (
+        str(src), "batch-src", {"batch": "batch-src", "outputs": [{"ref": "c-0"}]}, 0)
     assert plain.source is None
 
 

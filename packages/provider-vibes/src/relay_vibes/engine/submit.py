@@ -163,10 +163,12 @@ class _Run:
             raise _Stop(_result(Retry(errors.HTTP_ERROR)))
         return batch
 
-    def _source_outputs(self) -> list:
+    def _source_output(self) -> dict:
+        """The source job's output the pinned job works on (`job.source.idx`), as the source recorded it; {} when the
+        source recorded none."""
         state = self.job.source.provider_state or {}
-        outs = state.get("outputs")
-        return outs if isinstance(outs, list) else []
+        outs = [o for o in state.get("outputs") or () if isinstance(o, dict)]
+        return next((o for o in outs if o.get("idx") == self.job.source.idx), {})
 
     def _source_gone(self, why: str) -> _Stop:
         return _Stop(_result(Fail(errors.SOURCE_MISSING, why)))
@@ -176,7 +178,6 @@ class _Run:
         delivered (by its id, else the batch's first item). Before the send: a read that fails is a retry; a batch or an
         item vibes no longer has, or one without a video, ends the job (`vibes.source_missing`, refunded)."""
         src = self.job.source
-        outs = self._source_outputs()
         batch = (src.provider_state or {}).get(BATCH_KEY) or src.external_ref
         if not batch:
             raise self._source_gone("the source job has no vibes batch")
@@ -186,7 +187,7 @@ class _Run:
         self._before_send(resp, "source read")
         found = batch_of(resp)
         content = items(found or {})
-        want = outs[0].get("ref") if outs and isinstance(outs[0], dict) else None
+        want = self._source_output().get("ref")
         item = next((c for c in content if c.get("id") == want), content[0] if content else None)
         if found is None or item is None or not item.get("videoUrl") or not item.get("mediaEntId"):
             raise self._source_gone("the source batch %s holds no video vibes can work on" % batch)
@@ -223,8 +224,7 @@ class _Run:
     def source_image(self) -> str:
         """An image edit: the `mediaEntId` of the image the source job delivered (its output's upstream id), which
         vibes edits only for the account that made it."""
-        outs = self._source_outputs()
-        ent = outs[0].get("upstream_id") if outs and isinstance(outs[0], dict) else None
+        ent = self._source_output().get("upstream_id")
         if not ent:
             raise self._source_gone("the source job left no vibes image id")
         return str(ent)

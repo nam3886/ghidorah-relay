@@ -35,8 +35,8 @@ def test_a_request_with_a_source_job_is_pinned_and_its_status_names_the_source(d
 
     src, job, status = run_app(db, scenario)
     assert status["source_job_id"] == str(src)
-    assert db.one("SELECT source_job_id, pin_account_id, request->>'source_job_id' FROM jobs WHERE id = %s",
-                  uuid.UUID(job)) == (src, acct, str(src))
+    assert db.one("SELECT source_job_id, source_idx, pin_account_id, request->>'source_job_id' FROM jobs "
+                  "WHERE id = %s", uuid.UUID(job)) == (src, 0, acct, str(src))
 
 
 def test_only_a_finished_job_of_the_same_key_and_provider_is_a_source_and_nothing_is_charged_otherwise(db):
@@ -54,11 +54,17 @@ def test_only_a_finished_job_of_the_same_key_and_provider_is_a_source_and_nothin
         for name, source in cases.items():
             r = await env.client.post(VIDEO_PATH, json=video(source_job_id=source), headers=key.headers)
             out[name] = error_of(r)
-        return key, out
+        own = str(done_job(db, key.id, acct, ref="r-own"))
+        r = await env.client.post(VIDEO_PATH, json=video(source_job_id=own, source_index=1), headers=key.headers)
+        out["an output the job does not have"] = error_of(r)
+        r = await env.client.post(VIDEO_PATH, json=video(source_index=0), headers=key.headers)
+        alone = error_of(r)
+        return key, out, alone
 
-    key, out = run_app(db, scenario)
+    key, out, alone = run_app(db, scenario)
     for name, got in out.items():
         assert got == (400, "input.bad_source", "source_job_id"), "%s: %s" % (name, got)
+    assert alone == (400, "input.invalid", "source_index")
     assert charges(db, key_id=key.id) == 0
 
 
@@ -79,8 +85,9 @@ def test_a_model_that_works_on_no_source_refuses_one_rather_than_run_it_on_any_a
     assert charges(db, key_id=key.id) == 0
 
 
-@mutation(DOORS, '    named = {} if req.source_job_id is None else {"source_job_id": req.source_job_id}',
-          '    named = {"source_job_id": req.source_job_id}', expect="hashes as it always did")
+@mutation(DOORS, '    named = {} if req.source_job_id is None else {"source_job_id": req.source_job_id,',
+          '    named = {"source_job_id": req.source_job_id} if True else {"source_job_id": req.source_job_id,',
+          expect="hashes as it always did")
 def test_a_request_without_a_source_hashes_as_it_always_did(db):
     async def scenario(env):
         key = await env.new_key()
@@ -94,8 +101,8 @@ def test_a_request_without_a_source_hashes_as_it_always_did(db):
         "a request without a source hashes as it always did")
 
 
-@mutation(RECHECK, "                 source_job_id=None if source is None else uuid.UUID(source))",
-          "                 source_job_id=None)", expect="Regenerate keeps the pin")
+@mutation(RECHECK, "                 source_job_id=None if source is None else uuid.UUID(source),",
+          "                 source_job_id=None,", expect="Regenerate keeps the pin")
 def test_admin_regenerate_of_a_pinned_job_makes_a_job_pinned_to_the_same_source(db):
     acct = account(db)
 
