@@ -7,8 +7,8 @@ and only the strike threshold, reached by separate reads, ends the account. Any 
 read with no strike; a network failure raises, so the check is recorded as failed. The credits (`totalCredits`) are
 the account's `video` balance and its plan (`memberType`, FINDINGS 7) its tier. With claims on, a pair older than half
 `qwen.bx_max_age_s` is minted anew, so a submit seldom waits for a browser; a mint that fails is logged and the account
-stays alive (the submit tries again). A plan read that fails, or names a plan the core has no tier for, writes no tier:
-the stored one stays.
+stays alive (the submit tries again). A plan read that fails writes no tier: the stored one stays; a plan read that
+works always writes one (pro, or free for any other plan).
 """
 
 import logging
@@ -26,17 +26,18 @@ log = logging.getLogger(__name__)
 
 # qwen's plans (its bundle 0.3.22: `free`, `go` (`lite` is its old name), `plus`, `pro`; 400, 2000 and 10500 credits a
 # month on top of the daily ones). free is measured (both accounts, 23/10); pro is qwen's top plan and the one its
-# VIP-only models require. go and plus have no core tier: they are not written, the tier the admin set stays.
-MEMBER_TIERS = {"free": "free", "pro": "pro"}
+# VIP-only models require. Every plan read is written: pro is pro, anything else is free, as the web app itself reads an
+# unknown plan, so an account downgraded from pro (to go, plus or free) loses the pro-only pools at once.
+MEMBER_TIERS = {"pro": "pro"}
 
 
 async def read_tier(site: Site) -> tuple[Tier, ...]:
-    """The account's tier from its plan; nothing when the plan cannot be read or has no core tier."""
+    """The account's tier from its plan; nothing when the plan cannot be read (the stored tier stays)."""
     try:
         member = await site.member_type()
     except httpx.HTTPError:
         return ()
-    return (Tier(MEMBER_TIERS[member]),) if member in MEMBER_TIERS else ()
+    return () if member is None else (Tier(MEMBER_TIERS.get(member, "free")),)
 
 
 def doubt_effects(why: str, now: datetime) -> tuple[Suspect, Cooldown]:

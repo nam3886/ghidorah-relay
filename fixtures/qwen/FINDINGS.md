@@ -318,7 +318,8 @@ Revisit when a web version adds a video `attachments` type or a `genMode` beyond
 - `member/level/query` → `data.memberType`; the web app lower-cases it and knows `free`, `lite` (old name of `go`), `go`,
   `plus`, `pro` (anything else reads as free). Its plan page: go, plus and pro add 400, 2000 and 10500 credits a month
   on top of the daily ones. `pro` is also what VIP-only models require (`requiredMemberType: pro`).
-- The check maps free → free and pro → pro; go and plus have no core tier and are not written. Only free is measured
+- The check maps pro → pro and every other plan read (free, go, plus, unknown) → free, so an account downgraded
+  from pro leaves the pro-only pools at its next check; an unreadable plan writes no tier. Only free is measured
   (`spike-261023/member_level.json`).
 
 ## Catalog 25/10 (public reads only: no account, no token)

@@ -317,24 +317,41 @@ def tier_of(answer) -> tuple:
 
 @mutation(CHECK_FILE, READS_TIER,
           '            effects = () if credits is None else (Balance("video", credits),)', expect="the plan")
-@mutation(CHECK_FILE, 'MEMBER_TIERS = {"free": "free", "pro": "pro"}', 'MEMBER_TIERS = {"free": "free"}', expect="pro")
+@mutation(CHECK_FILE, 'MEMBER_TIERS = {"pro": "pro"}', "MEMBER_TIERS = {}", expect="pro")
 def test_the_check_reports_the_plan_qwen_names_as_the_tier():
     assert tier_of(MEMBER) == (Tier("free"),), "the recorded free account was not read as free"
     assert tier_of(member("pro")) == (Tier("pro"),), "a qwen pro account was not read as pro"
     assert tier_of(member("Pro")) == (Tier("pro"),)
 
 
-@mutation(CHECK_FILE, "    return (Tier(MEMBER_TIERS[member]),) if member in MEMBER_TIERS else ()",
-          '    return (Tier(MEMBER_TIERS.get(member, "free")),)', expect="no core tier")
-def test_a_plan_with_no_core_tier_or_an_unknown_code_writes_no_tier():
-    for code in ("go", "lite", "plus", "enterprise", ""):
-        assert tier_of(member(code)) == (), "a plan with no core tier was written: %s" % code
+DOWNGRADE = '    return () if member is None else (Tier(MEMBER_TIERS.get(member, "free")),)'
+
+
+@mutation(CHECK_FILE, DOWNGRADE, "    return (Tier(MEMBER_TIERS[member]),) if member in MEMBER_TIERS else ()",
+          expect="kept its stored tier")
+def test_a_pro_account_downgraded_to_any_other_plan_is_read_free_and_never_picked_for_the_pro_pools():
+    """Codex 25/10: a go or plus read wrote no tier, so an account downgraded from pro kept `pro` and stayed eligible
+    for qwen-image-3.0-pro and HappyHorse 1080P. Every working plan read now writes the tier."""
+    from datetime import UTC, datetime
+
+    from relay_core.pool import can_afford, left_of, pool_configs
+    from relay_core.testing.fake_provider import FakeSettings
+    from relay_qwen.spec import SPEC
+    cfgs = pool_configs("qwen", SPEC.caps, FakeSettings(SPEC).get)
+    now = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
+    for code in ("plus", "go", "lite", "free", "enterprise", ""):
+        tiers = tier_of(member(code))
+        assert tiers == (Tier("free"),), "a %r plan kept its stored tier: %s" % (code, tiers)
+        for pool in ("video_pro", "image_pro"):
+            left = left_of(cfgs[pool], tiers[0].tier, [], now)
+            assert left == 0 and not can_afford(left, 0, 1), "a %r account could take %s" % (code, pool)
 
 
 @mutation(HTTP_FILE, '        if status != 200 or body.get("success") is not True or not isinstance(member, str):',
           "        if not isinstance(member, str):", expect="a failed read")
-@mutation(CHECK_FILE, "    except httpx.HTTPError:\n        return ()\n    return (Tier(",
-          "    except ZeroDivisionError:\n        return ()\n    return (Tier(", expect="could not be reached")
+@mutation(CHECK_FILE, "    except httpx.HTTPError:\n        return ()\n    return () if member",
+          "    except ZeroDivisionError:\n        return ()\n    return () if member", expect="could not be reached")
+@mutation(CHECK_FILE, DOWNGRADE, '    return (Tier(MEMBER_TIERS.get(member, "free")),)', expect="changed the tier")
 def test_a_failed_plan_read_keeps_the_account_alive_with_its_credits_and_writes_no_tier():
     for answer in (httpx.Response(500, json=MEMBER), member("pro", success=False), {"success": True, "data": None},
                    "not json", httpx.ReadTimeout("slow"), httpx.ConnectError("refused")):
