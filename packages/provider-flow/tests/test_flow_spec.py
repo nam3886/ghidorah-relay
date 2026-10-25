@@ -1,13 +1,14 @@
 """The flow spec (caps, settings, catalog, error rules, `plan()`) and the credential import."""
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from flowkit import FIX, PSID, PSIDTS, export
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
-from relay_core.pool import day_pool
+from relay_core.pool import can_afford, day_pool, left_of, pool_configs
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -62,7 +63,8 @@ def refusal(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", **kw):
 def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
     assert SPEC.name == "flow" and c.execution == "http"
-    assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "credits")]
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "credits"), ("video_pro", "credits"),
+                                                   ("video_ultra", "credits")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -148,7 +150,8 @@ def test_flow_registers_its_codes_on_load():
     assert set(SPEC.codes()) == codes | ours and codes | ours <= set(errors.RULES)
     for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, code not in ours), code
+        counts = code != "flow.tier_required"      # not the order's fault: uses no attempt (a bounded few times)
+        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, counts, code not in ours), code
 
 
 # ---- plan ----------------------------------------------------------------------------------------------------------
@@ -214,12 +217,13 @@ def test_what_flow_cannot_do_is_refused_rather_than_ignored():
 
 
 
-@mutation(CATALOG_FILE, "-(-c // 5) for m", "c // 5 for m", expect="rounded up")
+@mutation(CATALOG_FILE, "DEFAULT_PRICES = {k: max(1, v) for k, v in DEFAULT_COSTS.items()}",
+          "DEFAULT_PRICES = {k: max(1, v // 5) for k, v in DEFAULT_COSTS.items()}", expect="one point per credit")
 @mutation(CATALOG_FILE, '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 100},',
           '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 10},', expect="GetModels")
-def test_every_option_has_its_getmodels_credits_and_a_proposed_price_of_a_point_per_five_credits():
+def test_every_option_has_its_getmodels_credits_and_a_price_of_one_point_per_credit():
     """GetModels 25/10 `[4]`: Veo 8 s on free and Pro, Veo 4/6 s at Ultra's (the only plan with them), Omni alike on
-    every plan. Prices: Lite 8 s 2 and Fast 8 s 4 (owner); the rest proposed at that rate, rounded up."""
+    every plan. Prices: one point per credit, at least 1 (owner, 25/10)."""
     costs, prices = SPEC.settings()["flow.costs"].default, SPEC.settings()["flow.prices"].default
     want = {VIDEO: {4: 5, 6: 5, 8: 10}, FAST: {4: 10, 6: 10, 8: 20}, QUALITY: {4: 100, 6: 100, 8: 100},
             OMNI: {4: 7, 6: 10, 8: 12, 10: 15}, OMNI_360: {4: 4, 6: 5, 8: 6, 10: 7}}
@@ -227,20 +231,23 @@ def test_every_option_has_its_getmodels_credits_and_a_proposed_price_of_a_point_
         for d, credits in by.items():
             key = "%s@%ds" % (model, d)
             assert costs[key] == credits, "GetModels: %s costs %s" % (key, credits)
-            assert prices[key] == -(-credits // 5) >= 1, "rounded up: %s" % key
-    assert (prices[VIDEO + "@8s"], prices[FAST + "@8s"], prices[QUALITY + "@8s"]) == (2, 4, 20)
-    assert all(costs[m] == prices[m] == 1 for m in MODELS)
-    assert priced(QUALITY).account_cost == 100 and priced(OMNI, duration=10).price == 3
+            assert prices[key] == credits, "one point per credit: %s" % key
+    assert all(costs[m] == prices[m] == 1 for m in MODELS), "an image costs one job and sells at 1"
+    assert priced(QUALITY).account_cost == 100 and priced(OMNI, duration=10).price == 15
 
 
-@mutation(SPEC_FILE, 'renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)}', "renamed={}",
-          expect="the stored video price")
-def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
-    """The earlier build keyed the video by its model alone (`flow-veo-3.1-lite`): the stored price moves to its key
-    with the length, and every option the stored table does not name keeps its default."""
-    loaded = SPEC.settings()["flow.prices"].on_load({"flow-veo-3.1-lite": 7, "flow-nano-banana-pro": 4})
-    assert loaded == {**FC.DEFAULT_PRICES, "flow-nano-banana-pro": 4, VIDEO + "@8s": 7}, (
-        "the stored video price was lost: %s" % loaded)
+@mutation(SPEC_FILE, '"flow-veo-3.1-fast": ("flow-veo-3.1-fast@8s",)}', "}", expect="the stored video value")
+@mutation(SPEC_FILE, '        unit="points", basic=True, renamed=RENAMED)),', '        unit="points", basic=True)),',
+          expect="the stored video value")
+@mutation(SPEC_FILE, 'unit="jobs or Flow credits", renamed=RENAMED)),', 'unit="jobs or Flow credits")),',
+          expect="the stored video value")
+def test_a_table_stored_by_an_earlier_build_keeps_the_video_values():
+    """Earlier builds keyed a video by its model alone (`flow-veo-3.1-lite`, `flow-veo-3.1-fast`): a stored price or
+    cost moves to its key with the length, and every option the stored table does not name keeps its default."""
+    for name, default in (("flow.prices", FC.DEFAULT_PRICES), ("flow.costs", FC.DEFAULT_COSTS)):
+        loaded = SPEC.settings()[name].on_load({VIDEO: 7, FAST: 9, "flow-nano-banana-pro": 4})
+        assert loaded == {**default, "flow-nano-banana-pro": 4, VIDEO + "@8s": 7, FAST + "@8s": 9}, (
+            "the stored video value was lost from %s: %s" % (name, loaded))
 
 
 def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
@@ -358,7 +365,7 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
     assert priced(VIDEO).account_cost == 10, "the account cost of a video is its Flow credits"
     assert p.completion == Completion.DETACH, "a video is polled"
     assert (p.operation, p.media_type, p.after_sent, p.pool, priced(VIDEO).price, p.price_key,
-            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 2, VIDEO + "@8s", 900)
+            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 10, VIDEO + "@8s", 900)
     assert dict(plan(VIDEO).params) == dict(p.params)
     assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
     cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
@@ -372,7 +379,7 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
                                   "credits": credits}, "portrait or credits: %s %s: %s" % (model, ratio, dict(p.params))
         assert (p.pool, p.price_key, p.completion) == ("video", model + "@8s", Completion.DETACH)
     assert plan(FAST).params["aspect"] == 2 and priced(FAST).account_cost == 20, "Fast takes 20 Flow credits"
-    assert priced(FAST).price == 4
+    assert priced(FAST).price == 20
 
 
 # (model, images, mode, seconds, ratio) -> (operation, GetModels key, extra params): every option flow sells
@@ -404,6 +411,8 @@ PLANS = {
 }
 
 
+@mutation(CATALOG_FILE, '"video" if tiers is None else "video_ultra" if tiers == ("ultra",) else "video_pro"',
+          '"video"', expect="the plans' pool")
 @mutation(SPEC_FILE, '            mode = "start" if len(req.images) == 1 else "frames"', '            mode = "frames"',
           expect="image_to_video")
 @mutation(SPEC_FILE, "            params[\"tiers\"] = list(C.TIERS[req.model, duration])", "            pass",
@@ -424,7 +433,8 @@ def test_each_video_mode_length_and_ratio_names_its_getmodels_key_and_the_plans_
         assert {k: p.params[k] for k in ("tiers", "resolution") if k in p.params} == extra, \
             "tiers or resolution: %s -> %s" % (why, dict(p.params))
         assert p.price_key == "%s@%ds" % (model, seconds) and p.params["credits"] == FC.VIDEO_CREDITS[model][seconds]
-        assert (p.pool, p.completion) == ("video", Completion.DETACH)
+        pool = {"ultra": "video_ultra", "pro": "video_pro"}.get((extra.get("tiers") or ["video"])[0], "video")
+        assert (p.pool, p.completion) == (pool, Completion.DETACH), "the plans' pool: %s -> %s" % (why, p.pool)
     assert all(key in GETMODELS for _o, key, _e in PLANS.values()), "a key GetModels does not list"
     assert set(GETMODELS) >= {k for keys in FC.VIDEO_KEYS.values() for k in keys}, "a key GetModels does not list"
 
@@ -469,3 +479,34 @@ def test_what_flow_does_not_offer_for_a_video_is_refused():
     assert refusal(VIDEO, n=2) == ("input.invalid", "n")
     with pytest.raises(pricing.TooCostly):           # more credits than a day's budget: no account could take it
         priced(VIDEO, cfg=FakeSettings(SPEC, flow__pools={"video": day_pool({"free": 9})}))
+
+
+FREE_NONE = '{"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 0, "pro": 50, "ultra": 50}},'
+ULTRA_ONLY = '{"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 0,'
+
+
+@mutation(SPEC_FILE, FREE_NONE, '{"name": "24h", "kind": "rolling", "hours": 24, "budget": {"pro": 50, "ultra": 50}},',
+          expect="a free account could take")
+@mutation(SPEC_FILE, ULTRA_ONLY, '{"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0,',
+          expect="a pro account could take")
+@mutation(SPEC_FILE, "            pool=C.video_pool(req.model, duration), submit_timeout_s=SUBMIT_TIMEOUT_S)",
+          '            pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)', expect="a free account could take")
+def test_the_claim_never_offers_quality_to_a_free_account_nor_4_s_below_ultra():
+    """Codex review 25/10: the tier is the pool's budget, so the claim (`can_afford`) passes over an account whose plan
+    lacks the option: with three free accounts ahead of a Pro one, a Quality job can only land on the Pro one (the
+    plan read before the send stays as a backstop that uses no attempt)."""
+    cfgs = pool_configs("flow", SPEC.caps, FakeSettings(SPEC).get)
+    now = datetime(2026, 10, 25, 6, 0, tzinfo=UTC)
+
+    def takers(plan, tiers):
+        p = pricing.price_plan(SPEC, plan, FakeSettings(SPEC))
+        return [i for i, tier in enumerate(tiers)
+                if can_afford(left_of(cfgs[p.pool], tier, [], now), 0, p.account_cost)]
+    accounts = ["free", "free", "free", "pro"]
+    assert takers(plan(QUALITY), accounts) == [3], "a free account could take a Quality job"
+    assert takers(plan(QUALITY), [None, "pro"]) == [1], "a free account could take a Quality job (tier never read)"
+    assert takers(plan(VIDEO, duration=4), accounts + ["ultra"]) == [4], "a pro account could take Veo 4 s"
+    assert takers(plan(VIDEO), accounts) == [0, 1, 2, 3], "Lite 8 s runs on every plan"
+    r = errors.rule("flow.tier_required")
+    assert (r.counts_attempt, r.refund, r.terminal) == (False, True, False) and 0 < r.free_retries < 10, \
+        "the plan backstop uses no attempt, a bounded number of times"

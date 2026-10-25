@@ -100,7 +100,7 @@ WORKFLOW_KEY = "workflow"    # provider_state: flow's workflow id of a video, on
 LOGGED_OUT = "pool.account_logged_out"
 OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
-POOLS = ("image", "video")
+POOLS = ("image", "video", "video_pro", "video_ultra")
 # flow's ErrorInfo reason of a refused generate -> our code when the tries run out (or end at once, code 8). The
 # unusual-activity refusal is the reCAPTCHA one (`flow.captcha_refused`); an unknown reason keeps that code too.
 REASONS = {

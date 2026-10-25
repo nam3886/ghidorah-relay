@@ -98,6 +98,13 @@ TIERS = {**{(m, d): ("ultra",) for m in ("flow-veo-3.1-lite", "flow-veo-3.1-fast
          ("flow-veo-3.1-quality", 8): ("pro", "ultra")}
 
 
+def video_pool(model: str, duration: int) -> str:
+    """The pool a video draws on: `video_ultra` (nothing below Ultra) for Ultra's own options, `video_pro` (nothing on
+    a free account) for Quality, `video` for the rest. A pool that holds nothing on a plan keeps the claim off it."""
+    tiers = TIERS.get((model, duration))
+    return "video" if tiers is None else "video_ultra" if tiers == ("ultra",) else "video_pro"
+
+
 def durations(model: str) -> list[int]:
     return sorted(VIDEO_CREDITS[model])
 
@@ -112,11 +119,9 @@ PRICE_KEYS = (*MODELS, *(price_key(m, d) for m in VIDEO_MODELS for d in duration
 # (50 -> 50 measured) and counts one job; a video its Flow credits.
 DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1),
                  **{price_key(m, d): c for m, by in VIDEO_CREDITS.items() for d, c in by.items()}}
-# The sale price in points, the default of `flow.prices` (the owner edits it): an image costs nothing upstream and
-# sells at 1 point (owner 24/10); Lite 8 s 2 and Fast 8 s 4 (owner, 25/10). The rest is PROPOSED at the same rate, one
-# point per 5 Flow credits rounded up (to be confirmed by the owner before deploy).
-DEFAULT_PRICES = {**dict.fromkeys(MODELS, 1),
-                  **{price_key(m, d): -(-c // 5) for m, by in VIDEO_CREDITS.items() for d, c in by.items()}}
+# The sale price in points, the default of `flow.prices` (the owner edits it): one point per unit of upstream cost,
+# at least 1 (owner, 25/10: an image that costs no credit sells at 1).
+DEFAULT_PRICES = {k: max(1, v) for k, v in DEFAULT_COSTS.items()}
 
 
 def is_blank_prompt(text: str) -> bool:

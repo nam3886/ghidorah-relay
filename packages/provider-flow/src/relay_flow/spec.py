@@ -72,11 +72,25 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 # ahead, 50 on the free ones with theirs within a day; fixtures/flow/live-261025). The daily credits go first. Ultra is
 # not measured: it takes the free budget (50 a day, no month). Before each video the account's own balance is read
 # too: too few credits and the job goes to another account, nothing sent.
-POOLS = (PoolSpec("image", "jobs"), PoolSpec("video", "credits"))
+POOLS = (PoolSpec("image", "jobs"), PoolSpec("video", "credits"), PoolSpec("video_pro", "credits"),
+         PoolSpec("video_ultra", "credits"))
 POOL_DEFAULTS = {"image": day_pool({"free": 40}),
                  "video": {"combine": "sum", "windows": [
                      {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 50, "pro": 50}},
-                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]}}
+                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]},
+                 # Quality (100 credits): nothing on a free account; Ultra's 25000 a month is its plan page's, not
+                 # measured (no Ultra account)
+                 "video_pro": {"combine": "sum", "windows": [
+                     {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 0, "pro": 50, "ultra": 50}},
+                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 1000,
+                                                                                "ultra": 25000}}]},
+                 # Veo's 4 s and 6 s: nothing below Ultra
+                 "video_ultra": {"combine": "sum", "windows": [
+                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 0,
+                                                                                "ultra": 25000}}]}}
+
+# keys of earlier builds -> today's: a stored value moves to its key with the length, never dropped
+RENAMED = {"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",), "flow-veo-3.1-fast": ("flow-veo-3.1-fast@8s",)}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
@@ -127,11 +141,11 @@ _SETTINGS = dict((
     (PROVIDER + ".prices", table_setting(
         PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@<seconds>s'. An "
         "option missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
-        unit="points", basic=True, renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)})),
+        unit="points", basic=True, renamed=RENAMED)),
     (PROVIDER + ".costs", table_setting(
         PROVIDER + ".costs", "What one job costs the flow account: an image counts one job of the image budget, a "
         "video its Flow credits. An option missing here is refused (model.uncosted).", C.PRICE_KEYS, C.DEFAULT_COSTS,
-        unit="jobs or Flow credits")),
+        unit="jobs or Flow credits", renamed=RENAMED)),
     (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
@@ -243,7 +257,7 @@ class FlowSpec:
         return Plan(
             operation=C.OPERATIONS[mode], media_type="video", model=req.model, params=params,
             completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model, duration),
-            pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)
+            pool=C.video_pool(req.model, duration), submit_timeout_s=SUBMIT_TIMEOUT_S)
 
 
 SPEC = FlowSpec()

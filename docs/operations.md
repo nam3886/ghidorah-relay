@@ -888,7 +888,9 @@ frame, a first and a last frame (two images), or reference images (`options.mode
 (`flow-veo-3.1-lite`, 8 s, 10 Flow credits, 3 refs), Fast (`flow-veo-3.1-fast`, 8 s, 20, 3 refs), Quality
 (`flow-veo-3.1-quality`, 8 s, 100, no references, Pro and Ultra accounts only), and Omni 1.1 Flash
 (`flow-omni-flash-720p` 4/6/8/10 s for 7/10/12/15 credits, `flow-omni-flash-360p` for 4/5/6/7; 7 refs). Veo's 4 s and
-6 s exist on an AI Ultra account only (`flow.tier_required` on any other). Proven live 25/10. Images count against a day
+6 s exist on an AI Ultra account only: they draw on the `video_ultra` pool, which holds nothing below Ultra, and
+Quality on `video_pro`, which holds nothing on a free account, so the claim never gives them to such an account (the
+plan read before the send is a backstop, `flow.tier_required`, which uses no attempt). Proven live 25/10. Images count against a day
 budget of 40 jobs per account (`flow.pools`); flow's code 8 (too much traffic) rests the account `flow.traffic_rest_s`.
 Input images are uploaded into the account's project first (free; one flow does not take is `flow.upload_failed`, a
 retry). Extending a video and upscaling are not sold: both name an output already in the account's project. The
@@ -963,7 +965,7 @@ deadline with its refund. Both pools rest after any generate.
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.costs`, `flow.image_budget` | 1, 1, 1000 | points per image; one job of the image budget (no Flow credit); images per account per day (not measured) |
-| `flow.prices` (video `<model>@<seconds>s`), `flow.costs` | Lite 8 s 2, 10; Fast 8 s 4, 20; others 1 point per 5 credits | points per video; its Flow credits (GetModels) |
+| `flow.prices` (video `<model>@<seconds>s`), `flow.costs` | one point per credit; the credits (GetModels) | points per video; its Flow credits |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The gemini provider (`relay worker --provider gemini`)
