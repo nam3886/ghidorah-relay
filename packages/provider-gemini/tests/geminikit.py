@@ -44,6 +44,8 @@ READ_LINK = "https://lh3.googleusercontent.com/gg/IMAGE7"
 UPLOADED = "/contrib_service/ttl_1d/REDACTED"
 MODES = fixture("account_otAQ7b.txt")             # the free account: one mode, "Auto"
 MODE_AUTO = "cf41b0e0dd7d53e5"
+USAGE = fixture("account_jSf9Qc.txt")             # jSf9Qc on the free account: plan 1, both windows with units left
+PRO_USAGE = pro("account_pro_jSf9Qc.txt")         # ... on the AI Pro account: plan 2
 # the AI Pro account (/u/4), 24/10
 PRO_MODES = pro("account_pro_otAQ7b.txt")          # first mode "Flash-Lite"
 MODE_FLASH_LITE = "8c46e95b1a07cecc"
@@ -146,7 +148,7 @@ class Gemini:
                  chain=None, accounts=None):
         self.log, self.seen = log, []
         self.signed_in, self.page_status, self.rotate = signed_in, page_status, rotate
-        self.send, self.rpc = send, {"otAQ7b": MODES, **(rpc or {})}
+        self.send, self.rpc = send, {"otAQ7b": MODES, "jSf9Qc": USAGE, **(rpc or {})}
         self.accounts = accounts
         self.upload_url, self.upload_body = upload_url, upload_body
         # the link chain: host -> (status, content-type, body)

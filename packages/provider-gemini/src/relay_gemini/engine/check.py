@@ -12,6 +12,10 @@ the one found in `provider_state.authuser`; none found is an unknown read and a 
 session is alive, it holds no such account). The account's default mode (the modes differ by plan) is kept in
 `provider_state.mode`. Every order of the account goes to that index with that mode. A mode list that cannot be read
 clears the kept mode (no send without it: `gemini.account_unresolved`) and is an unknown read with a rest and a recheck.
+
+An alive check also reads the account's usage (`jSf9Qc`, FINDINGS 5): the plan it names becomes the account's tier, and
+a usage window with nothing left rests both pools until that window resets (the windows are shared: a video took 453
+of the 5-hour window's 2400 units). A read that fails changes neither: the stored tier and pools stay.
 """
 
 import time
@@ -20,9 +24,44 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from relay_core.providers import Cooldown, Health, Suspect
+from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier
 from relay_gemini.constants import NETWORK_REST_S, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_gemini.engine.http import Sessions, Site
+from relay_gemini.engine.reply import usage_of
+
+USAGE = "jSf9Qc"
+USAGE_PATH = "/usage"
+# jSf9Qc payload[0]: 1 on free accounts, 2 on the AI Pro one (measured 24/10 and 25/10). Ultra's code is not measured:
+# any other value is not read as a tier, the stored one stays.
+PLAN_TIERS = {1: "free", 2: "pro"}
+POOLS = ("image", "video")
+
+
+def account_read(text: str) -> tuple[Balance | Tier, ...]:
+    """What a jSf9Qc answer says of the account: its tier, and a zero balance in every pool until the latest reset of
+    an exhausted window. Nothing when the answer cannot be read."""
+    usage = usage_of(text)
+    if usage is None:
+        return ()
+    plan, windows = usage
+    out: list[Balance | Tier] = []
+    if plan in PLAN_TIERS:
+        out.append(Tier(PLAN_TIERS[plan]))
+    spent = [reset for left, reset in windows if left <= 0]
+    if spent:
+        resets = [r for r in spent if r is not None]
+        refill = datetime.fromtimestamp(max(resets), UTC) if len(resets) == len(spent) else None
+        out.extend(Balance(pool, 0, refill) for pool in POOLS)
+    return tuple(out)
+
+
+async def read_account(site: Site) -> tuple[Balance | Tier, ...]:
+    """The account's plan and usage; nothing when gemini does not answer them (the stored values stay)."""
+    try:
+        status, body = await site.rpc(USAGE, [], path=USAGE_PATH)
+    except httpx.HTTPError:
+        return ()
+    return account_read(body) if status == 200 else ()
 
 
 def doubt_effects(why: str, now: datetime) -> tuple[Suspect, Cooldown]:
@@ -60,7 +99,8 @@ async def check_account(ctx, settings, sessions: Sessions, *, transport: httpx.A
                                 recheck=True)
                 return Health("unknown", identity=page.email, display_name=page.email, state_patch=patch,
                               effects=(rest,))
-            return Health("alive", identity=page.email, display_name=page.email, state_patch=patch)
+            return Health("alive", identity=page.email, display_name=page.email, state_patch=patch,
+                          effects=await read_account(site))
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out
         raise RuntimeError("gemini could not be reached (%s)" % type(e).__name__) from None

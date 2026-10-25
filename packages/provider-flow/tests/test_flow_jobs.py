@@ -325,7 +325,7 @@ def test_any_other_reply_that_is_not_a_drawn_image_is_ambiguous_and_never_sent_a
 @mutation(SUBMIT_FILE, "            for attempt in range(tries):", "            for attempt in range(tries + 1):",
           expect="more tries than flow.captcha_max_tries")
 @mutation(SUBMIT_FILE, "            return _result(NotTaken(errors.CAPTCHA_REFUSED, {\"refused_batches\": batches}), "
-          "*pacing(settings, now()))", "            return _result(Ambiguous(\"refused\"), *pacing(settings, now()))",
+          "*read,\n", "            return _result(Ambiguous(\"refused\"), *read,\n",
           expect="NotTaken")
 def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_the_account_rests():
     log = []

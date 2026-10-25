@@ -16,15 +16,17 @@ from geminikit import (
     MODE_FLASH_LITE,
     NEW_PSIDTS,
     PRO_MODES,
+    PRO_USAGE,
     PSID,
     PSIDTS,
+    USAGE,
     Ctx,
     Gemini,
     blob_for,
     settings,
 )
 
-from relay_core.providers import Cooldown, Dead, Proxy, Suspect
+from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_gemini.credential import dump, email_of, jar_of
 from relay_gemini.engine import GeminiEngine, build_engine
@@ -345,5 +347,46 @@ def test_the_session_and_the_page_token_never_reach_a_log(caplog):
     assert "was not written back (RuntimeError)" in caplog.text
     for secret in (PSID, PSIDTS, NEW_PSIDTS, AT_TOKEN, "compass-planted"):
         assert secret not in caplog.text
+
+
+# ---- the account's plan and usage ----------------------------------------------------------------------------------
+def read_by_check(answer):
+    log = []
+    fake = Gemini(log, rpc={"jSf9Qc": answer})
+    health = check(fake, Ctx(log))
+    assert health.state == "alive"
+    read = next(r for r in fake.seen if "jSf9Qc" in str(r.url))
+    assert "source-path=%2Fusage" in str(read.url)
+    return health.effects
+
+
+@mutation(CHECK_FILE, 'PLAN_TIERS = {1: "free", 2: "pro"}', 'PLAN_TIERS = {1: "free"}', expect="AI Pro")
+@mutation(CHECK_FILE, "                          effects=await read_account(site))", "                          )",
+          expect="AI Pro")
+def test_an_ai_pro_account_is_read_as_pro_and_a_free_one_as_free_with_units_left_resting_nothing():
+    assert read_by_check(PRO_USAGE) == (Tier("pro"),), "the AI Pro account was not read as AI Pro"
+    assert read_by_check(USAGE) == (Tier("free"),)
+
+
+def test_a_plan_code_not_measured_as_a_tier_keeps_the_stored_tier():
+    ultra = PRO_USAGE.replace('"[2,[[48384', '"[3,[[48384')            # Ultra's code is unmeasured
+    assert read_by_check(ultra) == ()
+
+
+@mutation(CHECK_FILE, "    spent = [reset for left, reset in windows if left <= 0]",
+          "    spent = []", expect="an exhausted window")
+def test_an_exhausted_usage_window_rests_both_pools_until_it_resets():
+    spent = PRO_USAGE.replace("[2400,0,1,", "[0,1,1,")                  # the 5-hour window used up
+    reset = datetime.fromtimestamp(1792814865, UTC)
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset), Balance("video", 0, reset)), \
+        "an exhausted window did not rest the pools"
+
+
+@mutation(CHECK_FILE, "    return account_read(body) if status == 200 else ()", "    return account_read(body)",
+          expect="a failed read")
+def test_a_usage_read_that_fails_keeps_the_account_alive_and_changes_neither_tier_nor_pools():
+    for answer in (httpx.Response(500, text=PRO_USAGE), ")]}'\n", PRO_USAGE.replace('"[2,[[', '"[2,[["x",'),
+                   httpx.ReadTimeout("slow")):
+        assert read_by_check(answer) == (), "a failed read changed the account: %r" % (answer,)
 
 

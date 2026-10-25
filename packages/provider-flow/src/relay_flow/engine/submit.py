@@ -67,12 +67,19 @@ from relay_flow.constants import (
     VIDEO_ACTION,
 )
 from relay_flow.engine.captcha import CaptchaError
-from relay_flow.engine.check import PROJECT_KEY, create_project, doubt_effects, signed_out_why
+from relay_flow.engine.check import (
+    CREDITS,
+    PROJECT_KEY,
+    account_read,
+    create_project,
+    credits_of,
+    doubt_effects,
+    signed_out_why,
+)
 from relay_flow.engine.http import Reply, Sessions, Site, request_context
 
 GENERATE = "ogiZ0b"
 GENERATE_VIDEO = "YhhmEf"
-CREDITS = "nzlxg"
 BATCH_KEY = "batch"          # provider_state: the batch id of the last try (also the job's external_ref)
 BATCHES_KEY = "batches"      # provider_state: every batch id this job sent; the reconciler looks for any of them
 MEDIA_KEY = "media"          # provider_state: flow's media id of the job's result, once known
@@ -120,13 +127,6 @@ def outputs_of(payload, batch: str) -> tuple[Output, ...]:
         if link is not None and isinstance(record, list) and record and isinstance(record[0], str):
             out.append(Output(link, OUTPUT_MIME, len(out), record[0], {"batch": batch}))
     return tuple(out)
-
-
-def credits_of(payload) -> int | None:
-    """The balance of a `nzlxg` answer `[balance, 3, 8, 1, null, balance, [refresh s, ns]]` (FINDINGS 2)."""
-    if isinstance(payload, list) and payload and type(payload[0]) is int and payload[0] >= 0:
-        return payload[0]
-    return None
 
 
 def video_taken(payload, batch: str, project: str) -> tuple[str, str, int | None] | None:
@@ -220,13 +220,17 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 if not project:
                     return _result(Retry(errors.HTTP_ERROR))
             path = "/project/%s" % project
+            # the pre-send read (balance, refill, plan) rides on every result that is known to have spent nothing;
+            # an accepted video carries the newer balance of its own reply, an unknown one none (it may have spent)
+            read: tuple = ()
             if video:
                 credits = await site.rpc(CREDITS, [], path)
                 balance = credits_of(credits.payload) if credits.status == 200 else None
                 if balance is None:
                     return _result(Retry(errors.HTTP_ERROR))
+                read = account_read(credits.payload)
                 if balance < int(job.params["credits"]):
-                    return _result(Retry(OUT_OF_POINTS), Balance("video", balance))
+                    return _result(Retry(OUT_OF_POINTS), *read)
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
             batches: list[str] = []
             for attempt in range(tries):
@@ -240,7 +244,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 except CaptchaError as e:
                     if not sent:
                         await ctx.event("no reCAPTCHA token: %s" % e, "submit", "engine")
-                        return _result(Retry(errors.CAPTCHA_FAILED))
+                        return _result(Retry(errors.CAPTCHA_FAILED), *read)
                     break
                 batch = str(uuid.uuid4())
                 batches.append(batch)
@@ -253,7 +257,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                         await ctx.mark_sent()      # fenced again before this try's POST
                     except Exception:              # every earlier try was refused before anything was made
                         return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches[:-1]}),
-                                       *pacing(settings, now()))
+                                       *read, *pacing(settings, now()))
                 if video:
                     rpcid, args = GENERATE_VIDEO, video_args(job.params, _text(job), project, token, batch)
                 else:
@@ -269,7 +273,8 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s); nothing was made"
                                 % (attempt + 1, reply.code), "submit", "upstream")
-            return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), *pacing(settings, now()))
+            return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), *read,
+                           *pacing(settings, now()))
     except httpx.HTTPError as e:
         why = "flow could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL
         if sent:       # never reached: the generate's own errors are caught above. Kept as the money guard.

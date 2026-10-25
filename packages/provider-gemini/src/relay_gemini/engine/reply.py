@@ -266,6 +266,24 @@ def first_mode(text: str) -> str | None:
     return mode if isinstance(mode, str) and _MODE.fullmatch(mode) else None
 
 
+def usage_of(text: str) -> tuple[int, list[tuple[int, int | None]]] | None:
+    """(plan code, [(units left, reset epoch s) per window]) from a jSf9Qc answer (FINDINGS 5):
+    `[plan, [[left, used share, window, [[reset s, ns]]], ...], ...]`. None when it cannot be read."""
+    payloads, _, clean, ended = _items(text)
+    if not clean or not ended or len(payloads) != 1:
+        return None
+    p = payloads[0]
+    if not (isinstance(p, list) and len(p) > 1 and type(p[0]) is int and isinstance(p[1], list)):
+        return None
+    windows = []
+    for w in p[1]:
+        if not (isinstance(w, list) and len(w) > 3 and type(w[0]) in (int, float)):
+            return None
+        reset = w[3][0][0] if isinstance(w[3], list) and w[3] and isinstance(w[3][0], list) and w[3][0] else None
+        windows.append((int(w[0]), reset if type(reset) is int and reset > 0 else None))
+    return p[0], windows
+
+
 def same_text(a: str | None, b: str) -> bool:
     """The chat's prompt is the job's sent text, character for character (measured: gemini gives it back as sent).
     Never folded: two jobs whose texts differ only in white space are two jobs."""

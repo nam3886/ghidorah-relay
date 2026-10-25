@@ -5,7 +5,7 @@ the mp4 link. Each money or verdict rule has a test that fails when the rule bre
 import asyncio
 import copy
 import json
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -47,10 +47,12 @@ from relay_core.providers import (
     Retry,
     StillUnknown,
     Success,
+    Tier,
 )
 from relay_core.testing.mutation import mutation
 from relay_flow import errors
 from relay_flow.engine import results as R
+from relay_flow.engine.captcha import CaptchaError
 from relay_flow.engine.http import Sessions
 from relay_flow.engine.submit import submit
 from relay_flow.spec import SPEC
@@ -164,7 +166,25 @@ def test_too_few_flow_credits_or_an_unread_balance_is_a_retry_before_anything_is
     assert isinstance(run(flow, Ctx(log)).job, Accepted), "exactly enough credits is enough"
     log = []
     result = run(Flow(log, rpc={"nzlxg": frame("nzlxg", short)}), Ctx(log))
-    assert Balance("video", 9) in result.account
+    refill = datetime.fromtimestamp(short[6][0], UTC)
+    assert Balance("video", 9, refill) in result.account, "rests until the refill flow named"
+
+
+@mutation(SUBMIT_FILE, "return _result(Retry(errors.CAPTCHA_FAILED), *read)",
+          "return _result(Retry(errors.CAPTCHA_FAILED))", expect="the pre-send read was not reported")
+def test_the_pre_send_read_is_reported_on_a_result_that_spent_nothing_and_not_on_an_unknown_one():
+    refill = datetime.fromtimestamp(CREDITS_50["payload"][6][0], UTC)
+    log = []
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": accepted_for}), Ctx(log)
+    result = run(flow, ctx, tokens=Tokens(log, CaptchaError("no key")))
+    assert result.job == Retry(errors.CAPTCHA_FAILED) and not flow.calls("YhhmEf")
+    assert Balance("video", 50, refill) in result.account and Tier("free") in result.account, \
+        "the pre-send read was not reported: %s" % (result.account,)
+    log = []
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": httpx.ReadTimeout("slow")}), Ctx(log)
+    result = run(flow, ctx)
+    assert isinstance(result.job, Ambiguous) and not any(isinstance(e, Balance) for e in result.account), \
+        "a balance read before a send that may have spent was reported after it"
 
 
 @mutation(SUBMIT_FILE, VIDEO_IF, "                if video and not reply.refused_before_anything:\n",

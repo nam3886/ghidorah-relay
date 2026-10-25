@@ -86,7 +86,7 @@ class Flow:
     def __init__(self, log: list, *, signed_in=True, page_status=200, rotate=200, rpc=None):
         self.log, self.seen = log, []
         self.signed_in, self.page_status, self.rotate = signed_in, page_status, rotate
-        self.rpc = dict(rpc or {})
+        self.rpc = {"nzlxg": frame("nzlxg", CREDITS_50["payload"]), **(rpc or {})}     # read by every check
         self.transport = httpx.MockTransport(self.handle)
 
     def handle(self, request: httpx.Request) -> httpx.Response:

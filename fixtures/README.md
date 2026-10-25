@@ -350,6 +350,13 @@ and the free reads (models, listing, media); `flow/live-261023/README.md` descri
 - `flow/live-261023/video_status_v0.json`
 - `flow/live-261023/video_submit_try1.json`
 
+## Google Flow credits and plan (25/10/2026)
+
+The `nzlxg` read of the AI Pro account (credits, PaygateTier 1, monthly refill); `flow/live-261025/README.md` gives
+the free accounts' answers and flow's tier enum.
+
+- `flow/live-261025/credits_pro.json`
+
 ## Gemini web spikes (23/10/2026)
 
 The signed-out probe (`gemini/spike-261023/`) and the live run with gemini's own session (`gemini/live-261023/`: t2i,

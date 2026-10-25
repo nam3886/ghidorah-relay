@@ -5,14 +5,17 @@ every call goes through the account's proxy."""
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
 from flowkit import (
     AT_TOKEN,
+    BAD_ARG,
     BLOB,
+    CREDITS_50,
     EMAIL,
+    FIX,
     NEW_PSIDTS,
     PROJECT,
     PSID,
@@ -24,13 +27,13 @@ from flowkit import (
     settings,
 )
 
-from relay_core.providers import Cooldown, Dead, Proxy, Suspect
+from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_flow.credential import dump, jar_of
 from relay_flow.engine import FlowEngine, build_engine
 from relay_flow.engine import http as H
 from relay_flow.engine.captcha import CaptchaError, Tokens
-from relay_flow.engine.check import check_account
+from relay_flow.engine.check import check_account, month_before
 from relay_flow.engine.http import Sessions, Site
 
 HTTP_FILE = "packages/provider-flow/src/relay_flow/engine/http.py"
@@ -357,3 +360,52 @@ def test_the_engine_takes_the_key_out_of_the_environment():
     assert isinstance(engine, FlowEngine) and engine.tokens._key == YES_KEY
     assert env == {"OTHER": "1"}, "the key stayed in the environment"
     assert build_engine(None, settings(), {}).tokens._key is None
+
+
+# ---- the account's credits and plan ---------------------------------------------------------------------------------
+PRO_CREDITS = json.loads((FIX / "live-261025" / "credits_pro.json").read_text(encoding="utf-8"))["payload"]
+NOV_8 = datetime(2026, 11, 8, 6, 42, 6, tzinfo=UTC)          # the AI Pro account's refill stamp (1794120126)
+
+
+def read_by_check(answer):
+    log = []
+    health = check(Flow(log, rpc={"nzlxg": answer}), Ctx(log))
+    assert health.state == "alive" and "nzlxg" in log, "the check did not read the credits"
+    return health.effects
+
+
+@mutation(CHECK_FILE, 'PAYGATE_TIERS = {1: "pro", 2: "ultra", 3: "free"}', 'PAYGATE_TIERS = {2: "ultra", 3: "free"}',
+          expect="AI Pro")
+@mutation(CHECK_FILE, "                          effects=await read_account(site))", "                          )",
+          expect="did not read the credits")
+def test_an_ai_pro_account_reports_its_credits_its_monthly_refill_and_the_pro_tier():
+    effects = read_by_check(frame("nzlxg", PRO_CREDITS))
+    assert Tier("pro", date(2026, 10, 8)) in effects, "the AI Pro account was not read as AI Pro: %s" % (effects,)
+    assert Balance("video", 1050, NOV_8) in effects and len(effects) == 2
+
+
+def test_a_free_account_reports_its_daily_credits_and_the_free_tier_with_no_cycle():
+    effects = read_by_check(frame("nzlxg", CREDITS_50["payload"]))
+    refill = datetime.fromtimestamp(CREDITS_50["payload"][6][0], UTC)
+    assert effects == (Balance("video", 50, refill), Tier("free"))
+
+
+def test_an_ultra_account_is_read_as_ultra_from_flows_tier_enum():
+    ultra = [12500, 2, 2, 2, None, 12500, [1795000000, 0]]          # 2 = PAYGATE_TIER_TWO (no Ultra account recorded)
+    refill = datetime.fromtimestamp(1795000000, UTC)
+    assert read_by_check(frame("nzlxg", ultra)) == (Balance("video", 12500, refill), Tier("ultra", date(2026, 10, 18)))
+
+
+@mutation(CHECK_FILE, "    return account_read(reply.payload) if reply.status == 200 else ()",
+          "    return account_read(reply.payload)", expect="a failed read")
+def test_a_credit_read_that_fails_keeps_the_account_alive_and_changes_neither_tier_nor_balance():
+    for answer in (httpx.Response(500, text=frame("nzlxg", PRO_CREDITS)), frame("nzlxg", None),
+                   frame("nzlxg", ["x"]), httpx.ReadTimeout("slow"), BAD_ARG):
+        assert read_by_check(answer) == (), "a failed read changed the account: %r" % (answer,)
+    # a plan code that flow's enum does not name as free, pro or ultra: the balance counts, the stored tier stays
+    assert read_by_check(frame("nzlxg", [80, 4, 8, 1, None, 80, None])) == (Balance("video", 80),)
+
+
+def test_a_cycle_start_is_a_month_before_the_refill_clamped_to_the_months_length():
+    assert month_before(date(2026, 3, 31)) == date(2026, 2, 28)
+    assert month_before(date(2026, 1, 8)) == date(2025, 12, 8)

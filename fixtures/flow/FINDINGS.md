@@ -29,7 +29,7 @@ A failure is HTTP 200 with payload null and `item[5] = [code, null, [["type.goog
 
 | rpcid | method | args that worked |
 |---|---|---|
-| nzlxg | GetCredits | `[]` → `[balance,3,8,1,null,balance,[refresh_s,ns]]` |
+| nzlxg | GetCredits | `[]` → `[balance,PaygateTier,_,_,null,balance,[refresh_s,ns]]`; tier 3 NOT_PAID (free), 1 TIER_ONE (AI Pro), 2 TIER_TWO (AI Ultra); see live-261025 |
 | jHPbke | CreateProject (free) | `["projects/*",[null,[title]],[null,22]]` → `[uuid,[title]]` |
 | HTrJv | GetModels | `[]` → catalogue with per-tier costs |
 | Zzl0ze | GetProjectContents | `["projects/<id>",null,null,null,[1]]` (without `[1]` no media; `[<id>]` → error 3) |
