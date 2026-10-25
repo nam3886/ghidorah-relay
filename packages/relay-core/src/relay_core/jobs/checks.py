@@ -8,9 +8,11 @@ the existing row and removes it through the same cleanup as a delete). A check t
 proxy's exit address and latency (through the proxy only, never direct) and stores them with the result; every outcome
 ends with the account's health recorded for its history, and a failure is kept among its errors.
 
-`disabled` accounts are never checked (a person's decision, no sending); `dead` ones still are. Never-checked accounts
-come first, then by `check_due_at`. An unreadable result changes nothing and keeps `last_checked_at`, so an account
-that was never read stays unclaimable.
+`disabled` accounts are never checked (a person's decision, no sending); `dead` ones still are, but only every
+`dead_check_interval_h` (whatever the check read: a failure, a bad proxy or a doubt does not bring the next try closer),
+so a dead jar is not opened through its proxy every few hours; a re-import that merges into it makes it due at once and
+a check that reads it alive revives it. Never-checked accounts come first, then by `check_due_at`. An unreadable
+result changes nothing and keeps `last_checked_at`, so an account that was never read stays unclaimable.
 """
 
 import asyncio
@@ -107,6 +109,9 @@ class Env:
 
     def check_interval_s(self) -> float:
         return self.caps.check_interval_s if self.check_every_s is None else self.check_every_s
+
+    def dead_interval_s(self) -> float:
+        return self.settings.get("dead_check_interval_h") * 3600.0
 
 
 class AccountCtx:
@@ -427,13 +432,15 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
 
 
 async def _fail(conn: AsyncConnection, env: Env, account_id, error: str | None) -> None:
-    """A failure or a bad proxy: the account keeps its state, the next try is `retry_s` away. A failure (`error`, a
-    check that could not read the account) is kept in its errors and stamps `check_failed_at`."""
+    """A failure or a bad proxy: the account keeps its state, the next try is `retry_s` away (a dead account's is its
+    dead interval). A failure (`error`, a check that could not read the account) is kept in its errors and stamps
+    `check_failed_at`."""
     await conn.execute(
         "UPDATE accounts SET last_error = COALESCE(%(e)s, last_error), updated_at = clock_timestamp(), "
         "check_failed_at = CASE WHEN %(e)s::text IS NULL THEN check_failed_at ELSE clock_timestamp() END, "
-        "check_due_at = clock_timestamp() + make_interval(secs => %(s)s) WHERE id = %(a)s",
-        {"e": error, "s": env.retry_s, "a": account_id})
+        "check_due_at = clock_timestamp() + make_interval(secs => CASE WHEN state = 'dead' THEN %(d)s ELSE %(s)s END) "
+        "WHERE id = %(a)s",
+        {"e": error, "s": env.retry_s, "d": env.dead_interval_s(), "a": account_id})
     if error is not None:
         await history.record_error(conn, account_id, error)
 
@@ -448,14 +455,15 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
     await pool.apply_effects(conn, account_id, [*base, *health.effects], env.caps, env.pools())
     read = health.state != "unknown"
     # A cooldown that asks for a recheck means the provider read the page and doubted it: the next check is at the
-    # cooldown's end, not at the retry time. A dead account keeps the normal interval instead, so a dead jar is not
-    # opened every few minutes.
+    # cooldown's end, not at the retry time. A dead account (this check's effects applied) waits its dead interval
+    # instead, so a dead jar is not opened every few minutes, nor every few hours.
     recheck = [e.until for e in health.effects if isinstance(e, Cooldown) and e.recheck]
     await conn.execute(
         "UPDATE accounts SET identity = COALESCE(%(i)s, identity), display_name = COALESCE(%(d)s, display_name), "
         "provider_state = provider_state || %(p)s::jsonb, "
         "last_checked_at = CASE WHEN %(read)s THEN clock_timestamp() ELSE last_checked_at END, "
-        "check_due_at = CASE WHEN state <> 'dead' AND %(ru)s::timestamptz IS NOT NULL THEN %(ru)s::timestamptz "
+        "check_due_at = CASE WHEN state = 'dead' THEN clock_timestamp() + make_interval(secs => %(dead)s) "
+        "WHEN %(ru)s::timestamptz IS NOT NULL THEN %(ru)s::timestamptz "
         "ELSE clock_timestamp() + make_interval(secs => %(due)s) END, "
         "proxy_ok = CASE WHEN %(px)s THEN true ELSE proxy_ok END, "
         "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
@@ -463,7 +471,7 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         "proxy_exit_at = CASE WHEN proxy_host IS NULL THEN NULL ELSE clock_timestamp() END, check_failed_at = NULL, "
         "updated_at = clock_timestamp() WHERE id = %(a)s",
         {"i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
-         "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s,
+         "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s, "dead": env.dead_interval_s(),
          "px": proxy is not None and proxy.ok, "ip": exit_[0], "ms": exit_[1],
          "ru": max(recheck) if recheck else None, "a": account_id})
 

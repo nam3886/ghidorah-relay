@@ -435,7 +435,8 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     """Apply a result's account effects in the caller's transaction, with the job transition they belong to.
 
     - `Rest` and `Cooldown` never shorten a longer one (GREATEST); there is no rank.
-    - `Suspect` adds a strike (not when it comes within its `min_gap_s` of the last counted one); at
+    - `Suspect` adds a strike (not when it comes within its `min_gap_s` of the last counted one, nor on a `dead`
+      account); at
       `caps.suspect_threshold` the account dies with the strike effect's reason. `Success` clears the counter and the
       time of the last counted strike. A `Cooldown` writes its reason to `last_error`, except beside a `Suspect` or a
       `ProxyBad`: their reason is kept.
@@ -487,8 +488,9 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                            u=e.until, r=_reason(e.reason), rc=e.recheck, s=cause)
         elif isinstance(e, Suspect):
             # The account row is locked (above), so reading whether the strike counts and writing it are one step.
+            # A dead account counts no strike: it is already out, and its rare rechecks must not climb the count.
             counted = (await (await conn.execute(
-                "SELECT (strike_at IS NULL OR %(g)s <= 0 "
+                "SELECT state <> 'dead' AND (strike_at IS NULL OR %(g)s <= 0 "
                 "OR strike_at <= clock_timestamp() - make_interval(secs => %(g)s)) FROM accounts WHERE id = %(a)s",
                 {"g": e.min_gap_s, "a": account_id})).fetchone() or (False,))[0]
             strikes = (await (await conn.execute(

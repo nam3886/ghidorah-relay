@@ -816,9 +816,11 @@ Worker commands (queued from the admin pages, run by the dola worker; see "The a
   - **What clears the count and its time**: an alive check, a credential merge, a wake (which also clears the
     cooldown and the pool rests, so a disabled account that is enabled again starts fresh), an order that was taken,
     and any send that read the account logged in, whatever it ended as (a refusal, a limit, an unknown order, a retry).
-  - A dead account is checked at the normal interval, not every rest, and is revived only by a check that reads it
-    logged in. Wake does not revive; a manual check that reads a doubt adds a spaced strike and a rest (it does not
-    stand still), and one that cannot read anything (`unknown`, no doubt) changes nothing.
+  - A dead account (every provider) is checked only every `dead_check_interval_h` (core setting, default 24), whatever
+    its check read (a doubt, a failure or a bad proxy does not bring the next one closer), and it counts no more
+    strikes. It is revived only by a check that reads it logged in; a re-import of its credential merges into it and
+    is checked at once. Wake does not revive; a manual check of a live account that reads a doubt adds a spaced strike
+    and a rest (it does not stand still), and one that cannot read anything (`unknown`, no doubt) changes nothing.
 - Catalog refresh: reads the image template and style lists over HTTP (no browser).
 - Recover: takes the clean videos of one conversation. Another job's video is never attached: a conversation that is not
   the job's own must carry the job's text.
@@ -1070,9 +1072,9 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Images | built on the box, `relay-<service>:<sha>` (a rollback is a retag) |
 | Test and gate runs | `~/relay-runs/<folder>/` through `scripts/box.sh` (see above), under its CPU budget |
 | Live-window marker | `~/relay-deploy/live-window` |
+| Logs of replaced containers | `~/relay-logs/<service>/<UTC time>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
 | Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
 
-| Logs of replaced containers | `~/relay-logs/<service>/<UTC time>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
 ### Deploy and rollback
 
 Run from the Mac, in a checkout where the commit is pushed (`git fetch` first):

@@ -184,6 +184,9 @@ REGISTRY = Registry(
     Spec("session_ttl_s", int, 86_400, "Admin session lifetime in seconds.", min=60),
     Spec("max_unfinished_default", int, 20, "Unfinished jobs a key may hold when it has no limit of its own.", min=0),
     Spec("alert_disk_free_gb", int, 10, "Alert when the media disk has less free space than this (GB).", min=0),
+    Spec("dead_check_interval_h", int, 24,
+         "Hours between checks of a dead account (a live one follows its provider's interval). A re-import that "
+         "merges into it is checked at once.", min=1),
     Spec("alert_accounts_low", int, 3, "Alert when a provider has fewer usable accounts than this.", min=0),
     Spec("filename_pattern", str, "{prompt}_{duration}", "Download filename template.",
          rule=Rule("not empty", _filename_pattern)),

@@ -5,7 +5,17 @@ cooldown that asks for a recheck sets the next check at its end."""
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from accountkit import KitEngine, account_row, command, make_env, new_account, new_command, object_store, run_as
+from accountkit import (
+    KitEngine,
+    KitSpec,
+    account_row,
+    command,
+    make_env,
+    new_account,
+    new_command,
+    object_store,
+    run_as,
+)
 from test_checks import merge_setup
 from test_pool import CAPS, account, effects, run
 
@@ -14,6 +24,7 @@ from relay_core.db import tx
 from relay_core.jobs.checks import check_account
 from relay_core.jobs.commands import run_one
 from relay_core.providers import Cooldown, Health, Success, Suspect
+from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 
 P = "packages/relay-core/src/relay_core/pool.py"
@@ -205,26 +216,75 @@ def test_a_recheck_cooldown_does_not_pull_a_dead_accounts_check_forward(db):
     assert got > 5 * 3600, "a dead account was rechecked early: due in %s s" % got
 
 
-DEAD_RULE = "WHEN state <> 'dead' AND %(ru)s::timestamptz IS NOT NULL"
+DEAD_FIRST = "\"check_due_at = CASE WHEN state = 'dead' THEN clock_timestamp() + make_interval(secs => %(dead)s) \""
+DEAD_COUNTS = "\"SELECT state <> 'dead' AND (strike_at IS NULL"
+DEAD_FAIL = "make_interval(secs => CASE WHEN state = 'dead' THEN %(d)s ELSE %(s)s END)"
+DEAD_H = 30            # a dead interval no provider's live interval equals
 
 
-@mutation(CHECKS, DEAD_RULE, "WHEN %(ru)s::timestamptz IS NOT NULL",
-          expect="a dead jar was rechecked sooner than its interval")
-@mutation(CHECKS, "if read or recheck else env.retry_s", "if read else env.retry_s",
-          expect="a dead jar was rechecked sooner than its interval")
-def test_a_dead_account_that_reads_as_a_doubt_keeps_the_normal_check_interval(db):
+def due_in(db, a) -> float:
+    return db.one("SELECT extract(epoch FROM check_due_at - clock_timestamp()) FROM accounts WHERE id = %s", a)[0]
+
+
+@mutation(CHECKS, DEAD_FIRST, '"check_due_at = CASE WHEN false THEN NULL "',
+          expect="a dead jar was rechecked sooner than its dead interval")
+@mutation(CHECKS, 'return self.settings.get("dead_check_interval_h") * 3600.0', "return 6 * 3600.0",
+          expect="a dead jar was rechecked sooner than its dead interval")
+@mutation(P, DEAD_COUNTS, '"SELECT (strike_at IS NULL', expect="a dead account counted a strike")
+def test_a_dead_account_that_reads_as_a_doubt_waits_its_dead_interval_and_counts_no_strike(db):
     a = new_account(db, state="dead", checked=True, due_s=-1)
+    db.run("UPDATE accounts SET strikes = 3, strike_at = clock_timestamp() - interval '1 day' WHERE id = %s", a)
 
     async def scenario(p):
         engine = KitEngine()
         until = datetime.now(UTC) + timedelta(seconds=GAP)
         engine.health = Health("unknown", effects=(Suspect("guest read", min_gap_s=GAP),
                                                    Cooldown("login doubt", until, recheck=True)))
-        return await check_account(make_env(p, engine), a)
+        env = make_env(p, engine, settings=FakeSettings(KitSpec(), dead_check_interval_h=DEAD_H))
+        return await check_account(env, a)
+
+    assert run_as(db.worker_dsn, scenario).outcome == "unknown"
+    got = due_in(db, a)
+    assert DEAD_H * 3600 - 60 < got <= DEAD_H * 3600, \
+        "a dead jar was rechecked sooner than its dead interval: due in %s s" % got
+    assert db.one("SELECT strikes, strike_at < clock_timestamp() - interval '23 hours' FROM accounts WHERE id = %s",
+                  a) == (3, True), "a dead account counted a strike"
+
+
+@mutation(CHECKS, DEAD_FAIL, "make_interval(secs => %(s)s)", expect="a dead jar was retried at the retry time")
+def test_a_dead_account_whose_check_fails_is_retried_after_its_dead_interval_and_a_live_one_after_the_retry(db):
+    dead = new_account(db, state="dead", checked=True, due_s=-1)
+    live = new_account(db, checked=True, due_s=-1)
+
+    async def scenario(p):
+        engine = KitEngine()
+
+        async def broken(ctx):
+            raise RuntimeError("the page did not load")
+        engine.on_check = broken
+        env = make_env(p, engine, retry_s=300, settings=FakeSettings(KitSpec(), dead_check_interval_h=DEAD_H))
+        return await check_account(env, dead), await check_account(env, live)
+
+    results = run_as(db.worker_dsn, scenario)
+    assert [r.outcome for r in results] == ["failed", "failed"]
+    assert due_in(db, dead) > DEAD_H * 3600 - 60, "a dead jar was retried at the retry time: %s s" % due_in(db, dead)
+    assert 240 < due_in(db, live) <= 300 and account_row(db, dead)["state"] == "dead"
+
+
+def test_a_check_that_kills_waits_the_dead_interval_and_one_that_revives_the_providers_interval(db):
+    dying = new_account(db, checked=True, due_s=-1)
+    reviving = new_account(db, state="dead", checked=True, due_s=-1)
+
+    async def scenario(p):
+        engine = KitEngine()
+        engine.health_by_account = {str(dying): Health("signed_out"), str(reviving): Health("alive")}
+        env = make_env(p, engine, settings=FakeSettings(KitSpec(), dead_check_interval_h=DEAD_H))
+        return await check_account(env, dying), await check_account(env, reviving)
 
     run_as(db.worker_dsn, scenario)
-    got = db.one("SELECT extract(epoch FROM check_due_at - clock_timestamp()) FROM accounts WHERE id = %s", a)[0]
-    assert got > 5 * 3600, "a dead jar was rechecked sooner than its interval: due in %s s" % got
+    assert account_row(db, dying)["state"] == "dead" and due_in(db, dying) > DEAD_H * 3600 - 60
+    assert account_row(db, reviving)["state"] == "available"
+    assert KitSpec().caps.check_interval_s - 60 < due_in(db, reviving) <= KitSpec().caps.check_interval_s
 
 
 OUTCOME = '"signed_out" if now == "dead" and was != "dead" else "unknown"'
