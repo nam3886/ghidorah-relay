@@ -740,7 +740,7 @@ POOL_ACCOUNTS_ANY_PROVIDER = "WHERE state = 'available' AND (%(p)s::text IS NULL
 POOL_ACCOUNTS_ANY_PROVIDER_OFF = "WHERE state = 'available' AND true"
 REFUNDED_OUT = '"AND refunded_at IS NULL AND at >= %s ORDER BY at", (ids, since))'
 REFUNDED_IN = '"AND at >= %s ORDER BY at", (ids, since))'
-REPORT_WINS = "    if reported is not None and now < _refill_of_report(cfg, reported):\n"
+REPORT_WINS = "    if reported is not None and now < _refill_of_report(cfg, reported, charges, cycle_start):\n"
 REPORT_ALWAYS = "    if reported is not None:\n"
 UNKNOWN_LEFT = "if state.standing.left is None or budget is None:"
 UNKNOWN_LEFT_OFF = "if False:"

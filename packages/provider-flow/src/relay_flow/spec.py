@@ -62,11 +62,17 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 
 # Images count jobs: a day window of 40 per account, every tier alike (an image takes no Flow credit and no daily cap
-# is measured yet: a guard the admin can see and edit, FINDINGS "Catalog 25/10"). Video counts Flow credits: an
-# account showed 50 (a Veo 3.1 Lite video takes 10, Fast 20). Before each video the account's own balance is read
+# is measured yet: a guard the admin can see and edit, FINDINGS "Catalog 25/10"). Video counts Flow credits (a Veo 3.1
+# Lite video takes 10, Fast 20): 50 a day on every plan, the day opened by the first use and refilled 24 h later, and
+# on AI Pro 1000 more a month from its renewal (measured 25/10: 1050 on the AI Pro account with its refill a month
+# ahead, 50 on the free ones with theirs within a day; fixtures/flow/live-261025). The daily credits go first. Ultra is
+# not measured: it takes the free budget (50 a day, no month). Before each video the account's own balance is read
 # too: too few credits and the job goes to another account, nothing sent.
 POOLS = (PoolSpec("image", "jobs"), PoolSpec("video", "credits"))
-POOL_DEFAULTS = {"image": day_pool({"free": 40}), "video": day_pool({"free": 50, "pro": 50})}
+POOL_DEFAULTS = {"image": day_pool({"free": 40}),
+                 "video": {"combine": "sum", "windows": [
+                     {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 50, "pro": 50}},
+                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]}}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,

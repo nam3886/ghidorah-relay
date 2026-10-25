@@ -35,10 +35,9 @@ def ms(moment: datetime | None) -> int | None:
 
 
 def pool_budget(state: PoolState) -> int | None:
-    """The units the account may spend in the pool's windows, for its tier: None when any window has no budget for the
-    tier (or the pool has no window): the figure is unknown."""
-    budgets = [w.budget for w in state.standing.windows]
-    return None if not budgets or None in budgets else sum(b for b in budgets if b is not None)
+    """The units the account may spend in the pool's windows, for its tier (`pool.Standing.budget`: the windows that
+    bind it added up, or under `all` the smallest): None when no window binds the tier: the figure is unknown."""
+    return state.standing.budget
 
 
 def pool_view(cfg: PoolConfig, state: PoolState) -> dict:

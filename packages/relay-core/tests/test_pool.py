@@ -6,7 +6,7 @@ account, the Balance rules)."""
 import asyncio
 import uuid
 from contextvars import Context
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 
@@ -114,14 +114,14 @@ def a_job(db):
 # ---- the window arithmetic (pure) ------------------------------------------------------------------------------
 def test_a_day_window_starts_and_ends_at_the_local_midnight():
     at = datetime(2030, 3, 1, 23, 30, tzinfo=UTC)
-    assert pool.window_start(UTC_DAY, at) == datetime(2030, 3, 1, 0, 0, tzinfo=UTC)
-    assert pool.window_end(UTC_DAY, at) == datetime(2030, 3, 2, 0, 0, tzinfo=UTC)
-    assert pool.window_start(SAIGON_DAY, at) == datetime(2030, 3, 1, 17, 0, tzinfo=UTC)    # 06:30 on 2 March there
-    assert pool.window_end(SAIGON_DAY, at) == datetime(2030, 3, 2, 17, 0, tzinfo=UTC)
+    assert pool.window_span(UTC_DAY, at) == (datetime(2030, 3, 1, 0, 0, tzinfo=UTC),
+                                             datetime(2030, 3, 2, 0, 0, tzinfo=UTC))
+    assert pool.window_span(SAIGON_DAY, at) == (datetime(2030, 3, 1, 17, 0, tzinfo=UTC),     # 06:30 on 2 March there
+                                                datetime(2030, 3, 2, 17, 0, tzinfo=UTC))
 
 
-@mutation(P, "    return min(ends) if ends else window_end(Window(\"none\", \"day\", NO_WINDOW_REFILL_TZ, {}), now)\n",
-          "    return min(ends) if ends else now\n", expect="NO_WINDOW")
+@mutation(P, "        return _calendar_span(Window(\"none\", \"day\", NO_WINDOW_REFILL_TZ), now, None)[1]\n",
+          "        return now\n", expect="NO_WINDOW")
 def test_the_next_refill_is_the_next_window_boundary_and_the_next_utc_midnight_without_a_window():
     at = datetime(2030, 3, 1, 23, 30, tzinfo=UTC)
     assert pool.next_refill(CFG, at) == datetime(2030, 3, 2, 0, 0, tzinfo=UTC)
@@ -144,8 +144,8 @@ def test_left_is_the_budget_of_the_tier_less_what_was_spent_in_the_window():
     assert pool.left_of(CFG, "free", [], NOON) == 4
 
 
-@mutation(P, "        w.name, w.kind, w.budget.get(tier, w.budget.get(DEFAULT_TIER)),",
-          "        w.name, w.kind, w.budget.get(tier),", expect="unlimited")
+@mutation(P, "    return [w.budget[tier] if tier in w.budget else w.budget.get(DEFAULT_TIER) for w in cfg.windows]",
+          "    return [w.budget.get(tier) for w in cfg.windows]", expect="unlimited")
 def test_a_tier_with_no_budget_takes_the_free_budget_and_only_a_pool_with_no_budget_at_all_is_unknown():
     ultra = pool.standing(CFG, "ultra", [(NOON, 3)], NOON)              # CFG budgets free 4 and pro 10 only
     assert (ultra.left, ultra.source) == (1, "computed"), "a tier with no budget became unlimited: %s" % (ultra,)
@@ -156,10 +156,10 @@ def test_a_tier_with_no_budget_takes_the_free_budget_and_only_a_pool_with_no_bud
     assert pool.can_afford(None, 0, 99)
 
 
-@mutation(P, "    if reported is not None and now < _refill_of_report(cfg, reported):\n",
+@mutation(P, "    if reported is not None and now < _refill_of_report(cfg, reported, charges, cycle_start):\n",
           "    if reported is not None:\n",
           expect="assert pool.left_of(CFG, \"free\", [], NOON + 13 * HOUR, report) == 4")
-@mutation(P, "    if reported is not None and now < _refill_of_report(cfg, reported):\n",
+@mutation(P, "    if reported is not None and now < _refill_of_report(cfg, reported, charges, cycle_start):\n",
           "    if False:\n", expect="assert (same_day.left, same_day.source) == (0, \"reported\")")
 def test_a_reported_balance_wins_until_the_pools_next_refill_and_then_the_budget_applies():
     report = Reported(1, NOON)
@@ -170,7 +170,8 @@ def test_a_reported_balance_wins_until_the_pools_next_refill_and_then_the_budget
     assert pool.left_of(CFG, "free", [], NOON + 13 * HOUR, None) == 4
 
 
-@mutation(P, "if at >= window_start(w, now)", "if True", expect="assert state.spent == 1")
+@mutation(P, "and (span := window_span(w, at, cycle_start, spans[i])) is not None)",
+          "and (span := window_span(w, now, cycle_start, spans[i])) is not None)", expect="assert state.spent == 1")
 def test_a_window_counts_only_the_charges_since_its_own_start_even_when_an_older_report_loaded_more():
     report = Reported(5, NOON - 30 * HOUR)                   # read yesterday: the older charges load too
     charges = [(NOON - 26 * HOUR, 2), (NOON - HOUR, 1)]      # one yesterday, one today
@@ -201,6 +202,195 @@ def test_a_pool_with_no_window_lets_a_reported_balance_stand_until_the_next_utc_
     assert pool.left_of(NO_WINDOW, "free", [], NOON + 13 * HOUR, reported) is None
 
 
+# ---- window kinds: week, month, rolling; how they add up -----------------------------------------------------------
+WEEK = Window("week", "week", "UTC", {"free": 5})
+MONTH = Window("month", "month", "UTC", {"free": 5})
+BERLIN = {kind: Window(kind, kind, "Europe/Berlin", {"free": 5}) for kind in ("day", "week", "month")}
+ROLL = Window("5h", "rolling", "UTC", {"free": 3}, 5)
+BLOCK = Window("5h", "rolling", "UTC", {"free": 3}, 5, "reset")
+# flow's video: 50 a day from the first use on every plan, and 1000 a month on pro; the day's credits go first
+FLOWLIKE = PoolConfig("video", "credits", "sum", (Window("24h", "rolling", "UTC", {"free": 50, "pro": 50}, 24),
+                                                  Window("month", "month", "UTC", {"pro": 1000})))
+
+
+def t(day, hour=0, minute=0):
+    return datetime(2030, 3, day, hour, minute, tzinfo=UTC)
+
+
+@mutation(P, "        first = d - timedelta(days=d.weekday())\n", "        first = d\n", expect="a week from Monday")
+def test_a_week_window_runs_monday_to_monday_and_refills_at_its_end():
+    assert pool.window_span(WEEK, t(10, 23, 59)) == (t(4), t(11)), "a week from Monday"     # Sunday 10 March 2030
+    assert pool.window_span(WEEK, t(11)) == (t(11), t(18)), "a week from Monday: Monday midnight opens the next"
+    cfg = PoolConfig("video", "jobs", "sum", (WEEK,))
+    charges = [(t(4, 0, 1), 2), (t(10, 22), 1)]
+    assert pool.left_of(cfg, "free", charges, t(10, 23)) == 2
+    assert pool.left_of(cfg, "free", charges, t(11, 0, 1)) == 5
+    assert pool.next_refill(cfg, t(10, 23)) == t(11)
+
+
+@mutation(P, "        back = 0 if _cycle_day(d.year, d.month, anchor) <= d else 1\n", "        back = 0\n",
+          expect="the cycle that began last month")
+@mutation(P, "    return date(year, month, min(day, monthrange(year, month)[1]))\n",
+          "    return date(year, month, min(day, 28))\n", expect="the 31st")
+def test_a_month_window_runs_from_the_cycle_start_day_clamped_to_the_months_length_else_from_the_first():
+    assert pool.window_span(MONTH, t(5)) == (t(1), datetime(2030, 4, 1, tzinfo=UTC)), "no cycle: from the 1st"
+    on_15 = date(2030, 1, 15)
+    assert pool.window_span(MONTH, t(14, 23), on_15) == (datetime(2030, 2, 15, tzinfo=UTC), t(15)), \
+        "the cycle that began last month"
+    assert pool.window_span(MONTH, t(15), on_15) == (t(15), datetime(2030, 4, 15, tzinfo=UTC))
+    on_31 = date(2030, 1, 31)                     # renews on the last day of a shorter month, and on the 31st again
+    assert pool.window_span(MONTH, datetime(2030, 2, 27, tzinfo=UTC), on_31) == (
+        datetime(2030, 1, 31, tzinfo=UTC), datetime(2030, 2, 28, tzinfo=UTC)), "the 31st, clamped in February"
+    assert pool.window_span(MONTH, t(30), on_31) == (datetime(2030, 2, 28, tzinfo=UTC), t(31)), "the 31st"
+    assert pool.window_span(MONTH, datetime(2030, 12, 31, 12, tzinfo=UTC), on_31) == (
+        datetime(2030, 12, 31, tzinfo=UTC), datetime(2031, 1, 31, tzinfo=UTC))
+    cfg = PoolConfig("video", "credits", "sum", (MONTH,))
+    charges = [(datetime(2030, 2, 20, tzinfo=UTC), 4), (t(16), 1)]
+    assert pool.left_of(cfg, "free", charges, t(20), None, on_15) == 4, "the charge of the last cycle is not spent"
+    assert pool.left_of(cfg, "free", charges, t(14), None, on_15) == 1
+
+
+@mutation(P, "    return _midnight(first, zone), _midnight(after, zone)\n",
+          "    return _midnight(first, zone), _midnight(first, zone) + (after - first)\n", expect="hours long")
+@mutation(P, "        first, after = d, d + timedelta(days=1)\n", "        first, after = d, d + timedelta(days=2)\n",
+          expect="hours long")
+def test_calendar_windows_follow_the_clock_change_of_their_own_zone():
+    """Each window resets at the midnight of its own `tz` (the `<p>.pools` setting), not of the dashboard's zone:
+    in Berlin the clocks go forward on 31 March 2030 and back on 27 October 2030."""
+    def hours(kind, at):
+        start, end = pool.window_span(BERLIN[kind], at)
+        return start, end, (end - start) / HOUR
+
+    spring = datetime(2030, 3, 31, 12, tzinfo=UTC)
+    assert hours("day", spring) == (datetime(2030, 3, 30, 23, tzinfo=UTC), datetime(2030, 3, 31, 22, tzinfo=UTC), 23), \
+        "a day 23 hours long"
+    assert hours("week", spring) == (datetime(2030, 3, 24, 23, tzinfo=UTC), datetime(2030, 3, 31, 22, tzinfo=UTC),
+                                     167), "a week 167 hours long"
+    assert hours("month", spring) == (datetime(2030, 2, 28, 23, tzinfo=UTC), datetime(2030, 3, 31, 22, tzinfo=UTC),
+                                      31 * 24 - 1), "a month 743 hours long"
+    autumn = datetime(2030, 10, 27, 12, tzinfo=UTC)
+    assert hours("day", autumn) == (datetime(2030, 10, 26, 22, tzinfo=UTC), datetime(2030, 10, 27, 23, tzinfo=UTC),
+                                    25), "a day 25 hours long"
+    assert hours("week", autumn)[2] == 169 and hours("month", autumn)[2] == 31 * 24 + 1, "hours long"
+    # a charge just after the clocks went forward belongs to that short day; the next day starts at its midnight
+    cfg = PoolConfig("video", "jobs", "sum", (BERLIN["day"],))
+    assert pool.left_of(cfg, "free", [(datetime(2030, 3, 31, 1, 30, tzinfo=UTC), 2)], spring) == 3
+    assert pool.left_of(cfg, "free", [(datetime(2030, 3, 31, 1, 30, tzinfo=UTC), 2)],
+                        datetime(2030, 3, 31, 22, tzinfo=UTC)) == 5
+
+
+@mutation(P, "        if (fixed and fixed[0] <= at < fixed[1]) or (spans and at < spans[-1][1]):\n",
+          "        if fixed and fixed[0] <= at < fixed[1]:\n", expect="opened by the first spend")
+def test_a_rolling_window_is_opened_by_the_first_spend_and_lasts_its_hours():
+    noon = t(5, 12)
+    charges = [(noon, 1), (noon + HOUR, 1), (noon + 5 * HOUR, 1), (noon + 7 * HOUR, 1)]
+    assert pool.rolling_spans(ROLL, [at for at, _ in charges]) == [
+        (noon, noon + 5 * HOUR), (noon + 5 * HOUR, noon + 10 * HOUR)], "opened by the first spend"
+    cfg = PoolConfig("video", "jobs", "sum", (ROLL,))
+    early = pool.standing(cfg, "free", charges, noon + 2 * HOUR)
+    assert (early.left, early.windows[0].spent, early.windows[0].refill_at) == (1, 2, noon + 5 * HOUR)
+    late = pool.standing(cfg, "free", charges, noon + 8 * HOUR)
+    assert (late.left, late.windows[0].spent, late.windows[0].refill_at) == (1, 2, noon + 10 * HOUR), \
+        "the spend at the boundary opened the next window"
+    idle = pool.standing(cfg, "free", charges[:2], noon + 6 * HOUR)
+    assert (idle.left, idle.windows[0].spent, idle.windows[0].refill_at) == (3, 0, noon + 11 * HOUR), \
+        "no window open: a full budget, refilled a length after a spend now"
+    assert pool.next_refill(cfg, noon + 2 * HOUR, charges) == noon + 5 * HOUR
+
+
+@mutation(P, " and timedelta(0) < ahead <= timedelta(hours=x.hours)]", " and timedelta(0) < ahead]",
+          expect="anchors no rolling window")
+@mutation(P, "    return reported.refill_at if fits and min(fits, key=lambda x: x.hours) is w else None",
+          "    return reported.refill_at if fits and max(fits, key=lambda x: x.hours) is w else None",
+          expect="the shortest window")
+def test_a_reported_reset_anchors_the_shortest_rolling_window_that_holds_it():
+    noon = t(5, 12)
+    report = Reported(2, noon, refill_at=noon + 3 * HOUR)     # the window ends in 3 h: it opened 2 h before the report
+    cfg = PoolConfig("video", "jobs", "sum", (ROLL,))
+    charges = [(noon - HOUR, 1), (noon + 3 * HOUR + 30 * MINUTE, 1)]
+    got = pool.standing(cfg, "free", charges, noon + 4 * HOUR + 30 * MINUTE, report)
+    assert got.source == "computed" and got.windows[0].refill_at == noon + 8 * HOUR + 30 * MINUTE, \
+        "the spend after the reported reset opened a new window: %s" % (got,)
+    assert (got.left, got.windows[0].spent) == (2, 1)
+    assert pool.standing(cfg, "free", charges, noon + 4 * HOUR + 30 * MINUTE).windows[0].spent == 0, \
+        "with no report the same spends make one window, over by then"
+    renewal = Reported(2, noon, refill_at=noon + 6 * HOUR)      # further ahead than the window (a monthly renewal)
+    assert pool.standing(cfg, "free", charges, noon + 30 * MINUTE, renewal).windows[0].refill_at == noon + 4 * HOUR, \
+        "a reset further ahead than the window anchors no rolling window"
+    both = PoolConfig("video", "jobs", "all", (ROLL, Window("week", "rolling", "UTC", {"free": 9}, 168)))
+    state = pool.standing(both, "free", [(noon - HOUR, 1)], noon + HOUR, report)
+    assert [w.refill_at for w in state.windows] == [noon + 3 * HOUR, noon + 167 * HOUR], "the shortest window"
+
+
+@mutation(P, "    if anchor is not None and w.anchor == \"reset\":\n", "    if False:\n", expect="blocks")
+def test_a_reset_anchored_window_runs_in_blocks_placed_by_the_reported_reset():
+    noon = t(5, 12)
+    report = Reported(0, noon, refill_at=noon + 3 * HOUR)
+    cfg = PoolConfig("video", "uses", "all", (BLOCK,))
+    assert pool.rolling_spans(BLOCK, [noon + 4 * HOUR], noon + 3 * HOUR, noon + 9 * HOUR) == [
+        (noon + 3 * HOUR, noon + 8 * HOUR), (noon + 8 * HOUR, noon + 13 * HOUR)], "blocks"
+    idle = pool.standing(cfg, "free", [], noon + 4 * HOUR, report)
+    assert (idle.left, idle.windows[0].refill_at) == (3, noon + 8 * HOUR), "blocks: the next one ends 5 h later"
+    used = pool.standing(cfg, "free", [(noon + 8 * HOUR + 30 * MINUTE, 2)], noon + 9 * HOUR, report)
+    assert (used.left, used.windows[0].spent, used.windows[0].refill_at) == (1, 2, noon + 13 * HOUR), "blocks"
+    early = pool.standing(cfg, "free", [(noon - 4 * HOUR, 1)], noon - 3 * HOUR, Reported(0, noon - HOUR,
+                                                                                          noon + 3 * HOUR))
+    assert early.windows[0].refill_at == noon - 2 * HOUR, "blocks before the reset line up with it too"
+    unanchored = pool.standing(cfg, "free", [(noon, 1)], noon + HOUR)
+    assert unanchored.windows[0].refill_at == noon + 5 * HOUR, "no reset known: from the first use"
+
+
+@mutation(P, "            take = amount if k == len(here) - 1 else min(amount, room)\n",
+          "            take = amount\n", expect="the day's credits first")
+@mutation(P, "        here = sorted((span[1], i, span) for i, w",
+          "        here = sorted((-span[1].timestamp(), i, span) for i, w", expect="the day's credits first")
+def test_sum_windows_spend_the_window_that_refills_first_and_add_up_their_rooms():
+    noon = t(5, 12)
+    today = [(noon, 30), (noon + HOUR, 30)]
+    pro = pool.standing(FLOWLIKE, "pro", today, noon + 2 * HOUR)
+    assert [(w.budget, w.spent) for w in pro.windows] == [(50, 50), (1000, 10)], "the day's credits first"
+    assert (pro.left, pro.budget) == (990, 1050)
+    yesterday = [(noon - 30 * HOUR, 30), (noon - 29 * HOUR, 30)]
+    later = pool.standing(FLOWLIKE, "pro", yesterday, noon)
+    assert [w.spent for w in later.windows] == [0, 10] and later.left == 1040, \
+        "yesterday's day absorbed 50 of yesterday's 60; the month keeps only the rest"
+    free = pool.standing(FLOWLIKE, "free", today[:1], noon + 2 * HOUR)
+    assert [w.budget for w in free.windows] == [50, None] and (free.left, free.budget) == (20, 50), \
+        "the month does not bind a free account"
+    over = pool.standing(FLOWLIKE, "pro", [(noon, 1100)], noon + HOUR)
+    assert [w.spent for w in over.windows] == [50, 1050] and over.left == 0, "the excess stays on the last window"
+    assert pool.ceiling(FLOWLIKE) == 1050
+    renewal = noon + timedelta(days=14)                         # a paid plan's refill is its monthly renewal
+    assert pool.left_of(FLOWLIKE, "pro", today, noon + 2 * HOUR, Reported(1037, noon - HOUR, renewal)) == 977, \
+        "the reported balance leads (over 50 a day): less only what was spent after it"
+
+
+@mutation(P, "    left = min(rooms) if cfg.combine == \"all\" else sum(max(0, room) for room in rooms)\n",
+          "    left = max(rooms) if cfg.combine == \"all\" else sum(max(0, room) for room in rooms)\n",
+          expect="the tightest window")
+@mutation(P, "    return None if not known else min(known) if cfg.combine == \"all\" else sum(known)\n",
+          "    return None if not known else max(known) if cfg.combine == \"all\" else sum(known)\n",
+          expect="the budget is the tightest window's")
+@mutation(P, "    plain = [sum(n for at, n in charges if span is not None and at >= span[0]) for span in opened]\n",
+          "    plain = [sum(n for at, n in charges) for span in opened]\n", expect="the week counts")
+def test_all_windows_must_each_hold_and_a_null_budget_does_not_bind_the_tier():
+    noon = t(5, 12)                                                    # a Tuesday
+    gemini_like = PoolConfig("video", "uses", "all", (
+        Window("day", "day", "UTC", {"free": 15, "pro": None}), Window("5h", "rolling", "UTC", {"pro": 5}, 5),
+        Window("week", "week", "UTC", {"pro": 102})))
+    charges = [(t(4, 1), 40), (t(4, 2), 58), (t(3, 12), 50), (noon, 1), (noon + HOUR, 2)]  # 3 March is last week
+    pro = pool.standing(gemini_like, "pro", charges, noon + 2 * HOUR)
+    assert [w.spent for w in pro.windows] == [3, 3, 101], "the week counts this week's charges only"
+    assert pro.left == 1, "the tightest window: %s" % (pro,)
+    assert pro.budget == 5 and pro.windows[0].budget is None, "the budget is the tightest window's"
+    many = [(noon + MINUTE * i, 1) for i in range(16)]
+    assert pool.left_of(gemini_like, "pro", many, noon + HOUR) == -11, "the day guard of free does not bind pro"
+    assert pool.left_of(gemini_like, "free", many, noon + HOUR) == -1, "free: its day guard alone"
+    assert pool.left_of(gemini_like, "ultra", [], noon) == 15, "a tier not named takes free's"
+    assert pool.ceiling(gemini_like) == 15, "the ceiling: pro holds 5 at most, free 15"
+    assert pool.ceiling(PoolConfig("v", "uses", "all", (Window("d", "day", "UTC", {"pro": None}),))) is None
+
+
 # ---- the `<p>.pools` setting ---------------------------------------------------------------------------------------
 SPECS = (PoolSpec("video", "credits"), PoolSpec("image", "jobs"))
 DEFAULTS = {"video": day_pool({"free": 4}), "image": {"combine": "sum", "windows": []}}
@@ -223,8 +413,18 @@ def test_the_pools_setting_reads_into_one_config_per_declared_pool():
     ({"nope": day_pool({"free": 1})}, "not a pool of this provider"),
     ({"video": {"combine": "both", "windows": []}}, "combine must be one of"),
     ({"video": {"combine": "sum", "windows": "x"}}, "windows is a list"),
-    ({"video": {"windows": [day_pool({"free": 1})["windows"][0]] * 2}}, "one window per pool"),
-    ({"video": {"windows": [{"name": "d", "kind": "month", "tz": "UTC", "budget": {}}]}}, "kind must be one of day"),
+    ({"video": {"windows": [day_pool({"free": 1})["windows"][0]] * 2}}, "two windows have one name"),
+    ({"video": {"windows": [{"name": "d", "kind": "year", "tz": "UTC", "budget": {}}]}}, "kind must be one of day"),
+    ({"video": {"windows": [{"name": "d", "kind": "month", "budget": {}}]}}, "IANA time zone"),
+    ({"video": {"windows": [{"name": "r", "kind": "rolling", "budget": {}}]}}, "needs hours"),
+    ({"video": {"windows": [{"name": "r", "kind": "rolling", "hours": 0, "budget": {}}]}}, "needs hours"),
+    ({"video": {"windows": [{"name": "r", "kind": "rolling", "hours": 961, "budget": {}}]}}, "needs hours"),
+    ({"video": {"windows": [{"name": "r", "kind": "rolling", "hours": 5, "anchor": "x", "budget": {}}]}},
+     "anchor must be one of"),
+    ({"video": {"windows": [{"name": "d", "kind": "day", "tz": "UTC", "hours": 5, "budget": {}}]}},
+     "rolling window only"),
+    ({"video": {"windows": [{"name": "d", "kind": "week", "tz": "UTC", "anchor": "reset", "budget": {}}]}},
+     "rolling window only"),
     ({"video": {"windows": [{"name": "d", "kind": "day", "tz": "Nowhere/Land", "budget": {}}]}}, "IANA time zone"),
     ({"video": {"windows": [{"name": "d", "kind": "day", "tz": "UTC", "budget": {"gold": 1}}]}}, "is not one of"),
     ({"video": {"windows": [{"name": "d", "kind": "day", "tz": "UTC", "budget": {"free": -1}}]}}, "whole number"),
@@ -235,6 +435,24 @@ def test_the_pools_setting_reads_into_one_config_per_declared_pool():
 def test_a_pools_value_that_is_not_a_rule_is_refused_naming_the_fault(bad, why):
     with pytest.raises(SettingsError, match=why):
         setting().validate(bad)
+
+
+def test_every_window_kind_reads_into_its_config_and_a_null_budget_is_kept():
+    spec = setting()
+    value = {"video": {"combine": "all", "windows": [
+        {"name": "d", "kind": "day", "tz": "Europe/Berlin", "budget": {"free": 3, "pro": None}},
+        {"name": "w", "kind": "week", "tz": "UTC", "budget": {}},
+        {"name": "m", "kind": "month", "tz": "UTC", "budget": {"pro": 9}},
+        {"name": "5h", "kind": "rolling", "hours": 5, "anchor": "reset", "budget": {"pro": 5}},
+        {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 1}}]}}
+    assert spec.validate(value) == value
+    caps = Caps(execution="http", pools=SPECS, account_slots=1, max_attempts=3, suspect_threshold=3,
+                strike_effect=Dead("x"))
+    got = pool.pool_configs("p1", caps, {"p1.pools": value}.get)["video"]
+    assert got == PoolConfig("video", "credits", "all", (
+        Window("d", "day", "Europe/Berlin", {"free": 3, "pro": None}), Window("w", "week", "UTC", {}),
+        Window("m", "month", "UTC", {"pro": 9}), Window("5h", "rolling", "UTC", {"pro": 5}, 5, "reset"),
+        Window("24h", "rolling", "UTC", {"free": 1}, 24, "first_use")))
 
 
 def test_a_stored_pools_value_is_read_over_the_defaults_and_drops_a_pool_that_is_gone():
@@ -667,8 +885,7 @@ def test_a_bad_proxy_is_recorded(db):
 
 
 # ---- effects: Balance -------------------------------------------------------------------------------------------
-@mutation(P, "                until = refill or next_refill(cfg, row[6])\n",
-          "                until = next_refill(cfg, row[6])\n", expect="assert until == named")
+@mutation(P, "            until = refill\n", "            until = None\n", expect="assert until == named")
 def test_a_zero_balance_rests_the_pool_until_the_next_refill(db):
     a, b, c = account(db), account(db), account(db)
     named = datetime.now(UTC) + timedelta(hours=3, minutes=7)
@@ -686,6 +903,65 @@ def test_a_zero_balance_rests_the_pool_until_the_next_refill(db):
     assert until == named and got_b.left_n == 0
     assert abs((got_c.rest_until - midnight).total_seconds()) < 5 and got_c.left_n == 0
     assert pool_row(db, a)[0] == 0 and "no balance left" in pool_row(db, a)[2]
+
+
+MONTHLY = PoolConfig("video", "credits", "sum", (Window("month", "month", "UTC", {"free": 10}),))
+
+
+@mutation(P, "    reported, tier, now, cycle = _reported(row), row[5], row[6], row[7]\n",
+          "    reported, tier, now, cycle = _reported(row), row[5], row[6], None\n", expect="the claim reads")
+@mutation(P, "    tier, cycle = (None, None) if row is None else row\n",
+          "    tier, cycle = (None, None) if row is None else (row[0], None)\n", expect="an engine is told")
+@mutation(P, "                                                cycles.get(a)), reports.get((a, name)), row[3], row[4])",
+          "                                                None), reports.get((a, name)), row[3], row[4])",
+          expect="the admin shows")
+@pytest.mark.fabricated_rows("plants an account charge that is not the job account_cost", "account_cost")
+def test_a_month_window_starts_on_the_accounts_cycle_day(db):
+    now = db.one("SELECT clock_timestamp()")[0]
+    today = now.astimezone(UTC).date()
+    if today.day >= 2:      # the cycle renewed today: a charge just before midnight is the last cycle's
+        cycle, at = date(2000, 1, today.day), datetime.combine(today, time.min, UTC) - MINUTE
+    else:                   # on the 1st a cycle from the 2nd still holds yesterday's charge
+        cycle, at = date(2000, 1, 2), datetime.combine(today, time.min, UTC) - 12 * HOUR
+    # a report long past loads the older charges too, so only the window decides what counts
+    stale = Reported(0, now - timedelta(days=40), now - timedelta(days=39))
+    want = pool.left_of(MONTHLY, None, [(at, 3)], now, stale, cycle)
+    assert want != pool.left_of(MONTHLY, None, [(at, 3)], now, stale), "the case tells a cycle day from the 1st"
+    a, job = account(db), a_job(db)
+    db.run("UPDATE accounts SET cycle_start = %s WHERE id = %s", cycle, a)
+    report(db, a, 0, ago_s=40 * 86400, refill_in_s=-39 * 86400)
+
+    async def scenario(p):
+        await charge(p, a, job, 3, MONTHLY)
+        db.run("UPDATE account_charges SET at = %s WHERE job_id = %s", at, job)
+        async with tx(p) as conn:
+            told = (await pool.left_map(conn, a, {"video": MONTHLY}))[0]
+            _, shown = await pool.pool_states(conn, {a: (None, {"video": MONTHLY})})
+        return (await locked(p, a, MONTHLY)).left_n, told["video"], shown[(a, "video")].standing.left
+
+    claim, engine, admin = run(db, scenario)
+    assert claim == want, "the claim reads the account's cycle start"
+    assert engine == want, "an engine is told the cycle's balance"
+    assert admin == want, "the admin shows the cycle's balance"
+
+
+@mutation(P, "                until = next_refill(cfg, row[6], charges, row[7])\n",
+          "                until = next_refill(cfg, row[6])\n", expect="the open window's end")
+@pytest.mark.fabricated_rows("plants an account charge that is not the job account_cost", "account_cost")
+def test_a_zero_balance_with_no_named_refill_rests_until_the_open_rolling_window_ends(db):
+    rolling = {"video": PoolConfig("video", "jobs", "sum", (ROLL,)), "image": NO_WINDOW}
+    a, job = account(db), a_job(db)
+
+    async def scenario(p):
+        await charge(p, a, job, 1, rolling["video"])
+        db.run("UPDATE account_charges SET at = clock_timestamp() - interval '2 hours' WHERE job_id = %s", job)
+        async with tx(p) as conn:
+            await pool.apply_effects(conn, a, (Balance("video", 0),), CAPS, rolling)
+        return await locked(p, a, rolling["video"])
+
+    got = run(db, scenario)
+    opened = db.one("SELECT at FROM account_charges WHERE job_id = %s", job)[0]
+    assert abs((got.rest_until - (opened + 5 * HOUR)).total_seconds()) < 1, "the open window's end: %s" % (got,)
 
 
 BELIEVED = "    if not now - timedelta(seconds=REFILL_PAST_S) <= refill <= now + timedelta(seconds=REFILL_AHEAD_S):\n"

@@ -77,18 +77,22 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2, FAST + "@8s": 4}
     assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
                                        **FC.TABLE_ONLY_COSTS}
+    pools = s["flow.pools"]
+    assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
 
 
 @mutation(SPEC_FILE, 'POOL_DEFAULTS = {"image": day_pool({"free": 40}),',
           'POOL_DEFAULTS = {"image": {"combine": "sum", "windows": []},', expect="no image budget")
-def test_the_image_pool_has_a_day_window_of_40_jobs_for_every_tier_and_video_counts_credits():
+def test_the_image_pool_has_a_day_window_of_40_jobs_and_video_50_credits_a_day_and_1000_a_month_on_pro():
     """No image cap of flow is measured yet (an image takes no Flow credit): 40 a day per account is a guard the admin
     shows and can edit; a tier with no budget of its own takes the free one."""
     pools = SPEC.settings()["flow.pools"].default
     assert pools["image"] == day_pool({"free": 40}), "no image budget: %s" % pools["image"]
-    assert pools["video"] == day_pool({"free": 50, "pro": 50})
+    assert pools["video"] == {"combine": "sum", "windows": [
+        {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 50, "pro": 50}},
+        {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]}, "50 from first use + 1000 a month"
 
 
 def test_the_token_source_setting_takes_only_a_built_source():

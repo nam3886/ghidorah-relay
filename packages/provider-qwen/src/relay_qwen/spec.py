@@ -53,10 +53,14 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
-# Video counts qwen credits (a free account gets 40 a day; a 5 s HappyHorse 1.1 video takes 30; a video that costs
-# more than any tier holds is refused, input.too_costly). Images count jobs and have no window: no limit met yet.
+# Video counts qwen credits (a 5 s HappyHorse 1.1 video takes 30; a video that costs more than any tier holds is
+# refused, input.too_costly): a free account is granted 40 that expire 24 h later, and the next grant shows on the
+# following read, so the window rolls 24 h from the grant (measured 25/10). Images count jobs: 10 a day per account
+# (measured 25/10; whether the day is a fixed hour or rolling is not settled: a UTC day).
 POOLS = (PoolSpec("video", "credits"), PoolSpec("image", "jobs"))
-POOL_DEFAULTS = {"video": day_pool({"free": 40}), "image": {"combine": "sum", "windows": []}}
+POOL_DEFAULTS = {"video": {"combine": "sum", "windows": [
+                     {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 40}}]},
+                 "image": day_pool({"free": 10})}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,

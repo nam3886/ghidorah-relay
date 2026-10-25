@@ -52,13 +52,25 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
-# Image: 100 a day (not measured yet). Video: 15 a day; measured on AI Pro (24/10): one 10 s video uses 453 of 2400
-# units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week. Nano Banana 2.1 (`image_pro`): none on a
-# free account, which is what keeps its jobs off free accounts (a tier with no budget of its own takes the free one);
-# 100 a day on AI Pro and 1000 on Ultra (not measured: Google's own figures for its pro image model).
+# Gemini's quota is two windows of units that must both hold, read with their resets in `jSf9Qc` (FINDINGS 5): fixed
+# 5 h blocks and a week, placed per account (measured 25/10 on AI Pro: blocks reset at 05:07:45 and 10:07:45 UTC, the
+# week at 06:07:45), so both start from the reset gemini reports. AI Pro holds 2400 units per block and 48384 per
+# week; a 10 s video takes about 470 (5 per block, 102 per week) and an image about 3.2 (750 per block, 15120 per
+# week: no practical cap). A free account is not measured: a day guard holds it (image 100, video 15, as before),
+# which does not bind AI Pro (null). Ultra takes the free budgets. Nano Banana 2.1 (`image_pro`): none on a free
+# account, which is what keeps its jobs off free accounts (a tier with no budget of its own takes the free one); 100
+# a day on AI Pro and 1000 on Ultra (not measured: Google's own figures for its pro image model).
 POOLS = (PoolSpec("image", "uses"), PoolSpec("image_pro", "uses"), PoolSpec("video", "uses"))
-POOL_DEFAULTS = {"image": day_pool({"free": 100}), "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
-                 "video": day_pool({"free": 15})}
+POOL_DEFAULTS = {
+    "image": {"combine": "all", "windows": [
+        {"name": "day", "kind": "day", "tz": "UTC", "budget": {"free": 100, "pro": None}},
+        {"name": "5h", "kind": "rolling", "hours": 5, "anchor": "reset", "budget": {"pro": 750}},
+        {"name": "week", "kind": "rolling", "hours": 168, "anchor": "reset", "budget": {"pro": 15120}}]},
+    "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
+    "video": {"combine": "all", "windows": [
+        {"name": "day", "kind": "day", "tz": "UTC", "budget": {"free": 15, "pro": None}},
+        {"name": "5h", "kind": "rolling", "hours": 5, "anchor": "reset", "budget": {"pro": 5}},
+        {"name": "week", "kind": "rolling", "hours": 168, "anchor": "reset", "budget": {"pro": 102}}]}}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,

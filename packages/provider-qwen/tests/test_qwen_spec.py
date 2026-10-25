@@ -69,8 +69,11 @@ def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
                 "refusal_grace_s", "prices", "costs", "pools", "disabled_models"):
         assert "qwen." + key in s, key
-    # a free account's daily credits; images have no window
-    assert s["qwen.pools"].default == {"video": day_pool({"free": 40}), "image": {"combine": "sum", "windows": []}}
+    # a free account's credits roll 24 h from their grant; images are 10 a UTC day
+    pools = s["qwen.pools"]
+    assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
+    assert pools.default == {"video": {"combine": "sum", "windows": [
+        {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 40}}]}, "image": day_pool({"free": 10})}
     assert {k for k, v in s.items() if v.basic} == {"qwen.claims_enabled", "qwen.prices", "qwen.disabled_models"}
 
 

@@ -75,9 +75,16 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert s["gemini.render_deadline_s"].default == 900
     assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 6}
     assert s["gemini.costs"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
-    assert s["gemini.pools"].default == {"image": day_pool({"free": 100}),
-                                         "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
-                                         "video": day_pool({"free": 15})}
+    pools = s["gemini.pools"]
+    assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
+    day, block, week = pools.default["video"]["windows"]
+    assert pools.default["video"]["combine"] == pools.default["image"]["combine"] == "all", "every window must hold"
+    assert (block["kind"], block["hours"], block["anchor"], week["hours"], week["anchor"]) == (
+        "rolling", 5, "reset", 168, "reset"), "fixed blocks placed by the reset gemini reports"
+    assert (block["budget"], week["budget"], day["budget"]) == ({"pro": 5}, {"pro": 102}, {"free": 15, "pro": None})
+    assert [w["budget"] for w in pools.default["image"]["windows"]] == [
+        {"free": 100, "pro": None}, {"pro": 750}, {"pro": 15120}]
+    assert pools.default["image_pro"] == day_pool({"free": 0, "pro": 100, "ultra": 1000})
     assert s["gemini.video_limit_rest_s"].default == 5 * 3600
     assert all(s[k].description for k in s) and _problems(SPEC) == []
 
