@@ -351,12 +351,14 @@ and the free reads (models, listing, media); `flow/live-261023/README.md` descri
 - `flow/live-261023/video_status_v0.json`
 - `flow/live-261023/video_submit_try1.json`
 
-## Google Flow credits and plan (25/10/2026)
+## Google Flow credits, plan and video catalog (25/10/2026)
 
-The `nzlxg` read of the AI Pro account (credits, PaygateTier 1, monthly refill); `flow/live-261025/README.md` gives
-the free accounts' answers and flow's tier enum.
+The `nzlxg` read of the AI Pro account (credits, PaygateTier 1, monthly refill), and the live Lite and Fast video jobs
+of that day with the refused sends and the credits before and after; `flow/live-261025/README.md` gives the free
+accounts' answers and flow's tier enum.
 
 - `flow/live-261025/credits_pro.json`
+- `flow/live-261025/video_jobs.json`
 
 ## Gemini web spikes (23/10/2026)
 
@@ -389,12 +391,14 @@ describes each file and `fixtures/gemini/FINDINGS.md` sums them up.
 - `gemini/live-261024/t2v_accepted_reply.json`
 - `gemini/live-261024/web_request_i2v.json`
 
-## Gemini video download User-Agent (25/10/2026)
+## Gemini video download User-Agent, portrait and image modes (25/10/2026)
 
-The googlevideo.com link answers 403 to any User-Agent but the one that resolved it (`gemini/live-261025/`; its
-README.md describes the probe, redacted to parameter names, statuses and headers).
+The googlevideo.com link answers 403 to any User-Agent but the one that resolved it, and the t2i sends per mode with
+the t2v portrait sends (`gemini/live-261025/`; its README.md describes the probe, redacted to parameter names,
+statuses and headers, and the sends, numbers and labels only).
 
 - `gemini/live-261025/googlevideo_user_agent.json`
+- `gemini/live-261025/portrait_and_image_modes.json`
 
 ## chat.qwen.ai live spike (23/10/2026)
 
