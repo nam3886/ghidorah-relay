@@ -1,0 +1,106 @@
+{
+ "probed_at": "2026-10-25",
+ "via": "the account's proxy, a fresh httpx client with no cookie",
+ "link": {
+  "host_shape": "rr<N>---sn-<id>.googlevideo.com",
+  "path": "/videoplayback",
+  "query_keys": [
+   "app",
+   "begin",
+   "dur",
+   "eaua",
+   "ei",
+   "expire",
+   "ic",
+   "id",
+   "ip",
+   "itag",
+   "lmt",
+   "lsig",
+   "lsparams",
+   "met",
+   "mh",
+   "mime",
+   "mm",
+   "mn",
+   "ms",
+   "mt",
+   "mv",
+   "mvi",
+   "pcm2",
+   "pl",
+   "requiressl",
+   "rms",
+   "rqh",
+   "sc",
+   "sig",
+   "source",
+   "sparams",
+   "susc",
+   "txp",
+   "vprv",
+   "xpc"
+  ],
+  "rqh": [
+   "1"
+  ],
+  "eaua_present": true
+ },
+ "tries": [
+  {
+   "user_agent": "httpx default (python-httpx/0.28.1)",
+   "status": 403,
+   "headers": {
+    "last-modified": "Wed, 02 May 2007 10:26:10 GMT",
+    "content-type": "text/plain",
+    "content-length": "0",
+    "connection": "close",
+    "vary": "Origin",
+    "x-content-type-options": "nosniff",
+    "server": "gvs 1.0"
+   }
+  },
+  {
+   "user_agent": "curl/8.5.0",
+   "status": 403,
+   "headers": {
+    "last-modified": "Wed, 02 May 2007 10:26:10 GMT",
+    "content-type": "text/plain",
+    "content-length": "0",
+    "connection": "close",
+    "vary": "Origin",
+    "x-content-type-options": "nosniff",
+    "server": "gvs 1.0"
+   }
+  },
+  {
+   "user_agent": "Mozilla/5.0",
+   "status": 403,
+   "headers": {
+    "last-modified": "Wed, 02 May 2007 10:26:10 GMT",
+    "content-type": "text/plain",
+    "content-length": "0",
+    "connection": "close",
+    "vary": "Origin",
+    "x-content-type-options": "nosniff",
+    "server": "gvs 1.0"
+   }
+  },
+  {
+   "user_agent": "desktop Chrome (USER_AGENT)",
+   "status": 200,
+   "headers": {
+    "last-modified": "Sun, 25 Oct 2026 04:02:17 GMT",
+    "content-type": "video/mp4",
+    "cache-control": "private, max-age=6895",
+    "accept-ranges": "bytes",
+    "content-length": "1486527",
+    "connection": "close",
+    "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000,h3-Q046=\":443\"; ma=2592000,quic=\":443\"; ma=2592000; v=\"46\"",
+    "vary": "Origin",
+    "x-content-type-options": "nosniff",
+    "server": "gvs 1.0"
+   }
+  }
+ ]
+}

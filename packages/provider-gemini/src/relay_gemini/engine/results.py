@@ -13,7 +13,8 @@ Reads only: nothing here sends, so nothing here can spend.
   answer also rests the account's video pool); anything else, "generating your video" included, `Pending`.
 - Fetch: the result link resolved to the file's bytes link with the session (`Site.resolve`: an image's original, a
   video's 720p MP4), then those bytes from lh3 (an image) or googlevideo.com (a video) with no cookie, through the
-  account's proxy (never direct when it has one).
+  account's proxy (never direct when it has one), with the User-Agent the link was resolved with: a googlevideo.com
+  link is signed for that client (`eaua`) and answers any other User-Agent 403 (measured 25/10, live-261025).
 """
 
 import contextlib
@@ -33,6 +34,7 @@ from relay_gemini.constants import (
     LIST_PAGE,
     MEDIA_DEADLINE_S,
     MEDIA_MAX_BYTES,
+    USER_AGENT,
     VIDEO_BYTES_HOST,
     VIDEO_SIZE,
 )
@@ -144,6 +146,7 @@ async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=Non
     async with contextlib.aclosing(stream_download(
             link, hosts=(VIDEO_BYTES_HOST,) if video else (BYTES_HOST,), proxy=proxy_url(ctx.account.proxy),
             max_bytes=MEDIA_MAX_BYTES,
-            deadline_s=MEDIA_DEADLINE_S, resolver=media_resolver, transport=media_transport)) as parts:
+            deadline_s=MEDIA_DEADLINE_S, resolver=media_resolver, transport=media_transport,
+            user_agent=USER_AGENT)) as parts:
         async for part in parts:
             yield part

@@ -91,6 +91,25 @@ async def test_with_a_proxy_every_request_goes_through_it_and_none_is_direct():
     assert got == b"video"
 
 
+@mutation(SRC, '**({"User-Agent": user_agent} if user_agent else {})})', "})",
+          expect="a hop went without the caller's User-Agent")
+@sync
+async def test_a_caller_user_agent_goes_on_every_hop_and_none_keeps_the_default():
+    """A link signed for the client that resolved it (gemini's googlevideo.com, 25/10) is refused to another
+    User-Agent, so the caller's goes on every hop, direct and through the proxy."""
+    def hops(request):
+        return redirect("/second") if request.url.path == "/v/clip.mp4" else b"video"
+
+    for proxy in (None, PROXY):
+        site = MediaSite(hops, hops)
+        assert await drain(site, proxy=proxy, user_agent="Browser/1.0") == b"video"
+        assert [r.headers.get("user-agent") for _, r in site.requests] == ["Browser/1.0"] * 2, \
+            "a hop went without the caller's User-Agent (proxy %s)" % proxy
+    site = MediaSite(hops)
+    await drain(site)
+    assert all(r.headers["user-agent"].startswith("python-httpx/") for _, r in site.requests)
+
+
 @mutation(SRC, "proxy=None if transport else proxy,", "proxy=None,",
           expect="the real client was built without the account proxy")
 @sync

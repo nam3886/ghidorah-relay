@@ -293,7 +293,7 @@ class _CloseBudget:
 
 
 async def _download(url, allowed, proxy, deadline, max_bytes, chunk_size, transport,
-                    resolver) -> AsyncIterator[bytes]:
+                    resolver, user_agent=None) -> AsyncIterator[bytes]:
     """The download over its one route. One chunk is held back so that a body that turns out empty or truncated fails
     before its last chunk was handed over. Without a proxy every hop is resolved and checked here and the connection
     goes to the checked address; through the proxy nothing is resolved here (the proxy resolves the name in its own
@@ -319,7 +319,8 @@ async def _download(url, allowed, proxy, deadline, max_bytes, chunk_size, transp
                 request_url, headers, extensions = _pinned(target)
             try:
                 request = client.build_request("GET", request_url, extensions=extensions,
-                                               headers={"Accept-Encoding": "identity", **headers})
+                                               headers={"Accept-Encoding": "identity", **headers,
+                                                        **({"User-Agent": user_agent} if user_agent else {})})
             except (httpx.InvalidURL, ValueError):
                 _refuse(current, "malformed")
             try:
@@ -368,7 +369,7 @@ async def _download(url, allowed, proxy, deadline, max_bytes, chunk_size, transp
 
 async def stream_download(url: str, *, hosts: tuple[str, ...], proxy: str | None, max_bytes: int, deadline_s: float,
                           https_only: bool = True, http_hosts: tuple[str, ...] = (), chunk_size: int = 1 << 20,
-                          resolver: Resolver = system_resolver,
+                          resolver: Resolver = system_resolver, user_agent: str | None = None,
                           transport: Callable[[str | None], httpx.AsyncBaseTransport] | None = None
                           ) -> AsyncIterator[bytes]:
     """`chunk_size` chunks of a media file on one of `hosts`, with no cookie and no `Authorization`, uncompressed
@@ -386,13 +387,15 @@ async def stream_download(url: str, *, hosts: tuple[str, ...], proxy: str | None
     redirect and the body) -> "timeout", never CancelledError. A refused link (host, scheme, port, malformed, also on
     a redirect hop) -> UnsafeUrl, raised before that link is requested. `transport` (tests) builds the transport of
     the route from its proxy URL (None = direct). Close it early with `contextlib.aclosing`: the upstream stream is
-    closed at once. A failure is logged with its reason and host name only."""
+    closed at once. `user_agent` replaces httpx's on every hop: a link signed for the client that asked for it (a
+    googlevideo.com link names that client's User-Agent) is refused to any other. A failure is logged with its reason
+    and host name only."""
     assert_no_tx()
     deadline = asyncio.get_running_loop().time() + deadline_s
     allowed = functools.partial(host_allowed, hosts=hosts, https_only=https_only, http_hosts=http_hosts)
     try:
         async with contextlib.aclosing(_download(url, allowed, proxy, deadline, max_bytes, chunk_size, transport,
-                                                 resolver)) as parts:
+                                                 resolver, user_agent)) as parts:
             async for part in parts:
                 yield part
     except FetchFailed as e:

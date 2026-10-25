@@ -114,6 +114,11 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   googlevideo request with no `authuser` and from a client with no cookie → 200 video/mp4, 2,200,820 B, 1280×720,
   10.01 s (ffprobe), the same file as before. `=m18` is the 640×360 one, `=d-I` only the
   poster JPEG, `=dv` and `=m22-dv` answered 500, the contribution link 400.
+- The googlevideo link is signed for the client that resolved it (`eaua`, `rqh=1`): 25/10 the provider's download
+  sent httpx's own User-Agent and every video failed with 403 text/plain, 0 B; the same link with the desktop Chrome
+  User-Agent the resolve used answered 200 video/mp4 (curl's and a bare `Mozilla/5.0` were 403 too; the proxy's exit
+  address was the same on every connection and equal to the link's `ip`). The download now sends that User-Agent
+  (live-261025).
 - The daily limit answer (an older chat of the owner's, 23/10): a complete answer with the text "I can't create more
   videos for you today, but I can still find videos from the web." and no video (`gemini.video_limit`, refunded, the
   account's video pool rests `gemini.video_limit_rest_s`, 5 h).

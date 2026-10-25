@@ -4,6 +4,7 @@ answers (fixtures/gemini/live-261024, /u/4, 24/10). Each money or verdict rule h
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from geminikit import (
     I2V_ACCEPTED,
@@ -42,6 +43,8 @@ from relay_core.providers import (
     Retry,
     Success,
 )
+from relay_core.net import FetchFailed
+from relay_core.testing.fake_media import Answer as MediaAnswer
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.mutation import mutation
 from relay_gemini import errors
@@ -54,6 +57,7 @@ SUBMIT_FILE = "packages/provider-gemini/src/relay_gemini/engine/submit.py"
 RESULTS_FILE = "packages/provider-gemini/src/relay_gemini/engine/results.py"
 REPLY_FILE = "packages/provider-gemini/src/relay_gemini/engine/reply.py"
 HTTP_FILE = "packages/provider-gemini/src/relay_gemini/engine/http.py"
+NET_FILE = "packages/relay-core/src/relay_core/net.py"
 NOW = datetime(2026, 10, 24, 1, 8, 0, tzinfo=UTC)
 WALL = 1_792_804_000.0
 VIDEO = "gemini-omni-video"
@@ -304,6 +308,48 @@ def test_a_video_is_fetched_as_its_720p_mp4_from_googlevideo_naming_the_account_
     for r in cdn:
         assert "authuser" not in r.url.params and "cookie" not in r.headers, \
             "the CDN request carried the account or a cookie: %s" % r.url
+
+
+GOOGLEVIDEO = json.loads((Path(__file__).resolve().parents[3] / "fixtures" / "gemini" / "live-261025"
+                          / "googlevideo_user_agent.json").read_text(encoding="utf-8"))
+UA_ARG = "            user_agent=USER_AGENT)) as parts:"
+UA_PAD = "                                                        "
+UA_HEADER = UA_PAD + '**({"User-Agent": user_agent} if user_agent else {})})'
+
+
+@mutation(RESULTS_FILE, UA_ARG, "            )) as parts:", expect="googlevideo refused the download")
+@mutation(NET_FILE, UA_HEADER, UA_PAD + "})",
+          expect="googlevideo refused the download")
+def test_a_video_is_downloaded_with_the_user_agent_its_googlevideo_link_was_signed_for():
+    """25/10 on production: every video failed `render.download_failed`. The googlevideo link carries `eaua` (the
+    resolving client's User-Agent) and `rqh=1`; the same link answered the resolving client 200 video/mp4 and any
+    other User-Agent (httpx's, curl's, a bare Mozilla/5.0) 403 text/plain, through the same proxy (live-261025)."""
+    assert GOOGLEVIDEO["link"]["eaua_present"] and GOOGLEVIDEO["link"]["rqh"] == ["1"]
+    refused = next(t for t in GOOGLEVIDEO["tries"] if t["status"] == 403)
+    served = next(t for t in GOOGLEVIDEO["tries"] if t["status"] == 200)
+    log = []
+    g = pro_site(log, chain={
+        "lh3.googleusercontent.com": (200, "text/plain", "https://lh3.google.com/rd/abc"),
+        "lh3.google.com": (200, "text/plain", "https://rr1---sn-abc.googlevideo.com/videoplayback?eaua=x&rqh=1")})
+    mp4 = b"\0\0\0\x18ftypmp42" + b"\0" * 32
+
+    def googlevideo(request):
+        signed_for = next(r for r in g.seen if r.url.host.endswith("googlevideo.com")).headers["user-agent"]
+        if request.headers.get("user-agent") != signed_for:
+            return MediaAnswer(403, headers={k: v for k, v in refused["headers"].items() if k != "content-length"})
+        return MediaAnswer(body=mp4, headers={"content-type": served["headers"]["content-type"]})
+    site = MediaSite(googlevideo, googlevideo)
+
+    async def go():
+        return b"".join([p async for p in R.fetch(pro_ctx(log), Output("https://lh3.googleusercontent.com/gg/V",
+                                                                        "video/mp4", 0), settings(), Sessions(),
+                                                  transport=g.transport, media_transport=site,
+                                                  media_resolver=public_resolver)])
+    try:
+        got = asyncio.run(go())
+    except FetchFailed as e:
+        raise AssertionError("googlevideo refused the download: %s" % e.reason) from None
+    assert got == mp4
 
 
 def test_a_video_link_that_leaves_the_google_hosts_is_never_followed():
