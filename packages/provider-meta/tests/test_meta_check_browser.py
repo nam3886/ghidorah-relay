@@ -12,7 +12,7 @@ import pytest
 
 from relay_browser.session import SiteProfile
 from relay_core.budget import BrowserBudget, Purpose
-from relay_core.providers import Cooldown, Dead, Suspect
+from relay_core.providers import Cooldown, Suspect
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
 from relay_meta.engine.check import check_account
@@ -104,8 +104,8 @@ async def check(tmp_path, path: str, wait_s: float = 5, account: Account | None 
 
 
 @pytest.mark.browser
-@mutation(CHECK_FILE, 'return Health("alive", display_name=name or None, screenshot=shot,',
-          'return Health("alive", screenshot=shot,', expect="the display name")
+@mutation(CHECK_FILE, 'return Health("alive", display_name=name or None, screenshot=shot)',
+          'return Health("alive", screenshot=shot)', expect="the display name")
 @sync
 async def test_a_page_that_shows_the_user_menu_is_alive_with_the_name_and_a_picture(tmp_path):
     health = await check(tmp_path, "/in")
@@ -141,10 +141,8 @@ async def test_a_page_with_no_sign_or_a_hidden_menu_is_unknown_with_no_strike(tm
 @mutation(CHECK_FILE, "          title: document.title || '', failed: text.includes(failedText)};",
           "          title: '', failed: false};", expect="the checkpoint page")
 @sync
-async def test_the_checkpoint_page_and_a_challenge_that_never_passes_rest_the_account_and_the_third_ends_it(tmp_path):
+async def test_the_checkpoint_page_and_a_challenge_that_never_passes_rest_the_account_and_never_end_it(tmp_path):
     for path in FORBIDDEN:
-        health = await check(tmp_path, path, wait_s=1)
+        health = await check(tmp_path, path, wait_s=1, account=Account(id="acct-%s" % path.strip("/")))
         assert [type(e) for e in health.effects] == [Cooldown], "the checkpoint page %s: %r" % (path, health.effects)
-        assert health.state == "unknown" and health.state_patch == {"checkpoints": 1} and health.screenshot
-    third = await check(tmp_path, "/vercel", wait_s=1, account=Account(provider_state={"checkpoints": 2}))
-    assert Dead("checkpoint") in third.effects, third.effects
+        assert health.state == "unknown" and health.effects[0].recheck and health.screenshot

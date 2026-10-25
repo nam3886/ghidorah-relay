@@ -810,3 +810,17 @@ def test_a_capacity_figure_holds_until_its_reports_refill_else_the_pools_next_wi
     assert pool.figure_until(CFG, NOON, Reported(3, NOON - timedelta(days=1))) == midnight, \
         "an old report no longer holds: the computed figure ends at the next boundary"
     assert pool.figure_until(SAIGON, NOON, None) == datetime(2030, 3, 5, 17, 0, tzinfo=UTC)
+
+
+QUIET = "count = count + 1 if last is not None and now - last < REPEAT_QUIET_S else 1"
+
+
+@mutation(P, QUIET, "count = count + 1", expect="a quiet day starts again")
+def test_a_repeated_checkpoint_doubles_the_rest_up_to_the_max_and_a_quiet_day_starts_it_again():
+    now = [0.0]
+    rests = pool.RepeatRest(lambda: now[0])
+    assert [rests.next_s("a", 600, 3000) for _ in range(5)] == [600, 1200, 2400, 3000, 3000]
+    assert rests.next_s("b", 600, 3000) == 600, "each account has its own streak"
+    assert rests.next_s("c", 600, 100) == 600, "a max below the base rests the base"
+    now[0] = pool.REPEAT_QUIET_S
+    assert rests.next_s("a", 600, 3000) == 600, "a quiet day starts again from the base"

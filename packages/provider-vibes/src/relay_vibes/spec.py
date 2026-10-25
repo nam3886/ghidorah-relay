@@ -74,7 +74,14 @@ _SETTINGS = dict((
     _setting("checkpoint_rest_s", int, 600,
              "Seconds a vibes account makes no call at all after vibes' security checkpoint (a 403 challenge) "
              "answered it. Its jobs keep waiting and never fail on it; the checkpoint cleared after about 7 min "
-             "without calls.", min=60, max=3600),
+             "without calls. Each repeat within a day doubles the rest, up to vibes.checkpoint_rest_max_s.",
+             min=60, max=3600),
+    _setting("checkpoint_rest_max_s", int, 7200,
+             "The longest rest a repeated security checkpoint gives a vibes account (the rest doubles per repeat).",
+             min=60, max=86400),
+    _setting("send_gap_s", int, 300,
+             "Least seconds between two jobs one vibes account takes. 15 images 32 s apart and then 5 more 90 s "
+             "apart each ended in vibes' security checkpoint (25/10). 0 = no gap.", min=0, max=3600),
     _setting("account_min_gap_s", int, 8,
              "Minimum seconds between two calls of one vibes account, whatever they are (submit, poll, reconcile, "
              "download, check); Vercel blocked ~45 calls in 5.5 min.", min=2, max=60),

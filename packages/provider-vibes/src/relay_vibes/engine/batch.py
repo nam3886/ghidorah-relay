@@ -15,7 +15,8 @@ A job's batch id is ours (a UUID the submit made) and is written to the job befo
   is in flight, after one that died on the way, and when none was ever sent. It is never "not sent": the job stays
   unknown until the render deadline fails it with its refund, and it is never sent again.
 - A 403 `X-Vercel-Mitigated: challenge` is the checkpoint: the account makes no call for `vibes.checkpoint_rest_s`
-  and the job keeps waiting. A 5xx (vibes says `Failed to fetch generation batch` now and then) is read again.
+  (doubled by each repeat within a day, up to `vibes.checkpoint_rest_max_s`) and the job keeps waiting.
+  A 5xx (vibes says `Failed to fetch generation batch` now and then) is read again.
 """
 
 import random
@@ -57,10 +58,11 @@ def interval_s(settings, rand: Callable[[], float] = random.random) -> int:
 
 
 def checkpoint_rest(ctx, settings, rests: Rests, why: str) -> tuple[int, Cooldown]:
-    """Start the account's checkpoint rest: (its length, the Cooldown the core records)."""
-    seconds = int(settings.get("vibes.checkpoint_rest_s"))
-    until = rests.start(ctx.account.id, seconds)
-    return seconds, Cooldown(why, until, recheck=True)
+    """The account's checkpoint rest, started here unless the call that met the checkpoint already started it
+    (`Rests.call`, so one checkpoint is one repeat): (its length left, the Cooldown the core records)."""
+    if not rests.left_s(ctx.account.id):
+        rests.trip(ctx.account.id, settings)
+    return rests.left_s(ctx.account.id), Cooldown(why, rests.start(ctx.account.id, 0), recheck=True)
 
 
 def items(batch: dict) -> list[dict]:

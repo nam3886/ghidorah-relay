@@ -444,7 +444,7 @@ class _Run:
         await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT_S * 1000)
         state, _ = await read_signals(page, META_SITE.host, self.deps.signal_wait_s)
         if state == "checkpoint":
-            rest = checkpoint_rest(self.deps.now(), self.settings.get("meta.checkpoint_rest_s"), "seen by a submit")
+            rest = checkpoint_rest(self.deps.now(), self.settings, ctx.account.id, "seen by a submit")
             return await self._unsent(errors.CHECKPOINT, "Vercel's browser checkpoint stood in front of meta.ai", rest)
         if state == "signed_out":
             return await self._unsent(POOL_LOGGED_OUT, "meta.ai showed a signed-out sign",

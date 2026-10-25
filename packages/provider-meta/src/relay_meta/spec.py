@@ -29,7 +29,6 @@ from relay_meta.constants import (
     BROWSER_SLOTS_MAX,
     BROWSER_SLOTS_MIN,
     CHECK_INTERVAL_S,
-    CHECKPOINTS_TO_OWNER,
     LIMITS,
     MAX_ATTEMPTS,
     PROMPT_MAX_CHARS,
@@ -86,8 +85,16 @@ _SETTINGS = dict((
              "Hard bound on one video submit (meta takes 1 to 2 min to render).", min=60, max=SUBMIT_TIMEOUT_MAX_S),
     _setting("checkpoint_rest_s", int, 1800,
              "Seconds a meta account rests after Vercel's browser checkpoint (\"Failed to verify your browser\") "
-             "before it is checked again. Nothing is sent and no job is charged; %d checkpoint reads in a row end "
-             "the account as dead: checkpoint, for the owner." % CHECKPOINTS_TO_OWNER, min=300, max=86400),
+             "before it is checked again. Nothing is sent, no job is charged or uses an attempt, and the account is "
+             "never ended for it; each repeat within a day doubles the rest, up to meta.checkpoint_rest_max_s.",
+             min=300, max=86400),
+    _setting("checkpoint_rest_max_s", int, 21600,
+             "The longest rest a repeated browser checkpoint gives a meta account (the rest doubles per repeat).",
+             min=300, max=86400),
+    _setting("send_gap_s", int, 600,
+             "Least seconds between two jobs one meta account takes. Every job loads meta.ai afresh and passes "
+             "Vercel's browser challenge; the third load within about 2 minutes met the checkpoint (25/10). "
+             "0 = no gap.", min=0, max=3600),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 

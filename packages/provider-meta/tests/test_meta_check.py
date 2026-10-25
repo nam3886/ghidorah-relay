@@ -4,6 +4,7 @@ stand-in (the real page is read in test_meta_check_browser.py)."""
 import asyncio
 import contextlib
 import json
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -102,22 +103,21 @@ class FakeCookies:
         return self.jar
 
 
-def run_check(page, checkpoints=None):
+def run_check(page, account_id=None):
     @contextlib.asynccontextmanager
     async def fake_open(site, account, **kw):
         assert kw["purpose"] == "check"
         yield SimpleNamespace(page=page, ctx=FakeCookies())
 
-    state = {} if checkpoints is None else {"checkpoints": checkpoints}
-    ctx = SimpleNamespace(account=SimpleNamespace(credential=JAR, provider_state=state), browser_token=object())
-    settings = FakeSettings(SPEC, meta__checkpoint_rest_s=1500)
+    account = SimpleNamespace(id=account_id or uuid.uuid4(), credential=JAR, provider_state={})
+    ctx = SimpleNamespace(account=account, browser_token=object())
+    settings = FakeSettings(SPEC, meta__checkpoint_rest_s=1500, meta__checkpoint_rest_max_s=5000)
     return asyncio.run(check_account(ctx, settings, open_session=fake_open, wait_s=0, now=lambda: NOW))
 
 
-def test_a_signed_in_page_is_alive_with_its_name_and_picture_and_ends_a_checkpoint_streak():
-    health = run_check(ScriptedPage([IN]), checkpoints=2)
+def test_a_signed_in_page_is_alive_with_its_name_and_picture():
+    health = run_check(ScriptedPage([IN]))
     assert (health.state, health.display_name, health.screenshot, health.effects) == ("alive", "Nam", b"png", ())
-    assert health.state_patch == {"checkpoints": 0}
 
 
 SIGNED_OUT_RETURN = '            return Health("unknown", screenshot=shot, effects=signed_out_effects(now()))'
@@ -167,18 +167,18 @@ def test_the_captured_checkpoint_page_is_a_checkpoint_and_a_challenge_that_passe
         "a challenge that never passed")
 
 
-@mutation(CHECK_FILE, "    if count >= CHECKPOINTS_TO_OWNER:", "    if True:", expect="a rest, not death")
-@mutation(CHECK_FILE, '            count = int(ctx.account.provider_state.get("checkpoints") or 0) + 1',
-          "            count = 1", expect="the third checkpoint")
-def test_a_checkpoint_read_rests_with_a_recheck_and_no_strike_and_the_third_in_a_row_hands_it_to_the_owner():
-    first = run_check(ScriptedPage([checkpoint_read()]))
-    rest = Cooldown("browser checkpoint (1 in a row), to be checked again", NOW + timedelta(seconds=1500),
-                    recheck=True)
-    assert first.effects == (rest,), "a rest, not death: %r" % (first.effects,)
-    assert first.state == "unknown" and first.state_patch == {"checkpoints": 1} and first.screenshot == b"png"
-    second = run_check(ScriptedPage([checkpoint_read()]), checkpoints=1)
-    assert [type(e) for e in second.effects] == [Cooldown], "a rest, not death: %r" % (second.effects,)
-    third = run_check(ScriptedPage([checkpoint_read()]), checkpoints=2)
-    assert Dead("checkpoint") in third.effects, "the third checkpoint in a row ends the account: %r" % (third.effects,)
-    assert third.state_patch == {"checkpoints": 3}
-    assert not any(isinstance(e, Suspect) for h in (first, second, third) for e in h.effects), "never a strike"
+@mutation(CHECK_FILE, "    rest_s = CHECKPOINTS.next_s(account_id, settings.get(\"meta.checkpoint_rest_s\"),",
+          "    rest_s = RepeatRest().next_s(account_id, settings.get(\"meta.checkpoint_rest_s\"),",
+          expect="a repeat rests longer")
+def test_a_checkpoint_read_rests_with_a_recheck_never_a_strike_or_death_and_a_repeat_rests_longer():
+    account = uuid.uuid4()
+    reads = [run_check(ScriptedPage([checkpoint_read()]), account) for _ in range(4)]
+    rests = [h.effects for h in reads]
+    assert rests[0] == (Cooldown("browser checkpoint (seen by a check), to be checked again in 1500 s",
+                                 NOW + timedelta(seconds=1500), recheck=True),), rests[0]
+    assert [r[0].until - NOW for r in rests] == [timedelta(seconds=s) for s in (1500, 3000, 5000, 5000)], (
+        "a repeat rests longer, up to the max: %r" % ([r[0].until for r in rests],))
+    assert all(h.state == "unknown" and h.screenshot == b"png" and len(h.effects) == 1 for h in reads)
+    assert not any(isinstance(e, Suspect | Dead) for r in rests for e in r), "never a strike, never dead"
+    other = run_check(ScriptedPage([checkpoint_read()]))
+    assert other.effects[0].until == NOW + timedelta(seconds=1500), "another account starts at the base rest"

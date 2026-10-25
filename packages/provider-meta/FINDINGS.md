@@ -168,3 +168,45 @@ reads them with the persisted query `MetaSubsSettingsQuery` → `viewer.metaSubs
 usagePercent, expiryTime}` (`premiumState === "SUBSCRIBED"` means paid). The settings page did not send it over HTTP
 on load (no graphql POST seen; the data comes over the gateway) and a plain `/api/graphql` replay did not answer, so the
 check does not read a plan yet. The user menu and `/settings` show no plan for the accounts we have.
+
+## Browser checkpoint on production, 25/10: the send gap and the growing rest
+
+**What production showed** (jobs and events of 25/10, GMT+7, meta-acc1, its German proxy):
+- 10:32:19 and 10:32:52 sent and done; the next claim at about 10:33:20 met "Vercel Security Checkpoint — Failed to
+  verify your browser (Code 11)" (`fra1`): the third page load in about 70 s.
+- After the 30 min rest: 11:03:37 and 11:11:51 sent and done (8 min apart); the next at 11:13:22, 1.5 min later, met
+  the checkpoint again.
+- The spike (above): the 4th launch within ~15 min, and 12 launches in ~75 min, met it too.
+
+So the trigger is page loads per account in a short window, not a daily quota: two loads pass, a third close behind
+does not, whatever the jobs are.
+
+**Why every job counts.** Each job is a fresh page load that runs Vercel's challenge: the browser profile keeps only the
+caches (`reset_profile_state` removes the cookies at open and at close), and `inject_cookies` replaces the context's
+cookies by the saved jar. So the challenge's pass cookie (Vercel's `_vcrcs`, not seen in our captures by name: no
+network log is kept for a checkpoint) never reaches the next job, and every job solves the challenge again from the
+same IP. A real browser solves it once and keeps the cookie.
+
+**Can it be passed legitimately?** Waiting does not help: the read already polls for 30 s while the challenge runs (a
+cold load passes in about 1 s), and "Failed to verify your browser" is the challenge's own verdict, not a slow pass;
+reloading would be one more challenge. What would help is keeping the pass cookie between jobs: that is the job of the
+branch that saves rotated cookies (dola, meta, vibes). It must keep the Vercel challenge cookie of `www.meta.ai` with
+the jar, or meta keeps re-solving. This change keeps to the wait and the detection, which were right.
+
+**The defaults:**
+- `meta.send_gap_s` = 600: the least time between two jobs of one account (the claim skips an account whose
+  `last_used_at` is newer). Loads 33 s and 8 min apart passed, 1.5 min and ~5 min (the spike's 4 in 15 min) failed
+  in a series; 10 min stays clear of every failing spacing seen. With 3 accounts that is 18 jobs an hour, below the
+  daily pools (40 images, 20 videos per account).
+- `meta.checkpoint_rest_s` = 1800 (unchanged) and `meta.checkpoint_rest_max_s` = 21600: each repeat within a day (seen
+  by a check or by a submit) doubles the rest, 30 min, 1 h, 2 h, 4 h, 6 h. A quiet day starts again from 30 min.
+- Live, 25/10 13:01–13:07 GMT+7 (production code, jobs spaced by hand; another agent's meta probe ran in the meta
+  worker at the same time): meta-acc2, quiet since 23/10, took two jobs 5 min apart, both done. meta-acc1 (last load
+  11:13) and meta-acc3 (last load 11:28) each met the checkpoint on their FIRST load after ~2 h of quiet; the job went
+  back to the queue twice with no attempt used and acc2 delivered it. The run was stopped there to spare the accounts.
+  So an account that met the checkpoint earlier in the day can meet it again on its first load hours later: the gap
+  keeps a clean account clean, it does not clear a marked one. That is what the growing rest is for (under this
+  change acc1 would now rest 1 h, acc3 1 h, instead of 30 min each), and why keeping the challenge cookie matters.
+- A checkpoint is never a strike and never ends the account any more (the old 3-in-a-row `dead: checkpoint` is gone):
+  the account is fine, the browser is in doubt. The job goes back to the queue with no attempt used and no charge
+  (`meta.checkpoint`, unchanged).

@@ -11,6 +11,7 @@ from jobkit import POOLS, PROVIDER, SETTINGS, account, claim, create, key, new_j
 from relay_core import failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.jobs import store
+from relay_core.jobs.claim import send_gap_s
 from relay_core.testing.fake_provider import FakeSettings, FakeSpec
 from relay_core.testing.mutation import mutation
 
@@ -367,6 +368,32 @@ def test_a_drained_provider_claims_nothing_until_it_is_resumed(db):
         made = await create(p, k, "x")
         assert await claim(p, settings=drained) is None
         assert (await claim(p)).job_id == made.job_id
+
+    run(db, scenario)
+
+
+SEND_GAP = "   AND (a.last_used_at IS NULL OR a.last_used_at <= clock_timestamp() - make_interval(secs => %(gap)s))"
+
+
+@mutation(K, SEND_GAP, "   AND (%(gap)s IS NOT NULL)", expect="claimed inside the send gap")
+@mutation(K, '        return settings.get(provider + ".send_gap_s")', "        return 0",
+          expect="claimed inside the send gap")
+def test_an_account_claimed_less_than_the_send_gap_ago_is_not_claimed_and_no_gap_is_declared_by_default(db):
+    k = key(db)
+    acct = account(db, used_ago_s=30)
+    gapped = FakeSettings(fake__send_gap_s=60)
+
+    async def scenario(p):
+        await create(p, k, "x")
+        await create(p, k, "y")
+        assert await claim(p, settings=gapped) is None, "claimed inside the send gap"
+        assert send_gap_s(SETTINGS, PROVIDER) == 0, "a provider that declares no gap has none"
+        short = FakeSettings(fake__send_gap_s=20)
+        assert (await claim(p, settings=short, caps=TWO_SLOTS)).account_id == acct
+        assert await claim(p, settings=short, caps=TWO_SLOTS) is None, (    # a slot is free, the gap is not
+            "claimed inside the send gap: the claim itself starts it")
+        db.run("UPDATE accounts SET last_used_at = clock_timestamp() - interval '21 seconds' WHERE id = %s", acct)
+        assert (await claim(p, settings=short, caps=TWO_SLOTS)).account_id == acct
 
     run(db, scenario)
 

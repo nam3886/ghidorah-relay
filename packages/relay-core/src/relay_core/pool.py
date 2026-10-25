@@ -17,6 +17,7 @@ import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
+from time import monotonic
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -54,6 +55,7 @@ NO_WINDOW_REFILL_TZ = "UTC"      # a reported balance of a pool with no window (
 REST_REASON = "no balance left: rests until the pool refills"
 REFILL_PAST_S = 300              # an upstream refill at most this far in the past is believed (skew, a late reset)
 REFILL_AHEAD_S = 40 * 86400      # an upstream refill further ahead than this is not (a month's cycle plus margin)
+REPEAT_QUIET_S = 86400           # a checkpoint this long after the last one of the account rests the base again
 
 
 # ---- the pool's windows: the `<p>.pools` setting ------------------------------------------------------------------
@@ -558,3 +560,22 @@ async def wake_account(conn: AsyncConnection, account_id) -> bool:
                        (account_id,))
     return await _account(conn, account_id,
                           "cooldown_until = NULL, cooldown_reason = NULL, strikes = 0, strike_at = NULL") == 1
+
+
+class RepeatRest:
+    """How long an account rests after an upstream's bot checkpoint: `base_s` the first time, doubled by each repeat
+    that comes less than `REPEAT_QUIET_S` after the account's last one, never more than `max_s` (nor less than
+    `base_s`). A checkpoint is never a strike and never ends the account; only the rest grows.
+    ponytail: in this process; a restarted worker starts the account again from `base_s` (the database would hold the
+    streak if one rest too short ever matters)."""
+
+    def __init__(self, clock: Callable[[], float] = monotonic):
+        self._seen: dict[Any, tuple[int, float]] = {}
+        self.clock = clock
+
+    def next_s(self, account_id: Any, base_s: int, max_s: int) -> int:
+        now = self.clock()
+        count, last = self._seen.get(account_id, (0, None))
+        count = count + 1 if last is not None and now - last < REPEAT_QUIET_S else 1
+        self._seen[account_id] = (count, now)
+        return max(base_s, min(max_s, base_s * 2 ** min(count - 1, 20)))

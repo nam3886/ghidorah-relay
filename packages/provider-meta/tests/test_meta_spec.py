@@ -69,6 +69,9 @@ def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads(
         assert s[key].max == 720, "a submit timeout past the worker's stop grace"
     rest = s["meta.checkpoint_rest_s"]
     assert (rest.type, rest.default, rest.min) == (int, 1800, 300) and "checkpoint" in rest.description
+    assert s["meta.checkpoint_rest_max_s"].default == 21600, "a repeated checkpoint rests at most 6 h"
+    gap = s["meta.send_gap_s"]
+    assert (gap.type, gap.default, gap.min) == (int, 600, 0), "a meta account takes a job at most every 10 min"
     assert _problems(SPEC) == []
 
 

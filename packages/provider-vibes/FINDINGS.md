@@ -175,3 +175,27 @@ pinned to the account that owns the source), not "upload your video and restyle 
 No plan is exposed: `/api/auth/me` has no plan or subscription field, and the web bundle's API paths (`system-status`,
 `meta-graphql`, `settings/*`, `projects`, `playables`, uploads, `quota/upsell`) name no plan, billing or subscription
 endpoint. The check reports no tier.
+
+## Security checkpoint on production, 25/10: the send gap and the growing rest
+
+**What production showed** (vibes-acc1, its one account, images, GMT+7):
+- 15 image jobs 32 s apart (10:32–10:39) were all done; the 16th, 24 s after the last, met the checkpoint on its
+  generate (10:40:12: unknown, later failed `vibes.render_failed`, refunded). Each image job is about 3 calls (batch
+  create, the generate, the download): ~48 calls in 8 min, like the ~45 in 5.5 min of the first finding.
+- After the 10 min rest and ~30 min idle, 5 jobs ~92 s apart (11:12–11:18) were done, and the 6th (11:19:50) met it
+  before the send (`pool.account_throttled`, requeued twice, done at 11:40). That is ~18 calls in 7 min, far below the
+  first rate: the account was still marked, so a repeat soon after a checkpoint needs a longer rest, not the same
+  10 min.
+
+**The defaults:**
+- `vibes.send_gap_s` = 300: the least time between two jobs of one account (the claim skips an account whose
+  `last_used_at` is newer). An image job then costs ~3 calls per 5 min, a video ~15 (polls every 20–30 s), against
+  the ~8 calls a minute that brought the checkpoint and the reads every 25 s that never did. The per-call spacing
+  `vibes.account_min_gap_s` (8 s) stays: it spaces the calls inside one job.
+- `vibes.checkpoint_rest_s` = 600 (unchanged) and `vibes.checkpoint_rest_max_s` = 7200: each repeat within a day
+  doubles the rest, 10, 20, 40, 80, 120 min. One checkpoint is one repeat, however many calls of the job see it.
+- Live, 25/10 12:54–13:05 GMT+7 (production code, jobs spaced by hand at the new gap): 3 image jobs on vibes-acc1,
+  claimed 5 min 24 s and 5 min 32 s apart, all done in 24–32 s, no checkpoint (the account had rested since 11:40).
+  A small sample: it shows the gap is not too tight, not that it is enough for a whole day.
+- The checkpoint is still never a strike and never fails a job before the send (`pool.account_throttled`, no attempt
+  used); after the send it is unknown and reconciled, never re-sent.

@@ -25,7 +25,6 @@ LOGGED_OUT_URL_MARKS = ("/login", "checkpoint")   # meta sends a signed-out or b
 # a verdict until the read gives up; the failure sentence is one at once.
 CHECKPOINT_TITLE = "Vercel Security Checkpoint"
 CHECKPOINT_FAILED_TEXT = "Failed to verify your browser"
-CHECKPOINT_DEAD_REASON = "checkpoint"
 SEL_ASSISTANT = '[data-testid="assistant-message"]'      # `data-streaming-state` INIT -> STREAMING -> DONE
 SEL_IMAGE_TILE = "ur-image-tile"                         # the `data-testid` of a generated image in the answer
 # an edit answers with a before/after slider: the edited image shown, the input image under `aria-hidden="true"`
@@ -61,7 +60,6 @@ STRIKE_DEAD_REASON = "signed_out"
 SIGNED_OUT_REST_S = 600         # a signed-out read rests the account this long, then it is checked again
 SIGNED_OUT_GAP_S = 540          # a signed-out read less than this long after the last counted strike adds none;
 #                                 shorter than the rest, so the recheck after a rest always counts
-CHECKPOINTS_TO_OWNER = 3        # checkpoint reads in a row (rechecks after each rest) before the account is dead
 
 # ---- requests -------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on meta's composer yet: a cap well inside what a chat message takes
@@ -79,9 +77,6 @@ LIMITS = (
                "a signed-out read rests the account this long, then it is checked again", "s"),
     FixedLimit("relay_meta.constants.SIGNED_OUT_GAP_S", SIGNED_OUT_GAP_S,
                "a signed-out read this soon after the last counted strike adds none; shorter than the rest", "s"),
-    FixedLimit("relay_meta.constants.CHECKPOINTS_TO_OWNER", CHECKPOINTS_TO_OWNER,
-               "browser checkpoint reads in a row, each after a rest, before the account is dead (reason checkpoint)",
-               "reads"),
     FixedLimit("relay_meta.constants.SUBMIT_TIMEOUT_MAX_S", SUBMIT_TIMEOUT_MAX_S,
                "the most a submit timeout setting may hold: the worker's stop grace (780 s) covers it", "s"),
     FixedLimit("relay_meta.constants.BROWSER_SLOTS_MIN", BROWSER_SLOTS_MIN,

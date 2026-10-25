@@ -699,6 +699,24 @@ def test_concurrent_polls_of_one_account_after_a_checkpoint_make_one_call_and_al
     assert sum(1 for r in results if r.effects) == 1 and rests.left_s("acc-1") == 600
 
 
+@mutation(BATCH_FILE, "    if not rests.left_s(ctx.account.id):\n        rests.trip(",
+          "    if True:\n        rests.trip(", expect="one checkpoint is one repeat")
+@mutation(HTTP_FILE, "        return self.start(account_id, self.repeats.next_s(",
+          "        return self.start(account_id, RepeatRest().next_s(", expect="a repeat rests longer")
+def test_a_repeated_checkpoint_rests_the_account_longer_up_to_the_max():
+    rests = Rests(lambda: NOW, settings=SETTINGS)
+    fake = Vibes([], batch=answer(CHECKPOINT))
+    lengths = []
+    for i in range(6):
+        rests.now = lambda i=i: NOW + timedelta(hours=3 * i)           # each after the last rest ended
+        (result,) = polls(fake, rests, 1)
+        lengths.append(result.outcome.next_in_s)
+        assert result.effects == (Cooldown("vibes security checkpoint on a poll", rests.now() + timedelta(
+            seconds=lengths[-1]), recheck=True),), result.effects
+    assert lengths[0] == 600, "one checkpoint is one repeat: %s" % lengths
+    assert lengths == [600, 1200, 2400, 4800, 7200, 7200], "a repeat rests longer, up to the max: %s" % lengths
+
+
 CHECKPOINT_STARTS_REST = "            if is_checkpoint(resp) and self.settings is not None:"
 
 

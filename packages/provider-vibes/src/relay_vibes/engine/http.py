@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 import httpx
 
+from relay_core.pool import RepeatRest
 from relay_core.providers import Proxy
 from relay_vibes.constants import (
     ACK_COOKIE,
@@ -83,6 +84,7 @@ class Rests:
         self._until: dict[str, datetime] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
+        self.repeats = RepeatRest(clock)
         self.now, self.settings, self.clock, self.sleep = now, settings, clock, sleep
 
     def left_s(self, account_id: str) -> int:
@@ -102,6 +104,12 @@ class Rests:
         self._until[account_id] = until
         return until
 
+    def trip(self, account_id: str, settings) -> datetime:
+        """The account met the checkpoint: rest `vibes.checkpoint_rest_s`, doubled by each repeat within a day up to
+        `vibes.checkpoint_rest_max_s`; returns the rest's end."""
+        return self.start(account_id, self.repeats.next_s(account_id, int(settings.get("vibes.checkpoint_rest_s")),
+                                                          int(settings.get("vibes.checkpoint_rest_max_s"))))
+
     async def call(self, account_id: str, send: Callable[[], Awaitable[httpx.Response]]) -> httpx.Response:
         """One call of the account: in its turn, spaced, never during a rest. The lock is held until the answer's
         headers are in, so a checkpoint starts the rest before the next queued call looks."""
@@ -116,7 +124,7 @@ class Rests:
             self._last[account_id] = self.clock()
             resp = await send()
             if is_checkpoint(resp) and self.settings is not None:
-                self.start(account_id, int(self.settings.get("vibes.checkpoint_rest_s")))
+                self.trip(account_id, self.settings)
             return resp
 
     def gated(self, account_id: str, inner: httpx.AsyncBaseTransport) -> httpx.AsyncBaseTransport:

@@ -19,10 +19,12 @@ import pytest
 from relay_browser.evidence import EvidenceWriter
 from relay_core import errors, frames
 from relay_core.net import FetchFailed, UnsafeUrl
+from relay_core.pool import RepeatRest
 from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
+from relay_meta.engine import check as check_module
 from relay_meta.engine import fetch as fetch_mod
 from relay_meta.engine import submit as S
 from relay_meta.engine.check import SIGNALS_JS
@@ -466,14 +468,17 @@ def test_a_done_answer_with_one_final_image_and_one_preview_left_is_unknown_neve
 @mutation(ERRORS_FILE, '    Rule(CHECKPOINT, 503, "api_error", False, False, False, True, True,',
           '    Rule(CHECKPOINT, 503, "api_error", True, True, False, True, True,',
           expect="never a job failure")
-def test_a_checkpoint_sends_nothing_rests_the_account_with_a_recheck_and_never_fails_or_charges_the_job():
+def test_a_checkpoint_sends_nothing_rests_the_account_with_a_recheck_and_never_fails_or_charges_the_job(monkeypatch):
+    monkeypatch.setattr(check_module, "CHECKPOINTS", RepeatRest())
     cap = capture("checkpoint-acc1")
     page = Page([], cap, opens=None)
     result, _ = run(page, cap, meta__checkpoint_rest_s=1200)
     assert result.job == Retry("meta.checkpoint"), "a checkpoint is meta.checkpoint: %r" % (result.job,)
     assert sent(page.log) == [] and not page.typed
-    assert result.account == (Cooldown("browser checkpoint (seen by a submit), to be checked again",
+    assert result.account == (Cooldown("browser checkpoint (seen by a submit), to be checked again in 1200 s",
                                        NOW + timedelta(seconds=1200), recheck=True),)
+    again, _ = run(Page([], cap, opens=None), cap, meta__checkpoint_rest_s=1200)
+    assert again.account[0].until == NOW + timedelta(seconds=2400), "a repeat seen by a submit rests longer"
     assert not any(isinstance(e, Suspect | Dead | Success) for e in result.account), "a rest, never a strike"
     r = errors.rule("meta.checkpoint")
     assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False), "never a job failure: %r" % (r,)

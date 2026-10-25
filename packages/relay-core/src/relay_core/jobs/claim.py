@@ -26,6 +26,7 @@ from relay_core.db import lock_account, tx
 from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
 from relay_core.jobs.create import Settings
 from relay_core.providers import Caps
+from relay_core.settings import SettingsError
 from relay_core.txguard import require_tx
 
 log = logging.getLogger(__name__)
@@ -42,12 +43,14 @@ SELECT id, account_cost, tried, created_at FROM (
 
 # `next_poll_at` on a queued job is its not-before time: a requeue after Retry or NotTaken pauses the job (apply.py).
 
-# Never-checked accounts are not claimable; a pool at rest, a cooling account, a full account and (browser only) an
-# account with an unknown job due for a browser reconcile are skipped. Untried-for-this-head first, then LRU.
+# Never-checked accounts are not claimable; a pool at rest, a cooling account, a full account, an account claimed less
+# than the send gap ago and (browser only) an account with an unknown job due for a browser reconcile are skipped.
+# Untried-for-this-head first, then LRU.
 _CANDIDATES = """
 SELECT a.id FROM accounts a
  WHERE a.provider = %(provider)s AND a.state = 'available' AND a.last_checked_at IS NOT NULL
    AND (a.cooldown_until IS NULL OR a.cooldown_until <= clock_timestamp())
+   AND (a.last_used_at IS NULL OR a.last_used_at <= clock_timestamp() - make_interval(secs => %(gap)s))
    AND (%(pool)s::text IS NULL OR NOT EXISTS (
         SELECT 1 FROM account_pools c
          WHERE c.account_id = a.id AND c.pool = %(pool)s AND c.rest_until > clock_timestamp()))
@@ -91,7 +94,7 @@ NO_TOKEN = _NoToken()
 
 
 async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfgs: dict[str, pool.PoolConfig],
-                        deadline_s: float, owner: str, ttl_s: float,
+                        deadline_s: float, owner: str, ttl_s: float, gap_s: float,
                         take_token: Callable[[], Token | None] | None) -> Claim | _NoToken | None:
     require_tx(conn)
     heads = []
@@ -102,7 +105,7 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
     heads.sort(key=lambda h: (h[0], h[1]))
     for _created, _head_id, name, cfg, cost, head_tried, scope in heads:
         candidates = await (await conn.execute(_CANDIDATES, {
-            **scope, "slots": caps.account_slots, "browser": caps.execution == "browser",
+            **scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
             "tried": list(head_tried)})).fetchall()
         for (account_id,) in candidates:
             afford = None
@@ -153,13 +156,24 @@ async def _take(conn, account_id, scope, afford, caps, owner, ttl_s, token) -> C
     return Claim(job_id, lease_id, account_id, scope["provider"], scope["pool"], cost, timeout_s, owner, token)
 
 
+def send_gap_s(settings: Settings, provider: str) -> float:
+    """`<provider>.send_gap_s`, or 0 when the provider declares no such setting."""
+    try:
+        return settings.get(provider + ".send_gap_s")
+    except (KeyError, SettingsError):
+        return 0
+
+
 async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, settings: Settings, owner: str,
                     take_token: Callable[[], Token | None] | None = None,
                     ttl_s: float = leases.LEASE_TTL_S) -> Claim | None:
     """Claim at most one job for `provider`; None when nothing can run now.
 
     `settings` supplies `<provider>.claims_enabled` (drain mode, I9: a drained provider claims nothing),
-    `unsent_deadline_s` and the pool windows (`<provider>.pools`). `take_token` is the browser semaphore's
+    `unsent_deadline_s`, the pool windows (`<provider>.pools`) and, when the provider declares it,
+    `<provider>.send_gap_s`: an account claimed (its `last_used_at`) less than that many seconds ago is not claimed
+    again, so an upstream that puts a bot checkpoint in front of a busy account sees its sends spaced.
+    `take_token` is the browser semaphore's
     non-blocking acquire for a
     submit (None for an HTTP provider); a returned token is released here when no claim results and by the caller
     after the submit otherwise."""
@@ -167,11 +181,12 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
         return None
     cfgs = pool.pool_configs(provider, caps, settings.get)
     deadline_s = settings.get("unsent_deadline_s")
+    gap_s = send_gap_s(settings, provider)
     claim: Claim | None = None
     try:
         async with tx(db) as conn:
             found = await _claim_oldest(conn, provider=provider, caps=caps, cfgs=cfgs, deadline_s=deadline_s,
-                                        owner=owner, ttl_s=ttl_s, take_token=take_token)
+                                        owner=owner, ttl_s=ttl_s, gap_s=gap_s, take_token=take_token)
             if isinstance(found, Claim):
                 claim = found
     except BaseException:

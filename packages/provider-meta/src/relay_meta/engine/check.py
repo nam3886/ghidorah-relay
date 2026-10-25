@@ -9,9 +9,9 @@ A signed-out read is never a verdict by itself (a checkpoint can pass, a page ca
 by separate reads, ends the account.
 
 Vercel's browser checkpoint (same URL; the page says "Failed to verify your browser") is neither signed in nor signed
-out: the browser is in doubt, not the account. It rests `meta.checkpoint_rest_s` and is checked again, with no strike.
-The reads in a row are counted in the account's `provider_state.checkpoints` (an alive read sets it back to 0); the
-`CHECKPOINTS_TO_OWNER`-th ends the account as `dead: checkpoint`, for the owner to look at.
+out: the browser is in doubt, not the account. It rests `meta.checkpoint_rest_s` and is checked again, with no strike;
+each repeat within a day, seen by a check or by a submit, doubles the rest up to `meta.checkpoint_rest_max_s`
+(`CHECKPOINTS`). A checkpoint never ends the account.
 """
 
 import asyncio
@@ -22,14 +22,13 @@ from urllib.parse import urlsplit
 
 from relay_browser.session import SiteProfile, open_session
 from relay_browser.ui import inject_cookies
-from relay_core.providers import Cooldown, Dead, Health, Suspect
+from relay_core.pool import RepeatRest
+from relay_core.providers import Cooldown, Health, Suspect
 from relay_core.redact import redact_text
 from relay_meta.constants import (
     CHECK_SIGNAL_TIMEOUT_S,
-    CHECKPOINT_DEAD_REASON,
     CHECKPOINT_FAILED_TEXT,
     CHECKPOINT_TITLE,
-    CHECKPOINTS_TO_OWNER,
     LOGGED_OUT_URL_MARKS,
     PAGE_LOAD_TIMEOUT_S,
     SEL_LOGGED_OUT,
@@ -61,19 +60,15 @@ def signed_out_effects(now: datetime) -> tuple[Suspect, Cooldown]:
             Cooldown("signed-out read, to be checked again", now + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True))
 
 
-def checkpoint_rest(now: datetime, rest_s: int, why: str) -> Cooldown:
-    """A checkpoint rests the account and asks for a recheck at its end; it is never a strike."""
-    return Cooldown("browser checkpoint (%s), to be checked again" % why, now + timedelta(seconds=rest_s),
-                    recheck=True)
+CHECKPOINTS = RepeatRest()      # the checkpoints of each account in this worker, for the growing rest
 
 
-def checkpoint_effects(now: datetime, rest_s: int, count: int) -> tuple:
-    """What the `count`-th checkpoint read in a row does: the rest, and from `CHECKPOINTS_TO_OWNER` on the end of the
-    account (the owner looks at it)."""
-    rest = checkpoint_rest(now, rest_s, "%d in a row" % count)
-    if count >= CHECKPOINTS_TO_OWNER:
-        return rest, Dead(CHECKPOINT_DEAD_REASON)
-    return (rest,)
+def checkpoint_rest(now: datetime, settings, account_id, why: str) -> Cooldown:
+    """A checkpoint rests the account (longer on a repeat) and asks for a recheck at its end; it is never a strike."""
+    rest_s = CHECKPOINTS.next_s(account_id, settings.get("meta.checkpoint_rest_s"),
+                                settings.get("meta.checkpoint_rest_max_s"))
+    return Cooldown("browser checkpoint (%s), to be checked again in %d s" % (why, rest_s),
+                    now + timedelta(seconds=rest_s), recheck=True)
 
 
 def verdict(url: str, host: str, seen: dict) -> str | None:
@@ -129,11 +124,10 @@ async def check_account(ctx, settings, *, open_session=open_session, site: SiteP
         except Exception:      # noqa: BLE001 - a picture is a bonus, never a reason to fail the check
             shot = None
         if state == "alive":
-            return Health("alive", display_name=name or None, screenshot=shot, state_patch={"checkpoints": 0})
+            return Health("alive", display_name=name or None, screenshot=shot)
         if state == "checkpoint":
-            count = int(ctx.account.provider_state.get("checkpoints") or 0) + 1
-            return Health("unknown", screenshot=shot, state_patch={"checkpoints": count},
-                          effects=checkpoint_effects(now(), settings.get("meta.checkpoint_rest_s"), count))
+            return Health("unknown", screenshot=shot,
+                          effects=(checkpoint_rest(now(), settings, ctx.account.id, "seen by a check"),))
         if state == "signed_out":
             return Health("unknown", screenshot=shot, effects=signed_out_effects(now()))
         return Health("unknown", screenshot=shot)
