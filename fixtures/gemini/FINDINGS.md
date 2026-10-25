@@ -189,7 +189,11 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   (73.3 s), short + acoustic (63.7 s). A finished video's `/gg/` link resolved only 20-60 s after the chat showed it,
   a song's MP4 3-4 min after its answer (seven tries 20 s apart): the core's fetcher retries until the render deadline
   (900 s from the send). One song send was answered "Something went wrong while creating your track. Please try
-  again!" (`gemini.refused`, refunded).
+  again!" (`gemini.refused`, refunded then; `gemini.upstream_failed` now). The production smoke 25/10 ~14:00Z (job
+  c5a71c28): "I've put a temporary pause on that track—something went wrong on our end! Could you try requesting it
+  again?", and the same prompt sent again by hand made the song. Such an answer (it says something went wrong and asks
+  to try again; English only) is a failure on gemini's side, not a refusal: `NotTaken(gemini.upstream_failed)`,
+  re-queued with one attempt used, refunded only when the attempts run out (`music_temporary_failure.json`).
 
 ## Open questions
 - Whether any send makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".

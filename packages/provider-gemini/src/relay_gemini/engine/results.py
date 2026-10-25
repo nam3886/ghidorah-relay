@@ -10,9 +10,11 @@ Reads only: nothing here sends, so nothing here can spend.
   deadline ends such a job with its refund and it is never sent again.
 - Poll (a job `Found`, or a video job `Accepted`): the chat read, judged like a send's answer (`submit.judge`): the
   job's media (an image, or a video) is `Done`; a final text and no media is `Failed` (refunded; its pool is emptied as
-  a send's refusal empties it, `submit.limit_effects`); a video still "generating" `gemini.silent_video_after_s`
-  after its send on an account whose 5-hour window cannot hold a video is `Failed` as the limit (measured 25/10: such
-  a video is never rendered), with the video pool empty until the window resets; anything else `Pending`.
+  a send's refusal empties it, `submit.limit_effects`; gemini's "something went wrong, try again" fails here too, as
+  `gemini.upstream_failed`: a poll cannot re-queue, only a send's own answer does); a video still "generating"
+  `gemini.silent_video_after_s` after its send on an account whose 5-hour window cannot hold a video is `Failed` as the
+  limit (measured 25/10: such a video is never rendered), with the video pool empty until the window resets; anything
+  else `Pending`.
 - Fetch: the result link resolved to the file's bytes link with the session (`Site.resolve`: an image's original, a
   video's 720p MP4), then those bytes from lh3 (an image) or googlevideo.com (a video) with no cookie, through the
   account's proxy (never direct when it has one), with the User-Agent the link was resolved with: a googlevideo.com

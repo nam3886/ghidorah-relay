@@ -1052,6 +1052,13 @@ none). An image answer streams until the image is drawn, a song's until the song
   videos as soon as your limit resets" and their rewordings (case and punctuation ignored; the account's video pool also rests `gemini.video_limit_rest_s`),
   `gemini.refused` for any other, the text kept. A video refusal that reads like a quota (limit, quota, today,
   tomorrow, or the same in Vietnamese, Spanish, French, German, Japanese or Chinese) also rests the video pool.
+- The exception: a final text that says something went wrong ("something went wrong", "went wrong on our end") and
+  asks to try again ("try again", "try requesting it again", "try your request again"), English only, and holds no
+  refusal word (a policy, guidelines, a different or another prompt, rephrase, can't help or create, ...), is a failure
+  on gemini's side (25/10, job c5a71c28: the same prompt worked when sent again). Nothing was made and nothing can
+  still come, so it is not taken (`gemini.upstream_failed`): the job goes back to the queue, this account or another,
+  with one attempt used, and fails with its refund only when the attempts run out. A found chat (after a lost answer)
+  holding that text fails refunded with the same code: a poll cannot re-queue.
 - Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not 200, an error item, an answer
   that promises an image with no record) is `unknown`. The reconciler reads the chat the answer named, or else the
   chat list (`MaZiqc`, the newest 13): a chat started within 60 s before / 300 s after the send whose prompt is the job's

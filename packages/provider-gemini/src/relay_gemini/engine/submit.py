@@ -14,18 +14,22 @@ Money rules that shape this file (each has a test and a mutation):
   The write-ahead key of a lost send is the job's exact sent text and its send time (`sent_at`): gemini lists each chat
   with the time its send started and gives the sent text back (FINDINGS 4). No id we send is echoed, and a tracking
   code typed into the prompt is drawn into the image, so the text goes verbatim and the reconciler matches it.
-- One send per job, never a second: nothing after `mark_sent` returns `Retry` or `NotTaken`.
+- One send per job, never a second: nothing after `mark_sent` returns `Retry`, nor `NotTaken` but for gemini's own
+  "something went wrong, try again" final answer (below).
 - Only a complete answer is a verdict: clean (every line read) and closed by gemini's end item (`Answer.ended`).
   Complete with the job's media: `Completed`. A video send complete with the "generating" item and a chat: `Accepted`.
   Complete with a final text and no media: gemini answered for good, the job fails with its refund
   (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
-  videos for you today", `gemini.refused` otherwise, the text kept in the detail). A video limit answer (that one,
-  or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage read
-  then names (`jSf9Qc`), else `gemini.video_limit_rest_s` from now; an image refusal empties the image pool only when
-  that read shows a used-up window (no image limit wording is measured). Anything else (no answer, a timeout, a cut or
-  unreadable answer, a status that is not 200, an error item, an empty or media-promising final text with no media,
-  a "generating" answer with no chat) is `Ambiguous`: the job becomes unknown and the reconciler looks for it; it is
-  never sent again.
+  videos for you today", `gemini.refused` otherwise, the text kept in the detail). The one exception: a final text
+  saying something went wrong on gemini's side and asking to try again (`is_temporary_failure`) is `NotTaken`
+  (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
+  core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
+  one, or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage
+  read then names (`jSf9Qc`), else `gemini.video_limit_rest_s` from now; an image refusal empties the image pool only
+  when that read shows a used-up window (no image limit wording is measured). Anything else (no answer, a timeout, a cut
+  or unreadable answer, a status that is not 200, an error item, an empty or media-promising final text with no media, a
+  "generating" answer with no chat) is `Ambiguous`: the job becomes unknown and the reconciler looks for it; it is never
+  sent again.
 - After every send the account's pools rest `gemini.account_min_gap_s`.
 
 Before `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a spaced strike,
@@ -52,6 +56,7 @@ from relay_core.providers import (
     Completed,
     Cooldown,
     Fail,
+    NotTaken,
     Output,
     ProxyBad,
     Rest,
@@ -69,6 +74,9 @@ from relay_gemini.constants import (
     NETWORK_REST_S,
     NOT_ENTITLED_LINK,
     QUOTA_WORDS,
+    REFUSAL_WORDS,
+    TEMPORARY_FAILURE_PHRASES,
+    TRY_AGAIN_PHRASES,
     VIDEO_LIMIT_PHRASES,
     VIDEO_TOOL,
 )
@@ -259,6 +267,8 @@ def judge(status: int, answer: Answer | None, *, video: bool = False, music: boo
         return "taken", None
     if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):
         return "unknown", "the answer named no %s record" % ("video" if video else "song" if music else "image")
+    if is_temporary_failure(final):
+        return "refused", (errors.UPSTREAM_FAILED, final)
     return "refused", (errors.REFUSED, final)
 
 
@@ -267,6 +277,15 @@ def plain(text: str) -> str:
     t = text.lower().replace("\u2019", "'").replace("\u2018", "'").replace("\u02bc", "'")
     t = t.replace("cannot", "can't").replace("can not", "can't")
     return " ".join(re.sub(r"[^\w']+", " ", t).split())
+
+
+def is_temporary_failure(text: str) -> bool:
+    """Is it gemini's "something went wrong on our end, try again" answer: a failure on its side, not a refusal? A
+    refusal word (a policy, another prompt, "can't create", ...) wins over both phrases."""
+    t = plain(text)
+    if any(w in t for w in REFUSAL_WORDS):
+        return False
+    return any(p in t for p in TEMPORARY_FAILURE_PHRASES) and any(p in t for p in TRY_AGAIN_PHRASES)
 
 
 def is_video_limit(text: str) -> bool:
@@ -331,8 +350,8 @@ def video_room_short(settings, room: tuple[int, datetime | None] | None) -> bool
 
 def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
                   music: bool = False, rid: str | None = None, spent: Balance | None = None) -> SubmitResult:
-    """A send's verdict. Never `Retry` or `NotTaken`: the job was sent. `spent`: what the usage read right after a
-    refusal gave the job's pool (`usage_spent`)."""
+    """A send's verdict. Never `Retry`, and `NotTaken` only for a complete "something went wrong, try again" answer.
+    `spent`: what the usage read right after a refusal gave the job's pool (`usage_spent`)."""
     rest = pacing(settings, now)
     verdict, what = judge(status, answer, video=video, music=music)
     if verdict == "done":
@@ -341,6 +360,11 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, *
         if not answer.cid:
             return _result(Ambiguous("gemini took the video but named no chat"), *rest)
         return _result(Accepted(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid}), Success(), *rest)
+    if verdict == "refused" and what[0] == errors.UPSTREAM_FAILED:
+        # a complete final answer with no media and no "generating" item: nothing is made and nothing can still come,
+        # so a new send (this account or another) is no second order. No chat kept: a later send's lost answer must
+        # not be reconciled to this one (the requeue event names it, the dropped reference)
+        return _result(NotTaken(errors.UPSTREAM_FAILED), *rest)
     if verdict == "refused":
         code, text = what
         return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest,

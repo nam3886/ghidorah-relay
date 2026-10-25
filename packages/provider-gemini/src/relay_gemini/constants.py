@@ -45,6 +45,17 @@ VIDEO_LIMIT_PHRASES = ("can't create more videos", "can't make more videos", "ca
                        "no more videos today", "reached your video limit", "reached the video limit",
                        "reached your daily video limit", "video generation limit", "as soon as your limit resets",
                        "out of video generation quota")
+# gemini's "it failed on our side, try again" answer (25/10 "something went wrong on our end! Could you try requesting
+# it again?", 24/10 "Something went wrong while creating your track. Please try again!"): an answer holding one phrase
+# of each tuple (after `plain`) is a temporary upstream error, re-queued; any other final text stays a refusal (a
+# policy refusal may well ask to "try again" with another prompt, but never says something went wrong). English only.
+TEMPORARY_FAILURE_PHRASES = ("something went wrong", "went wrong on our end")
+TRY_AGAIN_PHRASES = ("try again", "try requesting it again", "try your request again")
+# Words of a refusal: an answer holding one is a refusal even with both phrases above ("Something went wrong with that
+# request. Please try again with a different prompt that follows our guidelines.").
+REFUSAL_WORDS = ("polic", "guideline", "different prompt", "another prompt", "new prompt", "rephras", "reword",
+                 "can't help", "can't create", "can't make", "can't generate", "can't do", "unable to", "not able to",
+                 "won't", "violat", "safety", "inappropriate", "not allowed")
 # Words of a quota-like answer (English, Vietnamese, Spanish, French, German, Japanese/Chinese): a video refusal that
 # holds one also empties the account's video pool, since it may be the limit answer worded otherwise. Never used for
 # images: no image limit wording is measured, and these words are common in an ordinary refusal.

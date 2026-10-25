@@ -14,6 +14,7 @@ REFUSED = "gemini.refused"                # gemini finished its answer with text
 NOT_ENTITLED = "gemini.not_entitled"      # gemini answered that the account's plan does not include this
 VIDEO_LIMIT = "gemini.video_limit"        # gemini answered that the account makes no more videos today
 UNRESOLVED = "gemini.account_unresolved"  # before the send: the Google account of the session is not the one meant
+UPSTREAM_FAILED = "gemini.upstream_failed"  # gemini said it failed on its side, "try again": re-queued
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -23,6 +24,11 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "the gemini account's Google account is not resolved yet; the order was not sent"),
     Rule(UPLOAD_FAILED, 502, "api_error", True, False, True, True, True,
          "the input image could not be handed to gemini; the order was not sent"),
+    # gemini's final answer said it failed on its side and asked to try again ("something went wrong on our end",
+    # 25/10): nothing was made, the job goes back to the queue (this account or another) and uses one attempt; at the
+    # last attempt it fails with its refund. Only from a send's own answer: a found chat's read cannot re-queue.
+    Rule(UPSTREAM_FAILED, 503, "api_error", True, False, True, True, True,
+         "gemini said something went wrong on its side; nothing was made, it is sent again"),
     # gemini answered for good with no image: the job dies now and the charge is returned (never sent twice).
     Rule(REFUSED, 422, "invalid_request_error", True, True, False, True, True,
          "gemini answered without a result (a refused prompt or a reached limit); the charge is returned"),

@@ -410,10 +410,11 @@ describes each file and `fixtures/gemini/FINDINGS.md` sums them up.
 
 The googlevideo.com link answers 403 to any User-Agent but the one that resolved it, the t2i sends per mode with
 the t2v portrait sends, the web app's own portrait, template and music requests captured unsent, and one song's
-answer (`gemini/live-261025/`; its README.md describes the probe, redacted to parameter names, statuses and headers,
+answer, and two songs' "something went wrong, try again" final texts (`gemini/live-261025/`; its README.md describes the probe, redacted to parameter names, statuses and headers,
 the sends, numbers and labels only, and the captures).
 
 - `gemini/live-261025/googlevideo_user_agent.json`
+- `gemini/live-261025/music_temporary_failure.json`
 - `gemini/live-261025/portrait_and_image_modes.json`
 - `gemini/live-261025/web_requests_video_music.json`
 

@@ -1,0 +1,17 @@
+{
+  "about": "gemini-music final answers that were text only (a complete answer, no media record, no generating item). Only the final text was kept: the job's error detail. Sent again by hand, the same prompt made a song.",
+  "answers": [
+    {
+      "seen": "2026-10-25 ~14:00Z, production smoke, job c5a71c28 (gemini-music)",
+      "text": "I've put a temporary pause on that track—something went wrong on our end! Could you try requesting it again?",
+      "was": "gemini.refused",
+      "now": "gemini.upstream_failed"
+    },
+    {
+      "seen": "2026-10-25 10:08-10:45Z, the provider engine's song smokes (FINDINGS 9)",
+      "text": "Something went wrong while creating your track. Please try again!",
+      "was": "gemini.refused",
+      "now": "gemini.upstream_failed"
+    }
+  ]
+}

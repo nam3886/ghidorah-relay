@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from geminikit import (
+    FIX_MODES,
     I2I,
     LISTING,
     NOT_ENTITLED,
@@ -40,6 +41,7 @@ from relay_core.providers import (
     Fail,
     Failed,
     Found,
+    NotTaken,
     Output,
     Pending,
     Proxy,
@@ -239,6 +241,58 @@ def test_a_complete_answer_with_a_final_text_and_no_image_fails_with_its_refund_
     result = run(Gemini(log, send=NOT_ENTITLED), Ctx(log))      # the recorded "upgrade your subscription" answer
     assert result.job.code == errors.NOT_ENTITLED, "not_entitled: %s" % result.job
     assert errors.CODES[errors.NOT_ENTITLED].refund and sent(log) == 1
+
+
+# the final texts of two song sends gemini failed on its side (25/10 c5a71c28, and the engine smoke's)
+WENT_WRONG = [a["text"] for a in json.loads((FIX_MODES / "music_temporary_failure.json").read_text())["answers"]]
+TEMPORARY_JUDGE = '    if is_temporary_failure(final):\n        return "refused", (errors.UPSTREAM_FAILED, final)\n'
+TEMPORARY_REQUEUE = '    if verdict == "refused" and what[0] == errors.UPSTREAM_FAILED:\n'
+BOTH_PHRASES = "any(p in t for p in TEMPORARY_FAILURE_PHRASES) and any(p in t for p in TRY_AGAIN_PHRASES)"
+REFUSAL_WINS = "    if any(w in t for w in REFUSAL_WORDS):\n        return False\n"
+EITHER_PHRASE = "any(p in t for p in TEMPORARY_FAILURE_PHRASES) or any(p in t for p in TRY_AGAIN_PHRASES)"
+
+
+@mutation(SUBMIT_FILE, TEMPORARY_JUDGE, "", expect="a temporary failure")
+@mutation(SUBMIT_FILE, TEMPORARY_REQUEUE, "    if False:\n", expect="a temporary failure")
+def test_a_final_something_went_wrong_try_again_answer_is_not_taken_with_a_counted_refunded_code_and_no_chat_kept():
+    """gemini's "something went wrong on our end, try again" is a failure on its side: a complete answer with no media
+    and no "generating" item delivers nothing later, so it is `NotTaken` (not a refusal) with no state patch (the
+    chat is not kept) and a code whose rule uses an attempt, is not terminal and refunds. What the core does with that
+    (re-queued with the attempt counted and the state dropped, failed refunded at the cap) is proven in relay-core's
+    test_lifecycle.py (test_not_taken_requeues_..., test_an_attempt_is_counted_only_for_a_code_whose_rule_...)."""
+    assert len(WENT_WRONG) == 2
+    for model in ("gemini-music", "gemini-nano-banana-2"):
+        for text in WENT_WRONG:
+            log = []
+            result = run(Gemini(log, send=answer(text)), Ctx(log), j=job(model=model))
+            assert result.job == NotTaken(errors.UPSTREAM_FAILED), "a temporary failure became %s" % (result.job,)
+            assert sent(log) == 1 and not any(isinstance(e, Success) for e in result.account)
+            assert any(isinstance(e, Rest) for e in result.account), "no pacing after a send"
+    rule = errors.CODES[errors.UPSTREAM_FAILED]
+    assert not rule.terminal and rule.counts_attempt and rule.refund
+
+
+@mutation(SUBMIT_FILE, BOTH_PHRASES, EITHER_PHRASE, expect="a policy refusal")
+@mutation(SUBMIT_FILE, REFUSAL_WINS, "", expect="a policy refusal")
+def test_a_policy_refusal_that_asks_to_try_again_stays_refused_and_so_does_an_answer_with_one_phrase_alone():
+    for text in ("Something went wrong with that request. Please try again with a different prompt that follows our "
+                 "guidelines.",
+                 "I can't create songs about that person. Could you try again with a different prompt?",
+                 "Something went wrong with that idea, it is against my guidelines.",
+                 "I can't help with that.",
+                 "Hmm, something went wrong with that one.",       # one phrase alone (no refusal word): both are needed
+                 "That didn't work out. Try again?"):
+        log = []
+        result = run(Gemini(log, send=answer(text)), Ctx(log), j=job(model="gemini-music"))
+        assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, \
+            "a policy refusal became %s: %s" % (result.job, text)
+
+
+def test_a_found_chat_holding_the_temporary_failure_fails_refunded_with_its_code():
+    """A poll cannot re-queue: a found chat (a lost send answer) holding it fails refunded, gemini.upstream_failed."""
+    out = poll(Gemini([], rpc={"hNvQHb": chat_read(T2I_PROMPT, WENT_WRONG[0], image=False)}),
+               job(state={"chat": T2I_CHAT})).outcome
+    assert isinstance(out, Failed) and out.code == errors.UPSTREAM_FAILED, out
 
 
 def test_after_any_send_the_accounts_pool_rests_for_the_pacing_gap():

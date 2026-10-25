@@ -17,3 +17,8 @@ client with no cookie, once per User-Agent (see ../FINDINGS.md section 7).
 - `music_reply.txt` (09:3xZ): one song's StreamGenerate answer (Standard, vocals, Pop), the ids frame and the final
   payload only: its MP3, MP4 and lyrics records. Links replaced by `SONG<n>`/`REDACTED<n>`, tokens by `<token>`, the
   conversation ids by fixed fakes.
+- `music_temporary_failure.json`: the final text of two song sends answered with text only, kept from the jobs' error
+  detail (no link, id or token in them): the production smoke's job c5a71c28 (25/10 ~14:00Z, "something went wrong on
+  our end! Could you try requesting it again?") and the engine smoke's "Something went wrong while creating your track.
+  Please try again!" (FINDINGS 9). Both were `gemini.refused`; they are now `gemini.upstream_failed`, re-queued (the
+  same prompt sent again by hand made the song).
