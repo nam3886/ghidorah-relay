@@ -7,6 +7,7 @@ wherever an answer points, and a 3xx is read as a failed read.
 """
 
 import asyncio
+import logging
 import math
 import time
 from collections.abc import Awaitable, Callable
@@ -24,9 +25,14 @@ from relay_vibes.constants import (
     CHECKPOINT_HEADER,
     CHECKPOINT_VALUE,
     SESSION_COOKIE,
+    SITE_HOST,
     USER_AGENT,
 )
-from relay_vibes.credential import session_of
+from relay_vibes.credential import renewable, session_of, with_session
+
+log = logging.getLogger("relay_vibes.http")
+RENEW_TIMEOUT_S = 5.0                # a session renewal (the write) cut at this: past it nothing is written
+SIGNED_OUT_STATUSES = (401, 403)     # what vibes answers a session it no longer knows (a checkpoint 403 is not one)
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -144,12 +150,70 @@ class _Gated(httpx.AsyncBaseTransport):
         await self.inner.aclose()
 
 
+class _Client(httpx.AsyncClient):
+    """An account's client. With a run's `ctx`, a `meta_session` that vibes rotated (a Set-Cookie: httpx keeps it in
+    the client's jar) is written back to the account when the client is left without an error, unless a call of the
+    run was answered as signed out."""
+    ctx = None
+    signed_out = False
+
+    async def note(self, resp: httpx.Response) -> None:
+        if resp.status_code in SIGNED_OUT_STATUSES and not is_checkpoint(resp):
+            self.signed_out = True
+
+    async def __aexit__(self, *exc) -> None:
+        try:
+            if self.ctx is not None and exc[0] is None:
+                await keep_rotated_session(self.ctx, self.cookies, self.signed_out)
+        finally:
+            await super().__aexit__(*exc)
+
+
+def rotated_session(cookies: httpx.Cookies) -> str | None:
+    """The one `meta_session` vibes set for its whole site: path `/` (or none given) and the domain the calls go to
+    (vibes.ai, host-only or not). A cookie of any other scope (a path, a subdomain), or two different values, is no
+    rotation."""
+    values = {c.value for c in cookies.jar if c.name == SESSION_COOKIE
+              and (c.path == "/" or not c.path_specified) and (c.domain or "").lstrip(".").lower() == SITE_HOST}
+    return values.pop() if len(values) == 1 else None
+
+
+async def keep_rotated_session(ctx, cookies: httpx.Cookies, signed_out: bool) -> bool:
+    """Write a rotated `meta_session` back into the account's sealed credential (`ctx.renew_credential`: sealed,
+    compare-and-swap, never over a re-import), only while the stored session is still the one this run started from
+    (another run's newer rotation is never overwritten). Nothing when vibes set none, the same one, an empty or
+    unsendable one, one of another scope (`rotated_session`), or answered the run as signed out. Cut at
+    `RENEW_TIMEOUT_S`. True when written. Never raises, never logs the value."""
+    async def renew() -> bool:
+        new, started = rotated_session(cookies), session_of(ctx.account.credential)
+        if signed_out or not new or not renewable(new) or new == started:
+            return False
+
+        def merge(current: bytes, _mine: bytes) -> bytes:
+            return with_session(current, new) if session_of(current) == started else current
+        written = await ctx.renew_credential(with_session(ctx.account.credential, new), merge)
+        if written is not None:
+            log.info("vibes account %s: the rotated session was written back", ctx.account.id)
+        return written is not None
+
+    try:
+        return await asyncio.wait_for(renew(), RENEW_TIMEOUT_S)
+    except Exception as e:      # noqa: BLE001 - the credential stays as it was; never a reason to fail the run
+        log.warning("vibes account %s: the rotated session was not written back (%s)", getattr(
+            getattr(ctx, "account", None), "id", "?"), type(e).__name__)
+        return False
+
+
 def client_for(account, transport: httpx.AsyncBaseTransport | None = None,
-               rests: Rests | None = None) -> httpx.AsyncClient:
+               rests: Rests | None = None, *, ctx=None) -> httpx.AsyncClient:
     """A client for one run of one account: its session cookie, its proxy, no redirects, no environment proxies; with
-    `rests`, every call is spaced and refused during a checkpoint rest (`Resting`)."""
+    `rests`, every call is spaced and refused during a checkpoint rest (`Resting`); with the run's `ctx`, a session
+    vibes rotates is kept (`_Client`)."""
     inner = transport or httpx.AsyncHTTPTransport(proxy=proxy_url(account.proxy), trust_env=False)
     if rests is not None:
         inner = rests.gated(account.id, inner)
-    return httpx.AsyncClient(base_url=BASE_URL, headers=headers_for(session_of(account.credential)),
-                             transport=inner, timeout=API_TIMEOUT_S, follow_redirects=False, trust_env=False)
+    client = _Client(base_url=BASE_URL, headers=headers_for(session_of(account.credential)),
+                     transport=inner, timeout=API_TIMEOUT_S, follow_redirects=False, trust_env=False)
+    client.ctx = ctx
+    client.event_hooks["response"].append(client.note)
+    return client

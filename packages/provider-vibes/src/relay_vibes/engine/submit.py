@@ -181,7 +181,7 @@ async def submit(ctx, job, settings, rests: Rests, *, transport=None,
     # tracking code) and goes as it went then: the bare words
     prompt = job.prompt if job.frame_id is None else job.sent_text
     config = _config(job.params)
-    async with client_for(ctx.account, transport, rests) as client:
+    async with client_for(ctx.account, transport, rests, ctx=ctx) as client:
         run = _Run(ctx, job, settings, rests, client, now)
         try:
             frame = await run.start_frame(read_media)

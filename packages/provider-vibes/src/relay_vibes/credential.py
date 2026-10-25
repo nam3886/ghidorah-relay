@@ -106,3 +106,18 @@ def session_of(blob: bytes) -> str:
     if not isinstance(session, str) or not _COOKIE_VALUE.fullmatch(session):
         raise ValueError("the sealed vibes credential is not readable")
     return session
+
+
+def with_session(blob: bytes, session: str) -> bytes:
+    """The sealed credential `blob` with a renewed `meta_session` (vibes rotated it), in the same shape."""
+    data = json.loads(blob)
+    data[SESSION_COOKIE] = session
+    for c in data.get("cookies") or []:
+        if c.get("name") == SESSION_COOKIE and on_site(str(c.get("domain") or "")):
+            c["value"] = session
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def renewable(session: object) -> bool:
+    """Can a `meta_session` value from a Set-Cookie go into the sealed credential (and so into a `Cookie:` header)?"""
+    return isinstance(session, str) and bool(_COOKIE_VALUE.fullmatch(session))

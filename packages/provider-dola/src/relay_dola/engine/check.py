@@ -14,11 +14,13 @@ import asyncio
 import logging
 from datetime import timedelta
 
+from relay_browser.ui import renew_jar
 from relay_core.providers import Cooldown, Health, Proxy, ProxyBad, ProxyVerdict, Tier
 from relay_core.redact import redact_text
 from relay_dola import constants
+from relay_dola.credential import IDENTITY_COOKIE_NAMES
 from relay_dola.engine.http import CurlTransport, Transport, proxies_for
-from relay_dola.engine.site import DOLA_SITE, REGION_BLOCK_MARK
+from relay_dola.engine.site import BASE, DOLA_SITE, REGION_BLOCK_MARK
 from relay_dola.engine.submit import Deps, network_failure
 from relay_dola.engine.verify import cookies_lost_effects, login_doubt_effects, login_state, lost_identity_cookies
 
@@ -79,6 +81,7 @@ async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
                 return Health("unknown", screenshot=shot, effects=())
             identity, name = identity_of(await driver.passport(page))
             tier = tier_of(await driver.subscription(page))
+            await renew_jar(session.ctx, ctx, (BASE,), stable=IDENTITY_COOKIE_NAMES, host=DOLA_SITE.host, log=log)
             patch = {}
             if (kind := await driver.composer_kind(page)) is not None:
                 patch["composer"] = kind

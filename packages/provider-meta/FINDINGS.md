@@ -17,6 +17,12 @@ Text→image, image→video, text→video and image→image all work. No region 
   `checkpoint` do not catch it.
   The 403 alone is not the sign: every cold load in the captures answers 403 first, POSTs `?challenge=` and reloads
   with 200 a second later. The failure sentence decides at once; the title alone only when the read gives up.
+- **Cookies a run rotates (25/10, box, 3 accounts, 2 checks each; names and lengths only):** `ecto_1_sess` (the
+  session itself) changes on every load, with `dpr`, `wd` and `rd_challenge`. The session is never written back: the
+  page names no account (no id or handle in the HTML, graphql answers, links or Local Storage), so a rotated session
+  cannot be checked against the account. Only Vercel's challenge-pass cookies are kept (`CHALLENGE_COOKIES`, added to
+  the jar when missing): `rd_challenge` was seen live; `_vcrcs` is Vercel's usual name and is **not confirmed** —
+  read the cookie names on the next real checkpoint and correct the list.
 
 ## The composer
 - On a cold load the composer is a `<textarea>` placeholder for 7–12 s that ignores input (0.1 s on a warm load).

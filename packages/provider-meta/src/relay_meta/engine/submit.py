@@ -90,7 +90,7 @@ from relay_meta.constants import (
     SITE_URL,
     UPLOAD_PATH,
 )
-from relay_meta.engine.check import checkpoint_rest, read_signals, signed_out_effects
+from relay_meta.engine.check import checkpoint_rest, keep_challenge_pass, read_signals, signed_out_effects
 from relay_meta.engine.site import META_SITE
 
 log = logging.getLogger("relay_meta.submit")
@@ -426,6 +426,8 @@ class _Run:
                 raise
             else:
                 await self._captures()      # after the verdict, in the time left before the deadline
+                if self.signed_in:          # Vercel's challenge pass, never the session (see CHALLENGE_COOKIES)
+                    await keep_challenge_pass(session.ctx, self.ctx)
                 return result
             finally:
                 self.page = None

@@ -26,10 +26,9 @@ from relay_vibes.constants import (
     SIGNED_OUT_GAP_S,
     SIGNED_OUT_REST_S,
 )
-from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint
+from relay_vibes.engine.http import SIGNED_OUT_STATUSES, Resting, Rests, client_for, is_checkpoint
 
 POOLS = ("video", "image")
-SIGNED_OUT_STATUSES = (401, 403)
 
 
 def doubt_effects(why: str, now: datetime) -> tuple[Suspect, Cooldown]:
@@ -56,7 +55,7 @@ async def check_account(ctx, settings, *, transport: httpx.AsyncBaseTransport | 
                         now: Callable[[], datetime] = lambda: datetime.now(UTC), rests: Rests | None = None) -> Health:
     """The state of one account. `transport` and `now` are seams for tests; `rests` spaces the calls (the engine's)."""
     try:
-        async with client_for(ctx.account, transport, rests) as client:
+        async with client_for(ctx.account, transport, rests, ctx=ctx) as client:
             me = await client.get(ME_PATH)
             if is_checkpoint(me):
                 # vibes' security checkpoint says nothing about the session: no strike, a recheck after the rest

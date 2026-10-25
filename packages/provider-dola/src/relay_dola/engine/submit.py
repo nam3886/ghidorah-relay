@@ -36,7 +36,7 @@ from urllib.parse import urlsplit
 from relay_browser.evidence import TEXT_MIME, Evidence
 from relay_browser.session import BrowserLaunchError, BrowserRefused, open_session
 from relay_browser.text import norm_for_match
-from relay_browser.ui import inject_cookies
+from relay_browser.ui import inject_cookies, renew_jar
 from relay_core.providers import (
     REFUSED_BY,
     Accepted,
@@ -1097,7 +1097,11 @@ class _Run:
         async with self.deps.open_session(site, ctx.account, purpose="submit", token=ctx.browser_token,
                                           images=bool(images), response_patches=patches, redact=redact_text) as session:
             self.session, self.page = session, session.page
-            return await self._order(images)
+            result = await self._order(images)
+            if self.logged_in:      # the browser carried the account to the end: keep what dola rotated (ttwid...)
+                await renew_jar(session.ctx, ctx, (BASE,), stable=IDENTITY_COOKIE_NAMES, host=DOLA_SITE.host,
+                                log=log)
+            return result
 
     async def _load_images(self) -> list[tuple[bytes, str]]:
         """The reference images, read BEFORE the browser opens: a store that is down means nothing was sent."""

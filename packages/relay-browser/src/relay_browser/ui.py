@@ -7,11 +7,14 @@ Each rule below cost a lost session or a dead browser once:
   creates a new session and kills the old credential.
 """
 
+import asyncio
 import json
 import sys
+from collections.abc import Sequence
 
 # Playwright takes these spellings; Cookie-Editor exports others.
 _SAMESITE = {"no_restriction": "None", "lax": "Lax", "strict": "Strict", "unspecified": "Lax"}
+_EDITOR_SAMESITE = {"none": "no_restriction", "lax": "lax", "strict": "strict"}
 
 
 class SessionError(RuntimeError):
@@ -79,6 +82,124 @@ async def inject_cookies(ctx, jar, identity_names, read_url: str) -> list[str]:
         if got.get(name) != value:
             raise SessionError("cookie %s injection did not take: the browser carries a different session" % name)
     return sorted(want)
+
+
+RENEW_TIMEOUT_S = 5.0           # the whole renewal, the cookie read and the write: past it nothing is written
+EXPIRY_SLACK_S = 3600           # an expiry moved by less than this is the same expiry (no write for clock jitter)
+
+
+def _key(c: dict) -> tuple[str, str, str]:
+    return c["domain"], c.get("path") or "/", c["name"]
+
+
+def _on_host(domain: str, host: str) -> bool:
+    d = domain.lstrip(".").lower()
+    return d == host or d.endswith("." + host)
+
+
+def _one_session(stored: list[dict], browser: list[dict], name: str, host: str | None) -> bool:
+    """The jar holds exactly one cookie `name`, at path `/` on `host` (or a subdomain), and the browser holds exactly
+    that cookie (domain, path and value) and no other of that name."""
+    mine = [c for c in stored if c["name"] == name]
+    theirs = [c for c in browser if c["name"] == name]
+    if len(mine) != 1 or not mine[0].get("value") or (mine[0].get("path") or "/") != "/":
+        return False
+    if host is not None and not _on_host(mine[0]["domain"], host):
+        return False
+    return len(theirs) == 1 and _key(theirs[0]) == _key(mine[0]) and theirs[0].get("value") == mine[0]["value"]
+
+
+def rotated_cookies(stored: list[dict], browser: list[dict], *, stable: Sequence[str] = (), host: str | None = None,
+                    only: Sequence[str] | None = None, domains: Sequence[str] | None = None,
+                    at_most_one: Sequence[str] = ()) -> dict | None:
+    """What the browser rotated of a sealed jar (`stored`, the Cookie-Editor shape) at the end of a signed-in run:
+    {(domain, path, name): the cookie updated}, for cookies the jar already holds whose value changed or whose expiry
+    moved. With `only`, nothing but those names. With `domains`, nothing but cookies at path `/` on exactly one of those
+    domains; with `only` too, a cookie of those names the jar does not hold yet is added (never any other new cookie).
+    None when the browser may not carry the account's session: a `stable` cookie (one that names the account and never
+    rotates) is not exactly one at `/` on `host` in the jar and the very same one in the browser (`_one_session`), or
+    the jar holds more than one cookie of the `at_most_one` names. A cookie the browser dropped is kept as stored."""
+    if not all(_one_session(stored, browser, name, host) for name in stable):
+        return None
+    if sum(c["name"] in at_most_one for c in stored) > 1:
+        return None
+    jar = {_key(c): c for c in stored}
+    out = {}
+    for c in browser:
+        if not c.get("value") or (only is not None and c["name"] not in only):
+            continue
+        if domains is not None and (c["domain"].lstrip(".").lower() not in domains or (c.get("path") or "/") != "/"):
+            continue
+        old = jar.get(_key(c))
+        if old is None:
+            if only is None or domains is None:
+                continue
+            old = {"name": c["name"], "domain": c["domain"], "path": "/",
+                   "secure": bool(c.get("secure")), "httpOnly": bool(c.get("httpOnly"))}
+            same = _EDITOR_SAMESITE.get(str(c.get("sameSite") or "").lower())
+            if same:
+                old["sameSite"] = same
+        expires = c.get("expires")
+        session = not isinstance(expires, int | float) or expires <= 0
+        moved = (session != bool(old.get("session"))) or (
+            not session and abs(expires - (old.get("expirationDate") or 0)) >= EXPIRY_SLACK_S)
+        if c["value"] == old.get("value") and not moved:
+            continue
+        new = {**old, "value": c["value"], "session": session}
+        new.pop("expirationDate", None)
+        if not session:
+            new["expirationDate"] = expires
+        out[_key(c)] = new
+    return out
+
+
+def laid_over(blob: bytes, changes: dict, started: dict) -> bytes:
+    """The sealed jar `blob` with each of `changes` (by key) taken only where the stored cookie is still the one this
+    run started from (`started`, by key; a cookie the run adds: still absent): a cookie another run renewed or added
+    meanwhile keeps that run's value, so a run that writes second never brings an older rotation back. Nothing else in
+    the jar moves."""
+    data = json.loads(blob)
+    held = {_key(c) for c in data["cookies"]}
+    data["cookies"] = [changes[_key(c)] if _key(c) in changes and c == started.get(_key(c)) else c
+                       for c in data["cookies"]]
+    data["cookies"] += [c for k, c in changes.items() if k not in held and k not in started]
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+async def renew_jar(browser_ctx, run_ctx, urls: Sequence[str], *, stable: Sequence[str] = (), host: str | None = None,
+                    only: Sequence[str] | None = None, domains: Sequence[str] | None = None,
+                    at_most_one: Sequence[str] = (), log=None) -> bool:
+    """At the end of a run that read the account signed in: write the cookies the site rotated back into the account's
+    sealed credential (`run_ctx.renew_credential`: sealed with its key, compare-and-swap, never over a re-import), each
+    cookie only where the stored one is still the one this run started from (`laid_over`). See `rotated_cookies` for
+    what is never written. The whole of it is cut at `RENEW_TIMEOUT_S`. True when a jar was written. Never raises (a
+    failed or late write is a warning with no value in it, and the next run tries again)."""
+    async def renew() -> bool:
+        stored = json.loads(run_ctx.account.credential)["cookies"]
+        changes = rotated_cookies(stored, await browser_ctx.cookies(list(urls)), stable=stable, host=host,
+                                  only=only, domains=domains, at_most_one=at_most_one)
+        if changes is None:
+            if log is not None:
+                log.warning("the session cookies are not exactly one each, the same in the jar and the browser: "
+                            "nothing is written back")
+            return False
+        if not changes:
+            return False
+        started = {_key(c): c for c in stored}
+
+        def merge(current: bytes, _mine: bytes) -> bytes:
+            return laid_over(current, changes, started)
+        written = await run_ctx.renew_credential(laid_over(run_ctx.account.credential, changes, started), merge)
+        if written is not None and log is not None:
+            log.info("rotated cookies written back: %s", ", ".join(sorted({k[2] for k in changes})))
+        return written is not None
+
+    try:
+        return await asyncio.wait_for(renew(), RENEW_TIMEOUT_S)
+    except Exception as exc:      # noqa: BLE001 - the credential stays as it was; never a reason to fail the run
+        if log is not None:
+            log.warning("the rotated cookies were not written back (%s)", type(exc).__name__)
+        return False
 
 
 # The composer's JS. Generic: a textarea or a contenteditable.

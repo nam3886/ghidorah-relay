@@ -112,7 +112,7 @@ def outputs(batch: dict, kind: str) -> tuple[Output, ...]:
 
 
 async def read_batch(ctx, batch: str, rests: Rests, transport=None) -> httpx.Response:
-    async with client_for(ctx.account, transport, rests) as client:
+    async with client_for(ctx.account, transport, rests, ctx=ctx) as client:
         return await client.get("%s/%s" % (BATCHES_PATH, quote(batch, safe="")))
 
 
@@ -181,7 +181,7 @@ async def fetch(ctx, out: Output, settings, rests: Rests, *, transport=None) -> 
     """The result file, streamed: `GET /api/download/png|video?id=<content item id>` over the account's proxy. The PNG
     is larger (810x1440) than the size the API reports (720x1280); the file is delivered as downloaded."""
     kind = "image" if out.mime.startswith("image/") else "video"
-    async with client_for(ctx.account, transport, rests) as client:
+    async with client_for(ctx.account, transport, rests, ctx=ctx) as client:
         try:
             async with client.stream("GET", DOWNLOAD_PATH[kind] % quote(out.ref, safe=""),
                                      timeout=DOWNLOAD_TIMEOUT_S, headers={"Accept": "*/*"}) as resp:

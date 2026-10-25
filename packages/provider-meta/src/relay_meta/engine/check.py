@@ -15,17 +15,20 @@ each repeat within a day, seen by a check or by a submit, doubles the rest up to
 """
 
 import asyncio
+import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
 from relay_browser.session import SiteProfile, open_session
-from relay_browser.ui import inject_cookies
+from relay_browser.ui import inject_cookies, renew_jar
 from relay_core.pool import RepeatRest
 from relay_core.providers import Cooldown, Health, Suspect
 from relay_core.redact import redact_text
 from relay_meta.constants import (
+    CHALLENGE_COOKIES,
+    CHALLENGE_DOMAINS,
     CHECK_SIGNAL_TIMEOUT_S,
     CHECKPOINT_FAILED_TEXT,
     CHECKPOINT_TITLE,
@@ -40,6 +43,7 @@ from relay_meta.constants import (
 )
 from relay_meta.engine.site import META_SITE
 
+log = logging.getLogger("relay_meta.check")
 SIGNAL_POLL_S = 0.5
 
 # {menu: user menu visible, out: a signed-out sign visible, name: the menu's text or label, title: the page title,
@@ -52,6 +56,14 @@ SIGNALS_JS = """([menu, outs, failedText]) => {
   return {menu: shown(m), out: outs.some(s => [...document.querySelectorAll(s)].some(shown)), name,
           title: document.title || '', failed: text.includes(failedText)};
 }"""
+
+
+async def keep_challenge_pass(browser_ctx, ctx) -> bool:
+    """After a signed-in read: write Vercel's challenge-pass cookies (`CHALLENGE_COOKIES`, at `/` on meta.ai or
+    www.meta.ai, added when missing) back to the account's jar, never any other cookie and never the session; nothing
+    when the jar holds more than one session cookie. Never raises (`renew_jar`)."""
+    return await renew_jar(browser_ctx, ctx, (SITE_URL,), only=CHALLENGE_COOKIES, domains=CHALLENGE_DOMAINS,
+                           at_most_one=SESSION_COOKIES, log=log)
 
 
 def signed_out_effects(now: datetime) -> tuple[Suspect, Cooldown]:
@@ -123,7 +135,8 @@ async def check_account(ctx, settings, *, open_session=open_session, site: SiteP
             shot = await page.screenshot(full_page=False)
         except Exception:      # noqa: BLE001 - a picture is a bonus, never a reason to fail the check
             shot = None
-        if state == "alive":
+        if state == "alive":      # keep Vercel's challenge pass, never the session (see CHALLENGE_COOKIES)
+            await keep_challenge_pass(session.ctx, ctx)
             return Health("alive", display_name=name or None, screenshot=shot)
         if state == "checkpoint":
             return Health("unknown", screenshot=shot,

@@ -1053,3 +1053,60 @@ def test_a_capture_that_hangs_after_a_verdict_late_in_the_window_keeps_that_verd
     page.shot_hang_s = 60.0
     result = bounded_run(page, cap, "a hung capture", evidence_wait_s=2.0)
     assert isinstance(result.job, Completed), result.job
+
+
+# ---- Vercel's challenge pass is kept, never the session ------------------------------------------------------------
+class ChallengedCookies(Cookies):
+    """The read-back after the injection sees the jar as given; later reads see a rotated session and `rd_challenge`."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads = 0
+
+    async def cookies(self, url):
+        self.reads += 1
+        if self.reads == 1:
+            return self.jar
+        return [{**c, "value": "v-rotated"} for c in self.jar] + [
+            {"name": "rd_challenge", "value": "rc-pass", "domain": ".meta.ai", "path": "/", "expires": -1}]
+
+
+class RenewingCtx(Ctx):
+    def __init__(self, log, error=None):
+        super().__init__(log)
+        self.writes, self.error = [], error
+
+    async def renew_credential(self, blob, merge=None):
+        if self.error:
+            raise self.error
+        self.writes.append({c["name"]: c["value"] for c in json.loads(blob)["cookies"]})
+        return blob
+
+
+SIGNED_IN_RENEW = "                if self.signed_in:"
+
+
+@mutation("packages/provider-meta/src/relay_meta/engine/submit.py", SIGNED_IN_RENEW, "                if False:",
+          expect="challenge pass")
+def test_a_signed_in_submit_keeps_the_challenge_pass_and_a_failed_write_changes_nothing(monkeypatch):
+    monkeypatch.setitem(globals(), "Cookies", ChallengedCookies)
+    cap = capture("image-1-acc1")
+    page = Page([], cap)
+    result, ctx = run(page, cap, ctx=RenewingCtx(page.log))
+    assert isinstance(result.job, Completed)
+    assert ctx.writes == [{"ecto_1_sess": "v-fake", "rd_challenge": "rc-pass"}], (
+        "the challenge pass was not written back, or the session was: %s" % ctx.writes)
+    page = Page([], cap)
+    result, ctx = run(page, cap, ctx=RenewingCtx(page.log, error=RuntimeError("database down")))
+    assert isinstance(result.job, Completed) and result.account == (Success(),), "a failed write changed the run"
+
+
+@mutation("packages/provider-meta/src/relay_meta/engine/submit.py", SIGNED_IN_RENEW, "                if True:",
+          expect="a signed-out run")
+def test_a_signed_out_submit_writes_nothing(monkeypatch):
+    monkeypatch.setitem(globals(), "Cookies", ChallengedCookies)
+    cap = capture("image-1-acc1")
+    cap.signals = {"menu": False, "out": True, "name": "", "title": "Meta AI", "failed": False}
+    page = Page([], cap)
+    result, ctx = run(page, cap, ctx=RenewingCtx(page.log))
+    assert result.job == Retry("pool.account_logged_out") and ctx.writes == [], "a signed-out run was written back"

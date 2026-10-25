@@ -182,3 +182,53 @@ def test_a_checkpoint_read_rests_with_a_recheck_never_a_strike_or_death_and_a_re
     assert not any(isinstance(e, Suspect | Dead) for r in rests for e in r), "never a strike, never dead"
     other = run_check(ScriptedPage([checkpoint_read()]))
     assert other.effects[0].until == NOW + timedelta(seconds=1500), "another account starts at the base rest"
+
+
+# ---- Vercel's challenge pass is kept, never the session ------------------------------------------------------------
+class ChallengedCookies(FakeCookies):
+    """The read-back after the injection sees the jar as given; later reads see what a load leaves (measured 25/10):
+    a rotated `ecto_1_sess` and Vercel's `rd_challenge`."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads = 0
+
+    async def cookies(self, url):
+        self.reads += 1
+        if self.reads == 1:
+            return self.jar
+        return [{**c, "value": "v-rotated", "expires": 1_900_000_000} for c in self.jar] + [
+            {"name": "rd_challenge", "value": "rc-pass", "domain": ".meta.ai", "path": "/", "expires": 1_900_000_000}]
+
+
+def run_challenged(page):
+    writes = []
+
+    async def renew_credential(blob, merge=None):
+        writes.append({c["name"]: c["value"] for c in json.loads(blob)["cookies"]})
+        return blob
+
+    @contextlib.asynccontextmanager
+    async def fake_open(site, account, **kw):
+        yield SimpleNamespace(page=page, ctx=ChallengedCookies())
+
+    ctx = SimpleNamespace(account=SimpleNamespace(id=uuid.uuid4(), credential=JAR, provider_state={}),
+                          browser_token=object(), renew_credential=renew_credential)
+    health = asyncio.run(check_account(ctx, FakeSettings(SPEC, meta__checkpoint_rest_s=1500), open_session=fake_open,
+                                       wait_s=0, now=lambda: NOW))
+    return health, writes
+
+
+KEEP_PASS = "            await keep_challenge_pass(session.ctx, ctx)\n"
+
+
+@mutation(CHECK_FILE, KEEP_PASS, "", expect="challenge pass")
+@mutation(CHECK_FILE, "only=CHALLENGE_COOKIES, domains=CHALLENGE_DOMAINS,", "domains=CHALLENGE_DOMAINS,",
+          expect="session")
+def test_a_signed_in_check_keeps_vercels_challenge_pass_and_never_the_rotated_session():
+    health, writes = run_challenged(ScriptedPage([IN]))
+    assert health.state == "alive"
+    assert writes, "the challenge pass was not written back"
+    assert writes == [{"ecto_1_sess": "v", "rd_challenge": "rc-pass"}], "the rotated session was written: %s" % writes
+    _, writes = run_challenged(ScriptedPage([OUT]))
+    assert writes == [], "a signed-out read was written back"

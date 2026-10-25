@@ -705,6 +705,48 @@ def test_a_renewed_credential_replaces_the_sealed_one_with_the_same_key_and_gene
     assert older == got
 
 
+UPDATE_TX = ("            async with tx(self.db) as conn:\n"
+             "                cur = await conn.execute(\n"
+             "                    \"UPDATE accounts SET credential_enc")
+UPDATE_TX_GIVING_UP = ("            async with tx(self.db) as conn:\n"
+                       "                await conn.execute(\"SET LOCAL lock_timeout = '1s'\")\n"
+                       "                cur = await conn.execute(\n"
+                       "                    \"UPDATE accounts SET credential_enc")
+
+
+@mutation(RUNCTX, UPDATE_TX, UPDATE_TX_GIVING_UP, expect="the rotated refresh token was lost")
+def test_a_rotation_is_written_durably_while_the_account_row_is_briefly_locked(db):
+    """qwen's refresh_token and Google's cookies are single-use rotations: the old one is dead once upstream answered,
+    so a renewal that gave up on a busy row would fork the session (25/10: both qwen accounts signed out). A renewal
+    waits for the row; it never trades durability for speed."""
+    pair, other, acct = sealed_account(db, b'{"refresh_token": "rt-1", "at": 1}')
+
+    async def scenario(p):
+        view = await load_account_view(p, acct, [pair.private], {})
+        locked, release = asyncio.Event(), asyncio.Event()
+
+        async def holder():
+            async with tx(p) as conn:
+                await conn.execute("SELECT 1 FROM accounts WHERE id = %s FOR UPDATE", (acct,))
+                locked.set()
+                await release.wait()
+
+        held = asyncio.create_task(holder())
+        await locked.wait()
+        renewal = asyncio.create_task(Renewal(p, view)(b'{"refresh_token": "rt-2", "at": 2}', merge_json))
+        await asyncio.sleep(2.5)            # longer than any "short" lock timeout a renewal might be given
+        release.set()
+        await held
+        try:
+            return await renewal
+        except Exception:      # noqa: BLE001 - a renewal that gave up: the assertion below names it
+            return None
+
+    written = run(db, scenario)
+    got, _ = stored(db, acct, pair)
+    assert written and json.loads(got)["refresh_token"] == "rt-2", "the rotated refresh token was lost: %s" % got
+
+
 ALWAYS_MERGE = ("            if merge is not None and self.plain is not None:\n"
                 "                blob = merge(self.plain, blob)")
 MERGE_ON_RETRY_ONLY = ("            if attempt and merge is not None and self.plain is not None:\n"

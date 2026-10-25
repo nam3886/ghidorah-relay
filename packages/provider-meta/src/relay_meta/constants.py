@@ -13,6 +13,12 @@ SITE_URL = "https://www.meta.ai/"
 SITE_HOST = "meta.ai"                              # a page whose host is not this one (or a subdomain) is not signed in
 COOKIE_DOMAIN = ".meta.ai"                         # for a bare `Cookie:` header string, which carries no domain
 SESSION_COOKIES = ("ecto_1_sess", "abra_sess")     # a jar needs one of them; real jars carry `ecto_1_sess` alone
+# Vercel's challenge-pass cookies, the only cookies a run writes back to a meta jar (added when the jar lacks them): the
+# browser profile keeps no cookie, so without them every job meets the checkpoint again. `rd_challenge` seen live
+# 25/10; `_vcrcs` (Vercel's usual name) not confirmed yet. Never a session cookie: meta's page names no account to
+# check a rotated session against.
+CHALLENGE_COOKIES = ("rd_challenge", "_vcrcs")
+CHALLENGE_DOMAINS = ("meta.ai", "www.meta.ai")      # the only domains (path `/`) such a cookie is kept for
 
 SEL_USER_MENU = '[data-testid="user-menu-button"]'           # visible only when signed in; carries the display name
 SEL_LOGGED_OUT = ('[data-testid="login-button"]', '[data-testid="logged-out-signin-card-dismiss-button"]')
