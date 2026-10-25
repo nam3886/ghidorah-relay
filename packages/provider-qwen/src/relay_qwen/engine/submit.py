@@ -52,6 +52,7 @@ from relay_core.providers import (
     SubmitResult,
     Success,
 )
+from relay_qwen import catalog as C
 from relay_qwen import errors
 from relay_qwen.constants import (
     API_TIMEOUT_S,
@@ -81,7 +82,7 @@ TASK_KEY = "task"            # provider_state: the video's task id
 LOGGED_OUT = "pool.account_logged_out"
 OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
-POOLS = ("video", "image")
+POOLS = ("video", "image", "video_pro", "image_pro")
 IMAGE_MIME = "image/png"
 # The Aliyun WAF edge block (fixtures waf_plain_no_bx, waf_replayed_bx_other_body): never an answer of qwen's app.
 WAF_RET = "FAIL_SYS_USER_VALIDATE"
@@ -118,7 +119,7 @@ def pacing(settings, now: datetime) -> tuple[Rest, ...]:
 
 
 def chat_type(job) -> str:
-    """qwen's chat type: an image edit is a text-to-image chat with one file (the web app no longer says
+    """qwen's chat type: an image edit is a text-to-image chat with its files (the web app no longer says
     `image_edit`); a video is t2v or i2v."""
     return {"text_to_video": "t2v", "image_to_video": "i2v"}.get(job.operation, "t2i")
 
@@ -139,9 +140,12 @@ def build_body(job, chat: str, prompt: str, files: list[dict], now_s: int) -> di
         params: dict[str, Any] = {"resolution": p["resolution"], "size": p["ratio"], "duration": p["duration"],
                                   "audio": True}
         if files:
+            # in the job's order: for first-last-frame the first image is the first frame, the second the last
             params["attachments"] = [{"type": "image", "materialId": f["id"]} for f in files]
-        meta = {"size": p["ratio"], "subChatType": sub, "videoGenerationMode": "standard",
-                "biz_data": json.dumps({"bizScene": "genVideo", "req": {"rootModel": p["model"], "genMode": "vid_gen",
+        mode = p.get("mode", "standard")         # a job planned before modes is standard
+        gen = "multi_ref" if mode == "multi-reference" else "vid_gen"     # the bundle's genMode (VX)
+        meta = {"size": p["ratio"], "subChatType": sub, "videoGenerationMode": mode,
+                "biz_data": json.dumps({"bizScene": "genVideo", "req": {"rootModel": p["model"], "genMode": gen,
                                                                          "params": params}}, separators=(",", ":"))}
     message = {"id": None, "fid": str(uuid.uuid4()), "parentId": None, "childrenIds": [str(uuid.uuid4())],
                "role": "user", "content": prompt, "user_action": "chat", "files": files, "timestamp": now_s,
@@ -286,7 +290,7 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
     """Send the job. Exceptions of `ctx.report_ref` and `ctx.mark_sent` (a lost lease, a stopping worker) reach the
     core unchanged. The keyword arguments are seams for tests."""
     kind = job.params["kind"]
-    pool = kind
+    pool = C.pool_of(job.model, job.params)
     async with Site(ctx, sessions, transport=transport, clock=clock) as site:
         try:
             await site.token()
@@ -302,8 +306,8 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
                     return _result(Retry(OUT_OF_POINTS), Balance(pool, 0))
             files = []
             if job.operation in ("image_to_image", "image_to_video"):
-                ref = (await job.inputs())[0]
-                files = [await upload_image(site, await read_media(ref), ref.mime)]
+                # every input image, in the job's order (reference images, or the first then the last frame)
+                files = [await upload_image(site, await read_media(ref), ref.mime) for ref in await job.inputs()]
             chat = await site.new_chat(chat_type(job), CHAT_MODEL)
         except SignedOut as e:
             return _result(Retry(LOGGED_OUT), *doubt_effects("not signed in: %s" % e, now()))

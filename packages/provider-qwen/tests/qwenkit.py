@@ -232,17 +232,23 @@ def minter(log: list, **kw) -> Minter:
 
 
 def job(model="qwen-image-3.0", prompt="a red paper boat", *, ratio=None, duration=None, image=False, state=None,
-        ref=None, sent_at=None, frame_id=1, sent=None):
-    images = (MediaIn("0" * 64, "image/jpeg", 9),) if image else ()
-    plan = SPEC.plan(CreateRequest(model=model, prompt=prompt, ratio=ratio, duration=duration, images=images),
-                     settings(), {})
+        ref=None, sent_at=None, frame_id=1, sent=None, options=None):
+    """A planned job; `image` is True (one input image) or how many."""
+    count = int(image)
+    images = (MediaIn("0" * 64, "image/jpeg", 9),) * count
+    plan = SPEC.plan(CreateRequest(model=model, prompt=prompt, ratio=ratio, duration=duration, images=images,
+                                   options=options or {}), settings(), {})
 
     async def inputs():
-        return [MediaRef(0, "inputs/one.jpg", "image/jpeg", 9)] if image else []
+        return [MediaRef(i, "inputs/one.jpg" if i == 0 else "inputs/%d.jpg" % i, "image/jpeg", 9)
+                for i in range(count)]
     return JobView("job-1", "qwen", plan.operation, plan.model, plan.params, prompt, "7100",
                    prompt if sent is None else sent, None, sent_at, ref, state or {}, inputs, frame_id=frame_id)
 
 
 async def read_media(ref) -> bytes:
-    assert ref.object_key == "inputs/one.jpg"
-    return b"\xff\xd8\xffJPEG-bytes"
+    """The first input is `inputs/one.jpg`; the n-th one's bytes end with its number."""
+    if ref.object_key == "inputs/one.jpg":
+        return b"\xff\xd8\xffJPEG-bytes"
+    assert ref.object_key.startswith("inputs/")
+    return b"\xff\xd8\xffJPEG-" + ref.object_key[7:-4].encode()

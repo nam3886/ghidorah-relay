@@ -34,6 +34,7 @@ from relay_core.providers import (
     StillUnknown,
     Success,
 )
+from relay_qwen import catalog as C
 from relay_qwen import errors
 from relay_qwen.constants import MEDIA_DEADLINE_S, MEDIA_HOSTS, MEDIA_MAX_BYTES
 from relay_qwen.engine.http import (
@@ -154,7 +155,7 @@ def _image_chat(record: dict, chat: str, wait: int, job, settings, now: datetime
         # a lost answer found later cannot go back to the queue: refunded, and the image pool is empty until the day
         # turns
         return PollResult(Failed(errors.OUT_OF_CREDITS, "qwen: %s" % text_of(message)[:300], False),
-                          effects=(Balance("image", 0),))
+                          effects=(Balance(C.pool_of(job.model, job.params), 0),))
     if (message or {}).get("done") is True:
         return PollResult(Failed(errors.REFUSED, "qwen: %s" % (text_of(message) or "no image")[:300], True))
     lost_after = int(settings.get("qwen.image_lost_after_s"))

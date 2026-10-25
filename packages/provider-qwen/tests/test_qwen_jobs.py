@@ -3,6 +3,7 @@ fixtures/qwen/spike-261023. Each money or safety rule has a test that fails when
 proves it."""
 
 import asyncio
+import dataclasses
 import json
 import logging
 from datetime import UTC, datetime, timedelta
@@ -231,6 +232,92 @@ def test_an_image_edit_is_a_t2i_chat_with_its_one_file():
     assert isinstance(result.job, Completed)
 
 
+# ---- the full catalog (25/10): several images, the modes, 1080P, the pro options -------------------------------------
+def sts_each(n: int) -> list[dict]:
+    """getstsToken answers with a new file id per upload: f0, f1, ..."""
+    out = []
+    for i in range(n):
+        body = sts_ok()
+        body["data"] = {**body["data"], "file_id": "f%d" % i, "file_path": "u1/f%d_input.jpg" % i}
+        out.append(body)
+    return out
+
+
+def biz(q: Qwen) -> tuple[dict, dict]:
+    meta = sent_body(q)["messages"][0]["extra"]["meta"]
+    return meta, json.loads(meta["biz_data"])["req"]
+
+
+UPLOAD_ALL = ("                files = [await upload_image(site, await read_media(ref), ref.mime) for ref in await "
+              "job.inputs()]")
+
+
+@mutation(SUBMIT_FILE, UPLOAD_ALL, "                files = [await upload_image(site, await read_media(ref), "
+          "ref.mime) for ref in (await job.inputs())[:1]]", expect="every reference image")
+@mutation(SUBMIT_FILE, '        gen = "multi_ref" if mode == "multi-reference" else "vid_gen"', '        gen = "vid_gen"',
+          expect="multi_ref")
+def test_happyhorse_reference_images_are_all_uploaded_and_sent_as_multi_ref_in_their_order():
+    log = []
+    q = Qwen(log, send=I2V_TASK, sts=sts_each(9))
+    result = run_submit(q, Ctx(log), job(VIDEO, image=9))
+    assert isinstance(result.job, Accepted)
+    assert len(q.calls("put")) == 9 and log.index("put") < log.index("new_chat")
+    assert [p.content for p in q.calls("put")][:3] == [b"\xff\xd8\xffJPEG-bytes", b"\xff\xd8\xffJPEG-1",
+                                                      b"\xff\xd8\xffJPEG-2"]
+    msg = sent_body(q)["messages"][0]
+    assert [f["id"] for f in msg["files"]] == ["f%d" % i for i in range(9)], "every reference image"
+    meta, req = biz(q)
+    assert (msg["chat_type"], meta["videoGenerationMode"], req["genMode"]) == ("i2v", "multi-reference", "multi_ref")
+    assert req["params"]["attachments"] == [{"type": "image", "materialId": "f%d" % i} for i in range(9)]
+
+
+def test_wan_first_and_last_frames_go_first_then_last_and_1080p_is_asked_as_1080P():
+    log = []
+    q = Qwen(log, send=I2V_TASK, sts=sts_each(2))
+    run_submit(q, Ctx(log), job("qwen-wan-2.7", image=2, duration=10, options={"resolution": "1080p"}))
+    assert json.loads(q.calls("verify")[0].content) == {"chat_type": "i2v", "task_info": {"create_credits": 60}}
+    meta, req = biz(q)
+    assert (meta["videoGenerationMode"], req["genMode"], req["rootModel"]) == ("first-last-frame", "vid_gen", "wan27")
+    assert req["params"] == {"resolution": "1080P", "size": "16:9", "duration": 10, "audio": True,
+                             "attachments": [{"type": "image", "materialId": "f0"},
+                                             {"type": "image", "materialId": "f1"}]}
+
+
+def test_a_video_planned_before_modes_is_sent_standard():
+    queued = job(VIDEO)
+    old = {k: v for k, v in queued.params.items() if k != "mode"}
+    log = []
+    q = Qwen(log, send=VIDEO_TASK)
+    run_submit(q, Ctx(log), dataclasses.replace(queued, params=old))
+    meta, req = biz(q)
+    assert (meta["videoGenerationMode"], req["genMode"]) == ("standard", "vid_gen")
+
+
+def test_the_pro_image_names_its_model_and_auto_size_and_takes_three_images():
+    log = []
+    q = Qwen(log, sts=sts_each(3))
+    result = run_submit(q, Ctx(log), job("qwen-image-3.0-pro", image=3))
+    assert isinstance(result.job, Completed)
+    msg = sent_body(q)["messages"][0]
+    assert msg["extra"]["meta"] == {"subChatType": "t2i", "size": "auto", "model": "qwen-image-3.0-pro"}
+    assert msg["chat_type"] == "t2i" and [f["id"] for f in msg["files"]] == ["f0", "f1", "f2"]
+
+
+POOL_OF_JOB = "    pool = C.pool_of(job.model, job.params)"
+
+
+@mutation(SUBMIT_FILE, POOL_OF_JOB, "    pool = kind", expect="video_pro")
+def test_a_pro_option_out_of_credits_or_quota_empties_its_own_pool():
+    log = []
+    q = Qwen(log, verify=VERIFY_EMPTY)
+    result = run_submit(q, Ctx(log), job(VIDEO, options={"resolution": "1080p"}))
+    assert Balance("video_pro", 0) in result.account, "video_pro: %s" % (result.account,)
+    quota = stream({"role": "assistant", "content": IMAGE_QUOTA, "phase": "answer", "status": "typing"},
+                   {"content": "", "status": "finished", "phase": "answer"})
+    result = run_submit(Qwen([], send=quota), Ctx([]), job("qwen-image-3.0-pro"))
+    assert isinstance(result.job, NotTaken) and Balance("image_pro", 0) in result.account
+
+
 # ---- the firewall: the one answer after the send that requeues -------------------------------------------------
 @mutation(SUBMIT_FILE, '        if verdict == "waf":\n', '        if False:\n', expect="NotTaken")
 @mutation(SUBMIT_FILE, "    await drop_pair(ctx, sessions, minted_at)\n", "", expect="the stale pair was kept")
@@ -376,6 +463,8 @@ def test_the_daily_image_quota_answer_requeues_the_job_with_no_attempt_and_empti
 
 @mutation(RESULTS_FILE, '    if (message or {}).get("done") is True and is_image_quota(text_of(message)):\n',
           "    if False:\n", expect="out_of_credits")
+@mutation(RESULTS_FILE, "effects=(Balance(C.pool_of(job.model, job.params), 0),))", 'effects=(Balance("image", 0),))',
+          expect="image_pro")
 def test_a_lost_image_answer_found_to_be_the_quota_is_refunded_and_empties_the_image_pool():
     record = {"success": True, "data": {"chat": {"messages": [
         {"role": "user", "content": "x"}, {"role": "assistant", "content": IMAGE_QUOTA, "done": True}]}}}
@@ -383,6 +472,8 @@ def test_a_lost_image_answer_found_to_be_the_quota_is_refunded_and_empties_the_i
     assert isinstance(got.outcome, Failed) and got.outcome.code == "qwen.out_of_credits", "out_of_credits: %s" % (
         got.outcome,)
     assert got.effects == (Balance("image", 0),)
+    pro = run_poll(Qwen([], chat=record), job("qwen-image-3.0-pro", state={"chat": CHAT}))
+    assert pro.effects == (Balance("image_pro", 0),), "the pool of the job, image_pro: %s" % (pro.effects,)
 
 
 def test_an_image_link_counts_even_in_a_stream_cut_after_it_and_a_cut_before_it_is_unknown():
