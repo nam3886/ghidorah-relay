@@ -376,7 +376,7 @@ SEND_GAP = "   AND (a.last_used_at IS NULL OR a.last_used_at <= clock_timestamp(
 
 
 @mutation(K, SEND_GAP, "   AND (%(gap)s IS NOT NULL)", expect="claimed inside the send gap")
-@mutation(K, '        return settings.get(provider + ".send_gap_s")', "        return 0",
+@mutation(K, '        gap = settings.get(provider + ".send_gap_s")', "        gap = 0",
           expect="claimed inside the send gap")
 def test_an_account_claimed_less_than_the_send_gap_ago_is_not_claimed_and_no_gap_is_declared_by_default(db):
     k = key(db)
@@ -396,6 +396,51 @@ def test_an_account_claimed_less_than_the_send_gap_ago_is_not_claimed_and_no_gap
         assert (await claim(p, settings=short, caps=TWO_SLOTS)).account_id == acct
 
     run(db, scenario)
+
+
+@mutation(K, '    return min(gap, settings.get("unsent_deadline_s") * GAP_DEADLINE_SHARE)', "    return gap",
+          expect="a gap past half the unsent deadline")
+def test_a_send_gap_is_cut_to_half_the_unsent_deadline_so_queued_jobs_cannot_all_expire():
+    assert send_gap_s(FakeSettings(fake__send_gap_s=3600, unsent_deadline_s=1800), PROVIDER) == 900, (
+        "a gap past half the unsent deadline")
+    assert send_gap_s(FakeSettings(fake__send_gap_s=600, unsent_deadline_s=10800), PROVIDER) == 600
+
+
+RECHECK = ('            if not await (await conn.execute(_CANDIDATES, {**args, "only": account_id})).fetchone():\n'
+           "                continue")
+
+
+@mutation(K, RECHECK, "            if False:\n                continue", expect="a stale candidate list beat the gap")
+def test_a_claim_that_read_its_candidates_before_another_claim_committed_still_keeps_the_send_gap(db):
+    k = key(db)
+    acct = account(db)
+    gapped = FakeSettings(fake__send_gap_s=60)
+
+    async def scenario(p):
+        await create(p, k, "x")
+        await create(p, k, "y")
+        reached, gate, paused = asyncio.Event(), asyncio.Event(), []
+
+        async def pause():
+            if not paused:                         # only the first worker stops, after it read its list
+                paused.append(True)
+                reached.set()
+                await gate.wait()
+
+        failpoints.arm("claim.candidates_read", pause)
+        try:
+            first = asyncio.create_task(claim(p, owner="w1", settings=gapped, caps=TWO_SLOTS))
+            await asyncio.wait_for(reached.wait(), 5)
+            second = await claim(p, owner="w2", settings=gapped, caps=TWO_SLOTS)   # takes the account, commits
+            gate.set()
+            return second, await first
+        finally:
+            failpoints.disarm("claim.candidates_read")
+            gate.set()
+
+    second, first = run(db, scenario)
+    assert second is not None and second.account_id == acct
+    assert first is None, "a stale candidate list beat the gap: %r" % (first,)
 
 
 def test_a_job_past_the_unsent_deadline_is_not_claimed(db):

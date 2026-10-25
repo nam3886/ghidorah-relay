@@ -16,6 +16,7 @@ from relay_core.api import doors, facade_common, progress, runners
 from relay_core.jobs import (
     apply,
     checks,
+    claim,
     commands,
     create,
     engine,
@@ -76,6 +77,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(apply, "UNKNOWN_MAX_S", "the longest wait between reconciles of an unknown job", "s"),
     _c(apply, "NOT_SENT_MARGIN_S", "the proving read starts this long after sent_at plus the submit timeout", "s"),
     _c(apply, "REQUEUE_PAUSE_S", "a requeued job is not claimed again for this long", "s"),
+    _c(claim, "GAP_DEADLINE_SHARE", "a provider's send gap is cut to this share of the unsent deadline, so queued jobs "
+       "do not expire waiting for it"),
     _c(apply, "RENDER_BACKSTOP_S", "a late job whose reads never answer still ends this long after its render "
        "deadline", "s"),
     _c(apply, "FETCH_WINDOW_S", "a video found at or after the deadline keeps its fetch retries this long", "s"),

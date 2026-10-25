@@ -89,12 +89,14 @@ _SETTINGS = dict((
              "never ended for it; each repeat within a day doubles the rest, up to meta.checkpoint_rest_max_s.",
              min=300, max=86400),
     _setting("checkpoint_rest_max_s", int, 21600,
-             "The longest rest a repeated browser checkpoint gives a meta account (the rest doubles per repeat).",
+             "The longest rest a repeated browser checkpoint gives a meta account (the rest doubles per repeat); "
+             "below checkpoint_rest_s it counts as checkpoint_rest_s.",
              min=300, max=86400),
     _setting("send_gap_s", int, 600,
              "Least seconds between two jobs one meta account takes. Every job loads meta.ai afresh and passes "
              "Vercel's browser challenge; the third load within about 2 minutes met the checkpoint (25/10). "
-             "0 = no gap.", min=0, max=3600),
+             "0 = no gap; "
+             "never more than half of unsent_deadline_s.", min=0, max=3600),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 

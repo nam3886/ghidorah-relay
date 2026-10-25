@@ -20,7 +20,7 @@ from typing import Any
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import leases, pool
+from relay_core import failpoints, leases, pool
 from relay_core.budget import Token
 from relay_core.db import lock_account, tx
 from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
@@ -30,6 +30,8 @@ from relay_core.settings import SettingsError
 from relay_core.txguard import require_tx
 
 log = logging.getLogger(__name__)
+
+GAP_DEADLINE_SHARE = 0.5     # a send gap is cut to this share of the unsent deadline: an account takes 2+ jobs in it
 
 _HEADS = """
 SELECT id, account_cost, tried, created_at FROM (
@@ -59,8 +61,11 @@ SELECT a.id FROM accounts a
    AND (NOT %(browser)s OR NOT EXISTS (
         SELECT 1 FROM jobs u WHERE u.account_id = a.id AND u.status = 'unknown'
            AND (u.next_poll_at IS NULL OR u.next_poll_at <= clock_timestamp())))
+   AND (%(only)s::uuid IS NULL OR a.id = %(only)s::uuid)
  ORDER BY a.id = ANY(%(tried)s::uuid[]), a.last_used_at NULLS FIRST, a.id
 """
+# The list is read before any lock: once a candidate's row is locked the same conditions are read again for it alone
+# (`only`), so a claim that committed in between (its `last_used_at`, its lease) is seen and the gap holds.
 
 _PICK = """
 SELECT id, account_cost, submit_timeout_s, tried FROM jobs
@@ -104,9 +109,10 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
             heads.append((created_at, head_id, name, cfg, cost, head_tried, scope))
     heads.sort(key=lambda h: (h[0], h[1]))
     for _created, _head_id, name, cfg, cost, head_tried, scope in heads:
-        candidates = await (await conn.execute(_CANDIDATES, {
-            **scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
-            "tried": list(head_tried)})).fetchall()
+        args = {**scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
+                "tried": list(head_tried), "only": None}
+        candidates = await (await conn.execute(_CANDIDATES, args)).fetchall()
+        await failpoints.hit("claim.candidates_read")
         for (account_id,) in candidates:
             afford = None
             if cfg is None:
@@ -116,6 +122,9 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
                 cap = await pool.lock_capacity(conn, account_id, cfg)
                 if cap is None:
                     continue
+            if not await (await conn.execute(_CANDIDATES, {**args, "only": account_id})).fetchone():
+                continue                            # a claim that committed since the list was read took it
+            if cfg is not None:
                 held = await pool.reserved(conn, account_id, name)
                 if not pool.can_afford(cap.left_n, held, cost):
                     continue
@@ -157,11 +166,15 @@ async def _take(conn, account_id, scope, afford, caps, owner, ttl_s, token) -> C
 
 
 def send_gap_s(settings: Settings, provider: str) -> float:
-    """`<provider>.send_gap_s`, or 0 when the provider declares no such setting."""
+    """`<provider>.send_gap_s`, or 0 when the provider declares no such setting. Never more than `GAP_DEADLINE_SHARE`
+    of `unsent_deadline_s`: a gap as long as the deadline would let every queued job expire unsent. Clamped here, at
+    the one place it is read, so a later change of either setting cannot break it (a save-time rule across two
+    settings would not see the other one change)."""
     try:
-        return settings.get(provider + ".send_gap_s")
+        gap = settings.get(provider + ".send_gap_s")
     except (KeyError, SettingsError):
         return 0
+    return min(gap, settings.get("unsent_deadline_s") * GAP_DEADLINE_SHARE)
 
 
 async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, settings: Settings, owner: str,
