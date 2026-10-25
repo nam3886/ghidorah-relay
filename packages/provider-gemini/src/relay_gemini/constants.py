@@ -34,6 +34,7 @@ VIDEO_BYTES_HOST = "googlevideo.com"
 MODE_AUTO = "cf41b0e0dd7d53e5"        # the mode menu's "Auto" (Gemini 3 models), the only one a free account has
 IMAGE_TOOL = 14                       # inner[49] of a send with the image tool chosen
 VIDEO_TOOL = 11                       # inner[49] of a send with the video tool ("Create video") chosen
+MUSIC_TOOL = 21                       # inner[49] of a send with the music tool ("Create music") chosen
 MAX_ACCOUNTS = 10                     # a Google session holds at most 10 signed-in accounts: /u/0../u/9
 GENERATING_MARK = "video_generation"  # the "I'm generating your video" item of a video send that was taken
 # The video limit answer, in `submit.plain` form (lowercase, straight apostrophes, "cannot" as "can't", no other
@@ -57,8 +58,9 @@ NOT_ENTITLED_LINK = "gemini.google/subscriptions"     # the "upgrade your subscr
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one page load, read, upload step or cookie rotation over a proxy (0.3-2 s measured)
-GENERATE_TIMEOUT_S = 180        # an image send streams until the image is drawn (25-28 s), a video send until it is
-                                # taken (10-33 s measured); the video itself is read from the chat after
+GENERATE_TIMEOUT_S = 180        # an image send streams until the image is drawn (25-28 s), a song's until it is made
+                                # (58-80 s), a video send until it is taken (3-33 s measured); the video itself is
+                                # read from the chat after
 SUBMIT_TIMEOUT_S = 300          # one submit: page, upload, send
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool
 CHECK_INTERVAL_S = 300          # the account check: it also rotates the session, which ages out in about 20 min
@@ -75,8 +77,9 @@ STRIKE_DEAD_REASON = "signed_out"
 
 # ---- requests and results -------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000         # not measured on gemini: a cap well inside what a send takes
-MEDIA_MAX_BYTES = 64 * 2**20    # one result; a 1408x768 PNG was 1.2-1.9 MB, a 10 s 720p MP4 1.5-2.2 MB
-MEDIA_DEADLINE_S = 120          # one result download, every hop included
+MEDIA_MAX_BYTES = 64 * 2**20    # one result; a 1408x768 PNG was 1.2-1.9 MB, a 10 s 720p MP4 1.5-5.5 MB, a 3 min song's
+                                # MP4 15 MB
+MEDIA_DEADLINE_S = 300          # one result download, every hop included (the 15 MB song took 94 s over the proxy)
 LINK_HOPS = 6                   # the text hops of one result link (3 measured)
 LIST_PAGE = 13                  # chats the web app lists per read (MaZiqc)
 

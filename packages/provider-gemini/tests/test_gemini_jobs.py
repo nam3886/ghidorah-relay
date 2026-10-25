@@ -105,12 +105,12 @@ def test_the_job_is_on_record_and_marked_sent_right_before_its_one_send_and_a_dr
     assert ctx.refs[0][1] == {"request": rid} and ctx.refs[-1] == (T2I_CHAT, {"request": rid, "chat": T2I_CHAT})
 
 
-OPTION = "    option = [[C.VIDEO_RATIO_IDS[ratio]]] if video else [[C.RATIO_IDS[ratio]]] if ratio else []"
+OPTION = "    message, option = None, [[C.RATIO_IDS[ratio]]] if ratio else []"
 
 
-@mutation(SUBMIT_FILE, "49: VIDEO_TOOL if video else IMAGE_TOOL,", "49: VIDEO_TOOL if video else 0,",
+@mutation(SUBMIT_FILE, "MUSIC_TOOL if music is not None else IMAGE_TOOL", "MUSIC_TOOL if music is not None else 0",
           expect="the image tool")
-@mutation(SUBMIT_FILE, OPTION, "    option = [[C.VIDEO_RATIO_IDS[ratio]]] if video else []", expect="the ratio option")
+@mutation(SUBMIT_FILE, OPTION, "    message, option = None, []", expect="the ratio option")
 def test_the_send_is_the_web_apps_image_request_with_the_verbatim_text_and_the_ratio():
     log = []
     g = Gemini(log, send=T2I)

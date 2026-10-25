@@ -36,7 +36,7 @@ USAGE_PATH = "/usage"
 # jSf9Qc payload[0]: 1 on free accounts, 2 on the AI Pro one (measured 24/10 and 25/10). Ultra's code is not measured:
 # any other value is not read as a tier, the stored one stays.
 PLAN_TIERS = {1: "free", 2: "pro"}
-POOLS = ("image", "image_pro", "video")
+POOLS = ("image", "image_pro", "video", "music")
 # jSf9Qc window code -> the `gemini.pools` window its reset ends (FINDINGS 5: 1 = the 5-hour block, 2 = the week)
 WINDOWS = {1: "5h", 2: "week"}
 # The mode menu's "Pro" (AI Pro: `e6fa609c3fa255c0`, kind 3). With the image tool it draws with "Nano Banana 2.1"

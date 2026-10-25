@@ -34,6 +34,7 @@ IMG = MediaIn(sha256="0" * 64, mime="image/png", size=10)
 MODEL = "gemini-nano-banana-2"
 VIDEO = "gemini-omni-video"
 PRO = "gemini-nano-banana-2.1"          # the pro-tier image model: the "Pro" mode of an AI Pro account
+MUSIC = "gemini-music"                  # songs: the music tool (test_gemini_modes)
 
 
 def plan(model=MODEL, prompt="a lighthouse at dawn", *, cfg=None, **kw):
@@ -58,7 +59,8 @@ def refusal(model=MODEL, prompt="a lighthouse at dawn", **kw):
 def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
     assert SPEC.name == "gemini" and c.execution == "http"
-    assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("image_pro", "uses"), ("video", "uses")]
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("image_pro", "uses"), ("video", "uses"),
+                                                   ("music", "uses")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -73,8 +75,8 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert (s["gemini.rotate_interval_s"].default, s["gemini.rotate_interval_s"].max) == (600, 900)
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
     assert s["gemini.render_deadline_s"].default == 900
-    assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 6}
-    assert s["gemini.costs"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
+    assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 6, MUSIC: 2}
+    assert s["gemini.costs"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1, MUSIC: 1}, "one use of its budget per job"
     pools = s["gemini.pools"]
     assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
     day, block, week = pools.default["video"]["windows"]
@@ -96,11 +98,12 @@ def test_the_registry_takes_gemini_beside_the_others_and_no_model_name_clashes()
     spec, model = reg.resolve(MODEL)
     assert spec is SPEC and model.operations == ("text_to_image", "image_to_image") and model.media_type == "image"
     assert model.limits["max_images"] == 1 and model.limits["ratios"] == ["1:1", "9:16", "3:4", "4:3", "16:9"]
-    assert [m.id for m in SPEC.catalog()] == [MODEL, PRO, VIDEO]
+    assert [m.id for m in SPEC.catalog()] == [MODEL, PRO, VIDEO, MUSIC]
     spec, video = reg.resolve(VIDEO)
     assert spec is SPEC and video.media_type == "video" and video.operations == ("text_to_video", "image_to_video")
     assert {k: video.limits[k] for k in ("max_images", "ratios", "default_ratio", "durations", "default_duration")} \
-        == {"max_images": 1, "ratios": ["16:9"], "default_ratio": "16:9", "durations": [10], "default_duration": 10}
+        == {"max_images": 1, "ratios": ["16:9", "9:16"], "default_ratio": "16:9", "durations": [10],
+            "default_duration": 10}
 
 
 def test_gemini_registers_its_codes_on_load():
@@ -149,10 +152,10 @@ VIDEO_RATIO = "        if ratio not in C.VIDEO_RATIO_IDS:"
 
 @mutation(SPEC_FILE, VIDEO_BRANCH, "", expect="a video planned as an image")
 @mutation(SPEC_FILE, VIDEO_DURATION, "        if False:", expect="an 8 s video")
-@mutation(SPEC_FILE, VIDEO_RATIO, "        if False:", expect="a portrait video")
+@mutation(SPEC_FILE, VIDEO_RATIO, "        if False:", expect="a square video")
 @mutation(SPEC_FILE, '            operation="image_to_video" if req.images else "text_to_video",',
           '            operation="text_to_video",', expect="an image to video")
-def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_text_or_one_image():
+def test_a_video_job_is_ten_seconds_landscape_by_default_detached_on_the_video_pool_from_text_or_one_image():
     try:
         p = plan(VIDEO)
     except InputError as e:
@@ -165,7 +168,7 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert plan(VIDEO, duration=10, ratio="16:9").params == p.params
     assert plan(VIDEO, images=(IMG,)).operation == "image_to_video", "an image to video planned from text"
     assert refusal(VIDEO, duration=8) == ("input.bad_duration", "duration"), "an 8 s video was planned"
-    assert refusal(VIDEO, ratio="9:16") == ("input.bad_ratio", "ratio"), "a portrait video was planned (not measured)"
+    assert refusal(VIDEO, ratio="1:1") == ("input.bad_ratio", "ratio"), "a square video was planned (gemini has none)"
     assert refusal(VIDEO, images=(IMG, IMG)) == ("input.too_many_images", "images")
     assert refusal(VIDEO, prompt=" ") == ("input.empty_prompt", "prompt")
 
@@ -176,7 +179,7 @@ def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
     """The earlier build keyed the video by its model alone: the stored price moves to `gemini-omni-video@10s`, and
     the image keeps its default."""
     loaded = SPEC.settings()["gemini.prices"].on_load({"gemini-omni-video": 3})
-    assert loaded == {MODEL: 1, PRO: 2, VIDEO + "@10s": 3}, "the stored video price was lost: %s" % loaded
+    assert loaded == {MODEL: 1, PRO: 2, VIDEO + "@10s": 3, MUSIC: 2}, "the stored video price was lost: %s" % loaded
 
 
 def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
@@ -295,8 +298,3 @@ def test_only_a_pro_or_ultra_account_can_ever_afford_a_pro_tier_image():
     assert left_of(cfg, "ultra", [], now) == 1000
     assert left_of(pool_configs("gemini", SPEC.caps, FakeSettings(SPEC).get)["image"], "free", [], now) == 100
 
-
-def test_portrait_video_is_not_sold_until_it_is_measured():
-    """25/10: two text to video sends with the portrait option (17) both came back 1280x720 landscape."""
-    assert refusal(VIDEO, ratio="9:16") == ("input.bad_ratio", "ratio")
-    assert {m.id: m for m in SPEC.catalog()}[VIDEO].limits["ratios"] == ["16:9"]

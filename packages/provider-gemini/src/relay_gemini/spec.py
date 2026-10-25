@@ -59,8 +59,11 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 # week: no practical cap). A free account is not measured: a day guard holds it (image 100, video 15, as before),
 # which does not bind AI Pro (null). Ultra takes the free budgets. Nano Banana 2.1 (`image_pro`): none on a free
 # account, which is what keeps its jobs off free accounts (a tier with no budget of its own takes the free one); 100
-# a day on AI Pro and 1000 on Ultra (not measured: Google's own figures for its pro image model).
-POOLS = (PoolSpec("image", "uses"), PoolSpec("image_pro", "uses"), PoolSpec("video", "uses"))
+# a day on AI Pro and 1000 on Ultra (not measured: Google's own figures for its pro image model). A song (`music`)
+# takes 51-61 units of the same windows (25/10: 39 per block, 793 per week at 61); none on a free account (whether its
+# plan has the music tool is not measured), no day bound on AI Pro or Ultra.
+POOLS = (PoolSpec("image", "uses"), PoolSpec("image_pro", "uses"), PoolSpec("video", "uses"),
+         PoolSpec("music", "uses"))
 POOL_DEFAULTS = {
     "image": {"combine": "all", "windows": [
         {"name": "day", "kind": "day", "tz": "UTC", "budget": {"free": 100, "pro": None}},
@@ -70,7 +73,11 @@ POOL_DEFAULTS = {
     "video": {"combine": "all", "windows": [
         {"name": "day", "kind": "day", "tz": "UTC", "budget": {"free": 15, "pro": None}},
         {"name": "5h", "kind": "rolling", "hours": 5, "anchor": "reset", "budget": {"pro": 5}},
-        {"name": "week", "kind": "rolling", "hours": 168, "anchor": "reset", "budget": {"pro": 102}}]}}
+        {"name": "week", "kind": "rolling", "hours": 168, "anchor": "reset", "budget": {"pro": 102}}]},
+    "music": {"combine": "all", "windows": [
+        {"name": "day", "kind": "day", "tz": "UTC", "budget": {"free": 0, "pro": None, "ultra": None}},
+        {"name": "5h", "kind": "rolling", "hours": 5, "anchor": "reset", "budget": {"pro": 39}},
+        {"name": "week", "kind": "rolling", "hours": 168, "anchor": "reset", "budget": {"pro": 793}}]}}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
@@ -159,10 +166,11 @@ class GeminiSpec:
         `gemini.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result
         per job. An image: with one input image it is edited (its shape kept, so no ratio), without one it is drawn
         from the text (a ratio of `RATIO_IDS`, or none: gemini picks); Nano Banana 2.1 takes the `image_pro` pool. A
-        video: 10 s, 16:9, from the text or from one input image and the text."""
-        if req.model not in (*C.IMAGE_MODELS, C.VIDEO_MODEL):
-            raise _refuse("input.bad_model", "gemini's models are %s" % ", ".join((*C.IMAGE_MODELS, C.VIDEO_MODEL)),
-                          "model")
+        video: 10 s, 16:9 or 9:16, from the text or from one input image and the text, optionally in a gallery
+        template's style. A song: from the text, with the length, vocals, genre or gallery template asked for."""
+        models = (*C.IMAGE_MODELS, C.VIDEO_MODEL, C.MUSIC_MODEL)
+        if req.model not in models:
+            raise _refuse("input.bad_model", "gemini's models are %s" % ", ".join(models), "model")
         if len(req.images) > 1:
             raise _refuse("input.too_many_images", "%s takes at most one input image" % req.model, "images")
         if req.n not in (None, 1):
@@ -171,6 +179,8 @@ class GeminiSpec:
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
         if req.model == C.VIDEO_MODEL:
             return self._video(req, settings)
+        if req.model == C.MUSIC_MODEL:
+            return self._music(req, settings)
         if req.duration is not None:
             raise _refuse("input.bad_duration", "an image has no duration", "duration")
         if req.ratio is not None and (req.images or req.ratio not in C.RATIO_IDS):
@@ -190,11 +200,51 @@ class GeminiSpec:
         if ratio not in C.VIDEO_RATIO_IDS:
             raise _refuse("input.bad_ratio", "%s takes the ratio %s (or none)"
                           % (req.model, ", ".join(C.VIDEO_RATIO_IDS)), "ratio")
+        params = {"ratio": ratio, "duration": C.VIDEO_DURATION, **_template(req, C.VIDEO_TEMPLATES)}
         return Plan(
             operation="image_to_video" if req.images else "text_to_video", media_type="video", model=req.model,
-            params={"ratio": ratio, "duration": C.VIDEO_DURATION}, completion=Completion.DETACH,
+            params=params, completion=Completion.DETACH,
             after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model), pool="video",
             submit_timeout_s=SUBMIT_TIMEOUT_S)
+
+    def _music(self, req: CreateRequest, settings: Any) -> Plan:
+        """A song is answered in the send's own stream (64-80 s measured), like an image: HOLD. Its MP4 makes it a job
+        of the "video" kind. Each option is one of its listed values, sent lowercased; a template is not combined
+        with them (not measured)."""
+        if req.images:
+            raise _refuse("input.too_many_images", "%s makes a song from text alone" % req.model, "images")
+        if req.ratio is not None or req.duration is not None:
+            raise _refuse("input.invalid", "a song takes `options.length` (%s), not a ratio or a duration"
+                          % ", ".join(C.MUSIC_LENGTHS), "duration" if req.duration is not None else "ratio")
+        params = _template(req, C.MUSIC_TEMPLATES)
+        for key, allowed in (("length", C.MUSIC_LENGTHS), ("vocals", C.MUSIC_VOCALS), ("genre", C.MUSIC_GENRES)):
+            value = req.options.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, str) or value.strip().lower() not in allowed:
+                raise _refuse("input.invalid", "options.%s is one of %s (or none: gemini picks)"
+                              % (key, ", ".join(allowed)), "options")
+            if params.get("template"):
+                raise _refuse("input.invalid", "a song in a template's style takes no length, vocals or genre",
+                              "options")
+            params[key] = value.strip().lower()
+        return Plan(
+            operation="text_to_music", media_type="video", model=req.model, params=params,
+            completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
+            pool="music", submit_timeout_s=SUBMIT_TIMEOUT_S)
+
+
+def _template(req: CreateRequest, templates: dict) -> dict:
+    """`{"template": <the gallery's name>}` for `options.template`, `{}` without one; a name the gallery does not
+    list is refused."""
+    name = req.options.get("template")
+    if name is None:
+        return {}
+    found = C.template_of(templates, name)
+    if found is None:
+        raise _refuse("input.invalid", "options.template is a name of %s's gallery (see the model's limits)"
+                      % req.model, "options")
+    return {"template": found}
 
 
 SPEC = GeminiSpec()

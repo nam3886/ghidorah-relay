@@ -1,12 +1,13 @@
-"""Submit: one job to gemini (`StreamGenerate` with the image or the video tool), and what gemini said as a
+"""Submit: one job to gemini (`StreamGenerate` with the image, the video or the music tool), and what gemini said as a
 `SubmitResult`.
 
 The steps: load gemini's page at the account's `/u/N` (session rotated first when due); check it is the Google account
 the credential names; for an edit or an image to video, upload the one input image (free); write the job's request id
 to the job (`ctx.report_ref`); `ctx.mark_sent()`; the ONE send. An image send streams its answer until the image is
-drawn (25-28 s measured), so a good answer is `Completed` with the image's `/gg-dl/` link (HOLD). A video send answers
-in 10-33 s that it is "generating your video" (FINDINGS 7): `Accepted` with the chat, which the poll then reads until
-the video is there (1-2 min measured, DETACH).
+drawn (25-28 s measured), so a good answer is `Completed` with the image's `/gg-dl/` link (HOLD); a song's the same
+way once it is made (58-80 s measured), with its MP4 (HOLD). A video send answers in 3-33 s that it is "generating
+your video" (FINDINGS 7): `Accepted` with the chat, which the poll then reads until the video is there (1-3 min
+measured, DETACH).
 
 Money rules that shape this file (each has a test and a mutation):
 - The job is on record as sent BEFORE its send leaves: `report_ref` then `mark_sent` immediately before the one POST.
@@ -64,6 +65,7 @@ from relay_gemini.constants import (
     CAPABILITIES,
     GENERATE_TIMEOUT_S,
     IMAGE_TOOL,
+    MUSIC_TOOL,
     NETWORK_REST_S,
     NOT_ENTITLED_LINK,
     QUOTA_WORDS,
@@ -82,6 +84,7 @@ from relay_gemini.engine.check import (
 )
 from relay_gemini.engine.http import Sessions, Site
 from relay_gemini.engine.reply import Answer, Image, Video, read_answer
+from relay_gemini.templates import ASSET_BASE, MUSIC_TEMPLATES, VIDEO_TEMPLATES
 
 REQUEST_KEY = "request"      # provider_state: the request id of the send (also the job's external_ref until the chat)
 CHAT_KEY = "chat"            # provider_state: gemini's conversation id, once known
@@ -90,6 +93,7 @@ PROXY_FAILED = "pool.proxy_failed"
 OUT_OF_POINTS = "pool.account_out_of_points"
 IMAGE_PLACEHOLDER = "googleusercontent.com/image_generation_content/"   # the text of an answer that holds an image
 VIDEO_PLACEHOLDER = "googleusercontent.com/generated_video_content/"    # ... and of one that holds a video
+MUSIC_PLACEHOLDER = "googleusercontent.com/generated_music_content/"    # ... and of one that holds a song (25/10)
 _MODE = re.compile(r"[0-9a-f]{16}")
 DEFAULT_MODE_KIND = 6        # the header's [14] for the default mode (Auto and Flash-Lite: 6, otAQ7b and the captures)
 
@@ -127,6 +131,10 @@ def is_video(job) -> bool:
     return job.operation in ("text_to_video", "image_to_video")
 
 
+def is_music(job) -> bool:
+    return job.operation == "text_to_music"
+
+
 def mode_of(account, model: str | None = None) -> tuple[str, int] | None:
     """The mode the job is sent with, `(id, kind)`, as the check read it (otAQ7b): the account's "Pro" mode for the
     pro-tier image model (it draws "Nano Banana 2.1"; the default Flash-Lite draws "Nano Banana 2 Lite", 25/10), its
@@ -147,31 +155,66 @@ def sent_text(job) -> str:
     return job.prompt if job.frame_id is None or job.sent_text is None else job.sent_text
 
 
+def gallery_entry(templates: dict, name: str) -> list:
+    """A template as the send names it: its id, then the gallery's entry `[id, name, [[asset link, kind], ...], ""]`
+    (captured 25/10). The web app adds the gallery tab ("all") and the card's place, which gemini does not need (a
+    template video sent with no place was made, 25/10)."""
+    tid, assets = templates[name]
+    return [tid, [tid, name, [[ASSET_BASE + path, k] for path, k in assets], ""], None, "all", None]
+
+
+def music_message(params) -> tuple[list | None, list]:
+    """A song's message part (`[9][6]`, None: none) and option ids (`[55]`), as the web app sends them (captured 25/10):
+    the length, vocals and genre ids in that order at `[55]`; the length and vocals codes at `[9][6][2]` as `[length,
+    vocals]` (a trailing one not chosen left out), `[]` there when only a genre is chosen, no `[9]` when nothing is. A
+    template goes after the codes (`[]` then)."""
+    length, vocals = C.MUSIC_LENGTHS.get(params.get("length")), C.MUSIC_VOCALS.get(params.get("vocals"))
+    genre = C.MUSIC_GENRES.get(params.get("genre"))
+    ids = [x for x in (length and length[0], vocals and vocals[0], genre) if x is not None]
+    codes = [length and length[1], vocals and vocals[1]]
+    while codes and codes[-1] is None:
+        codes.pop()
+    if params.get("template"):
+        return [None, None, codes, *gallery_entry(MUSIC_TEMPLATES, params["template"])], [ids] if ids else []
+    if codes:
+        return [None, None, codes], [ids]
+    return ([], [ids]) if ids else (None, [])
+
+
 def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, rid: str, mode: str, *,
-            video: bool = False, kind: int = DEFAULT_MODE_KIND) -> tuple[list, dict]:
+            video: bool = False, kind: int = DEFAULT_MODE_KIND, template: str | None = None,
+            music: dict | None = None) -> tuple[list, dict]:
     """The send's `inner` and headers, as the web app builds them with the image tool chosen (captured 23/10,
-    fixtures/gemini/live-261023/web_request_*.json) or the video tool (24/10, live-261024/web_request_i2v.json). The
-    anti-bot token the page puts at inner[3] is not needed. An image ratio goes in the message (`[9][6]`) and as its
-    option id (`[55]`); an edit names the uploaded file at `[3]`. A video always names its ratio option (`[55]`); a text
-    to video carries the ratio in the message too, an image to video the web app's `[[null, null, null, 1]]` there and
-    the file at `[3]` in the shorter entry the video tool sends. The mode goes in the first header with its `kind` at
-    [14]: the kind, not the id alone, picks the image model (25/10: the "Pro" id with kind 6 drew "Nano Banana 2 Lite",
-    with its own kind 3 "Nano Banana 2.1")."""
+    fixtures/gemini/live-261023/web_request_*.json), the video tool (24/10, live-261024/web_request_i2v.json, and 25/10)
+    or the music tool (25/10). The anti-bot token the page puts at inner[3] is not needed. An image ratio goes in the
+    message (`[9][6]`) and as its option id (`[55]`); an edit names the uploaded file at `[3]`. A video names its ratio
+    option (`[55]`) and its orientation code in the message (`[[null, null, null, 1 | 2]]`), then its gallery
+    template if one was asked for; an image to video names the file at `[3]` in the shorter entry the video tool sends.
+    `music`: a song's params (`music_message`). The mode goes in the first header with its `kind` at [14]: the kind,
+    not the id alone, picks the image model (25/10: the "Pro" id with kind 6 drew "Nano Banana 2 Lite", with its own
+    kind 3 "Nano Banana 2.1")."""
     content: list = [text, 0, None, None, None, None, 0]
     if image is not None:
         path, mime, name = image
         entry = [path, 1, None, mime, str(uuid.uuid4())]
         content[3] = [[entry, name]] if video else [[entry, name, None, None, None, None, None, None, [0]]]
+    message, option = None, [[C.RATIO_IDS[ratio]]] if ratio else []
     if video:
-        content += [None, None, [None, None, None, None, None, None,
-                                 [[None, None, None, 1]] if image is not None else [None, [None, ratio]]]]
+        message = [[None, None, None, C.VIDEO_ORIENTATION[ratio]]]
+        if template:
+            message += gallery_entry(VIDEO_TEMPLATES, template)
+        option = [[C.VIDEO_RATIO_IDS[ratio]]]
+    elif music is not None:
+        message, option = music_message(music)
     elif ratio:
-        content += [None, None, [None, None, None, None, None, None, [None, [None, ratio]]]]
-    option = [[C.VIDEO_RATIO_IDS[ratio]]] if video else [[C.RATIO_IDS[ratio]]] if ratio else []
+        message = [None, [None, ratio]]
+    if message is not None:
+        content += [None, None, [None, None, None, None, None, None, message]]
+    tool = VIDEO_TOOL if video else MUSIC_TOOL if music is not None else IMAGE_TOOL
     inner: list = [None] * 99
     for i, v in {0: content, 1: ["en"], 2: ["", "", "", None, None, None, None, None, None, ""], 4: uuid.uuid4().hex,
                  6: [0], 7: 1, 10: 1, 11: 0, 17: [[0]], 18: 0, 27: 1, 30: [4, 16, 19], 41: [1],
-                 49: VIDEO_TOOL if video else IMAGE_TOOL, 53: 0, 54: [], 55: option, 59: rid, 61: [], 67: 0, 68: 1,
+                 49: tool, 53: 0, 54: [], 55: option, 59: rid, 61: [], 67: 0, 68: 1,
                  79: 6, 80: 1, 91: 1, 96: 0, 98: 1}.items():
         inner[i] = v
     headers = {
@@ -191,17 +234,19 @@ def outputs_of(media: tuple[Image | Video, ...], chat: str | None) -> tuple[Outp
     return tuple(Output(m.link, m.mime, i, m.name, meta(m)) for i, m in enumerate(media))
 
 
-def judge(status: int, answer: Answer | None, *, video: bool = False) -> tuple[str, object]:
+def judge(status: int, answer: Answer | None, *, video: bool = False, music: bool = False) -> tuple[str, object]:
     """What a send's (or a chat read's) answer means: ("done", media) / ("taken", None) / ("refused", (code, text)) /
     ("unknown", why). Only a complete answer (200, clean, ended) is ever "done", "taken" or "refused". `video`: the
-    job's media is a video, and a "generating your video" answer is "taken" (sent and accepted, not done)."""
+    job's media is a video, and a "generating your video" answer is "taken" (sent and accepted, not done). `music`:
+    the job is a song, whose media is the answer's MP4 (its MP3 is not a video record); judged like an image
+    otherwise."""
     if status != 200 or answer is None:
         return "unknown", "gemini answered %d" % status
     if not answer.clean or not answer.ended:
         return "unknown", "the answer was cut or could not be read"
     if answer.errors:
         return "unknown", "the answer carried an error item"
-    media = answer.videos if video else answer.images
+    media = answer.videos if video or music else answer.images
     if media:
         return "done", media
     final = answer.texts[-1].strip() if answer.texts else ""
@@ -212,8 +257,8 @@ def judge(status: int, answer: Answer | None, *, video: bool = False) -> tuple[s
         return "refused", (errors.VIDEO_LIMIT, final)
     if video and answer.generating:     # taken, whatever other text comes with it: never a refusal while it renders
         return "taken", None
-    if not final or IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:
-        return "unknown", "the answer named no %s record" % ("video" if video else "image")
+    if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):
+        return "unknown", "the answer named no %s record" % ("video" if video else "song" if music else "image")
     return "refused", (errors.REFUSED, final)
 
 
@@ -237,15 +282,17 @@ def is_video_limit_refusal(code: str, text: str) -> bool:
 
 
 def job_pool(job) -> str:
-    """The pool the job spends (as the spec plans it): `video`, `image_pro` for the pro-tier image model, else
-    `image`."""
-    return "video" if is_video(job) else "image_pro" if job.model == C.PRO_IMAGE_MODEL else "image"
+    """The pool the job spends (as the spec plans it): `video`, `music`, `image_pro` for the pro-tier image model,
+    else `image`."""
+    if is_video(job) or is_music(job):
+        return "video" if is_video(job) else "music"
+    return "image_pro" if job.model == C.PRO_IMAGE_MODEL else "image"
 
 
 def limit_read_pool(code: str, text: str, pool: str) -> str | None:
     """The pool whose usage is read right after a refusal of a job of `pool`, or None: a video's limit refusal (for
-    its reset), and any image refusal (no image limit wording is measured, so only a used-up usage window says the
-    images are out)."""
+    its reset), and any image or song refusal (no image or music limit wording is measured, so only a used-up usage
+    window says they are out)."""
     if pool == "video":
         return pool if is_video_limit_refusal(code, text) else None
     return pool if code == errors.REFUSED else None
@@ -283,11 +330,11 @@ def video_room_short(settings, room: tuple[int, datetime | None] | None) -> bool
 
 
 def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
-                  rid: str | None = None, spent: Balance | None = None) -> SubmitResult:
+                  music: bool = False, rid: str | None = None, spent: Balance | None = None) -> SubmitResult:
     """A send's verdict. Never `Retry` or `NotTaken`: the job was sent. `spent`: what the usage read right after a
     refusal gave the job's pool (`usage_spent`)."""
     rest = pacing(settings, now)
-    verdict, what = judge(status, answer, video=video)
+    verdict, what = judge(status, answer, video=video, music=music)
     if verdict == "done":
         return _result(Completed(outputs_of(what, answer.cid)), Success(), *rest)
     if verdict == "taken":
@@ -307,7 +354,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                  wall: Callable[[], float] = time.time) -> SubmitResult:
     """Send the job. Exceptions of `ctx.report_ref` and `ctx.mark_sent` (a lost lease, a stopping worker) reach the
     core unchanged. The keyword arguments are seams for tests."""
-    sent, video = False, is_video(job)
+    sent, video, music = False, is_video(job), is_music(job)
     try:
         async with Site(ctx, sessions, settings, transport=transport, clock=wall) as site:
             page = await site.load()
@@ -336,7 +383,8 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 image = (path, ref.mime, name)
             rid = str(uuid.uuid4()).upper()
             ratio = job.params.get("ratio") or (C.VIDEO_RATIO if video else None)
-            inner, headers = request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1])
+            inner, headers = request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1],
+                                     template=job.params.get("template"), music=dict(job.params) if music else None)
             await ctx.report_ref(rid, {REQUEST_KEY: rid})
             await ctx.mark_sent()
             sent = True
@@ -348,10 +396,10 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
             answer = read_answer(body)          # judged with its status, never instead of it
             if status == 200 and answer.cid:
                 await ctx.report_ref(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid})
-            verdict, what = judge(status, answer, video=video)
+            verdict, what = judge(status, answer, video=video, music=music)
             pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
             spent = await usage_spent(site, pool, settings) if pool else None
-            return answer_result(status, answer, settings, now(), video=video, rid=rid, spent=spent)
+            return answer_result(status, answer, settings, now(), video=video, music=music, rid=rid, spent=spent)
     except httpx.HTTPError as e:
         why = "gemini could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL
         if sent:       # never reached: the send's own errors are caught above. Kept as the money guard.

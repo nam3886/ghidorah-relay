@@ -115,7 +115,8 @@ def test_a_text_to_video_is_on_record_and_marked_sent_before_its_one_send_and_a_
     assert Success() in result.account and ctx.refs[-1] == (chat, {"request": rid, "chat": chat})
 
 
-@mutation(SUBMIT_FILE, "49: VIDEO_TOOL if video else IMAGE_TOOL,", "49: IMAGE_TOOL,", expect="the video tool")
+@mutation(SUBMIT_FILE, "    tool = VIDEO_TOOL if video else", "    tool = IMAGE_TOOL if video else",
+          expect="the video tool")
 @mutation(HTTP_FILE, '        return BASE_URL + ("/u/%d" % self.authuser if self.authuser else "") + path',
           "        return BASE_URL + path", expect="went to another account")
 def test_the_video_send_is_the_web_apps_request_on_the_accounts_index_with_its_mode():
@@ -129,7 +130,7 @@ def test_the_video_send_is_the_web_apps_request_on_the_accounts_index_with_its_m
     inner = inner_of(send)
     assert inner[49] == 11, "the video tool was not chosen: %s" % inner[49]
     assert inner[55] == [[16]] and inner[0][0] == T2V_PROMPT and inner[0][3] is None
-    assert inner[0][9][6] == [None, [None, "16:9"]]
+    assert inner[0][9][6] == [[None, None, None, 1]], "not the web app's landscape code: %s" % inner[0][9]
     assert json.loads(send.headers["x-goog-ext-525001261-jspb"])[4] == MODE_FLASH_LITE
 
 
@@ -140,8 +141,8 @@ UPLOAD_AU = '        url = UPLOAD_URL + ("?authuser=%d" % self.authuser if self.
 
 @mutation(SUBMIT_FILE, I2V_ENTRY, "        content[3] = [[entry, name, None, None, None, None, None, None, [0]]]",
           expect="the video tool's file entry")
-@mutation(SUBMIT_FILE, "                                 [[None, None, None, 1]] if image is not None else",
-          "                                 ", expect="the image to video marker")
+@mutation(SUBMIT_FILE, "        message = [[None, None, None, C.VIDEO_ORIENTATION[ratio]]]",
+          "        message = [None, [None, ratio]]", expect="the image to video marker")
 @mutation(HTTP_FILE, UPLOAD_AU, "        url = UPLOAD_URL", expect="the upload did not name the account")
 @mutation(SUBMIT_FILE, '            if job.operation in ("image_to_image", "image_to_video"):',
           '            if job.operation == "image_to_image":', expect="sent without its image")

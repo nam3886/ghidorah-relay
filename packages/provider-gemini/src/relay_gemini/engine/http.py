@@ -350,6 +350,9 @@ class Site:
             if parts.scheme != "https" or (host not in LINK_HOSTS and not host.endswith("." + VIDEO_BYTES_HOST)):
                 return None
             async with self.client.stream("GET", current, headers={"Referer": BASE_URL + "/"}) as resp:
+                if resp.is_redirect and host.endswith("." + VIDEO_BYTES_HOST):
+                    return current           # googlevideo sends the bytes on to another of its hosts (25/10): the
+                                             # fetcher follows, checking every hop's host
                 if resp.status_code != 200:
                     return None
                 if not resp.headers.get("content-type", "").startswith("text/"):

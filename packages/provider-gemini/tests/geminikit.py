@@ -16,6 +16,7 @@ from relay_gemini.spec import SPEC
 
 FIX = Path(__file__).resolve().parents[3] / "fixtures" / "gemini" / "live-261023"
 FIX_PRO = FIX.parent / "live-261024"
+FIX_MODES = FIX.parent / "live-261025"
 PSID = "g.a000PLANTED-PSID-value_0123456789"            # planted values: never in a log, an error or an event
 PSIDTS = "sidts-PLANTED-OLD-0123456789"
 NEW_PSIDTS = "sidts-PLANTED-NEW-9876543210"
@@ -57,6 +58,10 @@ T2V_DONE = pro("t2v_done_read_hNvQHb.txt")        # ... and once it is there: on
 I2V_PENDING = pro("i2v_pending_read_hNvQHb.txt")  # holds the input image (in what was sent), no result yet
 I2V_DONE = pro("i2v_done_read_hNvQHb.txt")
 VIDEO_LIMIT = pro("video_limit_read_hNvQHb.txt")  # "I can't create more videos for you today, ..."
+# the AI Pro account, 25/10: a song's answer (its MP3, its MP4 and its lyrics records) and the web app's own video and
+# music requests, captured unsent
+MUSIC_REPLY = (FIX_MODES / "music_reply.txt").read_text(encoding="utf-8")
+WEB_REQUESTS = json.loads((FIX_MODES / "web_requests_video_music.json").read_text(encoding="utf-8"))["requests"]
 T2V_PROMPT = "A paper boat drifting across a calm pond at sunrise, gentle ripples, soft golden light"
 I2V_PROMPT = "The apple slowly turns on the table while soft morning light sweeps across it"
 
@@ -269,11 +274,11 @@ class Ctx:
 
 
 def job(prompt=T2I_PROMPT, *, ratio=None, images=0, state=None, sent_at=SENT_AT, sent=None, frame_id=1,
-        ref=None, model="gemini-nano-banana-2") -> JobView:
+        ref=None, model="gemini-nano-banana-2", options=None) -> JobView:
     """A job as the core hands it to the engine: planned by the spec, `sent_text` the verbatim frame render."""
     from relay_core import frames
     from relay_core.providers import MediaIn
-    req = CreateRequest(model=model, prompt=prompt, ratio=ratio,
+    req = CreateRequest(model=model, prompt=prompt, ratio=ratio, options=options or {},
                         images=tuple(MediaIn("0" * 64, "image/png", 10) for _ in range(images)))
     plan = SPEC.plan(req, settings(), {})
     text = frames.render(SPEC.frames.defaults[plan.media_type], prompt, "7100", SPEC.frames.verbatim) \

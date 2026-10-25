@@ -16,7 +16,9 @@ Reads only: nothing here sends, so nothing here can spend.
 - Fetch: the result link resolved to the file's bytes link with the session (`Site.resolve`: an image's original, a
   video's 720p MP4), then those bytes from lh3 (an image) or googlevideo.com (a video) with no cookie, through the
   account's proxy (never direct when it has one), with the User-Agent the link was resolved with: a googlevideo.com
-  link is signed for that client (`eaua`) and answers any other User-Agent 403 (measured 25/10, live-261025).
+  link is signed for that client (`eaua`) and answers any other User-Agent 403 (measured 25/10, live-261025). A song's
+  MP4 is named in its send's answer by a `/gg-dl/` link that resolves only to its poster frame: its chat is read for
+  the `/gg/` link of the same MP4 first.
 """
 
 import contextlib
@@ -57,6 +59,7 @@ from relay_gemini.engine.reply import Turn, chats, same_text, turns
 from relay_gemini.engine.submit import (
     CHAT_KEY,
     REQUEST_KEY,
+    is_music,
     is_video,
     job_pool,
     judge,
@@ -146,7 +149,7 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
             turn, answered = await read_chat(site, chat)
             if turn is None:
                 return PollResult(Pending("the chat could not be read", wait, answered=answered))
-            verdict, what = judge(200, turn.answer(chat), video=is_video(job))
+            verdict, what = judge(200, turn.answer(chat), video=is_video(job), music=is_music(job))
             # the usage reads (they spend nothing) while the site is open: a limit's reset, a silent render's window
             pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
             spent = await usage_spent(site, pool, settings) if pool else None
@@ -181,7 +184,16 @@ async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=Non
     async with Site(ctx, sessions, settings, transport=transport) as site:
         if await site.open_account() is None:
             raise RuntimeError("the account's Google account could not be verified")
-        link = await site.resolve(out.ref, VIDEO_SIZE if video else FULL_SIZE)
+        ref = out.ref
+        if video and "/gg-dl/" in ref:
+            # a song's MP4 comes in the send's own answer under a /gg-dl/ link, which serves only its poster frame
+            # (25/10); the chat names the same MP4 by a /gg/ link that serves it
+            chat = (out.meta or {}).get("chat")
+            turn = (await read_chat(site, chat))[0] if chat else None
+            if turn is None or len(turn.videos) <= out.idx:
+                raise RuntimeError("the song's chat named no video to fetch")
+            ref = turn.videos[out.idx].link
+        link = await site.resolve(ref, VIDEO_SIZE if video else FULL_SIZE)
     if link is None:
         raise RuntimeError("the result link did not resolve to the file")
     async with contextlib.aclosing(stream_download(
