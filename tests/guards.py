@@ -321,8 +321,10 @@ def deploy_violations(root: Path = REPO) -> list[str]:
     bad, users = _image_violations(deploy), {}
     for name, svc in services.items():
         logging = svc.get("logging") or {}
-        if logging.get("driver") not in ("json-file", "local") or not {"max-size", "max-file"} <= set(
-                logging.get("options") or {}):
+        opts = logging.get("options") or {}
+        size, files = str(opts.get("max-size", "")), str(opts.get("max-file", ""))
+        if (logging.get("driver") not in ("json-file", "local") or not re.fullmatch(r"[1-9][0-9]*[kmg]?", size)
+                or not re.fullmatch(r"[1-9][0-9]*", files)):
             bad.append("service %s: its log is not on a rotated json-file or local driver (max-size, max-file)" % name)
     for name, svc in services.items():
         for f in _service_env_files(svc):

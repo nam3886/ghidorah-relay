@@ -190,13 +190,22 @@ def test_a_shared_env_file_is_caught(tmp_path):
     assert any("shared.env is shared by api, worker-dola" in v for v in found), found
 
 
-LOG_RULE = 'if logging.get("driver") not in ("json-file", "local") or not {"max-size", "max-file"} <= set('
+LOG_DRIVER = 'logging.get("driver") not in ("json-file", "local") or '
+LOG_SIZE = 'not re.fullmatch(r"[1-9][0-9]*[kmg]?", size)'
+LOG_FILES = 'not re.fullmatch(r"[1-9][0-9]*", files)'
 
 
-@mutation(G, LOG_RULE, 'if False and set(', expect="an unbounded log was not caught")
+@mutation(G, LOG_DRIVER, "", expect="an unbounded log was not caught")
+@mutation(G, LOG_SIZE, "not size", expect="an unbounded log was not caught")
+@mutation(G, LOG_FILES, "not files", expect="an unbounded log was not caught")
 @pytest.mark.parametrize("logging", ["{}", "{driver: journald}", "{driver: json-file}",
                                      "{driver: json-file, options: {max-size: 20m}}",
-                                     "{driver: syslog, options: {max-size: 20m, max-file: '5'}}"])
+                                     "{driver: syslog, options: {max-size: 20m, max-file: '5'}}",
+                                     "{driver: journald, options: {max-size: 20m, max-file: '5'}}",
+                                     "{driver: json-file, options: {max-size: '-1', max-file: '5'}}",
+                                     "{driver: json-file, options: {max-size: '0', max-file: '5'}}",
+                                     "{driver: json-file, options: {max-size: 20m, max-file: '-1'}}",
+                                     "{driver: json-file, options: {max-size: 20m, max-file: '0'}}"])
 def test_a_service_whose_log_is_not_rotated_is_caught(tmp_path, logging):
     plant_deploy(tmp_path, **{"compose.yml": GOOD["compose.yml"].replace(
         "worker-dola: {image: \"relay-worker-dola:1\", env_file: [worker-dola.env], logging: *logging}",
@@ -204,6 +213,14 @@ def test_a_service_whose_log_is_not_rotated_is_caught(tmp_path, logging):
     found = guards.deploy_violations(tmp_path)
     assert any("service worker-dola: its log is not on a rotated" in v for v in found), \
         "an unbounded log was not caught: %s" % found
+
+
+@pytest.mark.parametrize("options", ["{max-size: 20m, max-file: '5'}", "{max-size: 500k, max-file: 1}",
+                                     "{max-size: '1g', max-file: '20'}"])
+def test_a_bounded_rotation_passes_the_guard(tmp_path, options):
+    plant_deploy(tmp_path, **{"compose.yml": GOOD["compose.yml"].replace(
+        '{max-size: 20m, max-file: "5"}', options)})
+    assert guards.deploy_violations(tmp_path) == []
 
 
 def test_every_production_service_keeps_a_bounded_log():

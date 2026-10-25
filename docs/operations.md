@@ -517,8 +517,9 @@ fails when any other page or `/ui/` file carries the looser one.
 - **Container logs across a deploy.** Each service logs to a rotated json-file (20 MB x 5, so at most 100 MB a
   container; `deploy_violations` holds every service of `deploy/compose.yml` to a rotated driver). A recreated container
   starts with an empty log, so before each `up -d` of the api or a worker, `deploy.sh` and `rollback.sh` keep the log of
-  the container it replaces as `~/relay-logs/<service>/<UTC time>.log.gz` (directory 0700): kept 7 days, at most the
-  newest 20 per service. A log that cannot be kept is a WARNING, never a stop. They hold what `docker logs` held, the
+  the container it replaces as `~/relay-logs/<service>/<UTC time>-<random>.log.gz` (files 0600, folders made 0700 at
+  every save): kept 7 days, at most the newest 20 per service. A save takes at most 60 s; a log that cannot be kept in
+  time, or old ones that cannot be removed, is a WARNING, never a stop. They hold what `docker logs` held, the
   redacted process log and nothing more. Read the lines before the last deploy with
   `zcat ~/relay-logs/worker-dola/*.log.gz | less`, the current ones with `docker compose -p relay logs worker-dola`.
   A container recreated by hand, not by the scripts, loses its log.
@@ -1072,7 +1073,7 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Images | built on the box, `relay-<service>:<sha>` (a rollback is a retag) |
 | Test and gate runs | `~/relay-runs/<folder>/` through `scripts/box.sh` (see above), under its CPU budget |
 | Live-window marker | `~/relay-deploy/live-window` |
-| Logs of replaced containers | `~/relay-logs/<service>/<UTC time>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
+| Logs of replaced containers | `~/relay-logs/<service>/<UTC time>-<random>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
 | Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
 
 ### Deploy and rollback

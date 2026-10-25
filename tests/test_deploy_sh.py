@@ -6,6 +6,7 @@ import fcntl
 import gzip
 import importlib
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -60,6 +61,7 @@ case "$*" in
     for w in "$@"; do [ "$after" = 1 ] && echo "relay-$w:$sha" >> "$S/images"; [ "$w" = build ] && after=1; done ;;
   *"run --rm migrate"*) exit "${STUB_MIGRATE_FAIL:-0}" ;;
   *" logs --no-color --timestamps "*)
+    [ -z "${STUB_LOGS_HANG:-}" ] || exec /bin/sleep 25     # two of them, uncut, pass the 40 s the test allows
     [ -z "${STUB_LOGS_FAIL:-}" ] || exit 1
     [ -n "${STUB_LOGS_EMPTY:-}" ] || echo "2026-10-24T01:00:00Z a line of ${!#}" ;;
   *"relay provider drain "*)                 # $S/claims-<p>: the stored <p>.claims_enabled (none: no row)
@@ -171,12 +173,13 @@ class Box:
         return (self.state / "images").read_text(encoding="utf-8").split()
 
     def run(self, script: str, *args: str, **env: str) -> subprocess.CompletedProcess:
-        """STUB_* keywords go to the stubs (they run under a clean environment); others are variables of the caller."""
-        self.control.write_text("".join("%s=%s\n" % (k, shlex.quote(v)) for k, v in env.items()
-                                        if k.startswith("STUB_")), encoding="utf-8")
+        """STUB_* keywords go to the stubs (they run under a clean environment), BOX_NAME=v sets NAME=v in the box's
+        environment; others are variables of the caller."""
+        self.control.write_text("".join("%s=%s\n" % (k.removeprefix("BOX_"), shlex.quote(v)) for k, v in env.items()
+                                        if k.startswith(("STUB_", "BOX_"))), encoding="utf-8")
         (self.state / "sub-i").unlink(missing_ok=True)
         env = {"PATH": "%s:%s" % (self.bins, os.environ["PATH"]), "HOME": str(self.dir),
-               **{k: v for k, v in env.items() if not k.startswith("STUB_")}}
+               **{k: v for k, v in env.items() if not k.startswith(("STUB_", "BOX_"))}}
         return subprocess.run(["bash", str(REPO / script), *args], cwd=self.repo, env=env, capture_output=True,
                               text=True, timeout=120)
 
@@ -284,15 +287,15 @@ def test_a_deploy_and_a_rollback_keep_the_log_of_each_container_before_replacing
         logs = box.index("--profile %s logs --no-color --timestamps %s" % (profile, service))
         assert -1 < logs < box.index("up -d --no-deps " + service), "the %s log was not kept" % service
         files = kept_logs(box, service)
-        assert len(files) == 1 and files[0].name.endswith("Z.log.gz"), "the %s log was not kept" % service
+        assert len(files) == 1 and re.fullmatch(r"\d{8}T\d{6}Z-\w{6}\.log\.gz", files[0].name), \
+            "the %s log was not kept" % service
         assert gzip.decompress(files[0].read_bytes()).decode() == "2026-10-24T01:00:00Z a line of %s\n" % service
-    assert stat.S_IMODE((box.home / "relay-logs").stat().st_mode) == 0o700
-    time.sleep(1.1)                                      # the next log is named by the next second
-    assert box.rollback("--workers", "dola").returncode == 0
+    assert box.rollback("--workers", "dola").returncode == 0           # within the same second: no overwrite
     assert len(kept_logs(box, "api")) == len(kept_logs(box, "worker-dola")) == 2
 
 
-@mutation(DEPLOY, "-mtime +$LOGS_DAYS -delete", "-mtime +999 -delete", expect="a log older than 7 days was kept")
+@mutation(DEPLOY, "-mmin +$((LOGS_DAYS * 1440)) -delete", "-mmin +$((LOGS_DAYS * 1440 + 1440)) -delete",
+          expect="a log older than 7 days was kept")
 @mutation(DEPLOY, "[ ${#old[@]} -le $LOGS_FILES ] ||", "true ||", expect="more than 20 logs were kept")
 def test_kept_logs_last_7_days_and_at_most_20_per_service(tmp_path):
     box = Box(tmp_path)
@@ -303,16 +306,16 @@ def test_kept_logs_last_7_days_and_at_most_20_per_service(tmp_path):
         (d / name).write_bytes(b"x")
     stale = d / time.strftime("%Y%m%dT%H%M%SZ.log.gz", time.gmtime(time.time() - 3600))   # a recent name, an old file
     stale.write_bytes(b"x")
-    os.utime(stale, (time.time() - 8 * 86400,) * 2)
+    os.utime(stale, (time.time() - 7 * 86400 - 3600,) * 2)          # 7 days and an hour: past the 7 days
     assert box.deploy(box.b).returncode == 0
     kept = [p.name for p in kept_logs(box, "api")]
     assert stale.name not in kept, "a log older than 7 days was kept"
     assert len(kept) == 20 and kept[:19] == old[1:], "more than 20 logs were kept: %s" % kept
 
 
-@mutation(DEPLOY, '    rm -f "$f"\n    echo "box: WARNING', '    exit 1\n    echo "box: WARNING',
+@mutation(DEPLOY, 'save_logs "$@" || echo', 'save_logs "$@"\n  true || echo',
           expect="a log that could not be kept stopped the deploy")
-@mutation(DEPLOY, 'if [ -s "$f" ] && gzip -f "$f"; then', 'if gzip -f "$f"; then', expect="an empty log was kept")
+@mutation(DEPLOY, r'{ [ ! -s \"\$4\" ] || gzip -f', r'{ gzip -f', expect="an empty log was kept")
 def test_a_log_that_cannot_be_kept_is_a_warning_and_an_empty_one_leaves_no_file(tmp_path):
     box = Box(tmp_path / "failing")
     run = box.deploy(box.b, STUB_LOGS_FAIL="1")
@@ -321,6 +324,48 @@ def test_a_log_that_cannot_be_kept_is_a_warning_and_an_empty_one_leaves_no_file(
     box = Box(tmp_path / "empty")
     assert box.deploy(box.b, STUB_LOGS_EMPTY="1").returncode == 0
     assert kept_logs(box, "api") == [], "an empty log was kept"
+
+
+@mutation(DEPLOY, 'if ! timeout -k 5 "$LOGS_TIMEOUT" bash -c', "if ! bash -c",
+          expect="a hung log save held the deploy")
+def test_a_log_save_that_hangs_is_cut_at_its_timeout_and_the_restart_goes_on(tmp_path):
+    box = Box(tmp_path)
+    t0 = time.monotonic()
+    run = box.deploy(box.b, "--workers", "dola", STUB_LOGS_HANG="1", BOX_RELAY_LOGS_TIMEOUT_S="2")
+    took = time.monotonic() - t0
+    assert run.returncode == 0 and took < 40, "a hung log save held the deploy: %.0f s, %s" % (took, run.stderr)
+    for service in ("api", "worker-dola"):
+        assert "WARNING: the log of %s could not be kept" % service in run.stderr
+        assert kept_logs(box, service) == [] and box.index("up -d --no-deps " + service) > -1
+
+
+@mutation(DEPLOY, 'prune_logs "$2" || echo', 'prune_logs "$2"\n  true || echo',
+          expect="a failed removal of old logs stopped the deploy")
+def test_old_logs_that_cannot_be_removed_are_a_warning_and_the_restart_goes_on(tmp_path):
+    box = Box(tmp_path)
+    d = box.home / "relay-logs" / "api"
+    (d / "20260101T000000Z-aaaaaa.log.gz").mkdir(parents=True)      # the oldest, and rm -f cannot remove a folder
+    for i in range(20):
+        (d / ("20260102T%02d0000Z-bbbbbb.log.gz" % i)).write_bytes(b"x")
+    run = box.deploy(box.b)
+    assert run.returncode == 0, "a failed removal of old logs stopped the deploy: %s" % run.stderr
+    assert "WARNING: the old logs of api could not be removed" in run.stderr
+    assert box.index("up -d --no-deps api") > -1 and len(kept_logs(box, "api")) == 21
+
+
+@mutation(DEPLOY, ' && chmod 700 "$LOGS" "$dir" || return 1', " || return 1",
+          expect="an open logs folder was not closed")
+def test_the_logs_folders_are_made_0700_at_every_save_and_a_kept_log_is_0600(tmp_path):
+    box = Box(tmp_path)
+    d = box.home / "relay-logs" / "api"
+    d.mkdir(parents=True)
+    d.chmod(0o755)
+    d.parent.chmod(0o755)
+    assert box.deploy(box.b).returncode == 0
+    modes = [stat.S_IMODE(p.stat().st_mode) for p in (d.parent, d)]
+    assert modes == [0o700, 0o700], "an open logs folder was not closed: %s" % [oct(m) for m in modes]
+    files = kept_logs(box, "api")
+    assert len(files) == 1 and stat.S_IMODE(files[0].stat().st_mode) == 0o600, "a kept log is readable by others"
 
 
 @mutation(DEPLOY, 'SSH_OPTS=(-o BatchMode=yes -o "SendEnv=-*"', "SSH_OPTS=(-o BatchMode=yes",
