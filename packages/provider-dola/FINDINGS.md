@@ -1,5 +1,27 @@
 # dola provider findings
 
+## Composer change 25/10
+
+From about 03:30Z on 25/10, every browser job on both live accounts (n11-00, n11-02) failed before the send with "chip
+row did not appear after clicking Create Videos" (`dola.ui_mode_not_ready`). No credits were used. A probe on the box
+(worker-dola Chrome, n11-00 through its proxy, nothing sent) showed the following. Recorded rows:
+`fixtures/dola/composer-261025/`.
+
+- **The row still renders, with the same buttons.** After "Create Videos" the chips appear: `Model Dreamina Seedance 2.0
+  Fast` and `Auto · 10s`. The Model chip is three spans, `Model`, ` ` and the name.
+- **The cause: the default video model changed, and its chip is longer.** It used to be `Model Dreamina Seedance 2.5`
+  (26 characters); now it is `Model Dreamina Seedance 2.0 Fast` (32). `_RECT_JS` skipped any element longer than 30
+  characters, so the Model chip was never found. The cap is now 44: every chip fits, and the whole row (56) still does
+  not.
+- **Seedance 2.5 is gone from the video Model menu** on n11-00. The menu offers only `Dreamina Seedance 2.0 Fast` and
+  `Dreamina Seedance 1.0`, so a `seedance-2.5` job fails at the model step (`dola.ui_model_select_failed`) before
+  anything is sent. Pausing it (`dola.disabled_models`) is the owner's call.
+- **Image mode**: the ratio chip reads `Aspect ratio Auto` (lower-case r; it was `Aspect Ratio …`), and the panel tiles
+  read plain `9:16`…`16:9` (7 tiles plus Auto). `IMAGE_RATIO_CHIP` and the new-composer check now ignore that case. The
+  `Model Seedream 4.5` and `Style` chips are unchanged; the image Model menu still offers Seedream 5.0 Pro and 4.5.
+- On a fresh profile (no HTTP cache) the action row shows up only about 50 s after the load, behind skeleton
+  placeholders. The worker's warm profiles are faster; `COLD_MODE_WAIT_S` covers the first run.
+
 ## HTTP send spike 23/10
 
 Question: can the dola provider send jobs over plain HTTP instead of driving dola.com in Chrome? **Yes.** On 23/10

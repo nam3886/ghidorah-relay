@@ -199,7 +199,7 @@ def test_the_merged_chip_is_told_from_the_old_duration_chip():
 
 def test_the_ratio_chip_patterns():
     assert re.match(composer.RATIO_CHIP, "Ratio") and not re.match(composer.RATIO_CHIP, "16:9")
-    for label in ("Ratio", "Aspect Ratio Auto", "Aspect Ratio 16:9"):
+    for label in ("Ratio", "Aspect Ratio Auto", "Aspect Ratio 16:9", "Aspect ratio Auto"):
         assert re.match(composer.IMAGE_RATIO_CHIP, label), "image ratio chip %r is not found" % label
     assert not re.match(composer.IMAGE_RATIO_CHIP, "16:9"), "a ratio tile was taken for the chip"
 
@@ -477,6 +477,22 @@ async def test_the_image_ratio_and_style_steps_prove_their_pick():
     for call in (composer.select_image_ratio(page, "21:9"), composer.select_image_style(page, "nope")):
         with pytest.raises(ComposerError):
             await call
+
+
+@mutation(CO, '    new_ui = chip["text"].lower().startswith("aspect ratio")',
+          '    new_ui = chip["text"].startswith("Aspect Ratio")', expect="the lower-case ratio chip")
+@mutation(CO, 'IMAGE_RATIO_CHIP = "^(Ratio|Aspect [Rr]atio.*)$"', 'IMAGE_RATIO_CHIP = "^(Ratio|Aspect Ratio.*)$"',
+          expect="the lower-case ratio chip")
+@sync
+async def test_the_lower_case_aspect_ratio_chip_is_the_new_composers():
+    # 25/10 dola wrote the chip `Aspect ratio Auto` (fixtures/dola/composer-261025/image_row.html): a chip already on
+    # the asked ratio is the new composer's and needs no click; read as the old one it looks for a dropdown and fails
+    page = Pg(chips={"image_ratio": "Aspect ratio 16:9"})
+    try:
+        got = await composer.select_image_ratio(page, "16:9")
+    except ComposerError as exc:
+        got = "error: %s" % exc
+    assert got == "Aspect ratio 16:9", "the lower-case ratio chip was not read as the new composer's: %r" % got
 
 
 UI = "packages/relay-browser/src/relay_browser/ui.py"

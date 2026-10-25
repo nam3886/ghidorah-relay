@@ -5,6 +5,7 @@ holds an icon, its menu opening above it). Every other composer test answers the
 
 import asyncio
 import functools
+import os
 from dataclasses import dataclass
 
 import pytest
@@ -84,6 +85,45 @@ async def test_a_folded_row_is_entered_through_its_dots_menu_and_a_hidden_copy_i
             await composer.enter_image_mode(page, settle_s=1)
         assert not await page.evaluate("() => document.getElementById('chips').textContent"), \
             "a menu without the item still changed the mode"
+    await with_page(tmp_path, body)
+
+
+RECORDED = os.path.join(os.path.dirname(__file__), "..", "..", "..", "fixtures", "dola", "composer-261025")
+# The composer's action row as dola rendered it on 25/10 (recorded, stripped of layout classes, icons and ids), at the
+# bottom of the screen where the composer is.
+ROW_PAGE = """<!doctype html><html><body style="margin:0;height:900px">
+<div style="position:fixed;bottom:0;left:360px;width:1000px">%s</div></body></html>"""
+LONG_CHIP = "    return re.test(t) && t.length <= 44 &&"
+
+
+def recorded_row(name: str) -> str:
+    with open(os.path.join(RECORDED, name), encoding="utf-8") as f:
+        return ROW_PAGE % f.read()
+
+
+async def chip_texts(page, patterns: dict) -> dict:
+    return {name: (await composer._wait_rect(page, pattern, timeout_s=1) or {}).get("text")
+            for name, pattern in patterns.items()}
+
+
+@pytest.mark.browser
+@mutation(CO, LONG_CHIP, "    return re.test(t) && t.length <= 30 &&", expect="the recorded video row")
+@sync
+async def test_the_recorded_25_10_rows_give_every_chip_the_composer_reads(tmp_path):
+    """25/10 dola's default video model became 2.0 Fast: its chip `Model Dreamina Seedance 2.0 Fast` is 32 characters,
+    over the old cap of 30, and every job failed `chip row did not appear after clicking Create Videos`."""
+    async def body(page):
+        await page.set_content(recorded_row("video_row.html"))
+        got = await chip_texts(page, {"model": composer.MODEL_CHIP, "duration": composer.DURATION_CHIP,
+                                      "combo": composer.COMBO_CHIP})
+        assert got == {"model": "Model Dreamina Seedance 2.0 Fast", "duration": "Auto · 10s",
+                       "combo": "Auto · 10s"}, "the recorded video row: %r" % got
+        assert await composer.read_composer_kind(page) == "new"
+        await page.set_content(recorded_row("image_row.html"))
+        got = await chip_texts(page, {"model": composer.MODEL_CHIP, "ratio": composer.IMAGE_RATIO_CHIP,
+                                      "style": composer.STYLE_CHIP})
+        assert got == {"model": "Model Seedream 4.5", "ratio": "Aspect ratio Auto", "style": "Style"}, \
+            "the recorded image row: %r" % got
     await with_page(tmp_path, body)
 
 

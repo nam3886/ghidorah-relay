@@ -48,12 +48,15 @@ class ComposerError(RuntimeError):
 
 
 # An element whose text matches, in the lower part of the screen (the composer). Returns its centre for a real click.
+# The length cap keeps the whole row (`Create VideosModel Dreamina Seedance 2.0 FastAuto · 10s`, 56) out while every
+# chip fits: 25/10 dola's default video model became 2.0 Fast and its chip `Model Dreamina Seedance 2.0 Fast` (32)
+# is over the old cap of 30, so no Model chip was ever found and every job failed `chip row did not appear`.
 _RECT_JS = """(pattern)=>{
   const re = new RegExp(pattern);
   const els = [...document.querySelectorAll('button,[role=button],div,span')].filter(e=>{
     const t = (e.textContent||'').trim();
     const r = e.getBoundingClientRect();
-    return re.test(t) && t.length <= 30 && r.width > 0 && r.height > 0 && r.top > innerHeight*0.6;
+    return re.test(t) && t.length <= 44 && r.width > 0 && r.height > 0 && r.top > innerHeight*0.6;
   });
   els.sort((a,b)=>(a.textContent||'').length - (b.textContent||'').length);
   if (!els[0]) return null;
@@ -414,8 +417,9 @@ STYLE_CHIP = "^Style$"
 
 IMAGE_RATIOS = VALID_IMAGE_RATIOS
 # The old composer's image ratio chip shows the label "Ratio"; the new one (A/B per account) shows the value
-# ("Aspect Ratio Auto", "Aspect Ratio 16:9") and opens a tile panel instead of a dropdown.
-IMAGE_RATIO_CHIP = "^(Ratio|Aspect Ratio.*)$"
+# ("Aspect Ratio Auto", "Aspect Ratio 16:9"; 25/10 lower case: "Aspect ratio Auto") and opens a tile panel instead of a
+# dropdown.
+IMAGE_RATIO_CHIP = "^(Ratio|Aspect [Rr]atio.*)$"
 
 
 async def enter_image_mode(page, settle_s: int = 9) -> str:
@@ -493,7 +497,7 @@ async def select_image_ratio(page, ratio: str) -> str:
     chip = await _wait_rect(page, IMAGE_RATIO_CHIP)
     if not chip:
         raise ComposerError("Ratio chip not found", code=UI_RATIO_SELECT_FAILED)
-    new_ui = chip["text"].startswith("Aspect Ratio")
+    new_ui = chip["text"].lower().startswith("aspect ratio")
     if new_ui and _chip_says(chip["text"]).endswith(" " + ratio):
         return chip["text"]
     await _click(page, chip)
