@@ -198,9 +198,11 @@ describe("the arrow scroller", () => {
       /\.asc__arrow \{[^}]*opacity: 0;[^}]*pointer-events: none;[^}]*transition: opacity 150ms ease;/,
     );
     expect(css).toMatch(/\.asc__dot \{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: 50%;/);
-    expect(css).toMatch(/\.asc__sentinel--start \{\s*margin-right: -9px;/);
-    // the table variant keeps its thin bar
-    expect(css).toMatch(/\.asc--table \.asc__row \{[^}]*scrollbar-width: thin;/);
+    expect(css).toMatch(/\.asc__row \{[^}]*--asc-gap: 8px;[^}]*gap: var\(--asc-gap\);/);
+    expect(css).toMatch(/\.asc__sentinel--start \{\s*margin-right: calc\(-1px - var\(--asc-gap\)\);/);
+    expect(css).toMatch(/\.asc__sentinel--end \{\s*margin-left: calc\(-1px - var\(--asc-gap\)\);/);
+    // a wide table shows no bar either
+    expect(css).not.toMatch(/scrollbar-width: thin|display: block/);
     expect(css).not.toMatch(/display: none;\s*\}\s*\.asc__arrow/);
   });
 });

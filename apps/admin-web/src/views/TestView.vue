@@ -1165,7 +1165,7 @@ onMounted(async () => {
   max-width: 100%;
 }
 .seg :deep(.asc__row) {
-  gap: 2px;
+  --asc-gap: 2px;
   padding: 3px;
   border-radius: 12px;
   background: var(--rl-track);

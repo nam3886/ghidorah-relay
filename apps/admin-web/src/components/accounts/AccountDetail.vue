@@ -5,6 +5,7 @@ import { type Account, type AccountHistory, accountHistory, accountScreenshot } 
 import CommandChip from "@/components/shared/CommandChip.vue";
 import IconButton from "@/components/shared/IconButton.vue";
 import SideDrawer from "@/components/shared/overlays/SideDrawer.vue";
+import { vWheelX } from "@/components/shared/wheel-scroll";
 import { providerClass } from "@/lib/providers";
 import {
   accountSub,
@@ -313,7 +314,7 @@ const act = (name: RowAction): void => {
 
       <section v-if="pools.length" class="ad__sec" :class="providerClass(a.provider)" aria-labelledby="ad-pools">
         <h3 id="ad-pools">Pools</h3>
-        <div class="ad__box">
+        <div v-wheel-x class="ad__box">
           <table class="ad__table">
             <thead>
               <tr>

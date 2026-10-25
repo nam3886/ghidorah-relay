@@ -4,6 +4,7 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 import { daySpanMethod, isDayRow, type DayRow } from "@/lib/day-rows";
 import { IconAlertCircle } from "./icons";
 import type { Column } from "./types";
+import { vWheelX } from "./wheel-scroll";
 
 // One table for every list. Cells come from the column list (`row[key]`) or a `cell-<key>` slot; row actions go in
 // the `actions` slot; the `empty-action` slot is the call to action of an empty list. States:
@@ -278,6 +279,7 @@ function onListKey(row: T, event: KeyboardEvent) {
 <template>
   <div
     ref="root"
+    v-wheel-x
     class="data-table"
     :class="{
       'is-refreshing': refreshing,

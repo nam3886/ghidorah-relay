@@ -457,6 +457,26 @@ def test_the_arrow_scroller_keeps_its_thresholds_and_steps():
     vitest(KIT_SPEC)
 
 
+# ---- the wheel over a sideways scroll area (wheel-scroll.ts, v-wheel-x on the scroller row and the wide tables) ------
+WHEEL = f"{SHARED}/wheel-scroll.ts"
+WHEEL_SPEC = "tests/unit/shared/wheel-scroll.spec.ts"
+
+
+@mutation(WHEEL, "e.ctrlKey || e.shiftKey || ", "e.shiftKey || ", expect="leaves a sideways swipe")
+@mutation(WHEEL, "e.ctrlKey || e.shiftKey || ", "e.ctrlKey || ", expect="leaves a sideways swipe")
+@mutation(WHEEL, "Math.abs(e.deltaX) >= Math.abs(e.deltaY)", "false", expect="leaves a sideways swipe")
+@mutation(WHEEL, " || el.scrollHeight - el.clientHeight > 1", "", expect="or overflows vertically")
+@mutation(WHEEL, "Math.min(max, Math.max(0, el.scrollLeft + e.deltaY * unit))", "el.scrollLeft + e.deltaY * unit",
+          expect="passes on once there")
+@mutation(WHEEL, "e.deltaMode === 1 ? LINE_PX", "e.deltaMode === 1 ? 1", expect="turns lines and pages into pixels")
+@mutation(WHEEL, "  if (!step) return;\n  e.preventDefault();", "  e.preventDefault();",
+          expect="prevents the page scroll only when it scrolls the area")
+@mutation(WHEEL, "  if (e.defaultPrevented) return;", "", expect="leaves a wheel an inner area already took")
+@pytest.mark.web_unit
+def test_a_vertical_wheel_scrolls_a_sideways_area_and_never_traps_the_page():
+    vitest(WHEEL_SPEC)
+
+
 @mutation(ICON_BUTTON, "export const SHOW_DELAY_MS = 400;", "export const SHOW_DELAY_MS = 0;",
           expect="shows the tooltip 400 ms after the pointer enters")
 @mutation(ICON_BUTTON, "function hide(): void {\n  clearTimeout(timer);\n  open.value = false;",

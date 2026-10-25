@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import PathIcon from "@/components/shared/icons/PathIcon.vue";
 import { CHEVRONS_LEFT, CHEVRONS_RIGHT } from "@/components/shared/icons/ledger-icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import { vWheelX } from "./wheel-scroll";
 
 // The arrow scroller (ScrollerSpec): a chip, tab or picker row stays on one line at every size and scrolls sideways.
 // No scrollbar, 4 px of padding above and below (rings and borders are never cut), a 24 px fade on the side that has
@@ -11,7 +12,11 @@ import { useBreakpoint } from "@/composables/use-breakpoint";
 // never moves. An arrow shows once 8 px or more remain on its side and hides once less than 2 px remain (in between
 // it keeps its state); the ends are found by an IntersectionObserver on two 1 px sentinels, never by scroll events. An
 // arrow click scrolls about 80% of the visible width, smoothly; the active item (`activeKey` changes) scrolls into view.
-// `table`: a wide table keeps the thin scrollbar under it, and its arrows stick to the middle of the window.
+// A vertical wheel over the row scrolls it sideways until an end, then the page (v-wheel-x, wheel-scroll.ts).
+// No row shows a scrollbar, a wide table included (the owner, over ScrollerSpec's thin bar under a table).
+// The gap between items is `--asc-gap` (8 px; a caller sets that, never `gap`): the sentinels cancel exactly it, so the
+// first and last items sit on the row's padding at its two ends.
+// `table`: a wide table: no gap and no padding, and its arrows stick to the middle of the window.
 // `count`: on a phone a set of 5 items or fewer wraps onto two lines instead (no arrows).
 const props = withDefaults(defineProps<{ label: string; table?: boolean; count?: number; activeKey?: unknown }>(), {
   table: false,
@@ -82,7 +87,13 @@ async function revealActive(): Promise<void> {
   const el = row.value;
   const active = el?.querySelector<HTMLElement>(ACTIVE);
   if (!el || !active) return;
-  const box = el.getBoundingClientRect();
+  // the row's padding box: a segmented track keeps its inset round the chosen item
+  const edge = el.getBoundingClientRect();
+  const pad = getComputedStyle(el);
+  const box = {
+    left: edge.left + (parseFloat(pad.paddingLeft) || 0),
+    right: edge.right - (parseFloat(pad.paddingRight) || 0),
+  };
   const item = active.getBoundingClientRect();
   if (item.left < box.left) el.scrollLeft -= box.left - item.left;
   else if (item.right > box.right) el.scrollLeft += item.right - box.right;
@@ -107,7 +118,7 @@ defineExpose({ left, right, by, revealActive });
     :class="{ 'asc--table': props.table, 'asc--wrap': wraps, 'asc--l': left, 'asc--r': right }"
     data-testid="arrow-scroller"
   >
-    <div ref="row" class="asc__row" role="group" :aria-label="props.label">
+    <div ref="row" v-wheel-x class="asc__row" role="group" :aria-label="props.label">
       <span ref="startEl" class="asc__sentinel asc__sentinel--start" aria-hidden="true"></span>
       <slot />
       <span ref="endEl" class="asc__sentinel asc__sentinel--end" aria-hidden="true"></span>
@@ -151,9 +162,10 @@ defineExpose({ left, right, by, revealActive });
   min-width: 0;
 }
 .asc__row {
+  --asc-gap: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--asc-gap);
   padding: 4px 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -174,17 +186,17 @@ defineExpose({ left, right, by, revealActive });
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
 }
-/* 1 px, the negative margin cancels the 8 px gap, so they take no room */
+/* 1 px, the negative margin cancels the gap, so they take no room */
 .asc__sentinel {
   flex: none;
   width: 1px;
   align-self: stretch;
 }
 .asc__sentinel--start {
-  margin-right: -9px;
+  margin-right: calc(-1px - var(--asc-gap));
 }
 .asc__sentinel--end {
-  margin-left: -9px;
+  margin-left: calc(-1px - var(--asc-gap));
 }
 .asc__row > :deep(*) {
   flex: none;
@@ -236,28 +248,15 @@ defineExpose({ left, right, by, revealActive });
   box-shadow: var(--rl-shadow-arrow);
 }
 
-/* a wide table: the thin scrollbar stays, no gap or padding; the arrows stick to the middle of the window on a table
-   taller than it (sticky both ways inside a full-height column), and sit 4 px above the middle, clear of the bar */
+/* a wide table: no gap or padding; the arrows stick to the middle of the window on a table taller than it (sticky both
+   ways inside a full-height column) */
 .asc--table .asc__row {
-  gap: 0;
+  --asc-gap: 0px;
   padding: 0;
   align-items: stretch;
-  scrollbar-width: thin;
-}
-.asc--table .asc__row::-webkit-scrollbar {
-  display: block;
-}
-.asc--table .asc__sentinel--start {
-  margin-right: -1px;
-}
-.asc--table .asc__sentinel--end {
-  margin-left: -1px;
 }
 .asc--table .asc__row > :deep(*:not(.asc__sentinel)) {
   flex: 1 0 auto;
-}
-.asc--table .asc__col {
-  bottom: 8px;
 }
 .asc--table .asc__arrow {
   position: sticky;

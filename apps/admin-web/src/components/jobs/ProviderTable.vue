@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { ProviderSummary, ProvidersSummary } from "@/api/shell";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
+import { vWheelX } from "@/components/shared/wheel-scroll";
 import { providerClass } from "@/lib/providers";
 import { hourBars, pathText, poolShare, poolText, rowsOf, totalsOf } from "@/components/jobs/provider-table";
 
@@ -36,7 +37,7 @@ const finished = (p: ProviderSummary) => p.done_today + p.failed_today;
       >
     </header>
 
-    <div class="ptable__wide">
+    <div v-wheel-x class="ptable__wide">
       <table class="ptable__table">
         <thead>
           <tr>

@@ -101,7 +101,7 @@ function choose(name: string): void {
 }
 /* the tabs sit on the strip's bottom line: the scroller keeps no padding of its own here */
 .pstrip__row :deep(.asc__row) {
-  gap: 4px;
+  --asc-gap: 4px;
   padding: 0;
   align-items: stretch;
 }
