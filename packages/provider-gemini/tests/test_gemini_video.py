@@ -30,6 +30,7 @@ from geminikit import (
     settings,
 )
 
+from relay_core.net import FetchFailed
 from relay_core.providers import (
     Accepted,
     Ambiguous,
@@ -43,7 +44,6 @@ from relay_core.providers import (
     Retry,
     Success,
 )
-from relay_core.net import FetchFailed
 from relay_core.testing.fake_media import Answer as MediaAnswer
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.mutation import mutation
