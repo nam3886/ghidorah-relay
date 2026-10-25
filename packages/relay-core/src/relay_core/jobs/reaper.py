@@ -41,7 +41,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import alerts, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.errors import RULES
-from relay_core.jobs.apply import RENDER_BACKSTOP_S, UNKNOWN_FIRST_S, StartupGrace
+from relay_core.jobs.apply import KEPT_ON_REQUEUE, RENDER_BACKSTOP_S, UNKNOWN_FIRST_S, StartupGrace
 from relay_core.jobs.events import add_event
 from relay_core.jobs.fail import fail_in_tx
 from relay_core.providers import ProviderSpec
@@ -80,7 +80,7 @@ WITH old AS (SELECT external_ref AS old_ref FROM jobs WHERE id = %s FOR UPDATE)
 UPDATE jobs SET status = CASE WHEN sent_at IS NULL THEN 'queued' ELSE 'unknown' END,
        account_id = CASE WHEN sent_at IS NULL THEN NULL ELSE account_id END,
        external_ref = CASE WHEN sent_at IS NULL THEN NULL ELSE external_ref END,
-       provider_state = CASE WHEN sent_at IS NULL THEN '{}'::jsonb ELSE provider_state END,
+       provider_state = CASE WHEN sent_at IS NULL THEN """ + KEPT_ON_REQUEUE + """ ELSE provider_state END,
        next_poll_at = CASE WHEN sent_at IS NULL THEN NULL ELSE clock_timestamp() + make_interval(secs => %s) END,
        attempts = CASE WHEN sent_at IS NULL THEN attempts + %s ELSE attempts END,
        updated_at = clock_timestamp()

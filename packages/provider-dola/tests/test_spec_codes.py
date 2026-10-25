@@ -57,10 +57,13 @@ def test_refusals_end_the_job_at_once_and_refund_and_transient_codes_count_an_at
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, r.public, r.job_scoped) == (True, True, False, True, True), code
         assert r.http_status == 422, code
-    for code in ("dola.temporary_error", "dola.unknown_status", "dola.http_error", "dola.bad_response"):
+    for code in ("dola.unknown_status", "dola.http_error", "dola.bad_response"):
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True), code
         assert r.http_status == 502, code
+    # a refusal (25/10): dola.refusal_max_accounts alone decides, so its requeue uses no attempt
+    r = errors.rule("dola.temporary_error")
+    assert (r.terminal, r.refund, r.counts_attempt, r.public, r.http_status) == (False, False, False, True, 502)
 
 
 def test_the_ui_codes_are_ours_to_fix_so_the_client_sees_a_generic_error():

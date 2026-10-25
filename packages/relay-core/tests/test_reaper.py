@@ -198,7 +198,8 @@ REAP_KEEPS_REF = "external_ref = external_ref,\n"
 DROPPED_NAMED = '% (" (dropped reference %s)" % row[1] if row[1] else "")'
 
 
-REAP_CLEARS_STATE = "provider_state = CASE WHEN sent_at IS NULL THEN '{}'::jsonb ELSE provider_state END,\n"
+REAP_CLEARS_STATE = ('provider_state = CASE WHEN sent_at IS NULL THEN """ + KEPT_ON_REQUEUE + """ ELSE provider_state '
+                     'END,\n')
 
 
 @mutation(R, REAP_CLEARS_REF, REAP_KEEPS_REF, expect="assert ('queued', 'conv-A', {}) == ('queued', None, {})")
@@ -218,6 +219,25 @@ def test_a_requeue_by_the_reaper_drops_the_previous_attempts_reference_and_names
     got = run(db, scenario)
     assert row(db, got.job_id, "status, external_ref, provider_state") == ("queued", None, {})
     assert any("conv-A" in r[0] for r in db.all("SELECT text FROM job_events WHERE job_id = %s", got.job_id))
+
+
+@mutation(R, REAP_CLEARS_STATE, "provider_state = CASE WHEN sent_at IS NULL THEN '{}'::jsonb ELSE provider_state "
+          "END,\n", expect="the reaper's requeue reset the accounts that refused the job")
+def test_a_requeue_by_the_reaper_keeps_the_accounts_that_refused_the_job(db):
+    """dola.refusal_max_accounts (owner's ruling 25/10) counts the job's `refused_by`; an expired lease on an unsent job
+    must not reset it, as no other requeue does (the one rule of `apply.KEPT_ON_REQUEUE`)."""
+    k, _ = key(db), account(db, left=100)
+
+    async def scenario(p):
+        got = await claim_new(p, k, "x")
+        await store.report_ref(p, got, "conv-A", {"conv": "A", "refused_by": ["acct-A"]})
+        expire(db, got.lease_id)
+        await reaper(p).tick()
+        return got
+
+    got = run(db, scenario)
+    assert row(db, got.job_id, "status, external_ref, provider_state") == (
+        "queued", None, {"refused_by": ["acct-A"]}), "the reaper's requeue reset the accounts that refused the job"
 
 
 @mutation(R, REQUEUES_SENT, ALWAYS_QUEUED,

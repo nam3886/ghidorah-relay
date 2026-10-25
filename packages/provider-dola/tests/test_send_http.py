@@ -536,9 +536,10 @@ REFUSED_AFTER_ACK = IMAGE_SSE[:next(i for i, line in enumerate(IMAGE_SSE) if "ac
 @sync
 async def test_a_refusal_after_the_ack_ends_the_job_and_keeps_the_conversation_for_a_recheck():
     log: list = []
-    ctx, result = await run(Dola(log, stream=REFUSED_AFTER_ACK), image_job(provider_state={REFUSED_BY: ["acct-0"]}))
+    # on the FIRST account: dola acknowledged (a conversation exists), so the job never goes to another account
+    ctx, result = await run(Dola(log, stream=REFUSED_AFTER_ACK))
     assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED_710022002
-    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV, REFUSED_BY: ["acct-0", "acct-1"]}
+    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV, REFUSED_BY: ["acct-1"]}
     assert (IMAGE_CONV, {"refused_conversation": IMAGE_CONV}) in ctx.refs
     assert log.count("POST") == 1
 

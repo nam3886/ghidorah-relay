@@ -1429,11 +1429,17 @@ class _Run:
             cap = SPEC.settings()[REFUSAL_MAX_ACCOUNTS].default
         return refused, len(refused) >= cap
 
-    async def _refusal_outcome(self, not_taken: str, final: str, detail: str, effects, patch=None) -> SubmitResult:
+    async def _refusal_outcome(self, not_taken: str, final: str, detail: str, effects, patch=None,
+                               conversation: str | None = None) -> SubmitResult:
         """A refusal on this account: the job goes to another one (`not_taken`), or, when this was the last account
-        `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded). The account
-        `effects` (its rest) are the same either way."""
+        `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded). A refusal that
+        came after dola made a `conversation` always ends the job: dola may still deliver there (refuse-then-deliver,
+        ~25 min), and an order sent to another account would be a second upstream order (no re-send once dola may
+        have taken it). The account `effects` (its rest) are the same either way."""
         refused, last = self._refused_on_account()
+        if conversation is not None:
+            return _outcome(Fail(final, "%s (after dola made conversation %s: not sent to another account)"
+                                 % (detail, conversation), {**(patch or {}), REFUSED_BY: refused}), *effects)
         if not last:
             await self._say("dola refused the order on %d account(s); the job goes to another account (%s)"
                             % (len(refused), REFUSAL_MAX_ACCOUNTS), "submit", "engine")
@@ -1443,18 +1449,18 @@ class _Run:
                         *effects)
 
     async def _refused_by_code(self, stream: str, conversation: str | None) -> SubmitResult:
-        """dola's stream answered the send with REFUSED_CODE: dola will not take this order, and took nothing. A refusal
-        like any other (`_refused_on_account`): the job goes to another account, and the last account's refusal ends
-        it with `dola.refused_710022002`, refunded. The stream is kept as evidence and dola's own words go to the
-        timeline. The account rests THROTTLE_COOLDOWN_S and is checked again then: the refusal is about the prompt,
-        but an account that just sent such a prompt is at risk, and the check finds a logout before a job does.
+        """dola's stream answered the send with REFUSED_CODE: dola will not take this order. A refusal like any other
+        (`_refusal_outcome`): with no conversation (proof dola made nothing) the job goes to another account, and the
+        last account's refusal ends it with `dola.refused_710022002`, refunded. The stream is kept as evidence and
+        dola's own words go to the timeline. The account rests THROTTLE_COOLDOWN_S and is checked again then: the
+        refusal is about the prompt, but an account that just sent such a prompt is at risk, and the check finds a
+        logout before a job does.
 
-        On the refusal that ends the job, a conversation that already appeared is KEPT before the job fails: its id
-        becomes the job's reference and is named in the timeline and in `provider_state.refused_conversation`. dola is
-        known to refuse and still deliver about 25 min later; such a delivery is not fetched by itself (the job is
-        failed and refunded), but an admin Re-check sends the job back to waiting (the key is charged again) and the
-        poll reads that conversation. A job that goes to another account names the conversation in the timeline
-        only (the requeue drops it as the reference)."""
+        A conversation that already appeared (the browser's receipt, an HTTP acknowledgement, a gated re-send) ends the
+        job on any account, as before 25/10: it is KEPT before the job fails, its id becomes the job's reference and is
+        named in the timeline and in `provider_state.refused_conversation`. dola is known to refuse and still deliver
+        about 25 min later; such a delivery is not fetched by itself (the job is failed and refunded), but an admin
+        Re-check sends the job back to waiting (the key is charged again) and the poll reads that conversation."""
         said = sse_message(stream)
         detail = "dola refused the order with %d: %s" % (REFUSED_CODE, said or "(no message)")
         await self._flush_steps()
@@ -1463,9 +1469,7 @@ class _Run:
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
         rest = (Cooldown("dola refused a prompt (%d)" % REFUSED_CODE, until, recheck=True),)
         patch = {}
-        if conversation is not None and not self._refused_on_account()[1]:
-            await self._say("conversation %s is left: dola refused the order there" % conversation, "submit", "engine")
-        elif conversation is not None:
+        if conversation is not None:
             self.conversation = conversation
             patch = {"refused_conversation": conversation}      # kept by the Fail itself, whatever comes next
             try:
@@ -1477,7 +1481,8 @@ class _Run:
                 await self._say("conversation %s could not be stored as the job's reference (%s); it is named in "
                                 "provider_state.refused_conversation" % (conversation, type(exc).__name__),
                                 "submit", "engine")
-        return await self._refusal_outcome(errors.REFUSED_710022002, errors.REFUSED_710022002, detail, rest, patch)
+        return await self._refusal_outcome(errors.REFUSED_710022002, errors.REFUSED_710022002, detail, rest, patch,
+                                           conversation)
 
     async def _throttled(self, code: int) -> SubmitResult:
         """dola's throttle code: a refusal (`_refused_on_account`). The account rests; the job goes to another one, or

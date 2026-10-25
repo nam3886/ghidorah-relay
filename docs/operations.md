@@ -768,11 +768,14 @@ Rules an operator must know:
   order: its stream code 710022002 (dola will not take this order; 23/10: 9 of 18 tries in 3 h, all on one prompt, on
   7 accounts) or 710022004 (throttle), or its "something went wrong" reply. Each refusal rests the account as before
   and adds it to the job's `provider_state.refused_by`; the core keeps that list across every requeue (a page fault,
-  an interrupted submit, a proven-not-sent order) and a restart, so nothing in between resets the count. Before the
-  last allowed account the job goes back to the queue (no attempt used for 710022002 and 710022004); the refusal on
-  the last one ends it failed with the full refund: `dola.refused_710022002` for 710022002, `dola.refused_on_accounts`
-  otherwise. At 1 the first refusal ends the job. Not refusals, so not counted: a proxy failure, a login doubt or
-  signed-out page, a page fault, out of credit, the region (710022003) and the HTTP signer alarm.
+  an interrupted submit, a proven-not-sent order, the reaper's requeue of an expired lease) and a restart, so nothing
+  in between resets the count. Before the last allowed account the job goes back to the queue (no attempt is used:
+  the setting alone decides); the refusal on the last one ends it failed with the full refund:
+  `dola.refused_710022002` for 710022002, `dola.refused_on_accounts` otherwise. At 1 the first refusal ends the job.
+  A 710022002 that came after dola made a conversation (the browser's receipt, an HTTP acknowledgement, a gated
+  re-send) ends the job on any account: dola may still deliver there, and another account would be a second upstream
+  order. Not refusals, so not counted: a proxy failure, a login doubt or signed-out page, a page fault, out of credit,
+  the region (710022003) and the HTTP signer alarm.
 - **dola's code 710022002.** dola's `/chat/completion` stream answering a send (the first or a gated re-send) with
   710022002 is a refusal (above). dola's own message goes to the timeline, the stream is kept as
   evidence (`refused-710022002-stream.txt`), and the account rests 30 min (`THROTTLE_COOLDOWN_S`) with its next check
@@ -780,10 +783,9 @@ Rules an operator must know:
   a logout before a job does. The stream is
   parsed event by event: a code counts only in an error envelope (`error_code` at the top of an event or of its
   `event_data`), never inside a reply's text, and a stream that also delivered anything (an event other than a
-  heartbeat, an acknowledgement, an empty object or `[DONE]`) is no error at all. When the refusal ends the job and a
-  conversation had already appeared, it is kept: it becomes the job's reference
-  (`provider_state.refused_conversation`, named in the timeline); a job that goes to another account only names it in
-  the timeline.
+  heartbeat, an acknowledgement, an empty object or `[DONE]`) is no error at all. When a conversation had already
+  appeared (the job then ends, above), it is kept: it becomes the job's reference
+  (`provider_state.refused_conversation`, named in the timeline).
   dola can refuse and still deliver about 25 min later; such a delivery is NOT fetched by itself (the job stays failed
   and refunded), but an admin Re-check of the job sends it back to waiting (the key is charged again) and the poll
   reads that conversation. Without a conversation there is nothing to re-check. On a refusal the conversation is

@@ -112,13 +112,18 @@ def _merge_outputs(outputs: tuple[Output, ...]) -> _Raw:
     return _Raw("provider_state || %s::jsonb", (Jsonb(_outputs(outputs)),))
 
 
+# The part of a job's `provider_state` every requeue keeps, as SQL over the row: `REFUSED_BY` alone (or `{}`). The one
+# definition `_reset` and the reaper's requeue of an expired lease both use, so the two cannot drift.
+KEPT_ON_REQUEUE = "jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))" % (REFUSED_BY, REFUSED_BY)
+
+
 def _reset(patch: Mapping[str, Any]) -> dict:
     """What a requeue writes: the previous attempt's reference and state are dropped (they belong to the account
     that attempt ran on) and only the requeue's own patch survives, with one exception: `REFUSED_BY`, the accounts
-    upstream refused this order on, outlives every requeue (a fault requeue, an interrupted or a proven-not-sent one),
-    so a provider's cap on refused accounts is not reset by a requeue in between. A patch that names it replaces it."""
-    keep = "jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))" % (REFUSED_BY, REFUSED_BY)
-    return dict(external_ref=None, provider_state=_Raw(keep + " || %s::jsonb", (_state(patch),)))
+    upstream refused this order on, outlives every requeue (a fault requeue, an interrupted or a proven-not-sent one,
+    the reaper's), so a provider's cap on refused accounts is not reset by a requeue in between. A patch that names it
+    replaces it."""
+    return dict(external_ref=None, provider_state=_Raw(KEPT_ON_REQUEUE + " || %s::jsonb", (_state(patch),)))
 
 
 def _dropped(job: "_Job") -> str:

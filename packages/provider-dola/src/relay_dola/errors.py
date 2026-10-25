@@ -88,7 +88,11 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"),
     _refusal(NO_VIDEO, "dola made no video for this order"),
     _refusal(NO_IMAGE, "dola made no image for this order"),
-    _transient(TEMPORARY_ERROR, "dola reported a temporary error when it took the order"),
+    # dola's "something went wrong" reply is a refusal (owner's ruling 25/10): `dola.refusal_max_accounts` alone
+    # decides how many accounts it may move to, so its requeue uses no attempt. Never a final code (the cap ends a job
+    # with REFUSED_ON_ACCOUNTS), so it refunds nothing itself.
+    Rule(TEMPORARY_ERROR, 502, "api_error", False, False, False, True, True,
+         "dola reported a temporary error when it took the order"),
     _transient(UNKNOWN_STATUS, "dola answered with a status that is not understood"),
     _transient(HTTP_ERROR, "dola answered with an HTTP error"),
     _transient(BAD_RESPONSE, "dola answered with something that is not readable"),
