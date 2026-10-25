@@ -25,6 +25,7 @@ from psycopg import AsyncConnection
 from relay_core import failpoints, history
 from relay_core.db import lock_account
 from relay_core.providers import (
+    TIERS,
     AccountEffect,
     Balance,
     Caps,
@@ -36,6 +37,7 @@ from relay_core.providers import (
     Revive,
     Success,
     Suspect,
+    Tier,
 )
 from relay_core.redact import redact_log
 from relay_core.settings import Rule, Spec
@@ -43,7 +45,6 @@ from relay_core.txguard import require_tx
 
 log = logging.getLogger(__name__)
 
-TIERS = ("free", "pro", "ultra")
 DEFAULT_TIER = "free"            # an account with no tier is a free one
 # ponytail: the day window only (a calendar day in a time zone); month, rolling and first-use windows, several windows
 # in one pool and the `all` combination arrive with the tiers (plans/money-v2.md phase 3).
@@ -427,6 +428,7 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
     - `Balance` records the pool's reported balance; a balance above 0 ends that pool's rest, a balance of 0 rests the
       pool until the refill the upstream named, else the pool's next window boundary.
+    - `Tier` writes the account's tier, marks it read now, and its cycle start when named (else the stored one stays).
     The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a
     death's reason, else a cooldown's) is kept in the account's errors with `job_id`, the job it came from."""
     require_tx(conn)
@@ -486,6 +488,9 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             await _die(conn, account_id, e.reason)
         elif isinstance(e, Revive):
             await _account(conn, account_id, "state = 'available', state_reason = NULL", where="AND state = 'dead'")
+        elif isinstance(e, Tier):
+            await _account(conn, account_id, "tier = %(t)s, tier_read_at = clock_timestamp(), "
+                           "cycle_start = COALESCE(%(c)s, cycle_start)", t=e.tier, c=e.cycle_start)
         elif isinstance(e, Success):
             await _account(conn, account_id, "strikes = 0, strike_at = NULL, last_error = NULL")
         elif isinstance(e, ProxyBad):

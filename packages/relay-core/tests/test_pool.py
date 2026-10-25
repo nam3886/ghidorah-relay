@@ -6,7 +6,7 @@ account, the Balance rules)."""
 import asyncio
 import uuid
 from contextvars import Context
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -24,6 +24,7 @@ from relay_core.providers import (
     Revive,
     Success,
     Suspect,
+    Tier,
 )
 from relay_core.settings import SettingsError
 from relay_core.testing.mutation import mutation
@@ -711,6 +712,33 @@ def test_a_later_report_replaces_an_earlier_one_and_a_zero_never_shortens_a_long
     until, reason = db.one("SELECT rest_until, rest_reason FROM account_pools WHERE account_id = %s AND pool = 'video'",
                            a)
     assert until > FUTURE + timedelta(days=2) and reason == "long"
+
+
+# ---- effects: Tier ----------------------------------------------------------------------------------------------
+def tier_row(db, account_id):
+    return db.one("SELECT tier, tier_read_at IS NOT NULL, cycle_start FROM accounts WHERE id = %s", account_id)
+
+
+@mutation(P, '"cycle_start = COALESCE(%(c)s, cycle_start)"', '"cycle_start = %(c)s"', expect="the stored cycle")
+@mutation(P, '"tier = %(t)s, tier_read_at = clock_timestamp(), "', '"tier = %(t)s, "', expect="marked read")
+def test_an_upstream_tier_overwrites_an_admin_tier_and_marks_it_read_and_a_cycle_start_is_kept_when_not_named(db):
+    a = account(db, tier="ultra")                                       # set by the admin, never read
+    assert tier_row(db, a) == ("ultra", False, None)
+    run(db, lambda p: effects(p, a, Tier("pro", date(2026, 10, 8))))
+    assert tier_row(db, a) == ("pro", True, date(2026, 10, 8)), "not marked read: %s" % (tier_row(db, a),)
+    run(db, lambda p: effects(p, a, Tier("pro")))
+    assert tier_row(db, a)[2] == date(2026, 10, 8), "the stored cycle start was dropped"
+    with pytest.raises(ValueError):
+        Tier("gold")
+
+
+def test_a_pro_account_gets_the_pro_budgets_once_its_tier_is_read(db):
+    a = account(db)
+    assert left(db, a) == 4                                             # no tier: free
+    run(db, lambda p: effects(p, a, Tier("pro")))
+    assert left(db, a) == 10
+    run(db, lambda p: effects(p, a, Tier("ultra")))
+    assert left(db, a) is None                                          # no ultra budget: unknown, allows
 
 
 def test_effects_are_applied_pool_first_and_an_unknown_pool_or_effect_is_refused(db):

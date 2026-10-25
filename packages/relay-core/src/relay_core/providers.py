@@ -13,7 +13,7 @@ import math
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Literal, Protocol
 
@@ -89,6 +89,22 @@ class Balance:
             _aware(self.refill_at)
 
 
+TIERS = ("free", "pro", "ultra")
+
+
+@dataclass(frozen=True)
+class Tier:
+    """The account's plan as the upstream reported it, and the first day of its monthly cycle when the upstream names
+    one. It replaces a tier the admin set and marks the tier read; a cycle start of None keeps the stored one. A read
+    that fails carries no `Tier`: the stored tier stays."""
+    tier: str
+    cycle_start: date | None = None
+
+    def __post_init__(self):
+        if self.tier not in TIERS:
+            raise ValueError("Tier.tier must be one of %s" % (TIERS,))
+
+
 @dataclass(frozen=True)
 class Success:
     """An accepted submit, a good poll or an alive check: clears the strike counter."""
@@ -99,7 +115,7 @@ class ProxyBad:
     reason: str
 
 
-AccountEffect = Rest | Cooldown | Suspect | Dead | Revive | Balance | Success | ProxyBad
+AccountEffect = Rest | Cooldown | Suspect | Dead | Revive | Balance | Tier | Success | ProxyBad
 StrikeEffect = Dead   # the strike threshold's terminal effect; the cooldown form arrives with the later providers
 
 
