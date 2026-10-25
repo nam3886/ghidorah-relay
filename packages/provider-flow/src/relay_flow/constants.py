@@ -56,7 +56,8 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one page load, read or cookie rotation over a proxy (reads took 0.3-1.5 s)
 GENERATE_TIMEOUT_S = 90         # the image generate holds its reply until drawn (13-17 s); a video's answers in 2.6 s
-SUBMIT_TIMEOUT_S = 900          # one submit (image or video), its spaced reCAPTCHA retries included
+CAPTCHA_MIN_LEFT_S = 5          # a fallback token source is not started with less of the token's time left
+SUBMIT_TIMEOUT_S = 900         # one submit (image or video), its spaced reCAPTCHA retries included
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool
 CHECK_INTERVAL_S = 300          # the account check: it also rotates the session, which ages out in about 20 min
 SIGNED_OUT_REST_S = 600         # a signed-out read rests the account this long, then it is checked again
@@ -77,6 +78,8 @@ LIMITS = (
                "one page load, read or cookie rotation over a proxy; none in time is a failed step", "s"),
     FixedLimit("relay_flow.constants.GENERATE_TIMEOUT_S", GENERATE_TIMEOUT_S,
                "the generate holds its reply until the image is drawn; no answer in time makes the job unknown", "s"),
+    FixedLimit("relay_flow.constants.CAPTCHA_MIN_LEFT_S", CAPTCHA_MIN_LEFT_S,
+               "the next source of a captcha order is not started with less of the token's time left", "s"),
     FixedLimit("relay_flow.constants.SUBMIT_TIMEOUT_S", SUBMIT_TIMEOUT_S,
                "hard bound on one submit; no reCAPTCHA retry starts that would not end inside it", "s"),
     FixedLimit("relay_flow.constants.SIGNED_OUT_REST_S", SIGNED_OUT_REST_S,

@@ -105,7 +105,8 @@ _SETTINGS = dict((
     _setting("capsolver_proxy_task", bool, True,
              "CapSolver solves through the account's own proxy, so the token is minted from the IP that sends the "
              "generate (the proxy's address and login are given to CapSolver). Off, or an account with no proxy: "
-             "CapSolver's proxyless task."),
+             "CapSolver's proxyless task, whose token is minted from CapSolver's own network, as YesCaptcha's and "
+             "Anti-Captcha's are; the calls to its API still go through the account's proxy."),
     _setting("anticaptcha_min_score", float, 0.9,
              "The reCAPTCHA score queue Anti-Captcha solves in (0.3 has the most workers, 0.9 the fewest). "
              "Anti-Captcha has no proxy task for this captcha: its tokens come from its own network.",

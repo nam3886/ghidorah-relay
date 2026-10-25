@@ -31,6 +31,7 @@ from relay_flow.constants import (
     CAPSOLVER_TASK,
     CAPSOLVER_TASK_PROXYLESS,
     CAPTCHA_KEY_VARS,
+    CAPTCHA_MIN_LEFT_S,
     CAPTCHA_URLS,
     RECAPTCHA_SITE_KEY,
     YESCAPTCHA_TASK,
@@ -79,8 +80,8 @@ class Tokens:
         end = self.clock() + timeout
         failed: list[tuple[str, CaptchaError]] = []
         for source in order:
-            if failed and self.clock() >= end:
-                break
+            if failed and end - self.clock() < CAPTCHA_MIN_LEFT_S:
+                break                       # too little of the token's time left to start another source
             try:
                 return await self._solve(source, action, page_url, proxy, end, timeout)
             except CaptchaError as e:
@@ -95,23 +96,33 @@ class Tokens:
                                errors.CAPTCHA_KEY_INVALID)
         task = self._task(source, action, page_url, proxy)
         transport = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(proxy), trust_env=False)
+        def left() -> float:        # every wait and every request ends by the token's shared deadline
+            return end - self.clock()
+
         try:
             async with httpx.AsyncClient(base_url=CAPTCHA_URLS[source], transport=transport, timeout=API_TIMEOUT_S,
                                          trust_env=False, follow_redirects=False) as client:
-                made = await _post(client, "/createTask", {"clientKey": key, "task": task})
+                made = await _post(client, "/createTask", {"clientKey": key, "task": task}, left())
                 if made.get("errorId") or not made.get("taskId"):
                     raise _refused("the solver refused the task", made)
                 poll = int(self.settings.get("flow.captcha_poll_s"))
-                while self.clock() < end:
-                    await self.sleep(poll)
-                    got = await _post(client, "/getTaskResult", {"clientKey": key, "taskId": made["taskId"]})
+                while (wait := left()) > 0:
+                    await self.sleep(min(poll, wait))
+                    if (remaining := left()) <= 0:
+                        break
+                    got = await _post(client, "/getTaskResult", {"clientKey": key, "taskId": made["taskId"]},
+                                      remaining)
                     if got.get("errorId") or got.get("status") == "failed":
                         raise _refused("the solver failed the task", got)
                     if got.get("status") == "ready":
-                        token = (got.get("solution") or {}).get("gRecaptchaResponse")
+                        solution = got.get("solution")
+                        token = solution.get("gRecaptchaResponse") if isinstance(solution, dict) else None
                         if isinstance(token, str) and token:
                             return token
                         raise CaptchaError("the solver answered ready with no token")
+        except httpx.TimeoutException as e:
+            raise CaptchaError("the solver did not answer in time (%s)" % type(e).__name__,
+                               errors.CAPTCHA_TIMEOUT) from None
         except httpx.HTTPError as e:     # its text may carry the proxy URL: only the class is named
             raise CaptchaError("the solver could not be reached (%s)" % type(e).__name__) from None
         raise CaptchaError("no token in %d s" % timeout, errors.CAPTCHA_TIMEOUT)
@@ -136,8 +147,9 @@ def capsolver_proxy(proxy: Proxy) -> str:
     return ":".join(["http", proxy.host, str(proxy.port)] + ([user, secret] if user else []))
 
 
-async def _post(client: httpx.AsyncClient, path: str, body: dict) -> dict:
-    response = await client.post(path, json=body)
+async def _post(client: httpx.AsyncClient, path: str, body: dict, left: float) -> dict:
+    """One call, its timeout cut to the token's time left (at least a moment, so a call is never sent with none)."""
+    response = await client.post(path, json=body, timeout=max(0.5, min(API_TIMEOUT_S, left)))
     try:
         out = response.json()
     except ValueError:

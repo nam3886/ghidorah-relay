@@ -3,7 +3,6 @@ when due, written back sealed at once, merged per account in the process, never 
 every call goes through the account's proxy."""
 
 import asyncio
-import itertools
 import json
 import logging
 from datetime import UTC, date, datetime, timedelta
@@ -295,10 +294,24 @@ async def no_sleep(s):
     pass
 
 
-def tokens(transport, keys=None, cfg=None, proxy=None, clock=None, source="yescaptcha"):
+class FakeTime:
+    """A clock that only the token source's own waits move (and a request, by `advance`)."""
+
+    def __init__(self):
+        self.t, self.sleeps = 0.0, []
+
+    def now(self) -> float:
+        return self.t
+
+    async def sleep(self, s):
+        self.sleeps.append((self.t, s))
+        self.t += s
+
+
+def tokens(transport, keys=None, cfg=None, proxy=None, time=None, source="yescaptcha"):
     cfg = cfg or settings(flow__captcha_provider=source)
-    t = Tokens(cfg, KEYS if keys is None else keys, transport=transport, sleep=no_sleep,
-               **({"clock": clock} if clock else {}))
+    timing = {"sleep": time.sleep, "clock": time.now} if time else {"sleep": no_sleep}
+    t = Tokens(cfg, KEYS if keys is None else keys, transport=transport, **timing)
     return asyncio.run(t("IMAGE_GENERATION", PAGE, proxy))
 
 
@@ -308,10 +321,7 @@ def task_of(transport) -> dict:
     return body["task"]
 
 
-def slow_clock():
-    """The token's 120 s are spent by the third read of the task."""
-    ticks = itertools.count(0, 50)
-    return lambda: next(ticks)
+NEVER_READY = [CREATED] + [WORKING] * 40      # more reads than the token's 120 s allow, 3 s apart
 
 
 @mutation(CAPTCHA_FILE, '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True}',
@@ -383,13 +393,16 @@ SOLVER_FAULTS = [   # (source, answers, our code, a part of the reason, the cloc
      "ERROR_TASK_TIMEOUT", None),
     ("anticaptcha", [CREATED, {"errorId": 30, "errorCode": "ERROR_RECAPTCHA_TIMEOUT"}], "flow.captcha_timeout",
      "ERROR_RECAPTCHA_TIMEOUT", None),
-    ("capsolver", [CREATED, WORKING, WORKING], "flow.captcha_timeout", "no token in 120 s", slow_clock),
+    ("capsolver", list(NEVER_READY), "flow.captcha_timeout", "no token in 120 s", FakeTime),
+    ("yescaptcha", [httpx.ReadTimeout("read timed out")], "flow.captcha_timeout", "did not answer in time", None),
     ("yescaptcha", [CREATED, {"errorId": 1, "errorCode": "ERROR_CAPTCHA_UNSOLVABLE"}], "flow.captcha_failed",
      "failed the task (ERROR_CAPTCHA_UNSOLVABLE)", None),
     ("capsolver", [CREATED, {"errorId": 0, "status": "failed"}], "flow.captcha_failed", "failed the task", None),
     ("capsolver", [CREATED, {"errorId": 1, "errorCode": "ERROR_PROXY_BANNED"}], "flow.captcha_failed",
      "ERROR_PROXY_BANNED", None),
     ("yescaptcha", [CREATED, {"errorId": 0, "status": "ready", "solution": {}}], "flow.captcha_failed",
+     "ready with no token", None),
+    ("anticaptcha", [CREATED, {"errorId": 0, "status": "ready", "solution": "tok-abc"}], "flow.captcha_failed",
      "ready with no token", None),
     ("anticaptcha", [httpx.Response(502, text="<html>bad gateway</html>")], "flow.captcha_failed",
      "not a JSON object (HTTP 502)", None),
@@ -405,13 +418,15 @@ SOLVER_FAULTS = [   # (source, answers, our code, a part of the reason, the cloc
           'raise CaptchaError("no token in %d s" % timeout)', expect="no token in 120 s")
 @mutation(CAPTCHA_FILE, 'raise CaptchaError("the solver refused its key (HTTP 401)", errors.CAPTCHA_KEY_INVALID)',
           'raise CaptchaError("the solver refused its key (HTTP 401)")', expect="HTTP 401")
+@mutation(CAPTCHA_FILE, "        except httpx.TimeoutException as e:", "        except ZeroDivisionError as e:",
+          expect="did not answer in time")
 def test_each_solver_fault_has_its_own_code_and_its_reason_never_holds_a_secret(caplog):
     """A bad key, no balance and no token in time each have a code; none of them blames the flow account (the submit
     turns every `CaptchaError` into a Retry of its code)."""
     caplog.set_level(logging.DEBUG)
     for source, answers, code, reason, clock in SOLVER_FAULTS:
         with pytest.raises(CaptchaError) as caught:
-            tokens(solver(answers), source=source, proxy=ACCOUNT_PROXY, clock=clock and clock())
+            tokens(solver(answers), source=source, proxy=ACCOUNT_PROXY, time=clock and clock())
         text = str(caught.value)
         assert caught.value.code == code, "%s: %s, not %s (%s)" % (source, caught.value.code, code, reason)
         assert reason in text, text
@@ -428,6 +443,8 @@ def test_each_solver_fault_has_its_own_code_and_its_reason_never_holds_a_secret(
 
 
 @mutation(CAPTCHA_FILE, "        for source in order:\n", "        for source in order[:1]:\n", expect="no fallback")
+@mutation(CAPTCHA_FILE, 'solution.get("gRecaptchaResponse") if isinstance(solution, dict) else None',
+          '(solution or {}).get("gRecaptchaResponse")', expect="has no attribute 'get'")
 def test_an_order_of_sources_falls_back_to_the_next_and_names_every_reason_when_all_fail():
     cfg = settings(flow__captcha_provider="capsolver,yescaptcha")
     transport = solver([{"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}, CREATED, READY])
@@ -442,11 +459,69 @@ def test_an_order_of_sources_falls_back_to_the_next_and_names_every_reason_when_
     assert str(caught.value) == ("capsolver: FLOW_CAPSOLVER_KEY is not set on the flow worker; "
                                  "yescaptcha: the solver refused the task (ERROR_KEY_DOES_NOT_EXIST)")
     assert caught.value.code == "flow.captcha_key_invalid"
+    # a ready answer whose solution is not an object is a failed source like any other: the next one is tried
+    transport = solver([CREATED, {"errorId": 0, "status": "ready", "solution": ["x"]}, CREATED, READY])
+    assert tokens(transport, cfg=cfg) == "tok-abc"
     # the token's time is shared by the order: once spent, the next source is not started
-    transport = solver([CREATED, WORKING, WORKING])
+    transport = solver(list(NEVER_READY))
     with pytest.raises(CaptchaError) as caught:
-        tokens(transport, cfg=cfg, clock=slow_clock())
-    assert caught.value.code == "flow.captcha_timeout" and len(transport.seen) == 3
+        tokens(transport, cfg=cfg, time=FakeTime())
+    assert caught.value.code == "flow.captcha_timeout"
+    assert {h for h, _, _ in transport.seen} == {"api.capsolver.com"}, "the next source started with no time left"
+
+
+def timed_solver(time: FakeTime, answers):
+    """A fake solver API whose answers are (seconds the call takes, JSON body); it records each call's host, the time
+    it was sent and the read timeout it was given."""
+    seen = []
+
+    def handle(request):
+        took, body = answers.pop(0)
+        seen.append((request.url.host, time.t, request.extensions["timeout"]["read"]))
+        time.t += took
+        return httpx.Response(200, json=body)
+    transport = httpx.MockTransport(handle)
+    transport.seen = seen
+    return transport
+
+
+@mutation(CAPTCHA_FILE, "await self.sleep(min(poll, wait))", "await self.sleep(poll)",
+          expect="a wait past the deadline")
+@mutation(CAPTCHA_FILE, "timeout=max(0.5, min(API_TIMEOUT_S, left))", "timeout=API_TIMEOUT_S",
+          expect="a call past the deadline")
+def test_every_wait_and_every_call_ends_by_the_tokens_deadline():
+    """Codex review 25/10: a poll's sleep and a call's timeout are cut to the time left, so one token never takes longer
+    than `flow.captcha_timeout_s` (the submit bound counts on it)."""
+    time = FakeTime()
+    cfg = settings(flow__captcha_provider="yescaptcha", flow__captcha_timeout_s=30, flow__captcha_poll_s=7)
+    transport = timed_solver(time, [(1, CREATED)] + [(1, WORKING)] * 3)
+    with pytest.raises(CaptchaError) as caught:
+        tokens(transport, cfg=cfg, time=time)
+    assert caught.value.code == "flow.captcha_timeout"
+    assert [s for _, s in time.sleeps] == [7, 7, 7, 5], "a wait past the deadline: %s" % time.sleeps
+    assert [round(read) for _, _, read in transport.seen] == [30, 22, 14, 6], \
+        "a call past the deadline: %s" % transport.seen
+    assert time.t == 30
+
+
+@mutation(CAPTCHA_FILE, "if failed and end - self.clock() < CAPTCHA_MIN_LEFT_S:",
+          "if failed and end - self.clock() < 0:", expect="started with too little time")
+def test_the_next_source_is_not_started_with_less_than_five_seconds_left():
+    cfg = settings(flow__captcha_provider="capsolver,yescaptcha", flow__captcha_timeout_s=30)
+    time = FakeTime()
+    transport = timed_solver(time, [(26, {"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}), (0, CREATED), (0, READY)])
+    try:
+        code = tokens(transport, cfg=cfg, time=time)
+    except CaptchaError as e:
+        code = e.code
+    assert [h for h, _, _ in transport.seen] == ["api.capsolver.com"], "started with too little time: %s" % (
+        transport.seen,)
+    assert code == "flow.captcha_no_balance"
+    time = FakeTime()
+    transport = timed_solver(time, [(24, {"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}), (0, CREATED), (0, READY)])
+    assert tokens(transport, cfg=cfg, time=time) == "tok-abc"
+    assert [h for h, _, _ in transport.seen] == ["api.capsolver.com", "api.yescaptcha.com", "api.yescaptcha.com"]
+    assert time.sleeps == [(24, 3)]      # 6 s were left: one read, 3 s on
 
 
 CAPTCHA_PROXY = ("        transport = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(proxy), "
