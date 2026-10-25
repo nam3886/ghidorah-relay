@@ -971,9 +971,12 @@ def test_a_zero_balance_with_no_named_refill_rests_until_the_open_rolling_window
     assert abs((got.rest_until - (opened + 5 * HOUR)).total_seconds()) < 1, "the open window's end: %s" % (got,)
 
 
-@mutation(P, "            window = e.window if refill is not None and refill == e.refill_at else None\n",
+@mutation(P, "            window = _window_tag(e.window, refill) if named else None\n",
           "            window = None\n", expect="stored with the window it names")
-@mutation(P, " and refill == e.refill_at else None\n", " else None\n", expect="an adjusted refill names no window")
+@mutation(P, " and refill is not None and refill == e.refill_at\n", " and refill is not None\n",
+          expect="an adjusted refill names no window")
+@mutation(P, "    return window if window and tag == _window_tag(window, refill_at) else None\n",
+          "    return window or None\n", expect="a tag of another refill")
 @mutation(P, "reports = {key: _reported(r[0], r[1], r[2], r[5])", "reports = {key: _reported(r[0], r[1], r[2], None)",
           expect="the named reset places the block")
 def test_a_reported_refill_is_stored_with_the_window_it_names_and_places_its_blocks(db):
@@ -992,10 +995,43 @@ def test_a_reported_refill_is_stored_with_the_window_it_names_and_places_its_blo
     states = run(db, scenario)
     stored = {a: db.one("SELECT refill_window FROM account_pools WHERE account_id = %s AND pool = 'video'", a)[0]
               for a in (named, plain, late)}
-    assert (stored[named], stored[plain]) == ("5h", None), "stored with the window it names: %s" % (stored,)
+    assert (stored[named], stored[plain]) == (pool._window_tag("5h", reset), None), \
+        "stored with the window it names: %s" % (stored,)
     assert stored[late] is None, "an adjusted refill names no window (it is the next check, not the reset)"
     assert states[(named, "video")].standing.windows[0].refill_at == reset, "the named reset places the block"
     assert states[(plain, "video")].standing.windows[0].refill_at != reset
+    # a build without the tag (a rollback) writes a newer refill and leaves the tag: it no longer names a window
+    later = reset + HOUR
+    db.run("UPDATE account_pools SET refill_at = %s WHERE account_id = %s AND pool = 'video'", later, named)
+
+    async def reread(p):
+        async with tx(p) as conn:
+            return (await pool.pool_states(conn, {named: (None, pools)}))[1][(named, "video")]
+
+    stale = run(db, reread)
+    assert stale.reported.window is None and stale.standing.windows[0].refill_at != later, \
+        "a tag of another refill names no window: %s" % (stale,)
+
+
+def test_a_window_tag_names_its_window_only_beside_the_refill_it_was_written_with():
+    reset = t(5, 12, 7)
+    tag = pool._window_tag("5h", reset)
+    assert pool._tagged_window(tag, reset) == "5h"
+    assert pool._tagged_window(tag, reset + timedelta(microseconds=1)) is None, "a tag of another refill"
+    assert pool._tagged_window(tag, None) is None and pool._tagged_window(None, reset) is None
+    assert pool._tagged_window("5h", reset) is None, "an untimed tag names no window"
+
+
+@pytest.mark.parametrize("refunded_first", [False, True])
+def test_a_refunded_charge_was_never_spent_so_a_later_charge_takes_the_days_credits_it_left(refunded_first):
+    """An account charge is refunded only when upstream did not complete the order (`jobs.fail`), so the account never
+    spent it: upstream would have taken the later 10 credits from the day's 50, and so do the windows."""
+    noon = t(5, 12)
+    first, later = (noon - 30 * HOUR, 50), (noon - 29 * HOUR, 10)
+    charges = [later] if refunded_first else [first, later]
+    got = pool.standing(FLOWLIKE, "pro", charges, noon)
+    assert [w.spent for w in got.windows] == ([0, 0] if refunded_first else [0, 10]) and got.left == (
+        1050 if refunded_first else 1040)
 
 
 BELIEVED = "    if not now - timedelta(seconds=REFILL_PAST_S) <= refill <= now + timedelta(seconds=REFILL_AHEAD_S):\n"

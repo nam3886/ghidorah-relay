@@ -449,9 +449,27 @@ async def ensure_rows(conn: AsyncConnection, account_id, pools: Mapping[str, Poo
         await conn.execute(_INSERT_ROW, (account_id, name))
 
 
-def _reported(left: int | None, at: datetime | None, refill_at: datetime | None, window: str | None
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _window_tag(window: str, refill_at: datetime) -> str:
+    """`refill_window` as stored: the window with the refill it belongs to (`5h@<refill epoch in microseconds>`), so
+    a build that writes `refill_at` without the tag (an older one after a rollback) leaves a tag that no longer
+    matches."""
+    return "%s@%d" % (window, (refill_at - _EPOCH) // timedelta(microseconds=1))
+
+
+def _tagged_window(tag: str | None, refill_at: datetime | None) -> str | None:
+    """The window a stored tag names, only while it belongs to the stored refill; anything else names none."""
+    if tag is None or refill_at is None:
+        return None
+    window, _, _ = tag.rpartition("@")
+    return window if window and tag == _window_tag(window, refill_at) else None
+
+
+def _reported(left: int | None, at: datetime | None, refill_at: datetime | None, tag: str | None
               ) -> Reported | None:
-    return None if left is None or at is None else Reported(left, at, refill_at, window)
+    return None if left is None or at is None else Reported(left, at, refill_at, _tagged_window(tag, refill_at))
 
 
 async def _lock(conn: AsyncConnection, account_id, pool: str, *, skip_locked: bool) -> tuple | None:
@@ -581,8 +599,10 @@ async def charge_account(conn: AsyncConnection, account_id, job_id, cfg: PoolCon
 
 
 async def refund_job(conn: AsyncConnection, job_id, pools: Mapping[str, PoolConfig]) -> list[tuple[str, int]]:
-    """Give back the account charges of a failed job: the exact amount, once per charge (`refunded_at`). A refund of a
-    charge from an earlier window changes nothing today: spend counts the charges of the window only. Returns the
+    """Give back the account charges of a failed job: the exact amount, once per charge (`refunded_at`). It is called
+    only when upstream did not complete the order (`jobs.fail`: no outputs recorded), so a refunded charge is one the
+    account never spent: the windows are worked out as if it had not been made, and a later charge it had pushed into
+    the month falls back into the day's credits, as upstream itself would have taken it. Returns the
     (pool, amount) pairs refunded. Only a charge exists for a job whose order was taken, so nothing else is checked
     here."""
     require_tx(conn)
@@ -639,7 +659,8 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             assert row is not None
             refill = believed_refill(e.refill_at, row[6], caps.check_interval_s)
             # the window a refill ends anchors that window only when the refill stands as the upstream named it
-            window = e.window if refill is not None and refill == e.refill_at else None
+            named = e.window and refill is not None and refill == e.refill_at
+            window = _window_tag(e.window, refill) if named else None
             until = refill
             if e.left_n <= 0 and refill is None:
                 since = _since(cfg, row[6], None, row[7])

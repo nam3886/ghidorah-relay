@@ -159,7 +159,9 @@ def test_every_dola_setting_states_what_it_allows():
     assert {k: s.allowed for k, s in SPEC.settings().items()} == {
         "dola.claims_enabled": "true or false", "dola.master_quality": "true or false",
         "dola.render_deadline_s": "at least 60",
-        "dola.pools": "an object of pool -> {combine, windows: [{name, kind: day, tz, budget: {tier: units}}]}",
+        "dola.pools": "an object of pool -> {combine: sum|all, windows: [{name, kind: day|week|month|rolling, "
+                      "tz (calendar kinds), hours and anchor: first_use|reset (rolling), "
+                      "budget: {tier: units or null}}]}",
         "dola.prices": "each entry: an option key of this provider and a whole number of points, 0 or more",
         "dola.costs": "each entry: an option key of this provider and a whole number of credits or image units, 0 or "
                       "more",

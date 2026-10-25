@@ -71,6 +71,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(pool, "REFILL_AHEAD_S", "an upstream refill further ahead is not believed: the pool's own window decides", "s"),
     _c(pool, "REPEAT_QUIET_S", "a bot checkpoint this long after the account's last one rests the base again; "
        "sooner, the rest doubles up to the provider's max", "s"),
+    _c(pool, "MAX_ROLLING_HOURS", "the longest rolling window a pool may set: as far ahead as a refill is believed",
+       "h"),
     # ---- job timing -------------------------------------------------------------------------------------------
     _c(apply, "FIRST_POLL_S", "an accepted job is first polled this long after", "s"),
     _c(apply, "UNKNOWN_FIRST_S", "the first reconcile of an unknown job; it doubles up to the next limit", "s"),
