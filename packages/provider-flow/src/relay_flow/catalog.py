@@ -12,6 +12,7 @@ or a first and a last frame; "references" is up to 3 (Veo) or 7 (Omni) reference
 """
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 
 # relay name -> (Flow's model key, display name). Flow draws the image inside the generate request (HOLD).
@@ -121,7 +122,7 @@ DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1),
                  **{price_key(m, d): c for m, by in VIDEO_CREDITS.items() for d, c in by.items()}}
 # The sale price in points, the default of `flow.prices` (the owner edits it): one point per unit of upstream cost,
 # at least 1 (owner, 25/10: an image that costs no credit sells at 1).
-DEFAULT_PRICES = {k: max(1, v) for k, v in DEFAULT_COSTS.items()}
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)
 
 
 def is_blank_prompt(text: str) -> bool:

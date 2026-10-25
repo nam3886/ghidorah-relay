@@ -217,7 +217,7 @@ def test_what_flow_cannot_do_is_refused_rather_than_ignored():
 
 
 
-@mutation(CATALOG_FILE, "DEFAULT_PRICES = {k: max(1, v) for k, v in DEFAULT_COSTS.items()}",
+@mutation(CATALOG_FILE, "DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)",
           "DEFAULT_PRICES = {k: max(1, v // 5) for k, v in DEFAULT_COSTS.items()}", expect="one point per credit")
 @mutation(CATALOG_FILE, '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 100},',
           '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 10},', expect="GetModels")
