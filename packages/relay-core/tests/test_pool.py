@@ -1122,7 +1122,8 @@ def drifts(db, account_id):
 @mutation(P, "            if computed is None or abs(reported_left - computed) <= cfg.drift_alert:\n",
           "            if computed is None:\n", expect="within the threshold")
 @mutation(P, "AND b.scope = %(p)s AND b.at >= %(since)s)", "AND b.scope = %(p)s AND false)", expect="once per window")
-@mutation(P, "            await _drift_alert(conn, account_id, cfg, row, e.left_n)\n", "", expect="no drift alert")
+@mutation(P, "            await _drift_alert(conn, account_id, cfg, row,\n",
+          "            (conn, account_id, cfg, row,\n", expect="no drift alert")
 def test_a_reported_balance_far_from_the_computed_one_raises_one_pool_drift_per_account_pool_and_window(db):
     far, near, no_window, off = account(db), account(db), account(db), account(db)
 
@@ -1139,6 +1140,33 @@ def test_a_reported_balance_far_from_the_computed_one_raises_one_pool_drift_per_
     assert drifts(db, near) == [], "a report within the threshold raised an alert"
     assert drifts(db, no_window) == [] and drifts(db, off) == [], "an alert turned off was raised"
     assert pool_row(db, far)[0] == 9, "the report itself is recorded as before"
+
+
+DRIFT_BLOCK = Window("5h", "rolling", "UTC", {"free": 10}, 5, "reset")
+BLOCKED = {"video": PoolConfig("video", "jobs", "all", (DRIFT_BLOCK,), drift_alert=2), "image": NO_WINDOW}
+
+
+@mutation(P, "        span = window_span(w, now, cycle_start, _anchor(w, report))\n",
+          "        span = window_span(w, now, cycle_start, None)\n", expect="the new block")
+def test_a_drift_in_a_new_reset_block_is_raised_though_the_last_alert_was_minutes_ago(db):
+    """Codex 25/10: an alert at 04:55 for a block that resets at 05:00; a real drift at 05:01 belongs to the new block
+    (placed by the reset gemini reports) and must be raised, not held until about 09:55."""
+    a = account(db)
+    db.run("INSERT INTO billing_alerts (alert, account_id, scope, provider, expected, actual, at) "
+           "VALUES ('pool_drift', %s, 'video', 'p1', 10, 0, clock_timestamp() - interval '2 minutes')", a)
+    refill = datetime.now(UTC) + timedelta(hours=5) - MINUTE          # this block began a minute ago
+
+    async def scenario(p):
+        async with tx(p) as conn:
+            await pool.apply_effects(conn, a, [Balance("video", 0, refill, "5h")], CAPS, BLOCKED)
+
+    run(db, scenario)
+    assert len(drifts(db, a)) == 2, "the drift of the new block was held back: %s" % drifts(db, a)
+    now = datetime(2030, 3, 5, 5, 1, tzinfo=UTC)
+    report = Reported(0, now, datetime(2030, 3, 5, 10, 0, tzinfo=UTC), "5h")
+    assert pool.drift_window_start(BLOCKED["video"], now, None, report) == datetime(2030, 3, 5, 5, 0, tzinfo=UTC)
+    assert pool.drift_window_start(BLOCKED["video"], now, None, None) == now - timedelta(hours=5), \
+        "no reset known: the block slides"
 
 
 def test_the_drift_is_the_reported_balance_less_the_computed_one_and_the_threshold_is_the_setting():

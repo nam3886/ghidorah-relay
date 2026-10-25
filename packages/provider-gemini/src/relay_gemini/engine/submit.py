@@ -75,8 +75,8 @@ from relay_gemini.engine.check import (
     SHORT_WINDOW,
     WINDOWS,
     doubt_effects,
-    read_account,
     read_short_window,
+    read_spent,
     signed_out_why,
 )
 from relay_gemini.engine.http import Sessions, Site
@@ -264,10 +264,16 @@ def limit_effects(settings, now: datetime, code: str, text: str, video: bool,
     return (spent,) if spent is not None else ()
 
 
-async def usage_spent(site: Site, pool: str) -> Balance | None:
-    """The zero balance the usage read gives the pool when a usage window is used up (with its reset when named), read
-    right after a refusal (a read: it spends nothing); None when no window is used up or the read failed."""
-    return next((e for e in await read_account(site) if isinstance(e, Balance) and e.pool == pool), None)
+def pool_windows(settings, pool: str) -> tuple[str, ...]:
+    """The names of the pool's own windows (`gemini.pools`): the only usage windows that can empty it."""
+    return tuple(w["name"] for w in settings.get("gemini.pools").get(pool, {}).get("windows", []))
+
+
+async def usage_spent(site: Site, pool: str, settings) -> Balance | None:
+    """The zero balance the usage read gives the pool when a usage window of the pool's own is used up (until its
+    reset, naming it), read right after a refusal (a read: it spends nothing); None when none is used up, the pool has
+    no such window (a used-up 5-hour block never empties a pool that counts only a day) or the read failed."""
+    return await read_spent(site, pool, pool_windows(settings, pool))
 
 
 def short_balance(room: tuple[int, datetime | None]) -> Balance:
@@ -348,7 +354,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 await ctx.report_ref(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid})
             verdict, what = judge(status, answer, video=video)
             pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
-            spent = await usage_spent(site, pool) if pool else None
+            spent = await usage_spent(site, pool, settings) if pool else None
             return answer_result(status, answer, settings, now(), video=video, rid=rid, spent=spent)
     except httpx.HTTPError as e:
         why = "gemini could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL

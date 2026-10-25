@@ -676,7 +676,8 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                 since = _since(cfg, row[6], None, row[7])
                 charges = await (await conn.execute(_CHARGES, (account_id, cfg.name, since))).fetchall()
                 until = next_refill(cfg, row[6], charges, row[7])
-            await _drift_alert(conn, account_id, cfg, row, e.left_n)
+            await _drift_alert(conn, account_id, cfg, row,
+                               Reported(e.left_n, row[6], refill, e.window if named else None))
             await conn.execute(
                 "UPDATE account_pools SET reported_left = %(n)s, reported_at = clock_timestamp(), refill_at = %(r)s, "
                 "refill_window = %(w)s, "
@@ -741,22 +742,33 @@ _DRIFT_ALERT = (
     "AND b.scope = %(p)s AND b.at >= %(since)s)")
 
 
-async def _drift_alert(conn: AsyncConnection, account_id, cfg: PoolConfig, row: tuple, reported_left: int) -> None:
-    """A reported balance more than `cfg.drift_alert` units from the computed one (the window's budget for the
-    account's tier less its unrefunded charges) raises a `pool_drift` alert. Nothing when the pool cannot be computed
-    (no window, no budget for the tier) or the alert is off. In a savepoint of its own: a failing alert is logged and
-    never costs the result it rides on. The account row is locked, so the once-per-window check cannot race."""
+def drift_window_start(cfg: PoolConfig, now: datetime, cycle_start: date | None, report: Reported | None) -> datetime:
+    """When the pool's window that refills first began, as pool accounting places it: a calendar window's start, a
+    `reset` window's block placed by the reset the report names (`_anchor`, `window_span`), a sliding window's `hours`
+    back. The latest of those starts: a drift raised before it belongs to an earlier window."""
+    starts = []
+    for w in cfg.windows:
+        span = window_span(w, now, cycle_start, _anchor(w, report))
+        starts.append(span[0] if span is not None else now - timedelta(hours=w.hours))
+    return max(starts)
+
+
+async def _drift_alert(conn: AsyncConnection, account_id, cfg: PoolConfig, row: tuple, report: Reported) -> None:
+    """A reported balance (`report`, as it is being recorded: its refill and the window that refill ends) more than
+    `cfg.drift_alert` units from the computed one (the windows' budgets for the account's tier less their unrefunded
+    charges, placed as the next claim places them) raises a `pool_drift` alert, once per window (`drift_window_start`).
+    Nothing when the pool cannot be computed (no window, no budget for the tier) or the alert is off. In a savepoint of
+    its own: a failing alert is logged and never costs the result it rides on. The account row is locked, so the
+    once-per-window check cannot race."""
     if cfg.drift_alert is None or not cfg.windows:
         return
-    now, cycle_start = row[6], row[7]
-    since = _since(cfg, now, None, cycle_start)
-    # the window that refills first: its current start (a calendar window's, or a rolling one's `hours` back)
-    window_start = max(_calendar_span(w, now, cycle_start)[0] if w.kind != "rolling"
-                       else now - timedelta(hours=w.hours) for w in cfg.windows)
+    now, cycle_start, reported_left = row[6], row[7], report.left
+    since = _since(cfg, now, report, cycle_start)
+    window_start = drift_window_start(cfg, now, cycle_start, report)
     try:
         async with conn.transaction():
             charges = await (await conn.execute(_CHARGES, (account_id, cfg.name, since))).fetchall()
-            computed = standing(cfg, row[5], charges, now, None, cycle_start).computed
+            computed = standing(cfg, row[5], charges, now, report, cycle_start).computed
             if computed is None or abs(reported_left - computed) <= cfg.drift_alert:
                 return
             await conn.execute(_DRIFT_ALERT, {

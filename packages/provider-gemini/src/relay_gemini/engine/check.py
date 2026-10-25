@@ -21,7 +21,7 @@ of the 5-hour window's 2400 units). A read that fails changes neither: the store
 """
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -73,6 +73,33 @@ async def read_account(site: Site) -> tuple[Balance | Tier, ...]:
     except httpx.HTTPError:
         return ()
     return account_read(body) if status == 200 else ()
+
+
+def spent_balance(text: str, pool: str, windows: Iterable[str]) -> Balance | None:
+    """A zero balance for `pool` when a usage window it counts is used up: `windows` are the names of the pool's own
+    `gemini.pools` windows, and only a jSf9Qc window of one of those names (`WINDOWS`) counts. Until the latest reset
+    among them, naming that window (with no window named when a reset cannot be read). None when no window of the
+    pool is used up or the answer cannot be read."""
+    usage = usage_of(text)
+    names = set(windows)
+    spent = [(reset, WINDOWS[code]) for left, reset, code in (usage[1] if usage else ())
+             if left <= 0 and WINDOWS.get(code) in names]
+    if not spent:
+        return None
+    known = [s for s in spent if s[0] is not None and epoch_time(s[0]) is not None]
+    if len(known) < len(spent):
+        return Balance(pool, 0)
+    reset, name = max(known)
+    return Balance(pool, 0, epoch_time(reset), name)
+
+
+async def read_spent(site: Site, pool: str, windows: Iterable[str]) -> Balance | None:
+    """`spent_balance` of the account's usage now (a read: it spends nothing); None when gemini does not answer."""
+    try:
+        status, body = await site.rpc(USAGE, [], path=USAGE_PATH)
+    except httpx.HTTPError:
+        return None
+    return spent_balance(body, pool, windows) if status == 200 else None
 
 
 def short_window(text: str) -> tuple[int, datetime | None] | None:

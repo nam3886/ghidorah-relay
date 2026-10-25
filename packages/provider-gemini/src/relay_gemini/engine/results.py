@@ -149,7 +149,7 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
             verdict, what = judge(200, turn.answer(chat), video=is_video(job))
             # the usage reads (they spend nothing) while the site is open: a limit's reset, a silent render's window
             pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
-            spent = await usage_spent(site, pool) if pool else None
+            spent = await usage_spent(site, pool, settings) if pool else None
             room = await read_short_window(site) if verdict == "taken" and silent_due(job, settings, now()) else None
     except httpx.HTTPError as e:
         return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))

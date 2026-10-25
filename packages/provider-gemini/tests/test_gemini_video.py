@@ -599,7 +599,7 @@ def usage(left: int) -> str:
     return PRO_USAGE.replace("[2400,0,1,", "[%d,0,1," % left)
 
 
-USAGE_SPENT = "            spent = await usage_spent(site, pool) if pool else None\n"
+USAGE_SPENT = "            spent = await usage_spent(site, pool, settings) if pool else None\n"
 IMAGE_READ = '    return pool if code == errors.REFUSED else None'
 
 
@@ -630,8 +630,30 @@ def test_a_limit_empties_the_pool_until_the_reset_the_usage_read_names_and_an_im
         result.account,)
 
 
+CHECK_FILE = "packages/provider-gemini/src/relay_gemini/engine/check.py"
+OWN_WINDOW = "             if left <= 0 and WINDOWS.get(code) in names]"
+POOL_NAMES = '    return tuple(w["name"] for w in settings.get("gemini.pools").get(pool, {}).get("windows", []))'
+
+
+@mutation(CHECK_FILE, OWN_WINDOW, "             if left <= 0]", expect="a window the pool does not have")
+@mutation(SUBMIT_FILE, POOL_NAMES, '    return ("day", "5h", "week")', expect="a window the pool does not have")
+def test_a_used_up_five_hour_block_never_empties_the_pro_image_pool_that_counts_only_a_day():
+    """Codex 25/10: videos use up the 5-hour block, then an unrelated Nano Banana 2.1 job is refused. `image_pro`
+    counts only a day (spec `POOL_DEFAULTS`), so the used-up block must not empty it; an `image` job, whose pool counts
+    the block, is emptied until the block resets, naming it."""
+    log = []
+    result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), nb21_ctx(log),
+                 job(model=NB21))
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED
+    assert not any(isinstance(e, Balance) for e in result.account), \
+        "a window the pool does not have emptied image_pro: %s" % (result.account,)
+    log = []
+    result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), pro_ctx(log), job())
+    assert [e for e in result.account if isinstance(e, Balance)] == [Balance("image", 0, RESET, "5h")]
+
+
 SHORT = "                if video_room_short(settings, room):\n"
-ROOM = '    return room is not None and room[0] < int(settings.get("gemini.video_usage_units"))'
+ROOM ='    return room is not None and room[0] < int(settings.get("gemini.video_usage_units"))'
 
 
 @mutation(SUBMIT_FILE, SHORT, "                if False:\n", expect="sent into a used-up window")
