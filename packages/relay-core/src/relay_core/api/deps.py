@@ -54,6 +54,7 @@ async def require_key(request: Request, pool: AsyncConnectionPool = Depends(get_
     try:
         async with pool.connection() as conn:
             key = await keys.lookup(conn, credential(request))
+            await keys.touch(conn, key.id, client_ip(request))
     except KeyRefused:
         raise ApiError("auth.invalid_key") from None
     except KeyDisabled as e:

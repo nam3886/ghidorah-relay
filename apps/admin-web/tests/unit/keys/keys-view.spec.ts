@@ -34,6 +34,8 @@ const key = (over: Partial<ApiKey> = {}): ApiKey => ({
   max_unfinished: null,
   max_unfinished_effective: 3,
   created_ms: 1,
+  last_used_ms: null,
+  last_used_ip: null,
   jobs: 0,
   unfinished: 0,
   wallets: [],
@@ -203,10 +205,26 @@ describe("the list", () => {
       "dola 288 / 300",
       "vibes",
     ]);
-    expect(row.text()).toContain("1,912 jobs");
-    expect(row.text()).toContain("2 / unlimited unfinished");
+    expect(row.find(".t-last").attributes("title")).toBe("1,912 jobs · 2 / unlimited unfinished");
+    expect(row.find(".t-last").text()).toBe("never");
     expect(w.find("img").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
+  });
+
+  it("Last used is the key's last call with its address under it, and never for a key never used", async () => {
+    const now = Date.now();
+    list.mockResolvedValue({
+      items: [
+        key({ id: "a", label: "used", last_used_ms: now - 2 * 60_000 - 5_000, last_used_ip: "203.0.113.8" }),
+        key({ id: "b", label: "idle" }),
+      ],
+    });
+    const w = await open();
+    const [used, idle] = w.findAll("tbody tr");
+    expect(used!.find(".t-last__n").text()).toBe("2 min ago");
+    expect(used!.find(".t-last .meta").text()).toBe("203.0.113.8");
+    expect(idle!.find(".t-last__n").text()).toBe("never");
+    expect(idle!.find(".t-last .meta").exists()).toBe(false);
   });
 
   it("a paused key carries the one pill of the row, and an empty wallet is red", async () => {
@@ -775,6 +793,10 @@ describe("the key form as the design draws it", () => {
     expect(drawerEl().textContent).not.toContain("unsaved");
     await typeLabel("shop 2");
     expect(drawerEl().textContent).toContain("1 unsaved change");
+    // clearing Any model changes the allowed models: a second change
+    document.body.querySelector<HTMLInputElement>(".kf__any input")!.click();
+    await settle();
+    expect(drawerEl().textContent).toContain("2 unsaved changes");
   });
 });
 
@@ -887,7 +909,7 @@ describe("a key with no label in the list", () => {
     const block = w.find(".p-key");
     expect(block.find(".p-key__title").text()).toBe("rk_none");
     expect(block.find(".p-key__title").classes()).toContain("mono");
-    expect(block.find(".p-key__sub").text()).toBe("3 jobs");
+    expect(block.find(".p-key__sub").text()).toBe("never used");
   });
 
   it("the delete question names it by its prefix", async () => {
@@ -1151,7 +1173,7 @@ describe("the tablet and the phone", () => {
     const [shop, any, empty] = w.findAll(".p-key");
     expect(shop!.find(".pill").text()).toBe("Low");
     expect(shop!.find(".p-key__right").text()).toBe("50 pts");
-    expect(shop!.find(".p-key__sub").text()).toBe("rk_abcd•••• · 61 jobs");
+    expect(shop!.find(".p-key__sub").text()).toBe("rk_abcd•••• · never used");
     expect(shop!.findAll('[data-testid="cap-chip"]')).toHaveLength(1);
     expect(shop!.find('button[aria-label="Edit key shop"]').exists()).toBe(true);
     expect(buttonIn(shop!.element, "Adjust wallet")).toBeDefined();

@@ -8,6 +8,7 @@ Functions take the caller's connection (see `relay_core.db.tx`).
 
 import hashlib
 import hmac
+import logging
 import re
 import secrets
 import uuid
@@ -18,6 +19,8 @@ import psycopg
 
 from relay_core import billing
 from relay_core.billing import KeyDisabled
+
+log = logging.getLogger("relay.keys")
 
 PREFIX = "rk-"
 LOOKUP_LEN = len(PREFIX) + 8                 # the stored, indexed head of the raw key
@@ -90,6 +93,31 @@ async def lookup(conn: psycopg.AsyncConnection, raw: str) -> ApiKey:
                 raise KeyDisabled(key_id=key_id)
             return ApiKey(key_id, label, tuple(models), max_unfinished)
     raise KeyRefused()
+
+
+# A key's last call is written at most once a minute, so a busy key costs no write per request.
+TOUCH_EVERY_S = 60
+
+
+# The row is taken only if nobody holds it (SKIP LOCKED): a request never waits behind another request of the same key,
+# whose own touch records the call anyway. A time in the future (a clock that was wrong) counts as stale.
+_TOUCH = (
+    "UPDATE api_keys SET last_used_at = clock_timestamp(), last_used_ip = %s WHERE id = ("
+    "SELECT id FROM api_keys WHERE id = %s AND (last_used_at IS NULL "
+    "OR last_used_at <= clock_timestamp() - make_interval(secs => %s) OR last_used_at > clock_timestamp()) "
+    "FOR UPDATE SKIP LOCKED)")
+
+
+async def touch(conn: psycopg.AsyncConnection, key_id, ip: str) -> bool:
+    """Record that `key_id` was just used from `ip`, unless its stored time is under TOUCH_EVERY_S old. True when
+    the row was written. Best effort: a database error is logged and swallowed, since the record must never fail
+    the request it describes. `updated_at` stays: it is the time of the key's last edit."""
+    try:
+        cur = await conn.execute(_TOUCH, (ip, key_id, TOUCH_EVERY_S))
+    except psycopg.Error as e:
+        log.warning("last-used of key %s not recorded: %s", key_id, type(e).__name__)
+        return False
+    return cur.rowcount > 0
 
 
 async def set_enabled(conn: psycopg.AsyncConnection, key_id, enabled: bool) -> bool:

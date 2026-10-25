@@ -159,14 +159,19 @@ def _owner(dsn):
 
 
 def _below_0020(tmp_path, monkeypatch, dsn):
-    """Migrate `dsn` to 0019 only (a copy of the files in `tmp_path`), then put the real directory back."""
-    real = migrate.MIGRATIONS
-    for version, path in migration_files():
+    """Migrate `dsn` to 0019 only (a copy of the files in `tmp_path`), then point at a copy that ends at 0020, so the
+    next run applies 0020 alone and a later expand migration does not blur what 0020 kept."""
+    files = migration_files()
+    upto = tmp_path / "upto20"
+    upto.mkdir()
+    for version, path in files:
         if version < 20:
             (tmp_path / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        if version <= 20:
+            (upto / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(migrate, "MIGRATIONS", tmp_path)
     assert run_migrations(dsn)[-1] == 19
-    monkeypatch.setattr(migrate, "MIGRATIONS", real)
+    monkeypatch.setattr(migrate, "MIGRATIONS", upto)
 
 
 def _plant_the_0019_schema(c):
@@ -343,3 +348,33 @@ def test_the_ledger_refuses_a_refund_that_is_not_the_full_reversal_of_its_charge
     with pytest.raises(psycopg.errors.CheckViolation):
         db.run(insert, key, "*", job, "p1", 5, refund)         # a refund of a refund: a refund is of a charge only
     assert db.one("SELECT count(*) FROM ledger WHERE entry = 'refund'")[0] == 1
+
+
+# ---- key_last_used: when and from where a key last called /v1 ---------------------------------------------------
+LAST_USED = next(v for v, p in migration_files() if p.name.endswith("_key_last_used.sql"))
+
+
+def test_key_last_used_adds_two_empty_columns_keeps_every_key_and_lets_the_api_role_write_them(tmp_path, monkeypatch):
+    with disposable_database() as dsn:
+        real = migrate.MIGRATIONS
+        for version, path in migration_files():
+            if version < LAST_USED:
+                (tmp_path / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(migrate, "MIGRATIONS", tmp_path)
+        assert run_migrations(dsn)[-1] == LAST_USED - 1
+        monkeypatch.setattr(migrate, "MIGRATIONS", real)
+        key = uuid.uuid4()
+        with _owner(dsn) as c:
+            c.execute("INSERT INTO api_keys (id, key_hash, key_prefix, label) VALUES (%s, 'h', 'rk-old', 'kept')",
+                      (key,))
+        assert run_migrations(dsn) == [LAST_USED]
+        with _owner(dsn) as c:
+            row = _rows(c, "api_keys", "id = '%s'" % key)[0]
+        assert (row["label"], row["key_prefix"], row["last_used_at"], row["last_used_ip"]) == (
+            "kept", "rk-old", None, None)
+        login = psycopg.conninfo.make_conninfo(dsn, user="relay_api", password=API_PASSWORD,
+                                               options="-c search_path=relay")
+        with psycopg.connect(login, autocommit=True) as c:
+            c.execute("UPDATE api_keys SET last_used_at = now(), last_used_ip = '203.0.113.8' WHERE id = %s", (key,))
+        with _owner(dsn) as c:
+            assert _rows(c, "api_keys", "id = '%s'" % key)[0]["last_used_ip"] == "203.0.113.8"

@@ -304,3 +304,19 @@ def test_a_label_is_stored_without_its_edges_and_a_label_of_spaces_is_no_label(d
     assert cleared.status_code == 200 and cleared.json()["label"] == "" and trimmed.json()["label"] == "b", (
         "a patch to spaces is stored as it came")
     assert label(named) == "b"
+
+
+@mutation(ROUTES, '"last_used_ms": ms(r[8]), "last_used_ip": r[9],', '"last_used_ms": None, "last_used_ip": None,',
+          expect="the list does not say when and from where")
+def test_the_list_says_when_a_key_was_last_used_and_from_where_and_null_for_a_key_never_used(db):
+    async def scenario(env):
+        h = await env.admin_headers()
+        used, idle = await env.new_key(), await env.new_key()
+        db.run("UPDATE api_keys SET last_used_at = '2026-10-24 08:00:00+00', last_used_ip = '203.0.113.8' "
+               "WHERE id = %s", used.id)
+        return {k["id"]: k for k in (await env.client.get("/admin/keys", headers=h)).json()["items"]}, used, idle
+
+    listed, used, idle = run_app(db, scenario)
+    assert (listed[str(used.id)]["last_used_ms"], listed[str(used.id)]["last_used_ip"]) == (
+        1792828800000, "203.0.113.8"), "the list does not say when and from where"
+    assert (listed[str(idle.id)]["last_used_ms"], listed[str(idle.id)]["last_used_ip"]) == (None, None)

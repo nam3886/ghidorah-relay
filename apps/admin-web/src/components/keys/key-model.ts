@@ -17,6 +17,19 @@ export function createdText(ms: number | null, now: number = Date.now()): string
   return d.getFullYear() === new Date(now).getFullYear() ? date : `${date} ${d.getFullYear()}`;
 }
 
+// A key's last call as Keys.dc.html writes it: "just now", "2 min ago", "1 h ago", "yesterday", "12 days ago", or
+// "never". The server writes the time at most once a minute, so a minute is the finest step.
+export function lastUsedText(ms: number | null, now: number = Date.now()): string {
+  if (!ms) return "never";
+  const minutes = Math.floor(Math.max(0, now - ms) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
 // When a key's day counters start again, on the GMT+7 clock: the billing day is 00:00 UTC (billing.DEFAULT_TZ).
 // ponytail: fixed text; a deployment that pins another BILLING_TZ needs the zone served by the API to say it right.
 export const DAY_RESET = "07:00";

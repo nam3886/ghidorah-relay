@@ -19,6 +19,7 @@ import {
   keyName,
   keyReaches,
   keyState,
+  lastUsedText,
   loadFailedText,
   modelGroups,
   planChange,
@@ -86,6 +87,21 @@ describe("createdText", () => {
   });
 });
 
+describe("lastUsedText", () => {
+  const now = new Date(2026, 9, 25, 12, 0, 0).getTime();
+  const ago = (ms: number) => lastUsedText(now - ms, now);
+  it("writes the last call as the list does, never for none", () => {
+    expect(lastUsedText(null, now)).toBe("never");
+    expect(ago(59_000)).toBe("just now");
+    expect(ago(2 * 60_000 + 5_000)).toBe("2 min ago");
+    expect(ago(59 * 60_000)).toBe("59 min ago");
+    expect(ago(60 * 60_000)).toBe("1 h ago");
+    expect(ago(23 * 3_600_000)).toBe("23 h ago");
+    expect(ago(30 * 3_600_000)).toBe("yesterday");
+    expect(ago(12 * 86_400_000)).toBe("12 days ago");
+  });
+});
+
 describe("loadFailedText", () => {
   it("words a failed list as the canvas does, with the relay's status when it answered", () => {
     expect(loadFailedText(new ApiError(502, { error: { message: "bad gateway" } }), "bad gateway")).toBe(
@@ -140,6 +156,8 @@ describe("walletScopes and keyForm", () => {
       max_unfinished: 0,
       max_unfinished_effective: 0,
       created_ms: 1,
+      last_used_ms: null,
+      last_used_ip: null,
       jobs: 0,
       unfinished: 0,
       wallets: [
@@ -309,6 +327,8 @@ const keyOf = (over: Partial<ApiKey> = {}): ApiKey => ({
   max_unfinished: null,
   max_unfinished_effective: 5,
   created_ms: 1,
+  last_used_ms: null,
+  last_used_ip: null,
   jobs: 0,
   unfinished: 0,
   wallets: [],

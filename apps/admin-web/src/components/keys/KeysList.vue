@@ -16,6 +16,7 @@ import {
   jobsText,
   keyName,
   keyState,
+  lastUsedText,
   pointsWallet,
   STATE_PILL,
   DAY_RESET,
@@ -61,6 +62,8 @@ const state = computed(() =>
 
 const balance = (k: ApiKey) => balanceOf(pointsWallet(k));
 const caps = (k: ApiKey) => capChips(k, props.catalog, props.only);
+// the phone line under the name: "used 2 min ago", or "never used" (KeysPhone)
+const usedText = (k: ApiKey) => (k.last_used_ms ? `used ${lastUsedText(k.last_used_ms)}` : "never used");
 const walletLabel = (k: ApiKey) => {
   const b = balance(k);
   return `Adjust wallet of ${keyName(k)}, ${b.left === null ? b.word : `${balanceText(b)} points`}`;
@@ -168,7 +171,7 @@ const ICONS = {
         <span class="p-key__title k-label" :class="{ 'k-label--prefix mono': !k.label.trim() }">{{ keyName(k) }}</span>
         <span class="p-key__sub"
           ><span v-if="k.label.trim()" class="mono">{{ k.prefix }}••••</span
-          ><template v-if="k.label.trim()"> · </template>{{ jobsText(k) }}</span
+          ><template v-if="k.label.trim()"> · </template>{{ usedText(k) }}</span
         >
         <span v-if="caps(k).length" class="p-key__caps">
           <CapChip
@@ -282,10 +285,10 @@ const ICONS = {
               </div>
               <span v-else class="meta">no provider open</span>
             </td>
-            <!-- the relay keeps no time of a key's last call: an honest dash, the key's jobs under it -->
-            <td class="t-last">
-              <div class="t-last__n" title="The relay does not record when a key was last used">—</div>
-              <div class="meta num">{{ jobsText(k) }} · {{ unfinishedText(k) }} unfinished</div>
+            <!-- the key's last call and its address; its jobs on hover -->
+            <td class="t-last" :title="`${jobsText(k)} · ${unfinishedText(k)} unfinished`">
+              <div class="t-last__n num">{{ lastUsedText(k.last_used_ms) }}</div>
+              <div v-if="k.last_used_ip" class="meta mono">{{ k.last_used_ip }}</div>
             </td>
             <td class="t-act">
               <ActionMenu

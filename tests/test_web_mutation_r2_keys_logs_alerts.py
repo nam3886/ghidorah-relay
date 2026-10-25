@@ -38,7 +38,7 @@ QUERY = f"FAILED {WINDOW_SPEC} > logQuery > "
 WRITTEN = f"FAILED {WINDOW_SPEC} > how a request is written > "
 BODY = f"FAILED {KEY_SPEC} > keyBody (the create and edit payload) > "
 BALANCE = f"FAILED {KEY_SPEC} > balanceOf > "
-TODAY = f"FAILED {KEY_SPEC} > todayText > "
+KEY_TODAY = f"FAILED {KEY_SPEC} > todayText > "
 PLAN = f"FAILED {KEY_SPEC} > planChange (Adjust wallet) > "
 CREATED = f"FAILED {KEY_SPEC} > createdText > "
 ONE_TIME = f"FAILED {KEYS_VIEW_SPEC} > the one-time key > "
@@ -152,7 +152,7 @@ def test_the_key_body_sends_what_the_form_means():
 @mutation(KEY_MODEL, "const limit = (byTotal ? w.total_limit : w.day_limit) ?? 0;", "const limit = w.total_limit ?? 0;",
           expect=BALANCE + "a day limit alone is what is left of today's")
 @mutation(KEY_MODEL, "? `−${n(w.used_day)} of ${n(w.day_limit)} today`", "? `−${n(w.used_day)} today`",
-          expect=TODAY + "says what was spent today, against the day limit when there is one")
+          expect=KEY_TODAY + "says what was spent today, against the day limit when there is one")
 @mutation(KEY_MODEL, "d.getFullYear() === new Date(now).getFullYear() ? date :", "true ? date :",
           expect=CREATED + "a key of an earlier year adds the year")
 @mutation(KEY_MODEL, "const date = `${d.getDate()} ${MONTHS[d.getMonth()]}`;",
@@ -161,6 +161,21 @@ def test_the_key_body_sends_what_the_form_means():
 @pytest.mark.web_unit
 def test_the_balance_the_line_of_today_and_the_created_date_are_written_right():
     vitest(KEY_SPEC)
+
+
+LAST_USED = f"FAILED {KEY_SPEC} > lastUsedText > writes the last call as the list does, never for none"
+LAST_USED_ROW = KEYS_LIST + "Last used is the key's last call with its address under it, and never for a key never used"
+
+
+@mutation(KEY_MODEL, 'if (!ms) return "never";', 'if (!ms) return "-";', expect=LAST_USED)
+@mutation(KEY_MODEL, 'return days === 1 ? "yesterday" : `${days} days ago`;', "return `${days} days ago`;",
+          expect=LAST_USED)
+@mutation(KEY_MODEL, "if (minutes < 60) return `${minutes} min ago`;", "", expect=LAST_USED)
+@mutation(KEY_LIST, '<div v-if="k.last_used_ip" class="meta mono">{{ k.last_used_ip }}</div>', "",
+          expect=LAST_USED_ROW)
+@pytest.mark.web_unit
+def test_last_used_is_written_as_the_design_does_with_the_address_under_it():
+    vitest(KEY_SPEC, KEYS_VIEW_SPEC)
 
 
 # ---- the order of the wallets -----------------------------------------------------------------------------------

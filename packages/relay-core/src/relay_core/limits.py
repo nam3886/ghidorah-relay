@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import Any
 
-from relay_core import budget, frames, leases
+from relay_core import budget, frames, keys, leases
 from relay_core.admin import auth, router, routes_accounts, routes_jobs, routes_stats, users
 from relay_core.api import doors, facade_common, progress, runners
 from relay_core.jobs import (
@@ -98,6 +98,7 @@ CORE: tuple[FixedLimit, ...] = (
     _c(runners, "HOUSEKEEPING_EVERY_S", "the api sweeps old rows and orphan files this often", "s"),
     _c(runners, "LEDGER_EVERY_S", "the api checks the billing ledger this often", "s"),
     # ---- requests ---------------------------------------------------------------------------------------------
+    _c(keys, "TOUCH_EVERY_S", "a key's last call and address are written at most this often (Keys, Last used)", "s"),
     _c(doors, "MAX_IMAGES", "input images in one request", "images"),
     _c(doors, "MAX_IMAGE_BYTES", "one input image", "bytes"),
     _c(doors, "MAX_TITLE", "characters of a job title", "chars"),

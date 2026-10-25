@@ -119,6 +119,7 @@ def _models(models: list[str]) -> list[str]:
 
 _LIST = (
     "SELECT k.id, k.key_prefix, k.label, k.enabled, k.models, k.max_unfinished, k.created_at, k.updated_at, "
+    "k.last_used_at, k.last_used_ip, "
     "(SELECT count(*) FROM jobs j WHERE j.key_id = k.id), "
     "(SELECT count(*) FROM jobs j WHERE j.key_id = k.id AND j.status NOT IN ('done', 'failed')) "
     "FROM api_keys k WHERE (%(id)s::uuid IS NULL OR k.id = %(id)s) ORDER BY k.created_at DESC, k.id")
@@ -138,7 +139,8 @@ async def _views(conn, settings: Settings, key_id=None) -> list[dict]:
     default = settings.get("max_unfinished_default")
     return [{"id": str(r[0]), "prefix": r[1], "label": r[2], "enabled": r[3], "models": list(r[4]),
              "max_unfinished": r[5], "max_unfinished_effective": default if r[5] is None else r[5],
-             "created_ms": ms(r[6]), "updated_ms": ms(r[7]), "jobs": r[8], "unfinished": r[9],
+             "created_ms": ms(r[6]), "updated_ms": ms(r[7]), "last_used_ms": ms(r[8]), "last_used_ip": r[9],
+             "jobs": r[10], "unfinished": r[11],
              "wallets": wallets.get(r[0], [])} for r in rows]
 
 

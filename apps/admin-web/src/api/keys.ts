@@ -22,6 +22,9 @@ export interface ApiKey {
   max_unfinished: number | null;
   max_unfinished_effective: number;
   created_ms: number | null;
+  // the key's last /v1 call (written at most once a minute) and the address it came from; null when never used
+  last_used_ms: number | null;
+  last_used_ip: string | null;
   jobs: number;
   unfinished: number;
   wallets: Wallet[];
