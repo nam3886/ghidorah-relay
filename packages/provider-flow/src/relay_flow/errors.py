@@ -29,7 +29,7 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "flow did not take an input image; the order was not sent"),
     # the plan read right before the send (a backstop: the option's pool already holds nothing on a plan without
     # it): not the order's fault, so it uses no attempt until the job has met it 5 times; another account may take it
-    Rule(TIER_REQUIRED, 503, "api_error", True, False, False, True, True,
+    Rule(TIER_REQUIRED, 503, "api_error", False, False, False, True, True,
          "no flow account of a plan that offers this option took the order; it was not sent", free_retries=5),
     # The solver's own faults: ours to fix (a key, a top-up), never the flow account's; nothing was sent.
     Rule(CAPTCHA_KEY_INVALID, 502, "api_error", True, False, True, False, True,

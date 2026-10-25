@@ -78,11 +78,11 @@ POOL_DEFAULTS = {"image": day_pool({"free": 40}),
                  "video": {"combine": "sum", "windows": [
                      {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 50, "pro": 50}},
                      {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]},
-                 # Quality (100 credits): nothing on a free account; Ultra's 25000 a month is its plan page's, not
+                 # Quality (100 credits): nothing on a free account; Pro's 1050 (a month's 1000 and a day's 50: the
+                 # credit read before the send is the real guard); Ultra's 25000 a month is its plan page's, not
                  # measured (no Ultra account)
                  "video_pro": {"combine": "sum", "windows": [
-                     {"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 0, "pro": 50, "ultra": 50}},
-                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 1000,
+                     {"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 1050,
                                                                                 "ultra": 25000}}]},
                  # Veo's 4 s and 6 s: nothing below Ultra
                  "video_ultra": {"combine": "sum", "windows": [

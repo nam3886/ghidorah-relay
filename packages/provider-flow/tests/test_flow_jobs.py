@@ -68,6 +68,7 @@ WALL = 1_792_737_600.0          # the wall clock of the runs; the imported jar w
 GOOD = frame("ogiZ0b", GENERATED["payload"])
 SIGNED_LINK = GENERATED["payload"][0][0][6][0][13]
 TOKENS = ("tok-%d-" % i + "x" * 40 for i in range(1000))
+ALL_POOLS = ("image", "video", "video_pro", "video_ultra")      # every pool rests after a generate
 
 
 def job(state=None, ref=None, ratio="16:9", model="flow-nano-banana-2.1", prompt="a red paper boat", sent=None,
@@ -159,7 +160,7 @@ def test_the_batch_is_written_ahead_and_marked_sent_right_before_the_one_generat
     assert result.job.outputs == (Output(SIGNED_LINK, "image/jpeg", 0, IMG2_MEDIA, {"batch": batch}),)
     assert SIGNED_LINK.startswith("https://flow-content.google/image/" + IMG2_MEDIA)
     assert Success() in result.account and rested(result) == [
-        Rest(pool, NOW + timedelta(seconds=300), "flow pacing between two generates") for pool in ("image", "video")]
+        Rest(pool, NOW + timedelta(seconds=300), "flow pacing between two generates") for pool in ALL_POOLS]
 
 
 @mutation(SUBMIT_FILE, "    return job.prompt if job.frame_id is None else job.sent_text", "    return job.prompt",
@@ -226,7 +227,7 @@ def test_a_code_8_too_much_traffic_ends_the_tries_requeues_the_job_and_rests_the
     batches = [args_of(p)[4][0] for p in flow.calls("ogiZ0b")]
     assert result.job == NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches})
     assert rested(result) == [Rest(p, NOW + timedelta(seconds=1800), "flow said too much traffic (code 8)")
-                              for p in ("image", "video")], "the traffic rest: %s" % rested(result)
+                              for p in ALL_POOLS], "the traffic rest: %s" % rested(result)
     assert "code 8" in ctx.events[-1] and not any(isinstance(e, Success) for e in result.account)
     # a pacing longer than the traffic rest is kept; a rest of 0 leaves the pacing alone
     for cfg, secs in ((settings(flow__account_min_gap_s=3600), 3600), (settings(flow__traffic_rest_s=0), 300)):

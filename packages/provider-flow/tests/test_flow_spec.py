@@ -151,7 +151,7 @@ def test_flow_registers_its_codes_on_load():
     for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
         counts = code != "flow.tier_required"      # not the order's fault: uses no attempt (a bounded few times)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, counts, code not in ours), code
+        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, counts, counts, code not in ours), code
 
 
 # ---- plan ----------------------------------------------------------------------------------------------------------
@@ -481,16 +481,12 @@ def test_what_flow_does_not_offer_for_a_video_is_refused():
         priced(VIDEO, cfg=FakeSettings(SPEC, flow__pools={"video": day_pool({"free": 9})}))
 
 
-FREE_NONE = '{"name": "24h", "kind": "rolling", "hours": 24, "budget": {"free": 0, "pro": 50, "ultra": 50}},'
-ULTRA_ONLY = '{"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0, "pro": 0,'
-
-
-@mutation(SPEC_FILE, FREE_NONE, '{"name": "24h", "kind": "rolling", "hours": 24, "budget": {"pro": 50, "ultra": 50}},',
+@mutation(SPEC_FILE, '"budget": {"free": 0, "pro": 1050,', '"budget": {"pro": 1050,',
           expect="a free account could take")
-@mutation(SPEC_FILE, ULTRA_ONLY, '{"name": "month", "kind": "month", "tz": "UTC", "budget": {"free": 0,',
+@mutation(SPEC_FILE, '"budget": {"free": 0, "pro": 0,', '"budget": {"free": 0, "pro": 1000,',
           expect="a pro account could take")
 @mutation(SPEC_FILE, "            pool=C.video_pool(req.model, duration), submit_timeout_s=SUBMIT_TIMEOUT_S)",
-          '            pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)', expect="a free account could take")
+          '            pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)', expect="a pro account could take")
 def test_the_claim_never_offers_quality_to_a_free_account_nor_4_s_below_ultra():
     """Codex review 25/10: the tier is the pool's budget, so the claim (`can_afford`) passes over an account whose plan
     lacks the option: with three free accounts ahead of a Pro one, a Quality job can only land on the Pro one (the
@@ -508,5 +504,5 @@ def test_the_claim_never_offers_quality_to_a_free_account_nor_4_s_below_ultra():
     assert takers(plan(VIDEO, duration=4), accounts + ["ultra"]) == [4], "a pro account could take Veo 4 s"
     assert takers(plan(VIDEO), accounts) == [0, 1, 2, 3], "Lite 8 s runs on every plan"
     r = errors.rule("flow.tier_required")
-    assert (r.counts_attempt, r.refund, r.terminal) == (False, True, False) and 0 < r.free_retries < 10, \
+    assert (r.counts_attempt, r.terminal) == (False, False) and 0 < r.free_retries < 10, \
         "the plan backstop uses no attempt, a bounded number of times"

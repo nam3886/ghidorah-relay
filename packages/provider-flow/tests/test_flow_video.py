@@ -32,7 +32,7 @@ from flowkit import (
     frame,
     settings,
 )
-from test_flow_jobs import NOW, WALL, Clock, Tokens, rested
+from test_flow_jobs import ALL_POOLS, NOW, WALL, Clock, Tokens, rested
 
 from relay_core import frames
 from relay_core.providers import (
@@ -142,7 +142,7 @@ def test_a_video_is_written_ahead_marked_sent_right_before_its_one_send_and_acce
     assert Success() in result.account and Balance("video", 40) in result.account, "the new balance: %s" % (
         result.account,)
     assert rested(result) == [Rest(p, NOW + timedelta(seconds=300), "flow pacing between two generates")
-                              for p in ("image", "video")]
+                              for p in ALL_POOLS]
 
 
 # without the guard a balance that did not fall makes a cost of 0 or less, which Facts refuses: the submit would crash
