@@ -35,7 +35,7 @@ SUBMIT_FILE = "packages/provider-meta/src/relay_meta/engine/submit.py"
 OTHER = "11111111-2222-3333-4444-555555555555"
 
 
-def reconcile(page, cap, *, kind="image", ref="warmed", state=None, opened=None):
+def reconcile(page, cap, *, kind="image", ref="warmed", state=None, opened=None, n=None):
     """One reconcile of the job whose chat is `ref` (the warmed-up uuid of the capture by default)."""
     ctx = Ctx(page.log)
 
@@ -48,8 +48,8 @@ def reconcile(page, cap, *, kind="image", ref="warmed", state=None, opened=None)
 
     clock = Clock()
     deps = S.Deps(open_session=fake_open, sleep=clock.sleep, clock=clock, signal_wait_s=0)
-    job = SimpleNamespace(params={"kind": kind}, external_ref=warmed_uuid(cap) if ref == "warmed" else ref,
-                          provider_state=state or {})
+    job = SimpleNamespace(params={"kind": kind, **({"n": n} if n else {})},
+                          external_ref=warmed_uuid(cap) if ref == "warmed" else ref, provider_state=state or {})
     return asyncio.run(R.reconcile(ctx, job, FakeSettings(SPEC), deps=deps, read_wait_s=5))
 
 
@@ -63,18 +63,27 @@ def sent_nothing(page) -> bool:
           '        await page.keyboard.press("Enter")\n'
           '        await page.goto(SITE_URL + "prompt/" + conversation, wait_until="domcontentloaded",',
           expect="reconcile never sends")
+@mutation(RECONCILE_FILE, 'media_outputs(answer.media, conversation, kind, job.params.get("n"))]',
+          "media_outputs(answer.media, conversation, kind)]", expect="the second unpaid")
 def test_a_done_answer_in_the_reopened_chat_is_found_with_its_final_links_and_nothing_is_sent():
-    for folder, kind in (*((f, "image") for f, _ in IMAGE_RUNS), (VIDEO, "video"), (I2I, "image"), (T2V, "video")):
+    for folder, kind, n in (*((f, "image", c) for f, c in IMAGE_RUNS), (VIDEO, "video", 1), (I2I, "image", 1),
+                            (T2V, "video", 1)):
         cap = capture(folder)
         page = Page([], cap, answers=[cap.answer])
         uuid = warmed_uuid(cap)
-        found = reconcile(page, cap, kind=kind)
+        found = reconcile(page, cap, kind=kind, n=n)
         assert sent_nothing(page), "reconcile never sends: %s" % page.log
         assert page.log == ["goto https://www.meta.ai/prompt/" + uuid], page.log
         media = S.read_answer(cap.answer, kind).media
         assert found == Found(uuid, {"conversation_id": uuid, "outputs": [
             {"ref": u, "mime": "video/mp4" if kind == "video" else "image/webp"} for u in media]}), folder
         assert found.taken
+    cap = capture("image-2x169-acc1")       # meta drew 2 for a job that asked 1: the first is found, the second unpaid
+    found = reconcile(Page([], cap, answers=[cap.answer]), cap, n=1)
+    every = list(S.read_answer(cap.answer).media)
+    assert [o["ref"] for o in found.provider_state["outputs"]] == every[:1], "the second unpaid: %r" % (found,)
+    found = reconcile(Page([], cap, answers=[cap.answer]), cap)     # a job from before n: every image, as before
+    assert [o["ref"] for o in found.provider_state["outputs"]] == every
 
 
 @mutation(RECONCILE_FILE, "            if answer.done and answer.media and not answer.previews:",

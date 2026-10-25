@@ -122,6 +122,10 @@ Redacted captures of one live run per scenario (signed CDN query values replaced
 - `meta/spike-261023/t2v-acc1/timeline.json`
 - `meta/spike-261023/t2v-acc1/ws.json`
 
+`meta/spike-261025/i2i-2refs-acc3.dom.html` (25/10): the answer to two reference images attached together (a fox and a
+lighthouse, "put the fox ... in front of the lighthouse"): one drawn image in the before/after slider. Classes, styles
+and svg stripped, signed query values replaced by `x`, long digit runs by `1`s, the input image's path by `<tok1>`.
+
 ## vibes.ai live run (23/10/2026)
 
 Redacted calls of one image job and one video job; `vibes/s5-live/README.md` describes them and `packages/provider-vibes/FINDINGS.md` sums them up.

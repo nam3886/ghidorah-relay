@@ -46,6 +46,19 @@ log = logging.getLogger(__name__)
 
 # A ratio written in the prompt (dola's list); not next to another digit or colon, so "10:30" (a time) is not one.
 _PROMPT_RATIO = re.compile(r"(?<![\d.:])(21:9|16:9|9:16|4:3|3:4|3:2|2:3|1:1)(?![\d:])")
+# A count of images written in the prompt ("4 images", "two cat photos"): a number, at most one word, then an image
+# noun. Conservative on purpose: meta draws what the words ask, and only the paid n may be drawn.
+_WORDS = "zero one two three four five six seven eight nine ten eleven twelve"
+_NUMBERS = {**{w: i for i, w in enumerate(_WORDS.split())},
+            "a dozen": 12}
+_PROMPT_COUNT = re.compile(r"(?<![\w.])(\d+|%s)\s+(?:[a-z-]+\s+)?(?:images?|pictures?|photos?|pics?)\b"
+                           % "|".join(_NUMBERS), re.IGNORECASE)
+
+
+def prompt_counts(text: str) -> set[int]:
+    """The image counts a prompt writes out (`_PROMPT_COUNT`)."""
+    return {int(w) if w.isdigit() else _NUMBERS[" ".join(w.lower().split())]
+            for w in _PROMPT_COUNT.findall(text or "")}
 
 
 def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError:
@@ -125,6 +138,10 @@ class MetaSpec:
     limits = LIMITS + (
         FixedLimit("relay_meta.credential.MAX_COOKIES", MAX_COOKIES,
                    "far above a real meta.ai jar; a longer list is not a cookie export", "cookies"),
+        FixedLimit("relay_meta.catalog.MAX_N", C.MAX_N,
+                   "most images (n) one meta-image job from text draws in its one chat, priced per image", "images"),
+        FixedLimit("relay_meta.catalog.MAX_REFS", C.MAX_REFS,
+                   "most reference images one meta-image edit attaches together (a video takes one)", "images"),
     )
 
     def catalog(self) -> list[ModelSpec]:
@@ -152,9 +169,11 @@ class MetaSpec:
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Price and timeout come from the settings, NEVER from `req.options`. Raises
         `InputError`. meta takes no duration (refused rather than ignored) and a ratio only from text alone, one of
-        `RATIOS` (the engine types it after the text); a prompt naming another ratio is refused, as dola does. Each
-        model takes at most one input image: with one it edits (image) or animates (video) it, without one it draws
-        from the text, which must then show something (a video from an image may come with no text)."""
+        `RATIOS` (the engine types it after the text); a prompt naming another ratio is refused, as dola does. With
+        input images an image job makes one image from up to `MAX_REFS` of them (an edit) and a video animates its one;
+        without one each draws from the text, which must then show something (a video from an image may come with no
+        text). An image from text alone may ask `n` images (1 to `MAX_N`, one chat: the engine asks for the count in the
+        words and delivers at most n), priced per image by its own key (`image_key`); anything else makes one."""
         kind = C.KIND.get(req.model)
         if kind is None:
             raise _refuse("input.bad_model", "meta's models are %s" % ", ".join(C.KIND), "model")
@@ -168,13 +187,21 @@ class MetaSpec:
                               "or remove the ratio from the prompt" % (" / ".join(other), req.ratio))
         if req.duration is not None:
             raise _refuse("input.bad_duration", "meta sets the length itself: send no duration", "duration")
-        if len(req.images) > 1:
-            raise _refuse("input.too_many_images", "%s takes at most one input image" % req.model, "images")
-        if req.n not in (None, 1):
-            raise _refuse("input.invalid", "meta makes one job per request (the prompt sets how many images)", "n")
+        most = C.MAX_REFS if kind == "image" else 1
+        if len(req.images) > most:
+            raise _refuse("input.too_many_images", "%s takes at most %d input image(s)" % (req.model, most), "images")
+        n = 1 if req.n is None else req.n
+        # several images come from one drawing from text; an edit and a video make one
+        if n != 1 and (kind != "image" or req.images or not 1 <= n <= C.MAX_N):
+            raise _refuse("input.invalid", "n is 1 to %d images from text alone; an edit or a video makes one"
+                          % C.MAX_N, "n")
         if kind == "image":
             if C.is_blank_prompt(req.prompt):
                 raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
+            if prompt_counts(req.prompt) - {n}:
+                raise _refuse("input.invalid", "the prompt asks for %s image(s) but n is %d: set n to the count you "
+                              "want and leave it out of the prompt" % (
+                                  " / ".join(map(str, sorted(prompt_counts(req.prompt) - {n}))), n), "prompt")
             operation = "image_to_image" if req.images else "text_to_image"
         else:
             if not req.images and C.is_blank_prompt(req.prompt):
@@ -183,8 +210,10 @@ class MetaSpec:
             operation = "image_to_video" if req.images else "text_to_video"
         return Plan(
             operation=operation, media_type=kind, model=req.model,
-            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {})}, completion=Completion.HOLD,
-            after_sent=AfterSent.RECONCILE, price_key=req.model, pool=kind,
+            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {}),
+                    **({"n": n} if kind == "image" else {})},
+            completion=Completion.HOLD, after_sent=AfterSent.RECONCILE,
+            price_key=C.image_key(n) if kind == "image" else req.model, pool=kind,
             submit_timeout_s=settings.get("meta.%s_submit_timeout_s" % kind))
 
 

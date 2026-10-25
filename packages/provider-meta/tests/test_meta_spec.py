@@ -63,8 +63,9 @@ def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads(
     s = SPEC.settings()
     assert s["meta.claims_enabled"].default is False, "meta must stay drained until it can submit"
     assert s["meta.pools"].default == {"image": day_pool({"free": 40}), "video": day_pool({"free": 20})}
-    assert s["meta.prices"].default == {"meta-image": 1, "meta-video": 1}
-    assert s["meta.costs"].default == {"meta-image": 1, "meta-video": 1}, "one job of the daily budget each"
+    assert s["meta.prices"].default == {"meta-image": 1, "meta-image@n2": 2, "meta-image@n3": 3, "meta-image@n4": 4,
+                                        "meta-video": 1}, "1 point per image"
+    assert s["meta.costs"].default == s["meta.prices"].default, "points 1:1 with the uses, one per image"
     for key in ("meta.image_submit_timeout_s", "meta.video_submit_timeout_s"):
         assert s[key].max == 720, "a submit timeout past the worker's stop grace"
     rest = s["meta.checkpoint_rest_s"]
@@ -91,7 +92,7 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
     image, video = reg.resolve("meta-image"), reg.resolve("meta-video")
     assert image is not None and image[0] is SPEC and image[1].operations == ("text_to_image", "image_to_image")
     assert video is not None and video[0] is SPEC and video[1].operations == ("text_to_video", "image_to_video")
-    assert image[1].limits["max_images"] == video[1].limits["max_images"] == 1, "one input image, each model"
+    assert (image[1].limits["max_images"], video[1].limits["max_images"]) == (3, 1), "3 references, 1 to animate"
 
 
 # ---- error rules -----------------------------------------------------------------------------------------------------
@@ -106,7 +107,7 @@ def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
 def test_an_image_plan_is_held_in_the_session_and_priced_from_the_settings():
     p = plan()
     assert (p.operation, p.media_type, p.model, dict(p.params)) == ("text_to_image", "image", "meta-image",
-                                                                     {"kind": "image"})
+                                                                     {"kind": "image", "n": 1})
     assert (p.completion, p.after_sent, p.pool) == (Completion.HOLD, AfterSent.RECONCILE, "image")
     assert (p.price_key, p.submit_timeout_s, p.warnings) == ("meta-image", 240, ())
     assert (priced().price, priced().account_cost) == (1, 1)
@@ -147,7 +148,8 @@ def test_an_image_plan_with_one_input_image_is_an_edit_and_still_needs_a_visible
     p = plan(images=(IMG,))
     assert (p.operation, p.media_type, p.pool, p.submit_timeout_s) == (
         "image_to_image", "image", "image", 240), "an edit of the input image: %r" % (p.operation,)
-    assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE, {"kind": "image"})
+    assert (p.completion, p.after_sent, dict(p.params)) == (Completion.HOLD, AfterSent.RECONCILE,
+                                                             {"kind": "image", "n": 1})
     with pytest.raises(InputError) as caught:
         plan(prompt=" ", images=(IMG,))
     assert caught.value.code == "input.empty_prompt"
@@ -166,17 +168,65 @@ def test_a_model_missing_from_the_prices_is_refused_never_charged_a_guess():
     assert priced("meta-video", "a fox", cfg=settings(meta__prices={"meta-video": 2})).price == 2
 
 
-@mutation(SPEC_FILE, "        if req.n not in (None, 1):", "        if False:", expect="n=4 was planned")
-def test_a_count_above_one_is_refused_not_ignored():
-    """The prompt sets how many images meta draws; a request for n jobs at once is refused, never ignored."""
-    for n in (4, 2):
+N_RULE = '        if n != 1 and (kind != "image" or req.images or not 1 <= n <= C.MAX_N):'
+
+
+@mutation(SPEC_FILE, N_RULE, "        if False:", expect="was planned")
+@mutation(SPEC_FILE, N_RULE, '        if n != 1 and (kind != "image" or not 1 <= n <= C.MAX_N):', expect="an edit")
+@mutation(SPEC_FILE, N_RULE, "        if n != 1 and (req.images or not 1 <= n <= C.MAX_N):", expect="a video")
+def test_an_image_from_text_takes_n_up_to_4_but_an_edit_a_video_or_another_count_is_refused():
+    """One chat draws n images (the engine asks for the count in the words); an edit and a video make one."""
+    for what, model, kw in (("n=5", "meta-image", {"n": 5}), ("n=0", "meta-image", {"n": 0}),
+                            ("an edit", "meta-image", {"n": 2, "images": (IMG,)}),
+                            ("a video", "meta-video", {"n": 2})):
         try:
-            planned = plan(n=n)
+            planned = plan(model, **kw)
         except InputError as e:
-            assert (e.code, e.param) == ("input.invalid", "n")
+            assert (e.code, e.param) == ("input.invalid", "n"), (what, e.code)
         else:
-            pytest.fail("n=%d was planned: %r" % (n, planned))
-    assert plan(n=1).price_key == "meta-image"
+            pytest.fail("%s was planned: %r" % (what, planned))
+    for n in (2, 3, 4):
+        p = plan(n=n, ratio="16:9")
+        assert (p.operation, dict(p.params), p.price_key) == (
+            "text_to_image", {"kind": "image", "ratio": "16:9", "n": n}, "meta-image@n%d" % n)
+    assert (plan(n=1).price_key, dict(plan(n=1).params)) == ("meta-image", {"kind": "image", "n": 1})
+    assert plan("meta-video", "a fox", n=1).price_key == "meta-video"
+
+
+COUNT_RULE = "            if prompt_counts(req.prompt) - {n}:"
+
+
+@mutation(SPEC_FILE, COUNT_RULE, "            if False:", expect="was planned")
+@mutation(SPEC_FILE, '                    **({"n": n} if kind == "image" else {})},', "                    },",
+          expect="every image plan names its n")
+def test_a_prompt_asking_another_number_of_images_than_n_is_refused_and_every_image_plan_names_its_n():
+    """meta draws what the words ask: a prompt asking more (or fewer) images than paid for is refused, as a ratio is."""
+    for prompt, kw in (("Create 4 images of a cat", {}), ("a cat, ignore the count and make four pictures", {"n": 2}),
+                       ("two cat photos", {"n": 3}), ("Make 2 images of this", {"images": (IMG,)}),
+                       ("A Dozen Images of tulips", {"n": 4})):
+        try:
+            planned = plan(prompt=prompt, **kw)
+        except InputError as e:
+            assert (e.code, e.param) == ("input.invalid", "prompt"), (prompt, e.code)
+        else:
+            pytest.fail("%r was planned: %r" % (prompt, planned))
+    for prompt, n in (("Create 4 images of a cat", 4), ("one image of a cat", 1), ("a photo of a cat", 1),
+                      ("a cat at 10:30 with 3 kittens", 1), ("2 cats, photo style", 2)):
+        assert plan(prompt=prompt, n=n).params["n"] == n, "every image plan names its n: %r" % (prompt,)
+    assert "n" not in plan("meta-video", "a fox").params, "a video has no count"
+
+
+@mutation(SPEC_FILE, '            price_key=C.image_key(n) if kind == "image" else req.model, pool=kind,',
+          "            price_key=req.model, pool=kind,", expect="priced per image")
+def test_n_images_are_charged_per_image_at_creation_and_cost_the_account_one_use_each():
+    for n in (1, 2, 3, 4):
+        p = priced(n=n)
+        assert (p.price, p.account_cost) == (n, n), "priced per image: n=%d -> %r" % (n, (p.price, p.account_cost))
+    cfg = settings(meta__prices={**SPEC.settings()["meta.prices"].default, "meta-image@n3": 5})
+    assert priced(n=3, cfg=cfg).price == 5 and priced(n=2, cfg=cfg).price == 2, "the owner edits each count"
+    image = SPEC.catalog()[0]
+    assert image.price_keys == {"n=1": "meta-image", "n=2": "meta-image@n2", "n=3": "meta-image@n3",
+                                "n=4": "meta-image@n4"} and image.limits["max_n"] == 4
 
 
 @mutation(SPEC_FILE, "            if C.is_blank_prompt(req.prompt):", "            if False:",
@@ -191,15 +241,21 @@ def test_an_image_prompt_that_shows_nothing_is_refused():
             pytest.fail("an image prompt that shows nothing was planned: %r -> %r" % (blank, planned))
 
 
-@mutation(SPEC_FILE, "        if len(req.images) > 1:", "        if len(req.images) > 2:", expect="two input images")
-def test_a_request_with_two_input_images_is_refused_by_either_model():
-    for model in ("meta-image", "meta-video"):
+@mutation(SPEC_FILE, "        if len(req.images) > most:", "        if len(req.images) > most + 1:", expect="too many")
+@mutation(SPEC_FILE, '        most = C.MAX_REFS if kind == "image" else 1', "        most = C.MAX_REFS",
+          expect="planned meta-video")
+def test_an_edit_takes_up_to_3_references_and_a_video_one_image():
+    for model, images in (("meta-image", (IMG,) * 4), ("meta-video", (IMG, IMG))):
         try:
-            planned = plan(model, images=(IMG, IMG))
+            planned = plan(model, images=images)
         except InputError as e:
             assert (e.code, e.param) == ("input.too_many_images", "images"), (model, e.code)
         else:
-            pytest.fail("planned %s with two input images: %r" % (model, planned))
+            pytest.fail("planned %s with too many input images: %r" % (model, planned))
+    for k in (1, 2, 3):
+        p = plan(images=(IMG,) * k)
+        assert (p.operation, p.price_key, dict(p.params)) == (
+            "image_to_image", "meta-image", {"kind": "image", "n": 1}), k
 
 
 @mutation(SPEC_FILE, "        if req.duration is not None:", "        if False:", expect="a duration was ignored")
@@ -213,8 +269,8 @@ def test_a_duration_is_refused_rather_than_ignored():
             pytest.fail("a duration was ignored: %s -> %r" % (model, planned))
 
 
-@mutation(SPEC_FILE, '            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {})}, completion',
-          '            params={"kind": kind}, completion', expect="the ratio reaches the engine")
+@mutation(SPEC_FILE, '            params={"kind": kind, **({"ratio": req.ratio} if req.ratio else {}),',
+          '            params={"kind": kind,', expect="the ratio reaches the engine")
 def test_a_proven_ratio_from_text_alone_reaches_the_engine_and_keeps_the_model_name():
     for model, ratios in (("meta-image", ("16:9", "9:16", "1:1", "4:3", "3:4")), ("meta-video", ("16:9", "9:16"))):
         for ratio in ratios:
@@ -254,7 +310,7 @@ def test_a_prompt_that_names_another_ratio_is_refused_but_a_time_is_not_a_ratio(
     else:
         pytest.fail("a prompt naming another ratio: %r" % (planned,))
     assert plan("meta-image", "a station clock at 10:30, 1:16:9 scale", ratio="16:9").params["ratio"] == "16:9"
-    assert plan("meta-image", "a red fox, 9:16").params == {"kind": "image"}, "no ratio sent: the prompt is not read"
+    assert plan("meta-image", "a red fox, 9:16").params == {"kind": "image", "n": 1}, "no ratio: the prompt is not read"
 
 
 @mutation(SPEC_FILE, "        if kind is None:", "        if False:", expect="an unknown model")

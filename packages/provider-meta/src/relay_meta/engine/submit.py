@@ -1,25 +1,27 @@
-"""Submit for `meta-image` (text to image, or one image edited) and `meta-video` (text to video, or one image
-animated), held in the session until meta's answer is done.
+"""Submit for `meta-image` (text to image, or an edit from one or more reference images) and `meta-video` (text to
+video, or one image animated), held in the session until meta's answer is done.
 
 One chat per job: load meta.ai (a new chat), read the sign-in state, wait for the composer to hydrate, type the core's
 `sent_text` (a video from text alone after `VIDEO_FROM_TEXT`: meta has no video mode, its mode menu holds only
-Instant and Thinking, and a plain description draws an image), for a job from an image attach the one input image and
-wait for meta's upload answer, take the conversation id meta names before Enter, then `mark_sent`, ONE Enter, and wait
+Instant and Thinking, and a plain description draws an image), for a job from images attach its input images and
+wait for meta's upload answers, take the conversation id meta names before Enter, then `mark_sent`, ONE Enter, and wait
 in the session for the answer to finish (`data-streaming-state="DONE"` with `data-streaming-complete="true"`;
 `thinking-status` stays "in-progress" after done and says nothing). The results are the final fbcdn links of the
 answer: the image tiles, the edited image of the before/after slider (its input image is never one), or the `<video>`
-(a direct https `.mp4`, never `blob:`); the fetcher downloads them (fetch.py). The prompt asks for the count; a ratio
-the plan took (text alone only) is typed after the text as `RATIO_TAIL`, which meta honours (FINDINGS.md).
+(a direct https `.mp4`, never `blob:`); the fetcher downloads them (fetch.py). An image job from text alone types
+the count it paid for before the text (`count_lead`, n = 1 too, so the words cannot ask more); an image job delivers
+at most its n results, the first in page order (a job queued before n existed: no count, every result). A ratio the
+plan took (text alone only) is typed after the text as `RATIO_TAIL`, which meta honours (FINDINGS.md).
 
-The input image goes through the composer's single file input. meta ignores Enter while the upload is pending, and a
+The input images go through the composer's single file input. meta ignores Enter while an upload is pending, and a
 5 MB PNG never got an answer (FINDINGS.md), so an image over `UPLOAD_MAX_BYTES` (or not a JPEG, PNG or WebP) is first
 re-encoded to a JPEG of at most `UPLOAD_MAX_SIDE` px a side by the browser itself, in memory, before meta's page loads.
 
 Money rules (each has a test and a mutation):
 - the conversation id (`warmupConversation`, the uuid of `/prompt/<uuid>`) is persisted with `report_ref` BEFORE
   `mark_sent`, so an answer lost after the send can be found again without sending anything;
-- a job from an image is sent only once meta answered the upload (`{media_id}`) and the composer shows exactly one
-  attached image, read again right before `mark_sent`: never the text without its image;
+- a job from images is sent only once meta answered every upload (`{media_id}`) and the composer shows exactly as
+  many attached images, read again right before `mark_sent`: never the text without its images;
 - `mark_sent` runs immediately before the single Enter, and nothing presses Enter again: after `mark_sent` the engine
   never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send;
 - only the hydrated composer (the Lexical contenteditable) is typed into, never the placeholder textarea rendered
@@ -127,6 +129,11 @@ OPERATIONS = {"text_to_image": "image", "image_to_image": "image", "text_to_vide
 FROM_IMAGE = ("image_to_image", "image_to_video")
 # typed before the core's text of a video from text alone: without it meta draws an image (FINDINGS.md)
 VIDEO_FROM_TEXT = "Create a short video: "
+# typed before the core's text of an image job from text alone, n = 1 included: "Create 4 images of ..." gave 4 and
+# "Create 8 images of ..." 8 (fixtures/meta/s3-network); the job delivers at most n, whatever meta draws. A job queued
+# before n existed (no `n` in its params) gets no count and keeps every image, as it did then.
+IMAGES_FROM_TEXT = "Create %d images: "
+IMAGE_FROM_TEXT = "Create 1 image: "
 
 # The newest assistant message, whole (its attributes, its image tiles, its video); "" when there is none yet.
 ANSWER_JS = """(sel) => {
@@ -286,12 +293,22 @@ def answer_text(html: str) -> str:
     return " ".join(" ".join(parser.words).split())
 
 
-def media_outputs(urls, conversation: str, kind: str = "image") -> tuple[Output, ...]:
+def count_lead(n: int | None) -> str:
+    """What an image job from text types before its text: the count it paid for; nothing for a job from before n."""
+    if n is None:
+        return ""
+    return IMAGE_FROM_TEXT if n == 1 else IMAGES_FROM_TEXT % n
+
+
+def media_outputs(urls, conversation: str, kind: str = "image", n: int | None = None) -> tuple[Output, ...]:
+    """The first `n` results (what the job asked and paid for: meta may draw more than asked), in page order; every
+    result for a job with no `n` (a video, or an image job queued before n existed)."""
     def mime(url: str) -> str:
         if kind == "video":
             return "video/mp4"
         return _MIMES.get(os.path.splitext(urlsplit(url).path)[1].lower(), "image/webp")
-    return tuple(Output(url, mime(url), i, meta={"conversation_id": conversation}) for i, url in enumerate(urls))
+    return tuple(Output(url, mime(url), i, meta={"conversation_id": conversation})
+                 for i, url in enumerate(tuple(urls)[:n]))
 
 
 _store = None
@@ -351,8 +368,11 @@ class _Run:
         if not job.sent_text:
             raise ValueError("the job has no sent_text: the core composes it")
         self.ctx, self.job, self.settings, self.deps = ctx, job, settings, deps
+        self.n = job.params.get("n")       # the images asked and paid for; None: a video or a job from before n
+        lead = VIDEO_FROM_TEXT if self.operation == "text_to_video" else (
+            count_lead(self.n) if self.operation == "text_to_image" else "")
         # One line: the composer sends on Enter, so a newline would send part of the prompt.
-        self.text = " ".join(((VIDEO_FROM_TEXT if self.operation == "text_to_video" else "") + job.sent_text).split())
+        self.text = " ".join((lead + job.sent_text).split())
         # meta reads the ratio from the words, after the final (framed) text; a 16:9 video is its own default
         if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:
             self.text += RATIO_TAIL % job.params["ratio"]
@@ -412,12 +432,12 @@ class _Run:
             raise _CoreVerdict(exc) from exc
 
     async def run(self) -> SubmitResult:
-        image = await self._input_image() if self.operation in FROM_IMAGE else None   # read before the browser opens
+        images = await self._input_images() if self.operation in FROM_IMAGE else ()   # read before the browser opens
         async with self.deps.open_session(META_SITE, self.ctx.account, purpose="submit", token=self.ctx.browser_token,
                                           images=True, redact=redact_text) as session:
             self.session, self.page = session, session.page
             try:
-                result = await self._bounded(image)
+                result = await self._bounded(images)
             except _CoreVerdict:
                 raise
             except Exception:
@@ -432,14 +452,14 @@ class _Run:
             finally:
                 self.page = None
 
-    async def _bounded(self, image: tuple[bytes, str] | None) -> SubmitResult:
+    async def _bounded(self, images: tuple[tuple[bytes, str], ...]) -> SubmitResult:
         """Everything up to the verdict runs before the deadline (the submit timeout less the browser's close
         allowance), whatever hangs: a page read, an event, `report_ref`. Past it the verdict is what is known then:
         nothing sent is a `Retry`, a sent order is `Ambiguous` (the reconcile decides), never a re-send."""
         bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))
         try:
             async with bound:
-                return await self._steps(image)
+                return await self._steps(images)
         except TimeoutError:
             if not bound.expired():
                 raise
@@ -448,19 +468,22 @@ class _Run:
         log.warning("%s (sent=%s)", why, self.sent)
         return _result(Ambiguous(why) if self.sent else Retry(errors.UI_PAGE_NOT_READY))
 
-    async def _steps(self, image: tuple[bytes, str] | None) -> SubmitResult:
-        if image is not None:
-            image = await self._shrink(*image)
-            if image is None:
-                return await self._unsent(errors.UI_SEND_FAILED, "the input image could not be made smaller than %d "
-                                          "bytes for meta's upload" % UPLOAD_MAX_BYTES)
-        return await self._order(image)
+    async def _steps(self, images: tuple[tuple[bytes, str], ...]) -> SubmitResult:
+        shrunk = []
+        for i, image in enumerate(images):
+            small = await self._shrink(*image)
+            if small is None:
+                return await self._unsent(errors.UI_SEND_FAILED, "input image %d could not be made smaller than %d "
+                                          "bytes for meta's upload" % (i, UPLOAD_MAX_BYTES))
+            shrunk.append(small)
+        return await self._order(tuple(shrunk))
 
-    async def _input_image(self) -> tuple[bytes, str]:
+    async def _input_images(self) -> tuple[tuple[bytes, str], ...]:
+        """The job's input images, in the client's order: one for a video, one or more (the references) for an edit."""
         refs = await self.job.inputs()
-        if len(refs) != 1:
-            raise ValueError("a meta %s takes exactly one input image, the job holds %d" % (self.operation, len(refs)))
-        return await self.deps.read_media(refs[0]), refs[0].mime
+        if not refs or (self.operation == "image_to_video" and len(refs) != 1):
+            raise ValueError("a meta %s cannot take %d input images" % (self.operation, len(refs)))
+        return tuple([(await self.deps.read_media(r), r.mime) for r in refs])
 
     async def _shrink(self, data: bytes, mime: str) -> tuple[bytes, str] | None:
         """The image as it is uploaded: unchanged when small enough, else a JPEG the browser re-encodes in memory (on
@@ -476,7 +499,7 @@ class _Run:
                         % (len(data), mime, len(small)), "submit")
         return small, "image/jpeg"
 
-    async def _order(self, image: tuple[bytes, str] | None) -> SubmitResult:
+    async def _order(self, images: tuple[tuple[bytes, str], ...]) -> SubmitResult:
         ctx, page = self.ctx, self.page
         await inject_cookies(self.session.ctx, ctx.account.credential, SESSION_COOKIES, SITE_URL)
         await page.goto(SITE_URL, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT_S * 1000)
@@ -500,8 +523,8 @@ class _Run:
                                       % self.deps.composer_wait_s)
         await box.click()
         await page.keyboard.insert_text(self.text)
-        if image is not None:
-            why = await self._attach(*image)
+        if images:
+            why = await self._attach(images)
             if why:
                 return await self._unsent(errors.UI_SEND_FAILED, why)
         if " ".join((await box.inner_text()).split()) != self.text:
@@ -511,36 +534,40 @@ class _Run:
             return await self._unsent(errors.UI_SEND_FAILED, "meta named no conversation before Enter")
         self.conversation = conversation
         await self._core(lambda: ctx.report_ref(conversation, {"conversation_id": conversation}))
-        # the thumbnail is read again right before the send: meta may have dropped or doubled it since the attach;
+        # the thumbnails are read again right before the send: meta may have dropped or doubled one since the attach;
         # nothing but mark_sent is awaited between this read and the one Enter
-        if image is not None and (shown := await page.locator(SEL_ATTACHED).count()) != 1:
+        if images and (shown := await page.locator(SEL_ATTACHED).count()) != len(images):
             return await self._unsent(errors.UI_SEND_FAILED, "just before the send the composer shows %d attached "
-                                      "images, not 1" % shown)
+                                      "images, not %d" % (shown, len(images)))
         await self._core(self.ctx.mark_sent)
         self.sent = True
         await box.press("Enter")
         return await self._answer()
 
-    async def _attach(self, data: bytes, mime: str) -> str:
-        """Choose the image in the composer's file input and wait until meta answered its upload AND the composer
-        shows it: meta ignores Enter while an upload is pending, so an Enter before that would send nothing (or, worse,
-        the motion text alone). "" when attached, else why not."""
-        page, recorder = self.page, self.session.recorder
+    async def _attach(self, images: tuple[tuple[bytes, str], ...]) -> str:
+        """Choose the images, in order, in the composer's one file input (it takes several: two references were
+        uploaded and drawn from together, 25/10) and wait until meta answered EVERY upload AND the composer shows them
+        all: meta ignores Enter while an upload is pending, so an Enter before that would send nothing (or, worse, the
+        text without its images). "" when attached, else why not."""
+        page, recorder, want = self.page, self.session.recorder, len(images)
         files = page.locator(SEL_FILE_INPUT)
         if await files.count() != 1:
             return "the composer has no single file input"
         since = recorder.now()
-        await files.first.set_input_files({"name": "upload" + _EXT.get(mime, ".jpg"), "mimeType": mime,
-                                           "buffer": data})
+        await files.first.set_input_files([{"name": "upload%s%s" % (i or "", _EXT.get(mime, ".jpg")), "mimeType": mime,
+                                            "buffer": data} for i, (data, mime) in enumerate(images)])
         t0 = self.deps.clock()
-        if await recorder.wait_for(upload_done, self.deps.upload_wait_s, since=since) is None:
-            return "meta did not answer the image upload within %g s" % self.deps.upload_wait_s
-        await self._say("meta took the %d-byte image upload after %.1f s" % (len(data), self.deps.clock() - t0),
-                        "submit")
-        # give the thumbnail a moment to show; the count that decides is read right before the send (`_order`)
+        end = t0 + self.deps.upload_wait_s
+        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < want:
+            if self.deps.clock() >= end:
+                return "meta answered %d of the %d image uploads within %g s" % (done, want, self.deps.upload_wait_s)
+            await self.deps.sleep(STEP_S)
+        await self._say("meta took the %d image upload(s) (%s bytes) after %.1f s" % (
+            want, "+".join(str(len(d)) for d, _ in images), self.deps.clock() - t0), "submit")
+        # give the thumbnails a moment to show; the count that decides is read right before the send (`_order`)
         attached = self.page.locator(SEL_ATTACHED)
         grace = self.deps.clock() + self.deps.attached_wait_s
-        while await attached.count() != 1 and self.deps.clock() < grace:
+        while await attached.count() != want and self.deps.clock() < grace:
             await self.deps.sleep(STEP_S)
         return ""
 
@@ -581,7 +608,7 @@ class _Run:
             return await self._unknown("meta's answer is done but %d of its %ss show no final link yet"
                                        % (answer.previews, self.kind), "previews")
         if answer.media:
-            return _result(Completed(media_outputs(answer.media, self.conversation, self.kind)), Success())
+            return _result(Completed(media_outputs(answer.media, self.conversation, self.kind, self.n)), Success())
         if answer.other:
             # meta took the order and answered with the other kind: not a refund at once, the deadline decides
             return await self._unknown("meta's answer is done with no %s but %d result(s) of the other kind"

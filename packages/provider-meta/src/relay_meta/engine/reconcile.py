@@ -74,7 +74,8 @@ async def reconcile(ctx, job, settings, *, deps: Deps | None = None, read_wait_s
                 html = ""
             answer = read_answer(html if isinstance(html, str) else "", kind)
             if answer.done and answer.media and not answer.previews:
-                outputs = [{"ref": o.ref, "mime": o.mime} for o in media_outputs(answer.media, conversation, kind)]
+                outputs = [{"ref": o.ref, "mime": o.mime}
+                           for o in media_outputs(answer.media, conversation, kind, job.params.get("n"))]
                 return Found(conversation, {"conversation_id": conversation, "outputs": outputs})
             if deps.clock() >= end:
                 read = any(thread_read(e, conversation) for e in recorder.events())

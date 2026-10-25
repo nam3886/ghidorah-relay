@@ -123,10 +123,11 @@ class FileInput:
 
     async def set_input_files(self, payload):
         self.page.log.append("attach")
-        self.page.chosen.append(payload)
-        if self.page.upload_answers:
+        files = payload if isinstance(payload, list) else [payload]
+        self.page.chosen.extend(files)
+        for _ in files[:self.page.upload_answers]:      # meta answers the first `upload_answers` uploads
             self.page.events.extend(self.page.uploads)
-            self.page.uploaded = True
+        self.page.uploaded = len(files) <= self.page.upload_answers
 
 
 class Attached:
@@ -184,7 +185,7 @@ class Box:
 
 class Page:
     def __init__(self, log, cap, *, answers=None, hydrates=True, opens="warmed", press_error=None,
-                 upload_answers=True, thumbnails=1, file_inputs=1, shrunk=b"small-jpeg"):
+                 upload_answers=9, thumbnails=1, file_inputs=1, shrunk=b"small-jpeg"):
         self.log, self.signals, self.hydrates, self.press_error = log, cap.signals, hydrates, press_error
         self.url = "https://www.meta.ai/"
         self.opens = warmed_uuid(cap) if opens == "warmed" and cap.events else (None if opens == "warmed" else opens)
@@ -297,7 +298,7 @@ DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
 
 
 def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
-        sent=None, real_time=None, **settings):
+        sent=None, real_time=None, n=None, images=None, **settings):
     """`real_time` = (close_s, bound_s, deps): a real clock, a browser close of `close_s` and the core's own bound
     (`asyncio.timeout`, the kind's submit timeout) of `bound_s` around the submit."""
     log = page.log if log is None else log
@@ -316,18 +317,21 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
 
     op = op or DEFAULT_OP[kind]
 
+    given = list(images or [image])
+
     async def inputs():
-        return [MediaRef(0, "inputs/job/0", image[1], len(image[0]))] if op in S.FROM_IMAGE else []
+        return [MediaRef(i, "inputs/job/%d" % i, m, len(d)) for i, (d, m) in enumerate(given)] if op in S.FROM_IMAGE \
+            else []
 
     async def read_media(ref):
-        assert ref.object_key == "inputs/job/0"
-        return image[0]
+        assert ref.object_key == "inputs/job/%d" % ref.idx
+        return given[ref.idx][0]
 
     clock = Clock()
     deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
                   signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
                   upload_wait_s=0, attached_wait_s=1, evidence_wait_s=0.5)
-    params = {"kind": kind, **({"ratio": ratio} if ratio else {})}
+    params = {"kind": kind, **({"ratio": ratio} if ratio else {}), **({"n": n} if n else {})}
     sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
     job = SimpleNamespace(params=params, operation=op, sent_text=sent, inputs=inputs)
     if real_time is None:
@@ -383,7 +387,7 @@ def test_a_signed_in_page_persists_the_chat_id_marks_sent_presses_enter_once_and
     for folder, count in IMAGE_RUNS:
         cap = capture(folder)
         page = Page([], cap)
-        result, ctx = run(page, cap)
+        result, ctx = run(page, cap, n=count if count > 1 else None)
         uuid = warmed_uuid(cap)
         assert sent(page.log)[:1] == ["report_ref " + uuid], "the chat id before the send: %s" % sent(page.log)
         assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"], (
@@ -392,7 +396,8 @@ def test_a_signed_in_page_persists_the_chat_id_marks_sent_presses_enter_once_and
         assert [o.mime for o in result.job.outputs] == ["image/webp"] * count
         assert all(o.meta == {"conversation_id": uuid} and S.is_final_image(o.ref) for o in result.job.outputs)
         assert result.account == (Success(),)
-        assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}
+        lead = "Create %d images: " % count if count > 1 else ""
+        assert page.typed == {EDITABLE: "%s%s [7100]" % (lead, cap.prompt)}
 
 
 @mutation(CONSTANTS, """SEL_COMPOSER = ('[data-testid="composer-input"][contenteditable="true"]'""",
@@ -575,8 +580,12 @@ def test_a_video_job_types_attaches_waits_for_the_upload_then_marks_sent_presses
     assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}
 
 
-@mutation(SUBMIT_FILE, "        if await recorder.wait_for(upload_done, self.deps.upload_wait_s, since=since) is None:",
-          "        if False:", expect="upload finished before Enter")
+UPLOAD_WAIT = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < want:"
+UPLOAD_NO_WAIT = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < 0:"
+UPLOAD_WAIT_ONE = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < 1:"
+
+
+@mutation(SUBMIT_FILE, UPLOAD_WAIT, UPLOAD_NO_WAIT, expect="upload finished before Enter")
 def test_an_upload_meta_never_answers_sends_nothing():
     for folder, kind, op in FROM_IMAGE_RUNS:
         cap = capture(folder)
@@ -597,7 +606,7 @@ def test_a_composer_without_exactly_one_attached_image_sends_nothing():
             assert result.job == Retry("meta.ui_send_failed"), (op, what)
 
 
-@mutation(SUBMIT_FILE, "        if image is not None and (shown := await page.locator(SEL_ATTACHED).count()) != 1:",
+@mutation(SUBMIT_FILE, "        if images and (shown := await page.locator(SEL_ATTACHED).count()) != len(images):",
           "        if False:", expect="read again before the send")
 def test_a_thumbnail_dropped_or_doubled_after_the_attach_is_read_again_before_the_send_and_nothing_is_sent():
     for folder, kind, op in FROM_IMAGE_RUNS:
@@ -648,11 +657,10 @@ def test_the_captured_text_to_video_answer_reads_as_done_with_its_mp4():
     assert cap.uploads == [], "nothing was uploaded"
 
 
-@mutation(SUBMIT_FILE, '        self.text = " ".join(((VIDEO_FROM_TEXT if self.operation == "text_to_video" else "") + '
-          'job.sent_text).split())', '        self.text = " ".join(job.sent_text.split())',
-          expect="asks for a video")
-@mutation(SUBMIT_FILE, "        image = await self._input_image() if self.operation in FROM_IMAGE else None",
-          '        image = await self._input_image() if self.kind == "video" else None', expect="text alone")
+@mutation(SUBMIT_FILE, '        lead = VIDEO_FROM_TEXT if self.operation == "text_to_video" else (',
+          '        lead = "" if self.operation == "text_to_video" else (', expect="asks for a video")
+@mutation(SUBMIT_FILE, "        images = await self._input_images() if self.operation in FROM_IMAGE else ()",
+          '        images = await self._input_images() if self.kind == "video" else ()', expect="text alone")
 def test_a_video_from_text_alone_asks_for_a_video_attaches_nothing_marks_sent_presses_enter_once_and_delivers_the_mp4():
     cap = capture(T2V)
     page = Page([], cap)
@@ -673,6 +681,53 @@ def test_only_a_video_from_text_alone_gets_the_video_wording():
         page = Page([], cap)
         run(page, cap, kind=kind, op=op)
         assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, op
+
+
+# ---- several images in one chat ----------------------------------------------------------------------------------
+LEAD = '            count_lead(self.n) if self.operation == "text_to_image" else "")'
+
+
+@mutation(SUBMIT_FILE, LEAD, '            "")', expect="asks for the count")
+@mutation(SUBMIT_FILE, "    return IMAGE_FROM_TEXT if n == 1 else IMAGES_FROM_TEXT % n", "    return \"\" if n == 1 "
+          "else IMAGES_FROM_TEXT % n", expect="n=1 asks for one")
+def test_an_image_job_from_text_asks_for_the_count_it_paid_for_before_the_text_n_1_included():
+    cap = capture("image-2x169-acc1")
+    page = Page([], cap)
+    result, _ = run(page, cap, n=2, ratio="16:9")
+    assert page.typed == {EDITABLE: "Create 2 images: %s [7100], 16:9" % cap.prompt}, "asks for the count: %r" % (
+        page.typed,)
+    assert isinstance(result.job, Completed) and [o.idx for o in result.job.outputs] == [0, 1]
+    assert sent(page.log) == ["report_ref " + warmed_uuid(cap), "mark_sent", "Enter"]
+    one = capture("image-1-acc1")
+    page = Page([], one)
+    run(page, one, n=1)
+    assert page.typed == {EDITABLE: "Create 1 image: %s [7100]" % one.prompt}, "n=1 asks for one: %r" % (page.typed,)
+
+
+@mutation(SUBMIT_FILE, "                 for i, url in enumerate(tuple(urls)[:n]))", "                 for i, url in "
+          "enumerate(urls))", expect="at most the n asked")
+def test_a_job_delivers_at_most_the_n_images_it_asked_and_paid_for_the_first_in_page_order():
+    cap = capture("image-2x169-acc1")       # meta drew 2
+    every = S.read_answer(cap.answer).media
+    page = Page([], cap)
+    result, _ = run(page, cap, n=1)
+    assert [o.ref for o in result.job.outputs] == [every[0]], "at most the n asked: %r" % (result.job.outputs,)
+    assert [o.ref for o in S.media_outputs(every, "c", "image", 4)] == list(every), "fewer than n: all of them"
+
+
+LEGACY_LEAD = "    if n is None:\n        return \"\"\n"
+LEGACY_COUNTED = "    if n is None:\n        return IMAGE_FROM_TEXT\n"
+
+
+@mutation(SUBMIT_FILE, LEGACY_LEAD, LEGACY_COUNTED, expect="from before n")
+@mutation(SUBMIT_FILE, '        self.n = job.params.get("n")', '        self.n = job.params.get("n") or 1',
+          expect="from before n")
+def test_an_image_job_queued_before_n_existed_types_no_count_and_delivers_every_image_as_before():
+    cap = capture("image-2x169-acc1")       # its prompt asks 2 itself; the job has no n
+    page = Page([], cap)
+    result, _ = run(page, cap)
+    assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, "from before n: %r" % (page.typed,)
+    assert len(result.job.outputs) == 2, "from before n: %r" % (result.job.outputs,)
 
 
 @mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',
@@ -796,6 +851,46 @@ def test_an_edit_attaches_the_image_waits_for_the_upload_marks_sent_presses_ente
     assert (out.mime, out.idx, out.meta) == ("image/webp", 0, {"conversation_id": uuid}) and S.is_final_image(out.ref)
     assert out.ref == S.read_answer(cap.answer).media[0]
     assert result.account == (Success(),)
+
+
+REFS = [(INPUT, "image/webp"), (b"PNG-second", "image/png"), (b"JPG-third", "image/jpeg")]
+
+
+def test_the_captured_edit_from_two_references_reads_as_its_one_drawn_image_never_an_input():
+    """25/10: a fox and a lighthouse attached together gave one picture of both, in the same before/after slider."""
+    html = (FIX.parent / "spike-261025" / "i2i-2refs-acc3.dom.html").read_text()
+    answer = S.read_answer(html)
+    assert answer.done and answer.previews == 0 and answer.other == 0, answer
+    assert len(answer.media) == 1 and "/t39.105495-1/" in answer.media[0] and "/m1/" not in answer.media[0]
+
+
+def test_an_edit_from_several_references_attaches_them_in_order_waits_for_every_upload_and_sends_once():
+    cap = capture(I2I)
+    page = Page([], cap, thumbnails=3)
+    result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
+    assert sent(page.log) == ["attach", "report_ref " + warmed_uuid(cap), "mark_sent", "Enter"], sent(page.log)
+    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT},
+                           {"name": "upload1.png", "mimeType": "image/png", "buffer": b"PNG-second"},
+                           {"name": "upload2.jpg", "mimeType": "image/jpeg", "buffer": b"JPG-third"}], page.chosen
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
+
+
+@mutation(SUBMIT_FILE, UPLOAD_WAIT, UPLOAD_WAIT_ONE, expect="every upload")
+@mutation(SUBMIT_FILE, "        while await attached.count() != want and self.deps.clock() < grace:",
+          "        while await attached.count() != 1 and self.deps.clock() < grace:", expect="all shown")
+def test_an_edit_whose_uploads_are_not_all_answered_or_shown_sends_nothing():
+    cap = capture(I2I)
+    for what, page in (("every upload", Page([], cap, thumbnails=3, upload_answers=2)),
+                       ("all shown", Page([], cap, thumbnails=[1, 1, 1, 3, 3]))):
+        result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
+        if what == "all shown":       # the thumbnails came late: the grace waits for all three, then it is sent
+            assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, "%s: %s" % (what, page.log)
+            continue
+        assert "mark_sent" not in page.log and "Enter" not in page.log, "%s: %s" % (what, sent(page.log))
+        assert result.job == Retry("meta.ui_send_failed"), what
+    page = Page([], cap, thumbnails=2)       # one of three dropped before the send
+    result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
+    assert result.job == Retry("meta.ui_send_failed") and "Enter" not in page.log
 
 
 @mutation(SUBMIT_FILE, "            elif PREVIEW_MARK in urlsplit(src).path:", "            elif False:",

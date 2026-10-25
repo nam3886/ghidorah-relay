@@ -217,3 +217,44 @@ the jar, or meta keeps re-solving. This change keeps to the wait and the detecti
 - A checkpoint is never a strike and never ends the account any more (the old 3-in-a-row `dead: checkpoint` is gone):
   the account is fine, the browser is in doubt. The job goes back to the queue with no attempt used and no charge
   (`meta.checkpoint`, unchanged).
+
+## Several images, references, video extend and restyle, 25/10 16:31–17:52 (GMT+7)
+Probes and the engine's own submit and fetcher on the box (stand-ins for the core), the production accounts' jars of
+22/10 and each account's production proxy, never more than one launch per account at a time.
+
+- **n images in one chat.** The 30/09 spike already had "Create 4 images of ..." give 4 and "Create 8 images of ..."
+  give 8 (`fixtures/meta/s3-network/n4.json`, `n8.json`). Engine, acc3, n=2 at 16:9 ("Create 2 images: A red bicycle
+  ... [7101], 16:9"): Enter 10.6 s after launch, done 20 s later, two 2048×1152 webp (656 KB, 703 KB) through the
+  fetcher. So an image job from text takes `n` = 1..4 (`MAX_N`): the engine types `IMAGES_FROM_TEXT` before the text,
+  delivers at most n (the first in page order: meta may draw more than asked, the extra is not paid for), and the price
+  is per image by its own key (`meta-image@n2` ... `@n4`), charged at creation. The count is typed for n = 1 too
+  ("Create 1 image: "), and a prompt that writes another count ("4 images", "two cat photos") is refused at the plan
+  (`input.invalid`), so the words cannot ask more than was paid for. An image job queued before this change carries no
+  `n`: it gets no count and keeps every image, as before. If meta still draws more than n, the account's pool counts
+  only the expected cost (the core's pool reads the expected cost, not a reported one; an actual cost only feeds the
+  `cost_mismatch` alert). Each image costs the account one use
+  of its image pool and sells 1:1 at 1 point (the owner's rule; meta's own count per image is not measured).
+- **Image to image from several references.** The composer's one file input takes several files at once
+  (`multiple`). Probe, acc3: a fox (1280×1920) and a lighthouse (1920×1280) attached together, both uploads answered
+  after 9.6 and 10.0 s, two thumbnails in the editor; "Put the fox from the first image on the rocks in front of the
+  lighthouse from the second image" gave ONE 1920×1280 image of both, in the same before/after slider as an edit (the
+  shown image `gallery/...`, the second input under `aria-hidden`): `fixtures/meta/spike-261025/i2i-2refs-acc3.dom.html`.
+  The parser reads it unchanged. Engine, acc1, three references (fox, lighthouse, a forest with birds): the three
+  uploads answered within 7.0 s, Enter 17 s after launch, done 29 s later, one 1920×1280 webp (671 KB) with the fox, the
+  lighthouse and the birds. "Edit" already covered one reference; an image job now takes 1 to 3 (`MAX_REFS`), a video
+  still one. A ratio and n > 1 stay refused with input images.
+- **Video extend and restyle are still off on the web.** A customer clip (5.1 s mp4) uploaded with "Extend this video by
+  5 more seconds, continuing the same motion" (acc1): DONE after 7 s, no media, verbatim *"I can't directly extend the
+  video file you uploaded - direct video editing isn't available yet."* It offered a new clip from the last frame
+  (that is i2v, already sold). The 24/10 restyle answer was the same. Our own videos show no such entry either: the
+  answers of the i2v chat of 23/10 (acc2) and the text-to-video chat of 23/10 (acc1, 17:51) carry only Play, Unmute,
+  View video, Download, Add to favorites and Share; the opened viewer adds Close, More options and Share; the Share
+  menu holds Post to feed, Copy link, Download, Instagram, WhatsApp, Threads. The Media page (`/create`) shows image
+  templates only. Nothing to build; no pinned-job need seen on the web. (An image answer now carries "Use as
+  reference", which is the image-to-image above.)
+- **The checkpoint came on the second launch 10–12 min after the first.** acc2 (quiet since 06:06) passed at 16:31
+  and met the checkpoint at 16:42; acc3 passed at 16:43 and 17:15 (32 min apart) and met it at 17:27; acc1 passed at 16:43, 17:15 and 17:51 (32 and 36
+  min apart). Both launches used
+  the 22/10 jar, which holds no challenge-pass cookie (`rd_challenge`), and a successful load set one. So
+  `meta.send_gap_s` = 600 is too short for a jar without the pass; keeping the pass (ecf4ebb, not deployed on 25/10) is
+  what should let a second load through.
