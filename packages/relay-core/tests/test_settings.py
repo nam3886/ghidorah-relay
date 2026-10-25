@@ -299,6 +299,25 @@ def test_every_core_setting_states_what_it_allows():
         REGISTRY.specs["filename_pattern"].validate("  ")
 
 
+@mutation(S, "ON CONFLICT (key) DO NOTHING RETURNING key",
+          "ON CONFLICT (key) DO UPDATE SET value = excluded.value RETURNING key", expect="a value stored meanwhile")
+def test_set_if_absent_never_replaces_a_value_stored_after_the_cache_was_read(db):
+    """Codex review 25/10 (the one-off seed): the check and the write are one statement, so a value the admin stored
+    after this process read its cache survives, and no history row says otherwise."""
+    async def scenario(s, pool):
+        assert s.source("retention") == "default"                      # the cache holds nothing
+        db.run("INSERT INTO settings_kv (key, value) VALUES ('retention', '9'::jsonb)")
+        assert await s.set_if_absent("retention", 5, by="seed") is False, "a value stored meanwhile was replaced"
+        assert s.get("retention") == 9, "a value stored meanwhile was replaced"
+        await s.delete("retention")
+        assert await s.set_if_absent("retention", 5, by="seed") is True and s.get("retention") == 5
+
+    run(db, scenario, registry=LOCAL)
+    assert db.one("SELECT value FROM settings_kv WHERE key = 'retention'") == (5,)
+    assert [r[0] for r in db.all("SELECT by FROM settings_history WHERE key = 'retention' ORDER BY id")] == [
+        None, "seed"], "the refused seed left a history row"
+
+
 @mutation(S, "    if parts.scheme not in (\"http\", \"https\") or not parts.hostname", "    if False",
           expect="DID NOT RAISE")
 @mutation(S, "            ipaddress.ip_network(item.strip(), strict=False)", "            pass", expect="DID NOT RAISE")

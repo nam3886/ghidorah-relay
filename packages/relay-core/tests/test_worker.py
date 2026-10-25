@@ -410,7 +410,8 @@ def test_serve_runs_a_worker_from_the_environment_until_sigterm(db):
     async def scenario():
         task = asyncio.create_task(serve(FakeSpec(), lambda s, st: FakeEngine(),
                                          env_for(db)))
-        await until(lambda: db.one("SELECT count(*) FROM worker_heartbeats WHERE worker_id = 'worker-fake'")[0] == 1,
+        mine = worker_module.worker_id_of("fake")
+        await until(lambda: db.one("SELECT count(*) FROM worker_heartbeats WHERE worker_id = %s", mine)[0] == 1,
                     timeout_s=15, what="the worker's heartbeat row")
         os.kill(os.getpid(), signal.SIGTERM)
         return await asyncio.wait_for(task, 20)
@@ -529,3 +530,52 @@ def test_a_stop_signal_ends_a_worker_that_is_waiting_for_the_restore_mark(db, ob
             await asyncio.gather(holder, return_exceptions=True)
 
     assert run_as_worker(db, scenario) == 0
+
+
+WORKER_ID_LINE = "        worker_id = worker_id_of(spec.name)\n"
+
+
+@mutation(W, WORKER_ID_LINE, '        worker_id = "worker-" + spec.name\n', expect="the container's hostname")
+def test_serve_names_its_heartbeat_row_after_the_provider_and_the_containers_hostname(db, monkeypatch):
+    """Codex review 25/10: no WORKER_ID variable, and still one row per process: the container hostname is unique per
+    container (a restarted container keeps it, so its row)."""
+    db.pin("UTC")
+    seen = {}
+
+    class Recorder:
+        def __init__(self, pool, spec, engine, settings, **kw):
+            seen.update(worker_id=kw["worker_id"], owner=kw["owner"])
+
+        async def run(self, *, install_signals):
+            return 0
+
+    monkeypatch.setattr(worker_module, "Worker", Recorder)
+    monkeypatch.setattr(worker_module.socket, "gethostname", lambda: "3f9a1c2b7d4e")
+    assert asyncio.run(serve(FakeSpec(), lambda s, st: FakeEngine(), env_for(db), install_signals=False)) == 0
+    assert seen["worker_id"] == "worker-fake-3f9a1c2b7d4e", "the container's hostname is not in the id: %r" % seen
+    assert seen["owner"].rpartition("/")[0] == seen["worker_id"]
+
+
+def test_two_workers_of_one_provider_keep_their_own_rows_and_one_exit_leaves_the_other(db, objects):
+    """Replicas, or an old and a new container overlapping in a recreate: each has its row, and a clean exit deletes
+    only its own."""
+    a_id, b_id = worker_module.worker_id_of("fake", "host-a"), worker_module.worker_id_of("fake", "host-b")
+
+    async def scenario(owner, wp):
+        a = Worker(wp, SPEC, FakeEngine(), FakeSettings(SPEC), owner=a_id + "/1", load_account=load_account,
+                   store=objects, worker_id=a_id, **TIMINGS)
+        b = Worker(wp, SPEC, FakeEngine(), FakeSettings(SPEC), owner=b_id + "/1", load_account=load_account,
+                   store=objects, worker_id=b_id, **TIMINGS)
+        ta, tb = asyncio.create_task(a.run()), asyncio.create_task(b.run())
+        rows = lambda: {r[0] for r in db.all("SELECT worker_id FROM worker_heartbeats")}  # noqa: E731
+        try:
+            await until(lambda: rows() == {a_id, b_id}, timeout_s=15, what="both heartbeat rows")
+            a.stop()
+            assert await asyncio.wait_for(ta, 20) == 0
+            await asyncio.sleep(0.3)                        # b beats again meanwhile
+            return rows()
+        finally:
+            b.stop()
+            await asyncio.wait_for(tb, 20)
+
+    assert run_as_worker(db, scenario) == {b_id}, "one worker's exit took another worker's row"

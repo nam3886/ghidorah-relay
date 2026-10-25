@@ -66,7 +66,7 @@ def worker(provider: str) -> int:
     A provider package offers `spec.SPEC` (its ProviderSpec) and `engine.build_engine(spec, settings)`; the engine
     module is imported only here, so a browser provider pulls in the browser kit and no other process does.
 
-    Its heartbeat row is `worker-<provider>`: one worker process per provider."""
+    Its heartbeat row is `worker-<provider>-<hostname>`: one row per container."""
     from relay_core.jobs.worker import EXIT_REFUSED as REFUSED
     from relay_core.jobs.worker import serve as serve_worker
 
@@ -424,18 +424,16 @@ def seed_settings(specs: list[Any], env: Mapping[str, str] = os.environ) -> int:
         counts = {"stored": 0, "already set": 0, "empty": 0}
         for key, var in seeds.items():
             text = env.get(var, "").strip()
-            if settings.source(key) == "db":
-                outcome = "already set"
-            elif not text:
-                outcome = "empty"
+            if not text:
+                outcome = "already set" if settings.source(key) == "db" else "empty"
             else:
                 value = [n.strip() for n in text.split(",") if n.strip()] if key == "trusted_proxies" else text
-                try:
-                    await settings.set(key, value, by="relay seed-settings")
+                try:      # one insert-if-absent under the key's lock: a value stored meanwhile is never replaced
+                    stored = await settings.set_if_absent(key, value, by="relay seed-settings")
                 except (SettingsError, crypto.CryptoError) as e:
                     reason = "no seal key in this container" if isinstance(e, crypto.CryptoError) else "refused"
                     raise CliError("%s from %s: %s (the value is not shown)" % (key, var, reason)) from None
-                outcome = "stored"
+                outcome = "stored" if stored else "already set"
             counts[outcome] += 1
             print("%s: %s" % (key, {"stored": "stored from %s" % var, "already set": "already set, left as it is",
                                      "empty": "%s is empty here, nothing stored" % var}[outcome]))
@@ -486,7 +484,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("serve", help="public and admin API on port %d (env: DATABASE_URL, CREDENTIAL_SEAL_PUBLIC_KEY, "
                    "MINIO_*)" % LISTEN_PORT)
-    worker_help = "the worker of one provider (its heartbeat row is worker-<provider>)"
+    worker_help = "the worker of one provider (its heartbeat row is worker-<provider>-<hostname>)"
     for cmd, help_text in (("worker", worker_help), ("e2e", "live end-to-end run of one provider")):
         sub.add_parser(cmd, help=help_text).add_argument("--provider", required=True, choices=sorted(PROVIDERS))
     sub.add_parser("migrate", help="apply the SQL migrations (the only DDL path)")

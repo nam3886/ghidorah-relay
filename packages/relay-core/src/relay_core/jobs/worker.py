@@ -11,8 +11,10 @@ within its TTL.
 
 Start: a database with no billing pin (`relay migrate` writes it) refuses to start (exit 2). The heartbeat row is the
 first write, before any loop starts: a restore mark holds the heartbeat table, so a booting worker waits for it as a
-whole (N17). The heartbeat row is `worker-<provider>`: one worker process per provider (the reaper derives the worker
-id from a lease owner by removing the final "/<suffix>").
+whole (N17). The heartbeat row is `worker-<provider>-<hostname>` (`worker_id_of`): the container hostname is unique
+per container, so two workers of one provider (replicas, or an old and a new container overlapping in a recreate) never
+share a row, and a restarted container keeps its row. The reaper derives the worker id from a lease owner by removing
+the final "/<suffix>"; a hostname holds no "/".
 
 Stop (SIGTERM, SIGINT, `stop()`), in this order:
   1. claims, checks and commands stop (no new one starts);
@@ -31,6 +33,7 @@ import contextlib
 import logging
 import os
 import signal
+import socket
 import uuid
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from typing import Any
@@ -249,6 +252,11 @@ class Worker:
             self.exit_code = max(self.exit_code, EXIT_FAILED)
 
 
+def worker_id_of(provider: str, hostname: str | None = None) -> str:
+    """The heartbeat row of this process: `worker-<provider>-<hostname>`. No configuration (Codex review 25/10)."""
+    return "worker-%s-%s" % (provider, hostname or socket.gethostname())
+
+
 def boot_owner(worker_id: str) -> str:
     """The lease owner of one worker boot: a restart gets a new one, so it never inherits a dead process's leases."""
     return "%s/%s" % (worker_id, uuid.uuid4().hex[:8])
@@ -263,7 +271,7 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
                 env: Mapping[str, str] = os.environ, *, install_signals: bool = True) -> int:
     """Everything a worker process needs, from the environment: DSN, the private keys of the credential seal and the
     object store; a browser provider's size is its `<p>.browser_slots` setting, the stop grace is DEFAULT_GRACE_S and
-    the heartbeat row `worker-<provider>`. The worker also reads its own container limits once and reports them.
+    the heartbeat row `worker_id_of(provider)`. The worker also reads its own container limits once and reports them.
     Returns the exit code."""
     dsn = env.get("DATABASE_URL", "")
     if not dsn:
@@ -278,7 +286,7 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
                 source.pop(crypto.PRIVATE_KEY_VAR, None)
         store = ObjectStore.from_env(env)
         browser = spec.caps.execution == "browser"
-        worker_id = "worker-" + spec.name
+        worker_id = worker_id_of(spec.name)
         container = cgroup.own_limits()
         ProviderRegistry().register(spec)        # a spec that does not declare the settings the core reads is refused
     except Exception as e:                       # a missing or malformed variable: refuse before any connection

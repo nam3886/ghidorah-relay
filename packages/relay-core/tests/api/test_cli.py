@@ -746,10 +746,7 @@ class SecretFake(FakeSpec):
 
 
 PLANTED = "PLANTED-solver-key-0123456789"
-NEVER_REPLACES = "            if settings.source(key) == \"db\":\n                outcome = \"already set\""
-
-
-@mutation(M, NEVER_REPLACES, "            if False:\n                outcome = \"already set\"",
+@mutation(M, "stored = await settings.set_if_absent(key, value,", "stored = True; await settings.set(key, value,",
           expect="a stored value was replaced")
 def test_seed_settings_stores_each_unset_value_from_the_old_env_once_and_never_prints_one(db, monkeypatch, capsys):
     """Owner 25/10: the one-off path from env to settings. In a worker container (the private key only) a secret is

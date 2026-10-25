@@ -397,7 +397,8 @@ is a user that already exists. Run it for the first admin after `relay migrate`:
 environment variable and has no stored value takes that variable from the env of the container it runs in:
 `public_address` <- `PUBLIC_BASE_URL` and `trusted_proxies` <- `TRUSTED_PROXIES` (comma-separated) from the api's,
 flow's three solver keys `flow.<source>_key` <- `FLOW_<SOURCE>_KEY` from worker-flow's (sealed with the public half of
-its private key). A stored value is never replaced; an empty variable stores nothing. It prints one line per setting
+its private key). A stored value is never replaced (one insert-if-absent under the key's lock, so a value the admin stores meanwhile wins);
+an empty variable stores nothing. It prints one line per setting
 (stored, already set, or empty) and never a value. After the deploy:
 `docker compose -p relay --profile app exec api relay seed-settings` and
 `docker compose -p relay --profile flow exec worker-flow relay seed-settings`; then the old lines go from the env files.
@@ -564,8 +565,9 @@ Environment (read at boot; the full list is in the per-service env files):
 |---|---|
 | `DATABASE_URL`, the credential private keys, MinIO settings | required; a missing or malformed value exits 2 before any connection |
 
-Nothing else is a variable: the heartbeat row is `worker-<provider>` (one worker process per provider; each boot
-appends its own `/<suffix>` to form the lease owner), and the stop grace is `DEFAULT_GRACE_S` = 720 s
+Nothing else is a variable: the heartbeat row is `worker-<provider>-<hostname>` (the container
+hostname is unique per container, so replicas or an old and a new container overlapping in a recreate never share a
+row, and a restarted container keeps its own; each boot appends its own `/<suffix>` to form the lease owner), and the stop grace is `DEFAULT_GRACE_S` = 720 s
 (`relay_core/jobs/worker.py`, on the Fixed limits card), which must stay below the compose `stop_grace_period` (780 s)
 so Docker never kills first.
 
