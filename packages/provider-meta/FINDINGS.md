@@ -161,3 +161,10 @@ Run 23/10 21:45–21:50 GMT+7, three launches, one send.
 - Note: the account's history already holds a chat titled "Video generation quota exhausted" from an earlier run.
 
 Exists: no. Revisit if meta enables "edit-video" on the web (watch the answer text above and the Media page).
+
+## Plan (25/10)
+meta.ai has paid plans ("Meta One Plus", "Meta One Core", "Meta One Premium" = `PRODUCT_TIER_3`). The settings code
+reads them with the persisted query `MetaSubsSettingsQuery` → `viewer.metaSubsSettingsInfo {premiumState, productName,
+usagePercent, expiryTime}` (`premiumState === "SUBSCRIBED"` means paid). The settings page did not send it over HTTP
+on load (no graphql POST seen; the data comes over the gateway) and a plain `/api/graphql` replay did not answer, so the
+check does not read a plan yet. The user menu and `/settings` show no plan for the accounts we have.

@@ -357,13 +357,14 @@ class FakeDriver(PageDriver):
                  cookie_names: set | None = ..., injected: list | None = ..., build_error_times: int | None = None,
                  moves: list | None = None, region_after_settle: bool = False,
                  build_reloads: int = 0, attach_errors: dict | None = None, order_request: bool | None = None,
-                 probe_after_send: dict | None = None, late_send: bool = False, halt_ok: bool = True):
+                 probe_after_send: dict | None = None, late_send: bool = False, halt_ok: bool = True,
+                 subscription: dict | None = None):
         self.log, self.world = log, world
         self.probe_result = GOOD_PROBE if probe is None else probe
         self.url, self.new_composer, self.text = url, new_composer, page_text
         self.build_error, self.attach_reason, self.send_error = build_error, attach_reason, send_error
         self.open_error, self.rebuild_error = open_error, rebuild_error
-        self.passport_result, self.kind = passport, kind
+        self.passport_result, self.kind, self.subscription_result = passport, kind, subscription
         self.type_error = type_error
         # the identity cookies the browser still holds: all of them unless a test says otherwise; None = not readable
         self.cookie_names = set(IDENTITY_COOKIE_NAMES) if cookie_names is ... else cookie_names
@@ -486,6 +487,9 @@ class FakeDriver(PageDriver):
 
     async def passport(self, page):
         return self.passport_result
+
+    async def subscription(self, page):
+        return self.subscription_result
 
     async def screenshot(self, page):
         return b"png-bytes"

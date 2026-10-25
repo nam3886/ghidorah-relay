@@ -186,3 +186,9 @@ renders an empty panel, `/chat/create-video` is "Page not found", and there is n
 loads, completion fenced by a route abort; nothing reached `/chat/completion`). The HTTP path would need the
 resource prepare-upload + VOD upload chain for the `vid`, which is not built. Open: capture that chain from a
 working browser profile, then one paid send with a ≤15 s mp4 and `ffprobe` the result.
+
+## Plan (25/10)
+The chat page asks `POST /alice/commerce/sale/subscription/entry/config/` (plain query, body `{}`; no `a_bogus`
+needed). Two free accounts answered `subs_status: "free"`, `has_active_subscription: false`,
+`membership_display_name: ""` (`fixtures/dola/subscription_entry_config_free.json`). The bundle has a membership
+service and a subscription modal; no paid account exists, so a paid `subs_status` is unknown and is not written.

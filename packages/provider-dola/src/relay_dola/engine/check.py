@@ -4,7 +4,8 @@
 machine
 once said "5 conversations" for a cookie the browser could not use): the region URL, the login probe, the passport
 identity (`user_id_str`: the stable account id; `uid_tt` is a SESSION id and changes per login), a screenshot, and which
-composer UI the account has (the acceptance verdict of a send depends on it). It spends no credit and sends nothing.
+composer UI the account has (the acceptance verdict of a send depends on it), and the plan (dola's subscription
+config: a free account is the free tier). It spends no credit and sends nothing.
 
 `probe_proxy` goes over HTTP through the proxy: the exit IP, then dola's chat page, looking for the region page and 5xx.
 """
@@ -13,7 +14,7 @@ import asyncio
 import logging
 from datetime import timedelta
 
-from relay_core.providers import Cooldown, Health, Proxy, ProxyBad, ProxyVerdict
+from relay_core.providers import Cooldown, Health, Proxy, ProxyBad, ProxyVerdict, Tier
 from relay_core.redact import redact_text
 from relay_dola import constants
 from relay_dola.engine.http import CurlTransport, Transport, proxies_for
@@ -36,6 +37,14 @@ def identity_of(passport) -> tuple[str | None, str]:
     if not isinstance(passport, dict) or passport.get("message") != "success" or not passport.get("user_id"):
         return None, ""
     return str(passport["user_id"]), str(passport.get("name") or "")
+
+
+def tier_of(subscription) -> tuple[Tier, ...]:
+    """The tier from dola's subscription config (`data`): `subs_status` "free" without an active subscription is the
+    free tier. A paid status is not measured (no paid account): it, any other code and a failed read write no tier."""
+    if not isinstance(subscription, dict) or subscription.get("has_active_subscription") is not False:
+        return ()
+    return (Tier("free"),) if subscription.get("subs_status") == "free" else ()
 
 
 async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
@@ -69,11 +78,12 @@ async def check_account(ctx, settings, *, deps: Deps | None = None) -> Health:
                     return Health("unknown", screenshot=shot, effects=login_doubt_effects(deps.now(), state.reason))
                 return Health("unknown", screenshot=shot, effects=())
             identity, name = identity_of(await driver.passport(page))
+            tier = tier_of(await driver.subscription(page))
             patch = {}
             if (kind := await driver.composer_kind(page)) is not None:
                 patch["composer"] = kind
             return Health("alive", identity=identity, display_name=name or state.account_name or None,
-                          screenshot=shot, state_patch=patch)
+                          screenshot=shot, state_patch=patch, effects=tier)
     except Exception as exc:      # noqa: BLE001
         if network_failure(str(exc)):
             return _proxy_trouble(str(exc)[:100], deps)

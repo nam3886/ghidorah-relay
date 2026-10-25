@@ -313,3 +313,10 @@ live version on 23/10 21:25 GMT+7); the backend price list knows video edit/exte
   30 credits of a 40-credit day. Not sent.
 
 Revisit when a web version adds a video `attachments` type or a `genMode` beyond `vid_gen`/`multi_ref`.
+
+## Plans (25/10, bundle 0.3.22)
+- `member/level/query` → `data.memberType`; the web app lower-cases it and knows `free`, `lite` (old name of `go`), `go`,
+  `plus`, `pro` (anything else reads as free). Its plan page: go, plus and pro add 400, 2000 and 10500 credits a month
+  on top of the daily ones. `pro` is also what VIP-only models require (`requiredMemberType: pro`).
+- The check maps free → free and pro → pro; go and plus have no core tier and are not written. Only free is measured
+  (`spike-261023/member_level.json`).

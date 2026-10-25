@@ -66,6 +66,7 @@ TASK_SUCCESS = rec("t2v_task_success")["body"]
 VERIFY_OK = rec("credits_verify_ok")["body"]
 VERIFY_EMPTY = rec("credits_verify_empty")["body"]
 CREDITS = rec("credits_history_acc1")["body"]  # totalCredits 10
+MEMBER = rec("member_level")["body"]           # memberType free
 IMAGE_LINK = json.loads(rec("t2i_send")["stream_lines"][-2][1][5:])["choices"][0]["delta"]["content"]
 VIDEO_LINK = TASK_SUCCESS["data"]["content"]
 TASK = TASK_SUCCESS["data"]["tool_result"]["record_id"]
@@ -119,13 +120,16 @@ class Qwen:
         self.log, self.seen = log, []
         self.answers = {"refresh": refresh_ok(), "new_chat": {"success": True, "data": {"id": CHAT}},
                         "verify": VERIFY_OK, "sts": sts_ok(), "put": httpx.Response(200), "send": IMAGE_STREAM,
-                        "chat": CHAT_EMPTY, "task": TASK_RUNNING, "credits": CREDITS, **answers}
+                        "chat": CHAT_EMPTY, "task": TASK_RUNNING, "credits": CREDITS, "member": MEMBER,
+                        **answers}
         self.transport = httpx.MockTransport(self.handle)
 
     def name_of(self, request: httpx.Request) -> str:
         url = urlsplit(str(request.url))
         if url.netloc == "auth.qwen.ai" and url.path == "/api/v2/auths/refresh":
             return "refresh"
+        if url.netloc == "sg-member.qwen.com" and url.path == "/api/member/level/query":
+            return "member"
         if url.netloc == "sg-entitlement.qwen.com":
             return "credits"
         if url.netloc.endswith(".aliyuncs.com") and request.method == "PUT":

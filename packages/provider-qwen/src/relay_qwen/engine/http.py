@@ -28,6 +28,7 @@ from relay_qwen.constants import (
     CREDITS_QUERY,
     CREDITS_URL,
     MEDIA_HOSTS,
+    MEMBER_URL,
     QWEN_DOMAIN,
     REFRESH_COOKIE,
     REFRESH_URL,
@@ -283,6 +284,16 @@ class Site:
         if status != 200 or type(total) is not int or total < 0:
             return None
         return total
+
+    async def member_type(self) -> str | None:
+        """The account's plan as qwen names it (`memberType`: free, go, plus, pro); None when it is unreadable."""
+        status, body = await self.call("POST", MEMBER_URL + "?" + "&".join(
+            "%s=%s" % (k, quote(v, safe="")) for k, v in CREDITS_QUERY.items() if not k.startswith("page")))
+        data = body.get("data") if isinstance(body.get("data"), dict) else {}
+        member = data.get("memberType")
+        if status != 200 or body.get("success") is not True or not isinstance(member, str):
+            return None
+        return member.lower()
 
 
 # ---- the chat record --------------------------------------------------------------------------------------------

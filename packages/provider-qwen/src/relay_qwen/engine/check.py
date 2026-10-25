@@ -5,8 +5,10 @@ Signed in ⇔ the refresh gives an access token; the user it names (email) is th
 says the session is gone is a doubt, never a verdict by itself: one spaced strike and a rest that asks for a recheck,
 and only the strike threshold, reached by separate reads, ends the account. Any other unusable answer is an unknown
 read with no strike; a network failure raises, so the check is recorded as failed. The credits (`totalCredits`) are
-the account's `video` balance. With claims on, a pair older than half `qwen.bx_max_age_s` is minted anew, so a submit
-seldom waits for a browser; a mint that fails is logged and the account stays alive (the submit tries again).
+the account's `video` balance and its plan (`memberType`, FINDINGS 7) its tier. With claims on, a pair older than half
+`qwen.bx_max_age_s` is minted anew, so a submit seldom waits for a browser; a mint that fails is logged and the account
+stays alive (the submit tries again). A plan read that fails, or names a plan the core has no tier for, writes no tier:
+the stored one stays.
 """
 
 import logging
@@ -16,11 +18,25 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from relay_core.providers import Balance, Cooldown, Health, Suspect
+from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier
 from relay_qwen.constants import SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_qwen.engine.http import BadAnswer, Sessions, SignedOut, Site
 
 log = logging.getLogger(__name__)
+
+# qwen's plans (its bundle 0.3.22: `free`, `go` (`lite` is its old name), `plus`, `pro`; 400, 2000 and 10500 credits a
+# month on top of the daily ones). free is measured (both accounts, 23/10); pro is qwen's top plan and the one its
+# VIP-only models require. go and plus have no core tier: they are not written, the tier the admin set stays.
+MEMBER_TIERS = {"free": "free", "pro": "pro"}
+
+
+async def read_tier(site: Site) -> tuple[Tier, ...]:
+    """The account's tier from its plan; nothing when the plan cannot be read or has no core tier."""
+    try:
+        member = await site.member_type()
+    except httpx.HTTPError:
+        return ()
+    return (Tier(MEMBER_TIERS[member]),) if member in MEMBER_TIERS else ()
 
 
 def doubt_effects(why: str, now: datetime) -> tuple[Suspect, Cooldown]:
@@ -42,7 +58,7 @@ async def check_account(ctx, settings, sessions: Sessions, minter, *, transport:
             except BadAnswer:
                 return Health("unknown")
             credits = await site.credits()
-            effects = () if credits is None else (Balance("video", credits),)
+            effects = (() if credits is None else (Balance("video", credits),)) + await read_tier(site)
             if settings.get("qwen.claims_enabled"):
                 try:
                     await minter.fresh(ctx, sessions, int(settings.get("qwen.bx_max_age_s")) / 2)

@@ -162,6 +162,17 @@ PASSPORT_JS = """async (qp) => {
             name: String(d.name || d.screen_name || d.nickname || '')};
   } catch (e) { return null; }
 }"""
+# The account's plan, as the chat page itself asks it on load (POST `{}`, the plain query; measured 25/10): `data`
+# carries `subs_status` ("free" on every account seen) and `has_active_subscription`.
+SUBSCRIPTION_JS = """async (qp) => {
+  try {
+    const r = await fetch('/alice/commerce/sale/subscription/entry/config/?' + new URLSearchParams(qp).toString(),
+      {method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'}, body: '{}'});
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.code === 0 && j.data && typeof j.data === 'object' ? j.data : null;
+  } catch (e) { return null; }
+}"""
 # The number of reference-image previews in the composer. The browser hands out a `blob:` URL for each local file
 # picked, whatever CSS class dola uses (the class-based count read 0 for good after dola renamed its classes,
 # 23/09). Counting
@@ -850,6 +861,13 @@ class PageDriver:
         """Who the cookie is, from dola's passport API called inside the page: `{message, user_id, name}`."""
         try:
             return await page.evaluate(PASSPORT_JS, query_params())
+        except Exception:      # noqa: BLE001 - nothing is concluded from a failed call
+            return None
+
+    async def subscription(self, page) -> dict | None:
+        """The account's plan from dola's subscription config, called inside the page (`data`); None when unread."""
+        try:
+            return await page.evaluate(SUBSCRIPTION_JS, query_params())
         except Exception:      # noqa: BLE001 - nothing is concluded from a failed call
             return None
 

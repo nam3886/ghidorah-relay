@@ -170,3 +170,8 @@ for t2v. The extend path was read from the bundle only.
 
 So vibes can sell "edit/extend a video we made for you on the same account" (like image edit, S7: the job must be
 pinned to the account that owns the source), not "upload your video and restyle it".
+
+## Plan (25/10)
+No plan is exposed: `/api/auth/me` has no plan or subscription field, and the web bundle's API paths (`system-status`,
+`meta-graphql`, `settings/*`, `projects`, `playables`, uploads, `quota/upsell`) name no plan, billing or subscription
+endpoint. The check reports no tier.

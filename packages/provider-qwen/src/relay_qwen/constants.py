@@ -16,6 +16,7 @@ REFRESH_URL = "https://auth.qwen.ai/api/v2/auths/refresh"     # the jar -> a 15-
 CREDITS_URL = "https://sg-entitlement.qwen.com/api/entitlement/credits/credits/history"
 CREDITS_QUERY = {"pageNum": "1", "pageSize": "5", "biz_id": "ai_qwen", "chat_client": "h5", "device": "pc",
                  "fr": "pc", "pr": "qwen-i18n", "la": "en-US", "tz": "UTC", "wv": "0.3.22"}
+MEMBER_URL = "https://sg-member.qwen.com/api/member/level/query"     # POST: the plan (`memberType`), FINDINGS 7
 QWEN_DOMAIN = "qwen.ai"               # every cookie the account needs is for qwen.ai or a subdomain of it
 REFRESH_COOKIE = "refresh_token"      # without it there is no session
 MEDIA_HOSTS = ("cdn.qwenlm.ai",)      # the result links (a `key` JWT in the query, no cookie)

@@ -28,6 +28,7 @@ Made by `scripts/redact-fixtures.py` from raw spike captures. Values replaced, k
 - `vibes/s4-capture/capture.json` — every vibes response: auth, t2i, t2v write-ahead + resume polls, a never-generated shell; 30/09.
 - `dola/listing-capped-30.json` — synthetic: a full 30-item conversation listing with one unknown conversation that does not carry the job's text (the capped-listing crash window).
 - `dola/action_bar_conf.json` — the dola action-bar config response (`get_item_conf`) the 30 s patch reads, from earlier samples.
+- `dola/subscription_entry_config_free.json` — dola's `/alice/commerce/sale/subscription/entry/config/` answer (POST `{}` from the chat tab), identical on two free accounts; box, 25/10. No secret in it.
 
 ## Gaps
 

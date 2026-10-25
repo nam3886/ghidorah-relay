@@ -11,6 +11,7 @@ from qwenkit import (
     BLOB,
     BX_UA,
     EMAIL,
+    MEMBER,
     NOW,
     PAIR,
     REFRESH,
@@ -24,7 +25,7 @@ from qwenkit import (
     settings,
 )
 
-from relay_core.providers import Balance, Cooldown, Health, Proxy, Suspect
+from relay_core.providers import Balance, Cooldown, Health, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_qwen.constants import TOKEN_REUSE_S
 from relay_qwen.credential import cred_of, merge_blobs
@@ -267,7 +268,7 @@ def run_check(q, ctx, m=None, **cfg):
 def test_a_signed_in_account_is_alive_by_its_email_with_its_credits_as_the_video_balance():
     log = []
     health = run_check(Qwen(log), Ctx(log))
-    assert health == Health("alive", identity=EMAIL, display_name=EMAIL, effects=(Balance("video", 10),))
+    assert health == Health("alive", identity=EMAIL, display_name=EMAIL, effects=(Balance("video", 10), Tier("free")))
     assert "mint" not in log and "send" not in log
 
 
@@ -293,10 +294,55 @@ def test_a_signed_out_refresh_is_a_spaced_strike_another_answer_unknown_and_no_n
     assert any(isinstance(e, Cooldown) and e.recheck for e in health.effects)
     assert run_check(Qwen([], refresh=httpx.Response(502)), Ctx([])) == Health("unknown")
     no_credits = run_check(Qwen([], credits=httpx.Response(500)), Ctx([]))
-    assert no_credits.state == "alive" and no_credits.effects == ()
+    assert no_credits.state == "alive" and no_credits.effects == (Tier("free"),)
     with pytest.raises(RuntimeError) as e:
         run_check(Qwen([], refresh=httpx.ConnectError("http://user:pw-7@10.0.0.1:1 refused")), Ctx([]))
     assert "pw-7" not in str(e.value)
+
+
+READS_TIER = '            effects = (() if credits is None else (Balance("video", credits),)) + await read_tier(site)'
+
+
+def member(member_type, **over) -> dict:
+    """The recorded `member/level/query` answer (a free account) naming another plan."""
+    return {**MEMBER, "data": {**MEMBER["data"], "memberType": member_type}, **over}
+
+
+def tier_of(answer) -> tuple:
+    log = []
+    health = run_check(Qwen(log, member=answer), Ctx(log))
+    assert health.state == "alive" and "member" in log, "the check did not read the plan"
+    return tuple(e for e in health.effects if isinstance(e, Tier))
+
+
+@mutation(CHECK_FILE, READS_TIER,
+          '            effects = () if credits is None else (Balance("video", credits),)', expect="the plan")
+@mutation(CHECK_FILE, 'MEMBER_TIERS = {"free": "free", "pro": "pro"}', 'MEMBER_TIERS = {"free": "free"}', expect="pro")
+def test_the_check_reports_the_plan_qwen_names_as_the_tier():
+    assert tier_of(MEMBER) == (Tier("free"),), "the recorded free account was not read as free"
+    assert tier_of(member("pro")) == (Tier("pro"),), "a qwen pro account was not read as pro"
+    assert tier_of(member("Pro")) == (Tier("pro"),)
+
+
+@mutation(CHECK_FILE, "    return (Tier(MEMBER_TIERS[member]),) if member in MEMBER_TIERS else ()",
+          '    return (Tier(MEMBER_TIERS.get(member, "free")),)', expect="no core tier")
+def test_a_plan_with_no_core_tier_or_an_unknown_code_writes_no_tier():
+    for code in ("go", "lite", "plus", "enterprise", ""):
+        assert tier_of(member(code)) == (), "a plan with no core tier was written: %s" % code
+
+
+@mutation(HTTP_FILE, '        if status != 200 or body.get("success") is not True or not isinstance(member, str):',
+          "        if not isinstance(member, str):", expect="a failed read")
+@mutation(CHECK_FILE, "    except httpx.HTTPError:\n        return ()\n    return (Tier(",
+          "    except ZeroDivisionError:\n        return ()\n    return (Tier(", expect="could not be reached")
+def test_a_failed_plan_read_keeps_the_account_alive_with_its_credits_and_writes_no_tier():
+    for answer in (httpx.Response(500, json=MEMBER), member("pro", success=False), {"success": True, "data": None},
+                   "not json", httpx.ReadTimeout("slow"), httpx.ConnectError("refused")):
+        log = []
+        health = run_check(Qwen(log, member=answer), Ctx(log))
+        assert health.state == "alive", "a failed read doubted the account: %r" % (answer,)
+        assert health.effects == (Balance("video", 10),), "a failed read changed the tier: %r" % (answer,)
+        assert not any(isinstance(e, (Suspect, Cooldown)) for e in health.effects)
 
 
 def test_the_check_never_logs_a_session_value(caplog):

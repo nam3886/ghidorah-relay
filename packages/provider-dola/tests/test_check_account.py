@@ -2,16 +2,18 @@
 network: the page is a scripted driver, the HTTP transport an in-process fake."""
 
 import asyncio
+import json
 import threading
 from datetime import timedelta
 
 import pytest
-from kit_c import GOOD_PROBE, NOW, FakeCtx, FakeDriver, FakeSession, account, deps, sync
+from kit_c import FIXTURES, GOOD_PROBE, NOW, FakeCtx, FakeDriver, FakeSession, account, deps, sync
 
-from relay_core.providers import Cooldown, Dead, Health, Proxy, ProxyBad, Suspect
+from relay_core.providers import Cooldown, Dead, Health, Proxy, ProxyBad, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_dola.engine import verify
 from relay_dola.engine.check import check_account, identity_of, probe_proxy
+from relay_dola.engine.submit import SUBSCRIPTION_JS
 from relay_dola.engine.verify import LoginState, login_state, read_passport
 
 CK = "packages/provider-dola/src/relay_dola/engine/check.py"
@@ -107,6 +109,45 @@ async def test_the_composer_ui_is_recorded_old_or_new_and_left_out_when_unreadab
     assert (await check(passport=PASSPORT, kind=None))[0].state_patch == {}, (
         "an unreadable composer must not be guessed"
     )
+
+
+SUBS_FREE = json.loads((FIXTURES / "subscription_entry_config_free.json").read_text())["data"]
+SUB = "packages/provider-dola/src/relay_dola/engine/submit.py"
+
+
+@mutation(CK, "                          screenshot=shot, state_patch=patch, effects=tier)",
+          "                          screenshot=shot, state_patch=patch)", expect="the free plan")
+@mutation(CK, '    return (Tier("free"),) if subscription.get("subs_status") == "free" else ()',
+          '    return (Tier("free"),)', expect="no tier")
+@sync
+async def test_the_check_reads_the_free_plan_and_writes_no_tier_for_a_paid_or_unknown_one():
+    health = (await check(passport=PASSPORT, subscription=SUBS_FREE))[0]
+    assert health.state == "alive" and health.effects == (Tier("free"),), "the free plan was not read: %r" % (
+        health.effects,)
+    for status in ("paid", "pro", "", None):
+        sub = {**SUBS_FREE, "subs_status": status}
+        assert (await check(passport=PASSPORT, subscription=sub))[0].effects == (), "an unknown plan: no tier"
+
+
+@mutation(CK, '    if not isinstance(subscription, dict) or subscription.get("has_active_subscription") is not False:',
+          "    if not isinstance(subscription, dict):", expect="changed the tier")
+@sync
+async def test_a_failed_plan_read_or_an_active_subscription_keeps_the_account_alive_with_no_tier():
+    for sub in (None, {}, {"subs_status": "free"}):
+        health = (await check(passport=PASSPORT, subscription=sub))[0]
+        assert health.state == "alive" and health.effects == (), "a failed read changed the tier: %r" % (sub,)
+    active = {**SUBS_FREE, "has_active_subscription": True}
+    assert (await check(passport=PASSPORT, subscription=active))[0].effects == (), (
+        "an active subscription named free was written as free")
+
+
+@mutation(SUB, "    return j && j.code === 0 && j.data && typeof j.data === 'object' ? j.data : null;",
+          "    return j.data;", expect="answer code")
+def test_the_plan_script_posts_to_the_subscription_config_and_reads_only_a_good_answer():
+    for token in ("/alice/commerce/sale/subscription/entry/config/?", "method: 'POST'", "body: '{}'",
+                  "credentials: 'include'", "if (!r.ok) return null;"):
+        assert token in SUBSCRIPTION_JS, token
+    assert "j.code === 0" in SUBSCRIPTION_JS, "the answer code is not checked"
 
 
 @sync
