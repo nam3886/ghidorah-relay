@@ -12,8 +12,9 @@ numbers and the day totals range-scan `request_logs_at`.
 import csv
 import io
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -72,14 +73,16 @@ _DAY_TOTALS = "SELECT (l.at AT TIME ZONE %(tz)s)::date, count(*) "
 _DAY_RANGE = (" AND l.at >= (%(day_first)s::date)::timestamp AT TIME ZONE %(tz)s"
               " AND l.at < ((%(day_last)s::date + 1)::timestamp AT TIME ZONE %(tz)s) GROUP BY 1")
 
-# Today in numbers, from midnight in `dashboard_tz`: the requests by status family and the duration percentiles.
+# Today in numbers, [midnight, the next midnight) in `dashboard_tz`: the requests by status family and the duration
+# percentiles.
+_TODAY_RANGE = "at >= %(start)s AND at < %(end)s"
 _TODAY = ("SELECT count(*), count(*) FILTER (WHERE status_code BETWEEN 200 AND 299), "
           "count(*) FILTER (WHERE status_code BETWEEN 400 AND 499), count(*) FILTER (WHERE status_code >= 500), "
           "percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms), "
-          "percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) FROM request_logs WHERE at >= %(start)s")
+          "percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) FROM request_logs WHERE " + _TODAY_RANGE)
 # The commonest error code of the 4xx and of the 5xx today (a tie goes to the first code by name).
 _TOP_CODES = ("SELECT DISTINCT ON (status_code / 100) status_code / 100, error_code, count(*) FROM request_logs "
-              "WHERE at >= %(start)s AND status_code >= 400 AND error_code IS NOT NULL "
+              "WHERE " + _TODAY_RANGE + " AND status_code >= 400 AND error_code IS NOT NULL "
               "GROUP BY status_code / 100, error_code ORDER BY status_code / 100, count(*) DESC, error_code")
 
 _CSV_HEAD = ("time_utc", "status", "route", "job_id", "job_title", "provider", "key", "key_prefix", "error_code",
@@ -160,9 +163,13 @@ async def logs_today(pool: AsyncConnectionPool = Depends(get_pool),
     tz = settings.get("dashboard_tz")
     async with tx(pool) as conn:
         day_start, _ = await (await conn.execute(_DAY, {"tz": tz})).fetchone()
-        requests, ok, client, server, p50, p95 = await (await conn.execute(_TODAY, {"start": day_start})).fetchone()
+        zone = ZoneInfo(tz)
+        # the next local midnight from the calendar date, so a day with a clock change keeps its 23 or 25 hours
+        day = {"start": day_start, "end": datetime.combine(
+            day_start.astimezone(zone).date() + timedelta(days=1), time(), tzinfo=zone)}
+        requests, ok, client, server, p50, p95 = await (await conn.execute(_TODAY, day)).fetchone()
         top = {family: {"code": code, "count": n}
-               for family, code, n in await (await conn.execute(_TOP_CODES, {"start": day_start})).fetchall()}
+               for family, code, n in await (await conn.execute(_TOP_CODES, day)).fetchall()}
     return {"day_tz": tz, "day_start_ms": ms(day_start), "kept_days": settings.get("log_retention_days"),
             "requests": requests, "by_class": {"2xx": ok, "4xx": client, "5xx": server},
             "top_code": {"4xx": top.get(4), "5xx": top.get(5)}, "p50_ms": p50, "p95_ms": p95}
@@ -204,7 +211,9 @@ async def export_logs(provider: str | None = None, status: Status = "all", since
             yield buf.getvalue()
 
     return StreamingResponse(pieces(), media_type="text/csv; charset=utf-8",
-                             headers={"Content-Disposition": 'attachment; filename="request-logs.csv"'})
+                             headers={"Content-Disposition": 'attachment; filename="request-logs.csv"',
+                                      # request data: no browser or proxy may keep a copy
+                                      "Cache-Control": "no-store", "Pragma": "no-cache"})
 
 
 @router.get("/logs/{log_id}")

@@ -475,7 +475,12 @@ def timed(db, k, status: int, duration_ms: int, at_sql: str, error: str | None =
            "VALUES (%s, 'fake', 'POST /v1/videos', %s, %s, %s, " + at_sql + ")", k, status, duration_ms, error)
 
 
-@mutation(ROUTES, 'FROM request_logs WHERE at >= %(start)s")', 'FROM request_logs")', expect="today only")
+@mutation(ROUTES, '_TODAY_RANGE = "at >= %(start)s AND at < %(end)s"', '_TODAY_RANGE = "TRUE AND at < %(end)s"',
+          expect="today only")
+@mutation(ROUTES, '_TODAY_RANGE = "at >= %(start)s AND at < %(end)s"', '_TODAY_RANGE = "at >= %(start)s AND TRUE"',
+          expect="tomorrow")
+@mutation(ROUTES, '_TODAY_RANGE = "at >= %(start)s AND at < %(end)s"',
+          '_TODAY_RANGE = "at >= %(start)s AND at <= %(end)s"', expect="tomorrow")
 @mutation(ROUTES, "percentile_disc(0.95)", "percentile_disc(0.9)", expect="the 95th percentile")
 @mutation(ROUTES, "ORDER BY status_code / 100, count(*) DESC, error_code",
           "ORDER BY status_code / 100, count(*) ASC, error_code", expect="the commonest code")
@@ -483,6 +488,8 @@ def timed(db, k, status: int, duration_ms: int, at_sql: str, error: str | None =
 def test_today_counts_the_dashboard_day_by_status_family_with_its_commonest_codes_and_percentiles(db):
     k = key(db)
     timed(db, k, 500, 99_999, MIDNIGHT + " - interval '1 min'", "internal.error")     # yesterday, local time
+    timed(db, k, 500, 88_888, MIDNIGHT + " + interval '1 day'", "internal.error")     # tomorrow's first moment
+    timed(db, k, 500, 77_777, MIDNIGHT + " + interval '1 day 2 hours'", "internal.error")  # later tomorrow
     codes = {17: "key.cap_reached", 18: "key.cap_reached", 19: "wallet.empty", 20: "provider.no_account"}
     for i in range(1, 21):          # 10 ms .. 200 ms: 16 x 201, 3 x 429, 1 x 503
         status = 503 if i == 20 else 429 if i in codes else 201
@@ -498,7 +505,7 @@ def test_today_counts_the_dashboard_day_by_status_family_with_its_commonest_code
     local = datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0, second=0, microsecond=0)
     check = Soft()
     check((body["day_tz"], body["day_start_ms"]) == (TZ, int(local.timestamp() * 1000)), "today only: the local day")
-    check(body["requests"] == 20, "today only: yesterday's row is left out")
+    check(body["requests"] == 20, "today only: yesterday's row is left out, and tomorrow's two (from its midnight)")
     check(body["by_class"] == {"2xx": 16, "4xx": 3, "5xx": 1}, "today only: by family")
     check((body["p50_ms"], body["p95_ms"]) == (100, 190), "the 95th percentile and the median")
     check(body["top_code"] == {"4xx": {"code": "key.cap_reached", "count": 2},
@@ -516,8 +523,9 @@ def test_today_on_an_empty_log_is_zeros_and_no_percentile(db):
         0, {"2xx": 0, "4xx": 0, "5xx": 0}, None, {"4xx": None, "5xx": None})
 
 
-@mutation(ROUTES, 'FROM request_logs WHERE at >= %(start)s")',
-          "FROM request_logs WHERE at + interval '0' >= %(start)s\")", expect="today is served by request_logs_at")
+@mutation(ROUTES, '_TODAY_RANGE = "at >= %(start)s AND at < %(end)s"',
+          "_TODAY_RANGE = \"at + interval '0' >= %(start)s AND at + interval '0' < %(end)s\"",
+          expect="today is served by request_logs_at")
 def test_today_is_served_by_the_at_index_on_a_realistic_table(db):
     import psycopg
 
@@ -528,13 +536,15 @@ def test_today_is_served_by_the_at_index_on_a_realistic_table(db):
     db.run("ANALYZE request_logs")
     with db.connect() as conn:
         plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
-            "EXPLAIN " + routes_logs._TODAY, {"start": datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0)}))
+            "EXPLAIN " + routes_logs._TODAY, {"start": datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0),
+                                              "end": datetime.now(ZoneInfo(TZ)).replace(hour=23, minute=59)}))
     assert "request_logs_at" in plan and "Seq Scan on request_logs" not in plan, (
         "today is served by request_logs_at:\n" + plan)
 
 
 # ---- Export ------------------------------------------------------------------------------------------------------
 @mutation(ROUTES, "return \"'\" + value if", "return value if", expect="a formula sign")
+@mutation(ROUTES, '"Cache-Control": "no-store", "Pragma": "no-cache"', '"Pragma": "no-cache"', expect="never cached")
 @mutation(ROUTES, "shown = redact_shown([", "shown = ([", expect="redacted")
 @mutation(ROUTES, '{**params, "limit": EXPORT_MAX, "offset": 0}', '{**params, "limit": EXPORT_MAX + 5, "offset": 0}',
           expect="bounded")
@@ -574,5 +584,7 @@ def test_export_is_the_filtered_view_as_csv_newest_first_bounded_redacted_and_wi
     check("sk-body-secret-1" not in found.text, "no body is exported")
     check(list(csv.reader(io.StringIO(none.text))) == [list(routes_logs._CSV_HEAD)], "an empty view is the head alone")
     check(anonymous.status_code == 401, "the export needs an admin session")
+    check((found.headers.get("cache-control"), found.headers.get("pragma")) == ("no-store", "no-cache"),
+          "never cached")
     check(made, "rows were made")
     check.done()
