@@ -96,6 +96,26 @@ def test_an_alive_check_revives_stamps_and_merges_the_state_patch_under_a_fenced
     assert db.one("SELECT count(*) FROM leases")[0] == 0
 
 
+@mutation(CHECKS, '{"gap": send_gap_s(env.settings, env.provider) > 0,', '{"gap": False,',
+          expect="a check of a provider with a send gap did not count as a use")
+@mutation(CHECKS, '{"gap": send_gap_s(env.settings, env.provider) > 0,', '{"gap": True,',
+          expect="a check of a provider with no send gap counted as a use")
+def test_a_check_counts_as_a_use_for_the_send_gap_only_when_the_provider_declares_one(db):
+    gapped, plain = new_account(db, checked=True), new_account(db, checked=True)
+
+    async def scenario(p):
+        engine = KitEngine()
+        engine.health = Health("unknown")
+        await check_account(make_env(p, engine, settings=FakeSettings(SPEC, fake__send_gap_s=60)), gapped)
+        await check_account(make_env(p, engine), plain)
+
+    worker(db, scenario)
+    assert db.one("SELECT last_used_at > clock_timestamp() - interval '1 min' FROM accounts WHERE id = %s",
+                  gapped)[0], "a check of a provider with a send gap did not count as a use"
+    assert db.one("SELECT last_used_at IS NULL FROM accounts WHERE id = %s", plain)[0], (
+        "a check of a provider with no send gap counted as a use")
+
+
 def test_a_signed_out_result_kills_and_an_unreadable_one_changes_nothing_and_keeps_a_new_account_unclaimable(db):
     out = new_account(db, checked=True)
     unknown_new = new_account(db, checked=False)

@@ -195,7 +195,8 @@ the jar, or meta keeps re-solving. This change keeps to the wait and the detecti
 
 **The defaults:**
 - `meta.send_gap_s` = 600: the least time between two jobs of one account (the claim skips an account whose
-  `last_used_at` is newer). Loads 33 s and 8 min apart passed, 1.5 min and ~5 min (the spike's 4 in 15 min) failed
+  `last_used_at` is newer; an account check loads the page too, so it stamps `last_used_at` as well). Loads 33 s and
+  8 min apart passed, 1.5 min and ~5 min (the spike's 4 in 15 min) failed
   in a series; 10 min stays clear of every failing spacing seen. With 3 accounts that is 18 jobs an hour, below the
   daily pools (40 images, 20 videos per account).
 - `meta.checkpoint_rest_s` = 1800 (unchanged) and `meta.checkpoint_rest_max_s` = 21600: each repeat within a day (seen

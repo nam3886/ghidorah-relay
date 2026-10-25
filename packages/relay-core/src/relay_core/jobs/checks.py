@@ -12,7 +12,9 @@ ends with the account's health recorded for its history, and a failure is kept a
 `dead_check_interval_h` (whatever the check read: a failure, a bad proxy or a doubt does not bring the next try closer),
 so a dead jar is not opened through its proxy every few hours; a re-import that merges into it makes it due at once and
 a check that reads it alive revives it. Never-checked accounts come first, then by `check_due_at`. An unreadable
-result changes nothing and keeps `last_checked_at`, so an account that was never read stays unclaimable.
+result changes nothing and keeps `last_checked_at`, so an account that was never read stays unclaimable. For a
+provider with a send gap (`<p>.send_gap_s`) a recorded check also stamps `last_used_at`, as a claim does: a check loads
+the upstream like a send, so none lands between two jobs.
 """
 
 import asyncio
@@ -31,6 +33,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import failpoints, history, leases, net, pool
 from relay_core.budget import BrowserBudget, Purpose, Token
 from relay_core.db import AccountInUse, delete_unused_account, tx
+from relay_core.jobs.claim import send_gap_s
 from relay_core.jobs.runctx import Merge, Renewal
 from relay_core.providers import (
     AccountView,
@@ -469,8 +472,10 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
         "proxy_exit_ip = %(ip)s, proxy_latency_ms = %(ms)s, "
         "proxy_exit_at = CASE WHEN proxy_host IS NULL THEN NULL ELSE clock_timestamp() END, check_failed_at = NULL, "
+        "last_used_at = CASE WHEN %(gap)s THEN clock_timestamp() ELSE last_used_at END, "
         "updated_at = clock_timestamp() WHERE id = %(a)s",
-        {"i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
+        {"gap": send_gap_s(env.settings, env.provider) > 0,
+         "i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
          "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s, "dead": env.dead_interval_s(),
          "px": proxy is not None and proxy.ok, "ip": exit_[0], "ms": exit_[1],
          "ru": max(recheck) if recheck else None, "a": account_id})
