@@ -88,7 +88,7 @@ def worker(provider: str) -> int:
     except StorageError as e:
         print("relay worker: object store is not usable at start: %s" % e, file=sys.stderr)
         return EXIT_REFUSED if "is not set" in str(e) else EXIT_FAILED
-    return asyncio.run(serve_worker(spec, build, os.environ))
+    return asyncio.run(serve_worker(spec, build, os.environ, providers=PROVIDERS))
 
 
 def migrate() -> int:

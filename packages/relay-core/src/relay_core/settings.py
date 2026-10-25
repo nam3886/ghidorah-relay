@@ -125,8 +125,13 @@ class Spec:
 
 
 class Registry:
-    def __init__(self, *specs: Spec):
+    """`foreign`: the namespaces of the other providers of the deployment, whose specs this registry does not hold (a
+    worker knows only the core's and its own). A stored `<foreign>.<name>` is skipped quietly at load; any other key
+    no spec declares (a retired key, a typo, one of the core or of the own namespace) is logged as an error."""
+
+    def __init__(self, *specs: Spec, foreign: Iterable[str] = ()):
         self.specs: dict[str, Spec] = {}
+        self.foreign = frozenset(foreign)
         self.register(*specs)
 
     def register(self, *specs: Spec) -> None:
@@ -403,6 +408,8 @@ class Settings:
         fresh, opened = {}, {}
         for key, value in rows:
             spec = self._registry.specs.get(key)
+            if spec is None and key.partition(".")[0] in self._registry.foreign:
+                continue                    # another provider's setting: its own worker loads it
             try:
                 if spec is None:
                     raise SettingsError("not a setting")

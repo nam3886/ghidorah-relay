@@ -35,7 +35,7 @@ import os
 import signal
 import socket
 import uuid
-from collections.abc import Awaitable, Callable, Mapping, MutableMapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping, MutableMapping
 from typing import Any
 
 from psycopg.errors import LockNotAvailable
@@ -263,15 +263,18 @@ def boot_owner(worker_id: str) -> str:
 
 
 # ---- the process: environment in, exit code out ---------------------------------------------------------------
-def provider_settings(spec: ProviderSpec) -> Registry:
-    return Registry(*REGISTRY.specs.values(), *spec.settings().values())
+def provider_settings(spec: ProviderSpec, providers: Iterable[str] = ()) -> Registry:
+    """The core's settings and this provider's; the stored settings of the other `providers` are skipped at load."""
+    return Registry(*REGISTRY.specs.values(), *spec.settings().values(), foreign=set(providers) - {spec.name})
 
 
 async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settings], ProviderEngine],
-                env: Mapping[str, str] = os.environ, *, install_signals: bool = True) -> int:
+                env: Mapping[str, str] = os.environ, *, install_signals: bool = True,
+                providers: Iterable[str] = ()) -> int:
     """Everything a worker process needs, from the environment: DSN, the private keys of the credential seal and the
     object store; a browser provider's size is its `<p>.browser_slots` setting, the stop grace is DEFAULT_GRACE_S and
     the heartbeat row `worker_id_of(provider)`. The worker also reads its own container limits once and reports them.
+    `providers`: every provider name of the deployment, so their stored settings are not logged as unknown.
     Returns the exit code."""
     dsn = env.get("DATABASE_URL", "")
     if not dsn:
@@ -293,7 +296,7 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
         log.critical("the worker cannot start: %s", e)
         return EXIT_REFUSED
     db = await open_pool(dsn, name="worker-" + spec.name)
-    settings = Settings(db, dsn, registry=provider_settings(spec), open_keys=keys)     # opens the secret settings
+    settings = Settings(db, dsn, registry=provider_settings(spec, providers), open_keys=keys)  # opens secrets
     try:
         await settings.start()
         budget = None

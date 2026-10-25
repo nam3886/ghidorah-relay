@@ -417,6 +417,34 @@ def test_a_stored_value_that_no_longer_validates_is_ignored_with_the_default_app
     run(db, scenario)
 
 
+@mutation(S, 'if spec is None and key.partition(".")[0] in self._registry.foreign:',
+          'if spec is None and key.partition(".")[0] in ():', expect="another provider's stored key logged")
+@mutation(S, 'if spec is None and key.partition(".")[0] in self._registry.foreign:',
+          'if spec is None and "." in key:', expect="an unknown key went unlogged")
+def test_a_worker_skips_another_providers_stored_key_quietly_and_logs_an_unknown_one(db, caplog):
+    """Production 25/10: every worker logged each stored `<other provider>.*` key as "not a setting" on each load."""
+    from relay_core.jobs.worker import provider_settings
+    from relay_core.testing.fake_provider import FakeSpec
+
+    registry = provider_settings(FakeSpec("p1"), ("p1", "p2", "p3"))
+    assert registry.foreign == {"p2", "p3"}
+
+    async def scenario(s, pool):
+        with db.connect() as c:
+            c.execute("INSERT INTO settings_kv (key, value) VALUES ('p2.claims_enabled', 'false'), "
+                      "('p3.anything', '1'), ('retired_core_key', '1'), ('p1.typo', '1')")
+        caplog.clear()
+        await s.reload()
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert not [e for e in errors if "p2." in e or "p3." in e], "another provider's stored key logged"
+        assert sorted(errors) == ["stored setting p1.typo ignored: not a setting",
+                                  "stored setting retired_core_key ignored: not a setting"], (
+            "an unknown key went unlogged")
+        assert s.get("p1.claims_enabled") is True
+
+    run(db, scenario, registry=registry)
+
+
 @mutation(S, "spec.validate(spec.on_load(value) if spec.on_load else value)", "spec.validate(value)",
           expect="a retired id unpaused the known one")
 @mutation(S, "        return [m for m in v if m in ids]", "        return v",
