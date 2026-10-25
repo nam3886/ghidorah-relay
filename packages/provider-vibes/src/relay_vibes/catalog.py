@@ -1,6 +1,7 @@
 """vibes' model catalog: the two models clients send, what each accepts, and their price lookup. Pure."""
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 
 IMAGE_MODEL = "vibes-image"
@@ -24,7 +25,7 @@ def price_key(model: str, resolution: str | None = None) -> str:
 
 PRICE_KEYS = (IMAGE_MODEL, *(price_key(VIDEO_MODEL, r) for r in RESOLUTIONS))
 DEFAULT_COSTS = dict.fromkeys(PRICE_KEYS, 1)       # one job of the daily budget (the default of `vibes.costs`)
-DEFAULT_PRICES = dict.fromkeys(PRICE_KEYS, 1)      # points (the default of `vibes.prices`, the owner edits it)
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)     # points (the default of `vibes.prices`, the owner edits it)
 
 
 def is_blank_prompt(text: str) -> bool:

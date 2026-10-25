@@ -192,7 +192,7 @@ VIDEO_POOL = '    return "video_pro" if resolution == "1080p" and model in PRO_1
           'PRO_1080P = ("qwen-happyhorse-1.1", "qwen-happyhorse-1.0", "qwen-wan-2.7")', expect="Wan 1080P")
 def test_wan_is_a_free_video_at_720p_or_1080p_and_happyhorse_1080p_draws_on_the_pro_pool():
     wan = priced("qwen-wan-2.7")
-    assert (wan.pool, wan.price_key, wan.account_cost, wan.price) == ("video", "qwen-wan-2.7@5s", 20, 1)
+    assert (wan.pool, wan.price_key, wan.account_cost, wan.price) == ("video", "qwen-wan-2.7@5s", 20, 20)
     assert dict(wan.params) == {"kind": "video", "model": "wan27", "ratio": "16:9", "duration": 5, "credits": 20,
                                 "resolution": "720P", "mode": "standard"}
     wan_hd = priced("qwen-wan-2.7", options=P1080)
@@ -201,7 +201,7 @@ def test_wan_is_a_free_video_at_720p_or_1080p_and_happyhorse_1080p_draws_on_the_
     for model, credits in (("qwen-happyhorse-1.1", 40), ("qwen-happyhorse-1.0", 70)):
         hd = priced(model, options=P1080)
         assert hd.pool == "video_pro", "HappyHorse 1080P outside video_pro: %s" % hd.pool
-        assert (hd.price_key, hd.account_cost, hd.price) == ("%s@1080p@5s" % model, credits, 2)
+        assert (hd.price_key, hd.account_cost, hd.price) == ("%s@1080p@5s" % model, credits, credits)
     # the longest pro option still fits the pro budget (never refused as too costly), the free one stays refused
     assert priced("qwen-happyhorse-1.0", options=P1080, duration=15).account_cost == 210
     with pytest.raises(pricing.TooCostly):
@@ -234,7 +234,7 @@ IMAGE_POOL = '        return IMAGE_MODELS[model][2]'
 @mutation(CATALOG_FILE, IMAGE_POOL, '        return "image"', expect="image_pro")
 def test_the_pro_image_model_draws_on_the_pro_image_pool_with_the_auto_ratio():
     p = priced("qwen-image-3.0-pro")
-    assert (p.pool, p.price_key, p.account_cost, p.price) == ("image_pro", "qwen-image-3.0-pro", 1, 2)
+    assert (p.pool, p.price_key, p.account_cost, p.price) == ("image_pro", "qwen-image-3.0-pro", 1, 1)
     assert dict(p.params) == {"kind": "image", "model": "qwen-image-3.0-pro", "ratio": "auto"}
     assert plan("qwen-image-3.0-pro", ratio="2:3").params["ratio"] == "2:3"
     assert C.pool_of("qwen-image-3.0-pro", p.params) == "image_pro", "the engine's pool differs from the plan's"

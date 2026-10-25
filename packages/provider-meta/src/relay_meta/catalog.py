@@ -1,6 +1,7 @@
 """meta's model catalog: the two models clients send and their price lookup. Pure."""
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 from relay_meta.constants import RATIOS
 
@@ -10,7 +11,7 @@ KIND = {IMAGE_MODEL: "image", VIDEO_MODEL: "video"}
 
 PRICE_KEYS = (IMAGE_MODEL, VIDEO_MODEL)
 DEFAULT_COSTS = {IMAGE_MODEL: 1, VIDEO_MODEL: 1}      # one job of the daily budget (the default of `meta.costs`)
-DEFAULT_PRICES = {IMAGE_MODEL: 1, VIDEO_MODEL: 1}     # points (the default of `meta.prices`, the owner edits it)
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)      # points (the default of `meta.prices`, the owner edits it)
 
 
 def is_blank_prompt(text: str) -> bool:

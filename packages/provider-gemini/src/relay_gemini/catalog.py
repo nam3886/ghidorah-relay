@@ -17,6 +17,7 @@ account ever claims one.
 """
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 from relay_gemini.templates import MUSIC_TEMPLATES, VIDEO_TEMPLATES
 
@@ -61,8 +62,8 @@ PRICE_KEYS = (IMAGE_MODEL, PRO_IMAGE_MODEL, price_key(VIDEO_MODEL), MUSIC_MODEL)
 # What one job costs the account (the default of `gemini.costs`): one use of its image, video or music budget (a video
 # takes about a fifth of a 5-hour window on AI Pro, 453 of 2400 units, a song 51-61; counted as one use for now).
 DEFAULT_COSTS = {IMAGE_MODEL: 1, PRO_IMAGE_MODEL: 1, price_key(VIDEO_MODEL): 1, MUSIC_MODEL: 1}
-# points (the default of `gemini.prices`); the song's 2 is a proposal the owner has not approved yet (25/10)
-DEFAULT_PRICES = {IMAGE_MODEL: 1, PRO_IMAGE_MODEL: 2, price_key(VIDEO_MODEL): 6, MUSIC_MODEL: 2}
+# points (the default of `gemini.prices`, the owner edits it): its cost, one point per use
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)
 
 
 def is_blank_prompt(text: str) -> bool:

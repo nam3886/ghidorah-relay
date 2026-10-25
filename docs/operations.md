@@ -624,7 +624,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 |---|---|---|
 | `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
 | `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60), then one final read, see "What an operator must know" | 9000 |
-| `dola.prices` | points charged per job, keyed `<model>@<N>s` for video and `<model>` for image; an option missing here is refused (`model.unpriced`), never charged a guess | table in `catalog.DEFAULT_PRICES` |
+| `dola.prices` | points charged per job, keyed `<model>@<N>s` for video and `<model>` for image; an option missing here is refused (`model.unpriced`), never charged a guess | the default cost, one point per credit or image unit (every provider's default price is `max(1, cost)`, `pricing.prices_at_cost`, owner 24/10) |
 | `dola.costs` | what one job costs the account: video in dola credits, an image in image units (Seedream 4.5 1, 5.0 Pro 4); a missing option is refused (`model.uncosted`) | table in `catalog.DEFAULT_COSTS` |
 | `dola.video_budget` | video credits per account per day (dola's own reported number wins) | 4 |
 | `dola.image_budget` | image units per account per day (owner 24/10: 40 Seedream 4.x jobs or 10 of 5.0 Pro; dola's own "reached today's image limit" rests the account whatever this says) | 40 |
@@ -958,7 +958,7 @@ deadline with its refund. Both pools rest after any generate.
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.costs`, `flow.image_budget` | 1, 1, 1000 | points per image; one job of the image budget (no Flow credit); images per account per day (not measured) |
-| `flow.prices` (video `<model>@8s`), `flow.costs`, `flow.video_budget` | 2, 10, 50 | points per 8 s video; its Flow credits; Flow credits per account per day (a cost above it is refused, `input.too_costly`) |
+| `flow.prices` (video `<model>@8s`), `flow.costs`, `flow.video_budget` | Lite 10, 10; Fast 20, 20; 50 | points per 8 s video (its cost; the not-yet-sold table options are priced at their cost too); its Flow credits; Flow credits per account per day (a cost above it is refused, `input.too_costly`) |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The gemini provider (`relay worker --provider gemini`)
@@ -1041,7 +1041,7 @@ none). An image answer streams until the image is drawn, a song's until the song
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10), 2 (song, proposed 25/10); 1 use each | points per job; one use of its pool |
+| `gemini.prices`, `gemini.costs` | 1 point and 1 use each (Nano Banana 2, Nano Banana 2.1, video, song) | points per job (its cost); one use of its pool |
 | `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15; music free 0, pro 39 per 5 h block | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week, a song 51-61). The free 0 of image_pro and music is what keeps Nano Banana 2.1 and songs off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
@@ -1099,7 +1099,7 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
 | `qwen.refusal_grace_s` | 300 | a lost video answer whose chat shows words and no task is refused after this |
 | `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
-| `qwen.prices` | 1 per image (pro 2), 1/2/3 per 5/10/15 s 720p video, twice that at 1080p | points, keyed `model`, `model@<s>s` or `model@1080p@<s>s`; a missing option is refused |
+| `qwen.prices` | the cost: 1 per image (pro 1), a video's qwen credits (see `qwen.costs`) | points, keyed `model`, `model@<s>s` or `model@1080p@<s>s`; a missing option is refused |
 | `qwen.costs` | 1 per image, the qwen price list per video (720p: HappyHorse 1.1 30/60/90, 1.0 40/80/120, Wan 2.7 20/40/60; 1080p: 40/80/120, 70/140/210, 30/60/90) | one job of the image budget, or qwen credits |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |

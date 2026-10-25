@@ -9,6 +9,7 @@ image (the upload `maseQ` and the start-image video RPC were never captured), 4 
 """
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 
 # relay name -> (Flow's model key, display name). Flow draws the image inside the generate request (HOLD).
@@ -39,7 +40,7 @@ def price_key(model: str) -> str:
 
 # Options flow sells nothing of yet (no live capture of their request): their Flow credits from the official table
 # (support.google.com/flow 16526234, the non-Ultra column), so the owner can see and price them ahead; a job of one
-# cannot be planned until its model is in the catalog, and an option with no price is refused even then.
+# cannot be planned until its model is in the catalog.
 TABLE_ONLY_COSTS = {
     **{"flow-veo-3.1-fast@%ds" % d: 20 for d in (4, 6)},
     "flow-veo-3.1-quality@8s": 100,
@@ -52,10 +53,9 @@ PRICE_KEYS = tuple(price_key(m) for m in (*MODELS, *VIDEO_MODELS)) + tuple(TABLE
 # (GetModels `HTrJv`, 25/10; Lite spent 50 -> 40, 23/10); the table-only options above.
 DEFAULT_COSTS = {**dict.fromkeys(MODELS, 1), price_key("flow-veo-3.1-lite"): 10, price_key("flow-veo-3.1-fast"): 20,
                  **TABLE_ONLY_COSTS}
-# The sale price in points, the default of `flow.prices` (the owner edits it): an image costs nothing upstream and
-# sells at 1 point (owner 24/10); Lite 2 points, Fast twice that as it takes twice the credits (to be confirmed by the
-# owner, 25/10). The table-only options have no default price.
-DEFAULT_PRICES = {**dict.fromkeys(MODELS, 1), price_key("flow-veo-3.1-lite"): 2, price_key("flow-veo-3.1-fast"): 4}
+# The sale price in points, the default of `flow.prices` (the owner edits it): its cost, one point per Flow credit or
+# image job.
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)
 
 
 def is_blank_prompt(text: str) -> bool:

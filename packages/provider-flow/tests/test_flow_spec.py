@@ -74,7 +74,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
     assert (s["flow.traffic_rest_s"].default, s["flow.traffic_rest_s"].min) == (1800, 0)
-    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2, FAST + "@8s": 4}
+    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
+                                        **FC.TABLE_ONLY_COSTS}
     assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
                                        **FC.TABLE_ONLY_COSTS}
     pools = s["flow.pools"]
@@ -184,19 +185,18 @@ CATALOG_FILE = "packages/provider-flow/src/relay_flow/catalog.py"
 
 
 @mutation(CATALOG_FILE, TABLE_ONLY, "+ ()", expect="not an option")
-def test_the_table_only_options_are_costed_priceable_and_refused_until_priced():
+def test_the_table_only_options_are_costed_and_priced_at_their_cost_ahead():
     """Veo 3.1 Fast and Quality and Gemini Omni Flash (720p and 360p by length) are not sold yet: their Flow credits
-    are known (the official table), the owner may price them ahead, and a job naming one is refused while unpriced."""
+    are known (the official table), their default price is that cost, and the owner may price them ahead."""
     costs = SPEC.settings()["flow.costs"].default
     assert (costs["flow-veo-3.1-fast@8s"], costs["flow-veo-3.1-quality@8s"]) == (20, 100)
     assert [costs["flow-omni-flash-720p@%ds" % d] for d in (4, 6, 8, 10)] == [7, 10, 12, 15]
     assert [costs["flow-omni-flash-360p@%ds" % d] for d in (4, 6, 8, 10)] == [4, 5, 6, 7]
     prices = SPEC.settings()["flow.prices"]
-    assert not set(FC.TABLE_ONLY_COSTS) & set(prices.default), "a table-only option has no default price"
+    assert {k: prices.default[k] for k in FC.TABLE_ONLY_COSTS} == FC.TABLE_ONLY_COSTS, "priced at cost"
     assert prices.validate({"flow-veo-3.1-quality@8s": 5}) == {"flow-veo-3.1-quality@8s": 5}, "not an option"
     quality = dataclasses.replace(plan(VIDEO), price_key="flow-veo-3.1-quality@8s")
-    with pytest.raises(pricing.Unpriced):
-        pricing.price_plan(SPEC, quality, FakeSettings(SPEC))
+    assert pricing.price_plan(SPEC, quality, FakeSettings(SPEC)).price == 100
 
 
 @mutation(SPEC_FILE, 'renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)}', "renamed={}",
@@ -205,7 +205,8 @@ def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
     """The earlier build keyed the video by its model alone (`flow-veo-3.1-lite`): the stored price moves to its key
     with the length, and every option the stored table does not name keeps its default."""
     loaded = SPEC.settings()["flow.prices"].on_load({"flow-veo-3.1-lite": 7, "flow-nano-banana-pro": 4})
-    assert loaded == {**dict.fromkeys(MODELS, 1), "flow-nano-banana-pro": 4, VIDEO + "@8s": 7, FAST + "@8s": 4}, (
+    assert loaded == {**dict.fromkeys(MODELS, 1), **FC.TABLE_ONLY_COSTS, "flow-nano-banana-pro": 4, VIDEO + "@8s": 7,
+                      FAST + "@8s": 20}, (
         "the stored video price was lost: %s" % loaded)
 
 
@@ -328,7 +329,7 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
     assert priced(VIDEO).account_cost == 10, "the account cost of a video is its Flow credits"
     assert p.completion == Completion.DETACH, "a video is polled"
     assert (p.operation, p.media_type, p.after_sent, p.pool, priced(VIDEO).price, p.price_key,
-            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 2, VIDEO + "@8s", 900)
+            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 10, VIDEO + "@8s", 900)
     assert dict(plan(VIDEO).params) == dict(p.params)
     assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
     cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
@@ -342,7 +343,7 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
                                   "credits": credits}, "portrait or credits: %s %s: %s" % (model, ratio, dict(p.params))
         assert (p.pool, p.price_key, p.completion) == ("video", model + "@8s", Completion.DETACH)
     assert plan(FAST).params["aspect"] == 2 and priced(FAST).account_cost == 20, "Fast takes 20 Flow credits"
-    assert priced(FAST).price == 4
+    assert priced(FAST).price == 20
 
 
 @mutation(SPEC_FILE, "        aspects = video[0] if video else C.ASPECTS", "        aspects = C.ASPECTS",

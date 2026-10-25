@@ -13,6 +13,7 @@ account is never picked for it.
 """
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 
 # relay name -> (the upstream `model` of the image request, display name, pool)
@@ -71,10 +72,9 @@ PRICE_KEYS = (*IMAGE_MODELS, *(price_key(m, d, r) for m, r, d in _VIDEO_OPTIONS)
 # (8 of 8 measured) and counts one job; a video its credits above.
 DEFAULT_COSTS = {**dict.fromkeys(IMAGE_MODELS, 1),
                  **{price_key(m, d, r): VIDEO_CREDITS[m][r][d] for m, r, d in _VIDEO_OPTIONS}}
-# The sale price in points, the default of `qwen.prices` (the owner edits it): an image sells at 1 (owner 24/10), a
-# pro image at 2 (proposed); a 720p video at 1 point per 5 s, a 1080p one at twice that (proposed).
-DEFAULT_PRICES = {"qwen-image-3.0": 1, "qwen-image-3.0-pro": 2,
-                  **{price_key(m, d, r): d // 5 * (2 if r == "1080p" else 1) for m, r, d in _VIDEO_OPTIONS}}
+# The sale price in points, the default of `qwen.prices` (the owner edits it): its cost, one point per qwen credit or
+# image job.
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)
 
 
 def is_blank_prompt(text: str) -> bool:

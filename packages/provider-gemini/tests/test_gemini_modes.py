@@ -302,7 +302,7 @@ def test_the_music_model_is_listed_priced_and_kept_off_free_accounts():
     assert len(model.limits["genres"]) == 17 and "Ringtone" in model.limits["templates"]
     assert "Doodle effects" not in {m.id: m for m in SPEC.catalog()}[VIDEO].limits["templates"]
     s = SPEC.settings()
-    assert s["gemini.prices"].default[MUSIC] == 2 and s["gemini.costs"].default[MUSIC] == 1
+    assert s["gemini.prices"].default[MUSIC] == 1 and s["gemini.costs"].default[MUSIC] == 1
     cfg = pool_configs("gemini", SPEC.caps, FakeSettings(SPEC).get)["music"]
     now = datetime(2026, 10, 25, 10, 0, tzinfo=UTC)
     assert left_of(cfg, "free", [], now) == 0, "a free account could take a song"

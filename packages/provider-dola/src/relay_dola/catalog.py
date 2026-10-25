@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from relay_core import frames
+from relay_core.pricing import prices_at_cost
 from relay_core.providers import ModelSpec
 
 VALID_MODELS = ("seedance_v2.5", "seedance_v2.0", "seedance_v1.0")
@@ -68,14 +69,9 @@ DEFAULT_COSTS = {
     "seedance_v2.5@20s": 2, "seedance_v2.5@25s": 2, "seedance_v2.5@30s": 2,
     "seedream-4.5": 1, "seedream-5.0-pro": 4,
 }
-# The sale price in points, the default of `dola.prices` (the owner edits it): one point per dola credit, 5.0 Pro 4.
-DEFAULT_PRICES = {
-    "seedance_v1.0@5s": 1, "seedance_v1.0@10s": 2,
-    "seedance_v2.0@5s": 1, "seedance_v2.0@10s": 2, "seedance_v2.0@15s": 3,
-    "seedance_v2.5@5s": 2, "seedance_v2.5@10s": 4,
-    "seedance_v2.5@20s": 2, "seedance_v2.5@25s": 2, "seedance_v2.5@30s": 2,
-    "seedream-4.5": 1, "seedream-5.0-pro": 4,
-}
+# The sale price in points, the default of `dola.prices` (the owner edits it): its cost, one point per dola credit or
+# image unit.
+DEFAULT_PRICES = prices_at_cost(DEFAULT_COSTS)
 
 # Public base name -> internal model id. The canonical names resolve too, so one resolver serves both spellings: a
 # separate path for them once checked the duration under the name the customer sent, an alias missed the table and a

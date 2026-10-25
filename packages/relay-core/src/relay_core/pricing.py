@@ -37,6 +37,12 @@ class TooCostly(PricingRefused):
     code = "input.too_costly"
 
 
+def prices_at_cost(costs: Mapping[str, int]) -> dict[str, int]:
+    """The default sale price of every option, from its default upstream cost (owner 24/10, restated 25/10): one point
+    per upstream credit or use, and an option that costs nothing upstream still sells at 1 point."""
+    return {k: max(1, n) for k, n in costs.items()}
+
+
 def table_setting(key: str, description: str, keys: Iterable[str], default: Mapping[str, int], *, unit: str,
                   basic: bool = False, renamed: Mapping[str, tuple[str, ...]] | None = None) -> Spec:
     """A table of option key -> whole number of `unit`, 0 or more (`<p>.prices` in points, `<p>.costs` in upstream
