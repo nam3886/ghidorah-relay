@@ -350,9 +350,8 @@ def test_any_other_reply_that_is_not_a_drawn_image_is_ambiguous_and_never_sent_a
 
 @mutation(SUBMIT_FILE, "            for attempt in range(tries):", "            for attempt in range(tries + 1):",
           expect="more tries than flow.captcha_max_tries")
-@mutation(SUBMIT_FILE, "            return _result(NotTaken(errors.CAPTCHA_REFUSED, {\"refused_batches\": batches}), "
-          "*read,\n", "            return _result(Ambiguous(\"refused\"), *read,\n",
-          expect="NotTaken")
+@mutation(SUBMIT_FILE, "            return _result(NotTaken(refused, {\"refused_batches\": batches}), *read,\n",
+          "            return _result(Ambiguous(\"refused\"), *read,\n", expect="NotTaken")
 def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_the_account_rests():
     log = []
     flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7] * 4 + [GOOD]}), Ctx(log)
@@ -361,6 +360,31 @@ def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_
     assert type(result.job) is NotTaken and result.job.code == errors.CAPTCHA_REFUSED, "NotTaken: %s" % (result.job,)
     assert result.job.state_patch == {"refused_batches": [args_of(p)[4][0] for p in flow.calls("ogiZ0b")]}
     assert rested(result) and not any(isinstance(e, Success) for e in result.account)
+
+
+DENIED = REFUSED_7.replace("PUBLIC_ERROR_UNUSUAL_ACTIVITY", "PUBLIC_ERROR_MODEL_ACCESS_DENIED")
+
+
+@mutation(SUBMIT_FILE, "                refused = errors.REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)", "",
+          expect="model access")
+@mutation(HTTP_FILE, "        reason = err[2][0][1][0]", "        reason = None", expect="the reason")
+def test_the_refusals_reason_names_the_code_when_the_tries_run_out_and_code_7_is_still_tried_again():
+    """flow2api (16/10): code 7 comes as PUBLIC_ERROR_UNUSUAL_ACTIVITY (the reCAPTCHA refusal) or as
+    PUBLIC_ERROR_MODEL_ACCESS_DENIED. Both are still retried with a new token; the last one names the code."""
+    from relay_flow.engine.http import read_reply
+    assert read_reply(200, REFUSED_7, "ogiZ0b").reason == "PUBLIC_ERROR_UNUSUAL_ACTIVITY", "the reason"
+    assert read_reply(200, DENIED, "ogiZ0b").reason == "PUBLIC_ERROR_MODEL_ACCESS_DENIED", "the reason"
+    assert read_reply(200, REFUSED_8, "ogiZ0b").reason == "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC"
+    assert read_reply(200, GOOD, "ogiZ0b").reason is None
+    for answers, code in (([REFUSED_7, DENIED], errors.MODEL_ACCESS_DENIED), ([DENIED, REFUSED_7],
+                                                                               errors.CAPTCHA_REFUSED)):
+        log = []
+        flow, ctx = Flow(log, rpc={"ogiZ0b": answers}), Ctx(log)
+        result = run_submit(flow, ctx, cfg=settings(flow__captcha_max_tries=2))
+        assert len(flow.calls("ogiZ0b")) == 2, "code 7 is tried again whatever its reason"
+        assert result.job.code == code, "model access: %s" % (result.job,)
+        assert "PUBLIC_ERROR_MODEL_ACCESS_DENIED" in " ".join(ctx.events), "the reason is in the job's events"
+    assert set(errors.REASONS.values()) <= set(SPEC.codes())
 
 
 @mutation(SUBMIT_FILE, "                            > SUBMIT_TIMEOUT_S:", "                            > 10**9:",

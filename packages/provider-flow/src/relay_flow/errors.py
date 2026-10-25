@@ -12,6 +12,7 @@ HTTP_ERROR = "flow.http_error"              # before the send: flow answered a s
 CAPTCHA_FAILED = "flow.captcha_failed"      # before the send: the reCAPTCHA token source gave no token
 CAPTCHA_REFUSED = "flow.captcha_refused"    # flow refused every try at its reCAPTCHA check; nothing was made
 TOO_MUCH_TRAFFIC = "flow.too_much_traffic"  # flow refused a try with code 8 (too much traffic); nothing was made
+MODEL_ACCESS_DENIED = "flow.model_access_denied"    # flow refused every try: the account may not use the model
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -25,7 +26,17 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "flow refused the request at its security check; nothing was made"),
     Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, False, True, True, True,
          "flow said it had too much traffic from the account; nothing was made"),
+    Rule(MODEL_ACCESS_DENIED, 503, "api_error", True, False, True, True, True,
+         "flow refused the model for the account; nothing was made"),
 )}
+
+# flow's ErrorInfo reason of a refused generate -> our code when the tries run out (or end at once, code 8). The
+# unusual-activity refusal is the reCAPTCHA one (`flow.captcha_refused`); an unknown reason keeps that code too.
+REASONS = {
+    "PUBLIC_ERROR_UNUSUAL_ACTIVITY": CAPTCHA_REFUSED,
+    "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC": TOO_MUCH_TRAFFIC,
+    "PUBLIC_ERROR_MODEL_ACCESS_DENIED": MODEL_ACCESS_DENIED,
+}
 
 core_errors.register(*(r for code, r in CODES.items() if code not in core_errors.RULES))
 

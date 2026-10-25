@@ -200,6 +200,7 @@ def test_a_7_or_8_envelope_to_a_video_send_is_ambiguous_and_never_sent_again(cod
     result = run(flow, ctx)
     assert len(flow.calls("YhhmEf")) == 1 and log.count("mark_sent") == 1, "sent twice after a %d envelope" % code
     assert isinstance(result.job, Ambiguous), "a %d envelope on a video must be Ambiguous: %s" % (code, result.job)
+    assert "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in result.job.note, "the reason is named in the unknown job's note"
     (batch, state), = ctx.refs
     assert state["batches"] == [batch] and rested(result)
     assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=1800 if code == 8 else 300)}, \

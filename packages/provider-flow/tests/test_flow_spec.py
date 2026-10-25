@@ -120,7 +120,8 @@ def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
 
 
 def test_flow_registers_its_codes_on_load():
-    codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused", "flow.too_much_traffic"}
+    codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused", "flow.too_much_traffic",
+             "flow.model_access_denied"}
     assert set(SPEC.codes()) == codes and codes <= set(errors.RULES)
     for code in codes:          # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)

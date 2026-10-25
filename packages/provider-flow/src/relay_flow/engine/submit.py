@@ -192,8 +192,9 @@ def video_answer(reply: Reply, batch: str, batches: list[str], project: str, set
     rest = pacing(settings, now, reply.code)
     taken = video_taken(reply.payload, batch, project) if reply.status == 200 and reply.clean else None
     if taken is None:
-        return _result(Ambiguous("flow answered %d to the video send (reply item %s, code %s)"
-                                 % (reply.status, "there" if reply.found else "missing", reply.code)), *rest)
+        return _result(Ambiguous("flow answered %d to the video send (reply item %s, code %s%s)"
+                                 % (reply.status, "there" if reply.found else "missing", reply.code,
+                                    ", " + reply.reason if reply.reason else "")), *rest)
     media, workflow, balance = taken
     state = {BATCH_KEY: batch, BATCHES_KEY: list(batches), PROJECT_KEY: project, MEDIA_KEY: media,
              WORKFLOW_KEY: workflow}
@@ -238,6 +239,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return _result(Retry(OUT_OF_POINTS), *read)
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
             batches: list[str] = []
+            refused = errors.CAPTCHA_REFUSED      # the code of the last refusal's reason (`errors.REASONS`)
             for attempt in range(tries):
                 if attempt:
                     if clock() - start + gap + CAPTCHA_TIMEOUT_S + GENERATE_TIMEOUT_S + API_TIMEOUT_S \
@@ -276,12 +278,13 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return video_answer(reply, batch, batches, project, settings, now())
                 if not reply.refused_before_anything:
                     return answer(reply, batch, settings, now())
-                await ctx.event("flow refused try %d at its reCAPTCHA check (code %s); nothing was made"
-                                % (attempt + 1, reply.code), "submit", "upstream")
+                await ctx.event("flow refused try %d at its reCAPTCHA check (code %s, %s); nothing was made"
+                                % (attempt + 1, reply.code, reply.reason or "no reason"), "submit", "upstream")
+                refused = errors.REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)
                 if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here: the job goes on, this account rests
                     return _result(NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches}), *read,
                                    *pacing(settings, now(), reply.code))
-            return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), *read,
+            return _result(NotTaken(refused, {"refused_batches": batches}), *read,
                            *pacing(settings, now()))
     except httpx.HTTPError as e:
         why = "flow could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL

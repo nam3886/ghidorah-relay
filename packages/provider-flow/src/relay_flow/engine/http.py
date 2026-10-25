@@ -162,11 +162,13 @@ def read_page(status: int, html: str) -> Page:
 class Item:
     """One `wrb.fr` item of the rpc id: `raw` is its result slot as sent (None: no result), `payload` that slot
     decoded (None when absent or not JSON), `code` its envelope's error code (`item[5][0]`), `refusal_shape` whether
-    it is exactly the recorded refusal item (`refusal_shape()`)."""
+    it is exactly the recorded refusal item (`refusal_shape()`), `reason` the first ErrorInfo reason of the envelope
+    (`item[5][2][0][1][0]`, e.g. PUBLIC_ERROR_UNUSUAL_ACTIVITY), None without one."""
     raw: object
     payload: object
     code: int | None
     refusal_shape: bool
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -191,6 +193,10 @@ class Reply:
         return self.items[0].code if len(self.items) == 1 else None
 
     @property
+    def reason(self) -> str | None:
+        return self.items[0].reason if len(self.items) == 1 else None
+
+    @property
     def refused_before_anything(self) -> bool:
         """The immediate reCAPTCHA refusal, and only its exact shape: HTTP 200, a clean answer, exactly ONE matching
         item, that item exactly the recorded refusal (`refusal_shape()`) with code 7 or 8. Measured (FINDINGS 3):
@@ -211,7 +217,16 @@ def _item(item: list) -> Item:
             payload = None
     err = item[5] if len(item) > 5 else None
     code = err[0] if isinstance(err, list) and err and type(err[0]) is int else None
-    return Item(item[2], payload, code, refusal_shape(item))
+    return Item(item[2], payload, code, refusal_shape(item), reason_of(err))
+
+
+def reason_of(err) -> str | None:
+    """The first ErrorInfo reason of an error envelope `[code, null, [["type.googleapis.com/...", [reason]], ...]]`."""
+    try:
+        reason = err[2][0][1][0]
+    except (TypeError, IndexError, KeyError):
+        return None
+    return reason if isinstance(reason, str) else None
 
 
 def refusal_shape(item: list) -> bool:
