@@ -125,10 +125,13 @@ NOT_SHOWN = {
     **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS"),
     **excuse("an upstream fact: Anti-Captcha's own score queues, the values flow.anticaptcha_min_score may take",
              "relay_flow.constants.ANTICAPTCHA_SCORES"),
-    **excuse("an upstream protocol code (gemini's tool and ratio option ids, the web app's capability list), not a "
-             "bound", "relay_gemini.catalog.RATIO_IDS", "relay_gemini.constants.IMAGE_TOOL",
+    **excuse("an upstream protocol code (gemini's tool, ratio, orientation and music option ids, the web "
+             "app's capability list), not a bound", "relay_gemini.catalog.RATIO_IDS",
+             "relay_gemini.constants.IMAGE_TOOL",
              "relay_gemini.constants.CAPABILITIES", "relay_gemini.catalog.VIDEO_RATIO_IDS",
-             "relay_gemini.constants.VIDEO_TOOL"),
+             "relay_gemini.constants.VIDEO_TOOL", "relay_gemini.catalog.VIDEO_ORIENTATION",
+             "relay_gemini.constants.MUSIC_TOOL", "relay_gemini.catalog.MUSIC_LENGTHS",
+             "relay_gemini.catalog.MUSIC_VOCALS", "relay_gemini.catalog.MUSIC_GENRES"),
     **excuse("the page size of gemini's own chat list (the web app's), not ours to change",
              "relay_gemini.constants.LIST_PAGE"),
     **excuse("a unit size used to print a value", "limits.MIB", "limits.KIB", "cgroup.GIB", "cgroup.MIB",
