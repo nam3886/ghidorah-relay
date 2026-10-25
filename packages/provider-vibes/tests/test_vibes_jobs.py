@@ -174,7 +174,7 @@ def body(request: httpx.Request) -> dict:
 
 # ---- submit: the money rules ---------------------------------------------------------------------------------------
 WRITE_AHEAD = "await ctx.report_ref(batch, {BATCH_KEY: batch})"
-MARK_SENT = "await ctx.mark_sent()                               # then marked sent"
+MARK_SENT = "await ctx.mark_sent()                               # then marked sent, immediately before the POST"
 
 
 @mutation(SUBMIT_FILE, WRITE_AHEAD, "pass", expect="the batch id must be on the job before the generate")
