@@ -616,6 +616,24 @@ admin Regenerate is refused the same way, and an idempotent replay of a job made
 may not use), `GET /models/<id>` answers 404, and `/v1/providers/<p>/options` answers 404 once every model of the
 provider the key may use is paused. Live: the next request reads the new value.
 
+### Pinned jobs (`source_job_id`)
+
+A request to a model whose catalog entry names `limits.source` (`video` or `image`: vibes' extend, video edit and image
+edit) works on an output of the key's own earlier job: the native doors take `source_job_id`, a finished job of the same
+key and provider, checked at the door and again in the creation transaction before the charge (else 400
+`input.bad_source`; a model that works on no source refuses one, 400 `input.source_unsupported`). The job runs only on the
+account that made the source (`jobs.pin_account_id`), because upstreams refuse another account's media and uploads. The
+claim offers it to that account alone and never lets it hold up or join another account's work. While it is queued it
+ends at once with its refund when that account is dead or disabled (`source.account_unavailable`) or its pool's
+balance is below the job's cost (`source.account_exhausted`); a cooldown, a rest, a busy slot or the send gap only make
+it wait, up to `unsent_deadline_s`. The status answer carries `source_job_id`; admin Regenerate keeps the pin.
+
+A provider declares a mode needs a source by returning `Plan(uses_source=True)` for it; its engine reads the source in
+`JobView.source` (the earlier job's `external_ref` and `provider_state`, outputs included). A mode whose send leaves
+nothing to read back after an unclear answer (vibes image edit: its batch id is upstream's) plans
+`after_sent=fail_refund`: an `Ambiguous` submit, or a lease that expires after `mark_sent`, fails the job at once with
+its refund (`render.unclear_send`) instead of reconciling it.
+
 ## The dola provider (`relay worker --provider dola`)
 
 Drives dola.com in Chrome, one browser session per claimed job, or sends the order over plain HTTP when
