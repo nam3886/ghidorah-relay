@@ -11,7 +11,7 @@ from kit_c import FIXTURES, GOOD_PROBE, NOW, FakeCtx, FakeDriver, FakeSession, a
 
 from relay_core.providers import Cooldown, Dead, Health, Proxy, ProxyBad, Suspect, Tier
 from relay_core.testing.mutation import mutation
-from relay_dola.engine import verify
+from relay_dola.engine import submit, verify
 from relay_dola.engine.check import check_account, identity_of, probe_proxy
 from relay_dola.engine.submit import SUBSCRIPTION_JS
 from relay_dola.engine.verify import LoginState, login_state, read_passport
@@ -148,6 +148,36 @@ def test_the_plan_script_posts_to_the_subscription_config_and_reads_only_a_good_
                   "credentials: 'include'", "if (!r.ok) return null;"):
         assert token in SUBSCRIPTION_JS, token
     assert "j.code === 0" in SUBSCRIPTION_JS, "the answer code is not checked"
+
+
+class HangingPage:
+    """A page whose evaluate never answers (a fetch that hangs); it keeps what it was asked."""
+
+    def __init__(self):
+        self.args = None
+
+    async def evaluate(self, script, args):
+        self.args = args
+        await asyncio.Event().wait()
+
+
+@mutation(SUB, "       signal: ac.signal});", "       });", expect="the fetch is not aborted")
+@mutation(SUB, "            return await asyncio.wait_for(read, SUBSCRIPTION_BACKSTOP_S)",
+          "            return await read", expect="the plan read hung")
+def test_a_hung_plan_read_is_aborted_and_given_up_with_no_tier(monkeypatch):
+    assert "setTimeout(() => ac.abort(), ms)" in SUBSCRIPTION_JS and "signal: ac.signal" in SUBSCRIPTION_JS, (
+        "the fetch is not aborted")
+    monkeypatch.setattr(submit, "SUBSCRIPTION_BACKSTOP_S", 0.05)
+    page = HangingPage()
+
+    async def read():
+        try:
+            return await asyncio.wait_for(submit.PageDriver().subscription(page), 2)
+        except TimeoutError:
+            return "the plan read hung"
+
+    assert asyncio.run(read()) is None, "the plan read hung past its backstop"
+    assert page.args[1] == submit.SUBSCRIPTION_TIMEOUT_S * 1000 == 8000, "the fetch is not given its abort time"
 
 
 @sync

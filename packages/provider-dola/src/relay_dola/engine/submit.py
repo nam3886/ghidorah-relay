@@ -164,14 +164,21 @@ PASSPORT_JS = """async (qp) => {
 }"""
 # The account's plan, as the chat page itself asks it on load (POST `{}`, the plain query; measured 25/10): `data`
 # carries `subs_status` ("free" on every account seen) and `has_active_subscription`.
-SUBSCRIPTION_JS = """async (qp) => {
+# The fetch is aborted after `SUBSCRIPTION_TIMEOUT_S`, and the evaluate given up a little later as a backstop: a hung
+# read must not hold the check's browser slot. Either way the read gives no tier and the check goes on.
+SUBSCRIPTION_TIMEOUT_S = 8
+SUBSCRIPTION_BACKSTOP_S = SUBSCRIPTION_TIMEOUT_S + 2
+SUBSCRIPTION_JS = """async ([qp, ms]) => {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
   try {
     const r = await fetch('/alice/commerce/sale/subscription/entry/config/?' + new URLSearchParams(qp).toString(),
-      {method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'}, body: '{}'});
+      {method: 'POST', credentials: 'include', headers: {'Content-Type': 'application/json'}, body: '{}',
+       signal: ac.signal});
     if (!r.ok) return null;
     const j = await r.json();
     return j && j.code === 0 && j.data && typeof j.data === 'object' ? j.data : null;
-  } catch (e) { return null; }
+  } catch (e) { return null; } finally { clearTimeout(timer); }
 }"""
 # The number of reference-image previews in the composer. The browser hands out a `blob:` URL for each local file
 # picked, whatever CSS class dola uses (the class-based count read 0 for good after dola renamed its classes,
@@ -867,7 +874,8 @@ class PageDriver:
     async def subscription(self, page) -> dict | None:
         """The account's plan from dola's subscription config, called inside the page (`data`); None when unread."""
         try:
-            return await page.evaluate(SUBSCRIPTION_JS, query_params())
+            read = page.evaluate(SUBSCRIPTION_JS, [query_params(), SUBSCRIPTION_TIMEOUT_S * 1000])
+            return await asyncio.wait_for(read, SUBSCRIPTION_BACKSTOP_S)
         except Exception:      # noqa: BLE001 - nothing is concluded from a failed call
             return None
 
