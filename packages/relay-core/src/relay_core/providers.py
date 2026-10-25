@@ -1,9 +1,12 @@
 """The provider protocol, trimmed to what the first provider needs.
 
 Pure types: no I/O, no database, no browser. The API imports a provider's spec; only a worker imports its engine.
-Members marked as later additions (pinned jobs, poll-held leases, per-pool slots, bytes outputs, fail-and-refund,
-maintain, the cooldown strike effect) are deliberately absent. Credential push exists in one narrow form:
-`RunCtx.renew_credential`, a renewed copy of the same session (a cookie rotation), never a new identity.
+Members marked as later additions (poll-held leases, per-pool slots, bytes outputs, maintain, the cooldown strike
+effect) are deliberately absent. Credential push exists in one narrow form: `RunCtx.renew_credential`, a renewed copy
+of the same session (a cookie rotation), never a new identity. A pinned job: a mode that works on an output of the
+customer's own earlier job (`Plan.uses_source`) runs only on the account that made it (`CreateRequest.source`,
+`JobView.source`); a mode with nothing to read back after an unclear send fails it with its refund
+(`AfterSent.FAIL_REFUND`).
 
 This module is also the one core module that may name providers (the registry); it names none itself.
 """
@@ -26,7 +29,8 @@ class Completion(StrEnum):
 
 
 class AfterSent(StrEnum):
-    RECONCILE = "reconcile"   # an ambiguous send is reconciled, never re-sent
+    RECONCILE = "reconcile"       # an ambiguous send is reconciled, never re-sent
+    FAIL_REFUND = "fail_refund"   # an ambiguous send fails the job at once with its refund: nothing can be read back
 
 
 # ---- account effects ------------------------------------------------------------------------------------------
@@ -442,6 +446,17 @@ class InputError(ValueError):
 
 
 @dataclass(frozen=True)
+class SourceIn:
+    """The customer's earlier job a request works on (an extend, an edit, a remix of its output), as the core found it:
+    a finished job of the same API key and the same provider. The new job runs on the account that made it."""
+    job_id: str
+    provider: str
+    model: str
+    media_type: str
+    operation: str
+
+
+@dataclass(frozen=True)
 class CreateRequest:
     model: str
     prompt: str
@@ -453,6 +468,7 @@ class CreateRequest:
     title: str | None = None
     callback_url: str | None = None
     door: Literal["native", "facade"] = "native"
+    source: SourceIn | None = None
 
 
 @dataclass(frozen=True)
@@ -494,6 +510,9 @@ class Plan:
     frame: FrameUse | None = None     # set by the core in the plan step (api.doors); a provider's value is replaced
     price: int | None = None          # points: set by the core in the plan step
     account_cost: int | None = None   # upstream units of the pool: set by the core in the plan step
+    # The mode works on `CreateRequest.source` and so runs only on the account that made it. A request with a source
+    # whose plan does not say so is refused (`input.source_unsupported`): it never runs on another account.
+    uses_source: bool = False
 
     def __post_init__(self):
         if not self.price_key:
@@ -544,6 +563,17 @@ class AccountView:
 
 
 @dataclass(frozen=True)
+class SourceJob:
+    """What an engine sees of a pinned job's source: the earlier job's upstream reference and state (its outputs are in
+    `provider_state["outputs"]`). It ran on the same account as the pinned job."""
+    id: str
+    model: str
+    operation: str
+    external_ref: str | None
+    provider_state: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
 class JobView:
     id: str
     provider: str
@@ -559,6 +589,7 @@ class JobView:
     provider_state: Mapping[str, Any]
     inputs: Callable[[], Awaitable[list[MediaRef]]]   # loaded lazily
     frame_id: int | None = None       # the frame version `sent_text` was rendered with; None = the core frame
+    source: SourceJob | None = None   # a pinned job's source job; None for every other job
 
 
 class RunCtx(Protocol):

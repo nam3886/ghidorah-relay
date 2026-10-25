@@ -55,7 +55,7 @@ from relay_core.jobs.sweeps import (
 )
 from relay_core.jobs.webhooks import deliver_due, resend_failed
 from relay_core.leases import LeaseLost
-from relay_core.providers import JobView, MediaRef
+from relay_core.providers import JobView, MediaRef, SourceJob
 
 __all__ = [
     "BulkRecheck", "Claim", "CreateRefused", "Created", "FrameUnusable", "IdempotencyConflict", "InputMedia",
@@ -68,8 +68,11 @@ __all__ = [
     "restore_mark", "resume", "run_housekeeping", "sweep_orphans", "sweep_retention",
 ]
 
-_VIEW = ("SELECT id, provider, operation, model, params, prompt, marker, sent_text, render_since, sent_at, "
-         "external_ref, provider_state, frame_id FROM jobs WHERE id = %s")
+# a pinned job also carries its source job's reference and state (the engine finds the output it works on there)
+_VIEW = ("SELECT j.id, j.provider, j.operation, j.model, j.params, j.prompt, j.marker, j.sent_text, j.render_since, "
+         "j.sent_at, j.external_ref, j.provider_state, j.frame_id, "
+         "s.id, s.model, s.operation, s.external_ref, s.provider_state "
+         "FROM jobs j LEFT JOIN jobs s ON s.id = j.source_job_id WHERE j.id = %s")
 
 
 async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
@@ -86,4 +89,5 @@ async def job_view(db: AsyncConnectionPool, job_id) -> JobView:
                 (job_id,))).fetchall()
         return [MediaRef(*r) for r in rows]
 
-    return JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1])
+    source = None if row[13] is None else SourceJob(str(row[13]), *row[14:])
+    return JobView(str(row[0]), *row[1:12], inputs, frame_id=row[12], source=source)

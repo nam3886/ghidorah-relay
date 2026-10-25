@@ -4,7 +4,7 @@ URL and the compatibility fields of older clients are refused or absent. Media r
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import StrictInt
+from pydantic import Field, StrictInt
 
 from relay_core.api.deps import require_key
 from relay_core.api.doors import (
@@ -37,6 +37,10 @@ class _Common(Strict):
     options: dict[str, Any] | None = None
     title: str | None = None
     callback_url: str | None = None
+    source_job_id: str | None = Field(default=None, description=(
+        "Id of an earlier finished job of this API key whose output this request works on (an extend, an edit). Only "
+        "for a model that takes a source (its `limits.source` names the kind of output it needs); the job runs on "
+        "the provider account that made the source and fails at once, refunded, when that account cannot run it."))
 
 
 class VideoBody(_Common):
@@ -70,7 +74,7 @@ async def create_video(request: Request, key: ApiKey = Depends(require_key), gat
     return await _create(request, gate, key, DoorRequest(
         "video", "native", b.model, b.prompt, duration=b.duration, ratio=b.ratio, n=b.n, images=_refs(b),
         options=b.options or {}, title=b.title, callback_url=b.callback_url, idem_key=idempotency_key,
-        media_type="video"))
+        media_type="video", source_job_id=b.source_job_id))
 
 
 @router.post("/v1/images/generations")
@@ -82,7 +86,7 @@ async def create_image(request: Request, key: ApiKey = Depends(require_key), gat
     return await _create(request, gate, key, DoorRequest(
         "image", "native", b.model, b.prompt, ratio=b.ratio, n=b.n, images=_refs(b),
         options={**(b.options or {}), **extra}, title=b.title, callback_url=b.callback_url,
-        idem_key=idempotency_key, media_type="image"))
+        idem_key=idempotency_key, media_type="image", source_job_id=b.source_job_id))
 
 
 @router.get("/v1/video/generations/{job_id}")

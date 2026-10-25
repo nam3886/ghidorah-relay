@@ -22,7 +22,7 @@ from relay_core import billing, storage
 from relay_core.admin.routes_common import MAX_PAGE, Strict, enqueue, ms
 from relay_core.admin.routes_stats import _DAY, RANGES, range_start
 from relay_core.api.deps import get_pool, get_registry, get_settings, get_store
-from relay_core.api.doors import Gate, checked_prompt, job_status, plan_job, prompt_cap, public_base
+from relay_core.api.doors import Gate, checked_prompt, job_status, plan_job, prompt_cap, public_base, source_of
 from relay_core.api.errors_http import ApiError
 from relay_core.api.routes_media import serve_job_media
 from relay_core.db import tx
@@ -475,7 +475,7 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
     `doors.checked_prompt` like a customer's: one the door would now refuse is refused with its own `input.*` code."""
     async with tx(gate.pool) as conn:
         job = await (await conn.execute(
-            "SELECT j.request, k.models FROM jobs j JOIN api_keys k ON k.id = j.key_id WHERE j.id = %s",
+            "SELECT j.request, k.models, j.key_id FROM jobs j JOIN api_keys k ON k.id = j.key_id WHERE j.id = %s",
             (job_id,))).fetchone()
         if job is None:
             raise ApiError("resource.not_found")
@@ -484,14 +484,17 @@ async def fresh_plan(gate: Gate, job_id) -> Plan:
         inputs = await (await conn.execute(
             "SELECT object_key, mime, size FROM job_media WHERE job_id = %s AND role = 'input' ORDER BY idx",
             (job_id,))).fetchall()
-    sent, allowed = job
+    sent, allowed, key_id = job
     prompt = checked_prompt(sent["prompt"], prompt_cap(gate.registry, sent["model"]))
+    # a pinned job's source is looked up again: it must still be a finished job of the key
+    source = None if sent.get("source_job_id") is None else (await source_of(gate.pool, key_id,
+                                                                             sent["source_job_id"]))[1]
     request = CreateRequest(
         model=sent["model"], prompt=prompt, duration=sent.get("duration"),
         ratio=sent.get("ratio"), n=sent.get("n"),
         images=tuple(MediaIn(hashlib.sha256(k.encode()).hexdigest(), m, s) for k, m, s in inputs),
         options=sent.get("options") or {}, title=sent.get("title"),
-        door="facade" if sent.get("endpoint") in ("openai", "gemini") else "native")
+        door="facade" if sent.get("endpoint") in ("openai", "gemini") else "native", source=source)
     return (await plan_job(gate, allowed, request))[1]
 
 

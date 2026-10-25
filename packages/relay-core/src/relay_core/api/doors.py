@@ -39,6 +39,7 @@ from relay_core.jobs.create import (
     IdempotencyConflict,
     InputMedia,
     NewJob,
+    SourceUnusable,
     TooManyQueued,
     body_hash,
     create_job,
@@ -55,6 +56,7 @@ from relay_core.providers import (
     Plan,
     ProviderRegistry,
     ProviderSpec,
+    SourceIn,
 )
 from relay_core.settings import Settings
 from relay_core.storage import ObjectStore, media_key
@@ -132,6 +134,7 @@ class DoorRequest:
     idem_key: str | None = None
     media_type: str | None = None
     retry_count: int = 0       # a facade's `x-stainless-retry-count`: how many times the SDK re-sent the request
+    source_job_id: str | None = None   # an earlier job of this key whose output the request works on (native doors)
 
 
 @dataclass(frozen=True)
@@ -301,14 +304,40 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
     _check_allowed(gate.registry, allowed_models, creq.model, model)
     if model_disabled(gate.settings, spec, model):
         raise ApiError("model.disabled", "model")
+    if creq.source is not None and creq.source.provider != spec.name:
+        raise ApiError("input.bad_source", "source_job_id")     # another provider's output: no account of ours owns it
     snapshots = await snapshots_of(gate.pool, spec.name)
     stored = await frame_of(gate.pool, spec, model)
     use = None if stored is None else FrameUse(stored.version.id, stored.version.text)
     spec, plan, _ = plan_request(gate, spec, model, creq, snapshots, use)
+    if creq.source is not None and not plan.uses_source:
+        raise ApiError("input.source_unsupported", "source_job_id")   # never run a source job on another account
+    if plan.uses_source and creq.source is None:
+        raise ApiError("input.invalid", "source_job_id")       # the provider should have refused it itself
     try:
         return spec, pricing.price_plan(spec, plan, gate.settings)
     except pricing.PricingRefused as refused:
         raise ApiError(refused.code, "model") from None
+
+
+# The source of a pinned job: a finished job of the same key that ran on an account. The provider, the plan and the
+# creation transaction judge the rest (same provider, a mode that takes a source, still finished at the charge).
+_SOURCE = ("SELECT provider, model, media_type, operation FROM jobs WHERE id = %s AND key_id = %s AND status = 'done' "
+           "AND account_id IS NOT NULL")
+
+
+async def source_of(pool: AsyncConnectionPool, key_id, job_id: str) -> tuple[uuid.UUID, SourceIn]:
+    """The job a request names in `source_job_id`, or 400 `input.bad_source`: not an id, another key's job, a job that
+    is not done. Another key's job and a missing one answer alike, so a key learns nothing of other keys' jobs."""
+    try:
+        wanted = uuid.UUID(job_id)
+    except (ValueError, AttributeError, TypeError):
+        raise ApiError("input.bad_source", "source_job_id") from None
+    async with pool.connection() as conn:
+        row = await (await conn.execute(_SOURCE, (wanted, key_id))).fetchone()
+    if row is None:
+        raise ApiError("input.bad_source", "source_job_id")
+    return wanted, SourceIn(str(wanted), *row)
 
 
 # ---- inputs -------------------------------------------------------------------------------------------------------
@@ -416,10 +445,12 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
     touched: an image URL that no longer downloads, or a callback host that is gone, cannot turn a replay into an
     error. Images are hashed as the client sent them (the reference text), not as downloaded."""
     prompt = _check_text(gate.registry, req)
+    # a request without a source hashes as it always did, so a retry across this build still finds its job
+    named = {} if req.source_job_id is None else {"source_job_id": req.source_job_id}
     request_hash = body_hash({
         "endpoint": req.endpoint, "model": req.model, "prompt": prompt, "duration": req.duration,
         "ratio": req.ratio, "n": req.n, "options": dict(req.options), "title": req.title,
-        "callback_url": req.callback_url,
+        "callback_url": req.callback_url, **named,
         "images": [await asyncio.to_thread(_sha256, r.ref.encode()) for r in req.images]})
     idem_hash = None if req.idem_key is None else request_hash
     if req.idem_key is not None:                 # first, before the plan, the allow-list and any upload (7.3)
@@ -432,11 +463,13 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
             return retried
     if req.callback_url is not None:
         await check_callback(req.callback_url)
+    source_id, source = (None, None) if req.source_job_id is None else await source_of(gate.pool, key.id,
+                                                                                         req.source_job_id)
     loaded = [(ref, *await load_image(ref)) for ref in req.images]
     media = tuple([MediaIn(await asyncio.to_thread(_sha256, data), mime, len(data)) for _, data, mime in loaded])
     creq = CreateRequest(model=req.model, prompt=prompt, duration=req.duration, ratio=req.ratio, n=req.n,
                          images=media, options=dict(req.options), title=req.title, callback_url=req.callback_url,
-                         door=req.door)
+                         door=req.door, source=source)
     spec, plan = await plan_job(gate, key.models, creq)
     if req.media_type is not None and plan.media_type != req.media_type:
         raise ApiError("input.bad_model", "model")     # an image model on the video door, or the other way round
@@ -450,14 +483,16 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
 
     sent = {"endpoint": req.endpoint, "model": req.model, "duration": req.duration, "ratio": req.ratio, "n": req.n,
             "options": dict(req.options), "title": req.title, "callback_url": req.callback_url, "prompt": prompt,
-            "images": [{"input": i.idx} for i in inputs]}
+            "images": [{"input": i.idx} for i in inputs], **named}
     new = NewJob(spec.name, key.id, plan, prompt, title=req.title, callback_url=req.callback_url,
                  idem_key=req.idem_key, idem_body_hash=idem_hash, inputs=tuple(inputs), job_id=job_id,
-                 request=sent, request_hash=request_hash)
+                 request=sent, request_hash=request_hash, source_job_id=source_id)
     try:
         created = await create_job(gate.pool, new, gate.settings)
     except (IdempotencyConflict, TooManyQueued, billing.BillingError) as refused:
         raise ApiError(refused.code) from None
+    except SourceUnusable as refused:        # the source stopped being a finished job of this key since the lookup
+        raise ApiError(refused.code, "source_job_id") from None
     except FrameUnusable as unusable:
         log.error("the frame of a %s job failed at insert: %s", spec.name, unusable)
         raise ApiError(unusable.code) from None
@@ -521,8 +556,8 @@ _STATUS = ("SELECT j.status, j.error_code, j.model, j.params, " + SHOWN_TITLE + 
            "ELSE sum(CASE l.entry WHEN 'charge' THEN l.amount ELSE -l.amount END) END "
            "FROM ledger l WHERE l.job_id = j.id AND l.scope = '*' AND l.entry IN ('charge', 'refund')), 0) "
            ", COALESCE(j.render_since, j.sent_at), "
-           "GREATEST(EXTRACT(EPOCH FROM clock_timestamp() - COALESCE(j.render_since, j.sent_at)), 0)::float8 "
-           "FROM jobs j WHERE j.id = %s AND j.key_id = %s")
+           "GREATEST(EXTRACT(EPOCH FROM clock_timestamp() - COALESCE(j.render_since, j.sent_at)), 0)::float8, "
+           "j.source_job_id FROM jobs j WHERE j.id = %s AND j.key_id = %s")
 
 
 async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: str, *,
@@ -541,7 +576,8 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
         row = await (await conn.execute(_STATUS, (wanted, key_id))).fetchone()
         if row is None or (media_type is not None and row[8] != media_type):
             raise ApiError("resource.not_found")
-        status, code, model, params, title, warnings, created, finished, kind, refunded, points, clock, elapsed = row
+        (status, code, model, params, title, warnings, created, finished, kind, refunded, points, clock, elapsed,
+         source) = row
         outputs = await (await conn.execute(
             "SELECT share_token FROM job_media WHERE job_id = %s AND role = 'output' AND share_token IS NOT NULL "
             "ORDER BY idx", (wanted,))).fetchall() if status == "done" else []
@@ -565,7 +601,8 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
             "finished_at": finished.isoformat() if finished else None,
             "progress": progress.progress_of(status, elapsed, expected.seconds if expected else None),
             "render_started_at": _iso(progress.render_started(status, clock)),
-            "estimated_finish_at": _iso(progress.finish_of(status, clock, elapsed, expected))}
+            "estimated_finish_at": _iso(progress.finish_of(status, clock, elapsed, expected)),
+            "source_job_id": str(source) if source else None}
 
 
 def _iso(moment: datetime | None) -> str | None:

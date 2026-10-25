@@ -43,6 +43,11 @@ class TooManyQueued(CreateRefused):
     code = "quota.too_many_queued"
 
 
+class SourceUnusable(CreateRefused):
+    """The source of a pinned job is not (or no longer) a finished job of this key and provider with an account."""
+    code = "input.bad_source"
+
+
 class FrameUnusable(CreateRefused):
     """The plan has no frame, or one that fails the grammar: nothing falls back to the core frame."""
     code = "internal.frame_unusable"
@@ -73,8 +78,11 @@ class NewJob:
     job_id: uuid.UUID = field(default_factory=uuid.uuid4)
     request: Mapping[str, Any] | None = None     # what the client sent (7.1); a regenerated job keeps its source's
     request_hash: str | None = None
+    source_job_id: uuid.UUID | None = None       # a pinned job: it runs on the account that made this job
 
     def __post_init__(self):
+        if (self.source_job_id is None) == self.plan.uses_source:
+            raise ValueError("a source job goes with a plan that uses one, and only with it")
         if (self.idem_key is None) != (self.idem_body_hash is None):
             raise ValueError("an idempotency key and its body hash go together")
         if self.plan.price is None or self.plan.account_cost is None:
@@ -151,10 +159,26 @@ async def _check_cap(conn, new: NewJob, limit: int) -> None:
 _INSERT = (
     "INSERT INTO jobs (id, provider, key_id, idem_key, idem_body_hash, operation, media_type, model, params, prompt, "
     "title, marker, status, completion, after_sent, submit_timeout_s, price_key, price, pool, account_cost, "
-    "callback_url, warnings, request, request_hash, sent_text, frame_id) VALUES (%(id)s, %(provider)s, %(key)s, "
-    "%(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, %(params)s, %(prompt)s, %(title)s, %(marker)s, 'queued', "
+    "callback_url, warnings, request, request_hash, sent_text, frame_id, source_job_id, pin_account_id) "
+    "VALUES (%(id)s, %(provider)s, %(key)s, %(idem)s, %(hash)s, %(op)s, %(media)s, %(model)s, %(params)s, %(prompt)s, "
+    "%(title)s, %(marker)s, 'queued', "
     "%(completion)s, %(after_sent)s, %(timeout)s, %(price_key)s, %(price)s, %(pool)s, %(cost)s, %(callback)s, "
-    "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s)")
+    "%(warnings)s, %(request)s, %(rhash)s, %(sent)s, %(frame)s, %(source)s, %(pin)s)")
+
+# The account a pinned job runs on: the one that made its source, read in the creation transaction, so a source that is
+# not a finished job of this key and provider (another key's job, one still running) is refused before the charge.
+_PIN = ("SELECT account_id FROM jobs WHERE id = %s AND key_id = %s AND provider = %s AND status = 'done' "
+        "AND account_id IS NOT NULL")
+
+
+async def _pin_of(conn, new: NewJob) -> Any:
+    if new.source_job_id is None:
+        return None
+    row = await (await conn.execute(_PIN, (new.source_job_id, new.key_id, new.provider))).fetchone()
+    if row is None:
+        raise SourceUnusable("job %s is not a finished %s job of key %s" % (new.source_job_id, new.provider,
+                                                                           new.key_id))
+    return row[0]
 
 
 def rendered(new: NewJob, marker: str) -> tuple[str, int | None]:
@@ -169,7 +193,7 @@ def rendered(new: NewJob, marker: str) -> tuple[str, int | None]:
         raise FrameUnusable("the frame of a %s job fails the grammar: %s" % (new.provider, e)) from e
 
 
-async def _insert(conn, new: NewJob) -> None:
+async def _insert(conn, new: NewJob, pin: Any) -> None:
     p = new.plan
     marker = marker_for(new.job_id)
     sent_text, frame_id = rendered(new, marker)
@@ -181,6 +205,7 @@ async def _insert(conn, new: NewJob) -> None:
         "price_key": p.price_key, "price": p.price, "pool": p.pool, "cost": p.account_cost,
         "callback": new.callback_url, "rhash": new.request_hash,
         "request": None if new.request is None else Jsonb(dict(new.request)), "sent": sent_text, "frame": frame_id,
+        "source": new.source_job_id, "pin": pin,
         "warnings": Jsonb([{"code": w.code, "text": redact_log(w.text)} for w in p.warnings])})
     for m in new.inputs:
         await conn.execute(
@@ -201,10 +226,11 @@ async def _create(pool: AsyncConnectionPool, new: NewJob, settings: Settings) ->
         if hit is not None:
             return hit
         await _check_cap(conn, new, limit)
+        pin = await _pin_of(conn, new)
         assert new.plan.price is not None          # NewJob refuses an unpriced plan
         await billing.charge(conn, new.key_id, new.provider, new.plan.price, new.job_id)
         await failpoints.hit("job.create.charged")
-        await _insert(conn, new)
+        await _insert(conn, new, pin)
         await add_event(conn, new.job_id, "system", "queued", "queued")
         return Created(new.job_id, "queued", await _position(conn, new.provider, new.job_id), False)
 

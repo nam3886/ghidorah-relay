@@ -119,6 +119,11 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("input.too_costly", 400, _BAD, message="no account can ever afford this job", **_pre),
     _r("input.frame_placeholder", 400, _BAD,
        message="a prompt frame has a missing, repeated or unknown placeholder", **_pre),
+    # A request that works on an earlier job's output (`source_job_id`): the job must be a finished job of this API key
+    # made by the same provider, and the model must work on a source at all.
+    _r("input.bad_source", 400, _BAD,
+       message="the source job is not a finished job of this API key that this model can work on", **_pre),
+    _r("input.source_unsupported", 400, _BAD, message="this model does not work on a source job", **_pre),
 
     _r("auth.invalid_key", 401, "authentication_error", message="the API key is not valid", **_pre),
     _r("auth.key_disabled", 403, "permission_error", message="the API key is disabled", **_pre),
@@ -160,6 +165,17 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("render.download_failed", 502, _API, message="the result could not be downloaded", refund=True, counts=True),
     _r("render.file_unreadable", 502, _API, message="the result file is unreadable", **_paid_dead),
     _r("render.watermarked_only", 502, _API, message="only a watermarked result was delivered", **_paid_dead),
+
+    _r("render.unclear_send", 502, _API,
+       message="the provider's answer to the order was unclear and cannot be checked, so the job ended",
+       **_paid_dead),
+
+    # A pinned job (it works on an earlier job's output) runs only on the account that made that output: when that
+    # account can no longer run it, the job ends at once with its refund instead of waiting.
+    _r("source.account_unavailable", 409, _BAD,
+       message="the account that made the source job is no longer available", **_paid_dead),
+    _r("source.account_exhausted", 429, "rate_limit_error",
+       message="the account that made the source job has no quota left for now", **_paid_dead),
 
     _r("queue.never_started", 503, _API, message="the job never started", **_paid_dead),
     _r("job.not_submitted", 409, _BAD, message="the job was never sent upstream, so there is nothing to re-check",

@@ -9,6 +9,13 @@ a head that no account can pay for never stalls the cheaper jobs behind it. A ca
 The oldest queued job the winner can afford is claimed with `FOR UPDATE SKIP LOCKED` and its lease is inserted in the
 same transaction. The job lease's hard bound is `submit_timeout_s + APPLY_MARGIN_S`: the engine's timeout cuts the
 submit, and the margin keeps the lease alive for the fenced apply of a result that arrived just before it.
+
+A pinned job (it works on an output of an earlier job, `pin_account_id`) is never a head of its `account_cost` group
+and never picked for another account: each one is a head of its own whose only candidate is its account, and the
+claim takes exactly that job. Before the claim, `fail_blocked_pins` ends at once, with the refund, a queued pinned job
+whose account can no longer run it: dead or disabled (`source.account_unavailable`), or a pool balance below the job's
+cost (`source.account_exhausted`). A pause that passes (a cooldown, a rest, a busy slot, the send gap) only waits,
+bounded by `unsent_deadline_s` like every queued job.
 """
 
 import logging
@@ -25,6 +32,7 @@ from relay_core.budget import Token
 from relay_core.db import lock_account, tx
 from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
 from relay_core.jobs.create import Settings
+from relay_core.jobs.fail import fail_in_tx
 from relay_core.providers import Caps
 from relay_core.settings import SettingsError
 from relay_core.txguard import require_tx
@@ -37,10 +45,22 @@ _HEADS = """
 SELECT id, account_cost, tried, created_at FROM (
     SELECT DISTINCT ON (account_cost) id, account_cost, tried, created_at FROM jobs
      WHERE provider = %(provider)s AND pool IS NOT DISTINCT FROM %(pool)s AND status = 'queued'
+       AND pin_account_id IS NULL
        AND created_at > clock_timestamp() - make_interval(secs => %(deadline)s)
        AND (next_poll_at IS NULL OR next_poll_at <= clock_timestamp())
      ORDER BY account_cost, created_at, id) h
  ORDER BY created_at, id
+"""
+
+# Every claimable pinned job is a head of its own: its account is its only candidate.
+PINNED_HEADS_MAX = 50
+_PINNED_HEADS = """
+SELECT id, account_cost, tried, created_at, pin_account_id FROM jobs
+ WHERE provider = %(provider)s AND pool IS NOT DISTINCT FROM %(pool)s AND status = 'queued'
+   AND pin_account_id IS NOT NULL
+   AND created_at > clock_timestamp() - make_interval(secs => %(deadline)s)
+   AND (next_poll_at IS NULL OR next_poll_at <= clock_timestamp())
+ ORDER BY created_at, id LIMIT %(n)s
 """
 
 # `next_poll_at` on a queued job is its not-before time: a requeue after Retry or NotTaken pauses the job (apply.py).
@@ -73,7 +93,15 @@ SELECT id, account_cost, submit_timeout_s, tried FROM jobs
    AND created_at > clock_timestamp() - make_interval(secs => %(deadline)s)
    AND (next_poll_at IS NULL OR next_poll_at <= clock_timestamp())
    AND (%(afford)s::int IS NULL OR account_cost <= %(afford)s)
+   AND pin_account_id IS NULL
  ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+"""
+
+# A pinned head is claimed alone; the only account it reaches here is its own (its candidate list is that account).
+_PICK_PINNED = """
+SELECT id, account_cost, submit_timeout_s, tried FROM jobs
+ WHERE id = %(job)s AND status = 'queued' AND (next_poll_at IS NULL OR next_poll_at <= clock_timestamp())
+ FOR UPDATE SKIP LOCKED
 """
 
 
@@ -106,11 +134,14 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
     for name, cfg in (*cfgs.items(), (None, None)):
         scope = {"provider": provider, "pool": name, "deadline": deadline_s}
         for head_id, cost, head_tried, created_at in await (await conn.execute(_HEADS, scope)).fetchall():
-            heads.append((created_at, head_id, name, cfg, cost, head_tried, scope))
+            heads.append((created_at, head_id, name, cfg, cost, head_tried, scope, None))
+        for head_id, cost, head_tried, created_at, pin in await (await conn.execute(
+                _PINNED_HEADS, {**scope, "n": PINNED_HEADS_MAX})).fetchall():
+            heads.append((created_at, head_id, name, cfg, cost, head_tried, scope, pin))
     heads.sort(key=lambda h: (h[0], h[1]))
-    for _created, _head_id, name, cfg, cost, head_tried, scope in heads:
+    for _created, head_id, name, cfg, cost, head_tried, scope, pin in heads:
         args = {**scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
-                "tried": list(head_tried), "only": None}
+                "tried": list(head_tried), "only": pin}       # a pinned head's one candidate is its account
         candidates = await (await conn.execute(_CANDIDATES, args)).fetchall()
         await failpoints.hit("claim.candidates_read")
         for (account_id,) in candidates:
@@ -135,7 +166,8 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
                 if token is None:
                     return NO_TOKEN
             try:
-                claim = await _take(conn, account_id, scope, afford, caps, owner, ttl_s, token)
+                claim = await _take(conn, account_id, scope, afford, caps, owner, ttl_s, token,
+                                    None if pin is None else head_id)
             except BaseException:
                 if token is not None:
                     token.release()
@@ -147,8 +179,10 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
     return None
 
 
-async def _take(conn, account_id, scope, afford, caps, owner, ttl_s, token) -> Claim | None:
-    job = await (await conn.execute(_PICK, {**scope, "afford": afford})).fetchone()
+async def _take(conn, account_id, scope, afford, caps, owner, ttl_s, token, pinned) -> Claim | None:
+    """Claim the oldest queued job the account can afford, or, for a pinned head (`pinned` = its id), that job alone."""
+    job = await (await conn.execute(_PICK, {**scope, "afford": afford}) if pinned is None else
+                 await conn.execute(_PICK_PINNED, {"job": pinned})).fetchone()
     if job is None:
         return None
     job_id, cost, timeout_s, tried = job
@@ -193,6 +227,7 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
     if not settings.get(provider + ".claims_enabled"):
         return None
     cfgs = pool.pool_configs(provider, caps, settings.get)
+    await fail_blocked_pins(db, provider=provider, cfgs=cfgs)
     deadline_s = settings.get("unsent_deadline_s")
     gap_s = send_gap_s(settings, provider)
     claim: Claim | None = None
@@ -207,6 +242,41 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
             claim.token.release()
         raise
     return claim
+
+
+# ---- pinned jobs whose account can no longer run them ------------------------------------------------------------
+# The queued pinned jobs of the provider, locked (one a claim or a creation holds is skipped: the next pass sees it),
+# with their account's state. The job row comes before the account row (lock order).
+_PINNED_QUEUED = """
+SELECT j.id, j.pool, j.account_cost, j.pin_account_id, a.state FROM jobs j JOIN accounts a ON a.id = j.pin_account_id
+ WHERE j.provider = %s AND j.status = 'queued' AND j.pin_account_id IS NOT NULL
+ ORDER BY j.created_at, j.id LIMIT %s FOR UPDATE OF j SKIP LOCKED
+"""
+UNAVAILABLE = "source.account_unavailable"
+EXHAUSTED = "source.account_exhausted"
+
+
+async def fail_blocked_pins(db: AsyncConnectionPool, *, provider: str, cfgs: dict[str, pool.PoolConfig]) -> int:
+    """End every queued pinned job whose account can no longer run it, at once and refunded: the account is dead or
+    disabled, or the job's pool cannot pay its cost (the balance, reported or computed, is below `account_cost`; an
+    unknown balance allows). In-flight jobs of the account are not counted against it: they may still be refunded.
+    One transaction; returns how many failed. A pinned job of a pool the provider no longer declares waits."""
+    failed = 0
+    async with tx(db) as conn:
+        for job_id, name, cost, account_id, state in await (await conn.execute(
+                _PINNED_QUEUED, (provider, PINNED_HEADS_MAX))).fetchall():
+            if state != "available":
+                why = (UNAVAILABLE, "the account that made the source job is %s" % state)
+            elif name in cfgs:
+                cap = await pool.lock_capacity(conn, account_id, cfgs[name])
+                if cap is None or cap.left_n is None or cap.left_n >= cost:
+                    continue                # held by another transaction (seen next pass), or it can pay
+                why = (EXHAUSTED, "the account that made the source job has %d left in its %s pool, the job costs %d"
+                       % (cap.left_n, name, cost))
+            else:
+                continue
+            failed += await fail_in_tx(conn, job_id, ("queued",), *why, cfgs)
+    return failed
 
 
 # ---- poll and fetch claims (visibility timeout) and reconcile claims ----------------------------------------------

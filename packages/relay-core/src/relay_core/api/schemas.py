@@ -37,7 +37,7 @@ class JobStatus(BaseModel):
         "duration": 5, "ratio": "16:9", "n": None, "style": None, "title": None, "warnings": [],
         "queue_position": None, "created_at": "2026-10-18T10:00:00.120000+00:00", "finished_at": None,
         "progress": 45, "render_started_at": "2026-10-18T10:03:10.450000+00:00",
-        "estimated_finish_at": "2026-10-18T10:45:00+00:00"}]})
+        "estimated_finish_at": "2026-10-18T10:45:00+00:00", "source_job_id": None}]})
 
     id: str = Field(description="The id of this job.")
     status: Literal["queued", "running", "done", "failed"] = Field(
@@ -82,3 +82,6 @@ class JobStatus(BaseModel):
         description="ESTIMATE of when the render ends, to the minute. Only while the render runs, is not overdue, and "
                     "there is enough recent data for this model and length; else null (no promise without data). "
                     "Null for a failed job.")
+    source_job_id: str | None = Field(
+        description="The earlier job whose output this job works on (an extend, an edit), as sent at creation; null "
+                    "for a job made without one.")

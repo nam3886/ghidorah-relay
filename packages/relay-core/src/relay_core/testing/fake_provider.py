@@ -84,7 +84,9 @@ class FakeSpec:
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Options steer the plan: `completion` (hold|detach), `submit_timeout_s`; `price` and `account_cost` reach
         a NewJob built from this plan directly (a door prices it from `<name>.prices` and `<name>.costs` instead);
-        `refuse` (a platform code, with `param`) makes it refuse the request as a real spec does."""
+        `refuse` (a platform code, with `param`) makes it refuse the request as a real spec does; `after_sent`
+        (reconcile|fail_refund). A request with a source (or the option `uses_source`) plans a mode that uses it,
+        unless the option `ignores_source` says the model takes none."""
         video = req.model.endswith("-video")
         o = req.options
         if o.get("refuse"):
@@ -92,7 +94,9 @@ class FakeSpec:
         return Plan(
             operation="generate", media_type="video" if video else "image", model=req.model,
             params={"mime": "video/mp4" if video else "image/png", "completion": o.get("completion", "detach")},
-            completion=Completion(o.get("completion", "detach")), after_sent=AfterSent.RECONCILE,
+            completion=Completion(o.get("completion", "detach")),
+            after_sent=AfterSent(o.get("after_sent", "reconcile")),
+            uses_source=(req.source is not None or bool(o.get("uses_source"))) and not o.get("ignores_source"),
             price_key=req.model, price=o.get("price", 10 if video else 1),
             pool="video" if video else "image", account_cost=o.get("account_cost", 1),
             submit_timeout_s=o.get("submit_timeout_s", 60))

@@ -71,6 +71,7 @@ STARTUP_GRACE_S = 300        # after a worker starts, the backstop and the fetch
 # spend that is not this job's (the account used elsewhere): never recorded as its cost. A delta is not a stated price,
 # so a real model swap that costs more than twice is still caught by the reply price where the upstream states one.
 DELTA_MAX_FACTOR = 2
+UNCLEAR_SEND = "render.unclear_send"   # a sent job of a fail_refund mode whose outcome is unclear
 
 
 class StartupGrace:
@@ -167,10 +168,11 @@ class _Job:
     external_ref: str | None
     provider_state: Mapping[str, Any]
     fault_retries: int
+    after_sent: str
 
 
 _COLS = ("id, status, sent_at, attempts, account_id, pool, account_cost, submit_timeout_s, poll_token, taken_at, "
-         "external_ref, provider_state, fault_retries")
+         "external_ref, provider_state, fault_retries, after_sent")
 
 
 async def _lock_job(conn: AsyncConnection, job_id) -> _Job:
@@ -280,7 +282,14 @@ async def _requeue(conn: AsyncConnection, job: _Job, code: str, note: str, caps:
     return "queued"
 
 
-async def _unknown(conn: AsyncConnection, job: _Job, note: str) -> str:
+async def _unknown(conn: AsyncConnection, job: _Job, note: str, pools) -> str:
+    """A sent job whose outcome is unclear: `unknown`, to be reconciled, or, for a mode whose upstream leaves nothing
+    to read back (`after_sent = fail_refund`), failed at once with its refund (`render.unclear_send`). Never re-sent."""
+    if job.after_sent == "fail_refund":
+        await _set(conn, job.id, "submitting", sent_at=_SENT_OR_NOW)
+        await fail_in_tx(conn, job.id, ("submitting",), UNCLEAR_SEND, "outcome unknown: %s" % (note or "no answer"),
+                         pools)
+        return "failed"
     await _set(conn, job.id, "submitting", status="unknown", sent_at=_SENT_OR_NOW, next_poll_at=_in(UNKNOWN_FIRST_S))
     await add_event(conn, job.id, "system", "unknown", "outcome unknown: %s" % (note or "no answer"))
     return "unknown"
@@ -333,13 +342,13 @@ async def _submit_outcome(conn: AsyncConnection, job: _Job, outcome: SubmitOutco
         case Retry() if job.sent_at is None:
             return await _requeue(conn, job, outcome.code, "retry before send", caps, pools)
         case Retry():       # after mark_sent a retry could be a second order: it is ambiguous
-            return await _unknown(conn, job, "retry after send: %s" % outcome.code)
+            return await _unknown(conn, job, "retry after send: %s" % outcome.code, pools)
         case Fail():
             await _set(conn, job.id, "submitting", provider_state=_merge(outcome.state_patch))
             await fail_in_tx(conn, job.id, ("submitting",), outcome.code, outcome.detail, pools)
             return "failed"
         case Ambiguous():
-            return await _unknown(conn, job, outcome.note)
+            return await _unknown(conn, job, outcome.note, pools)
     raise TypeError("unknown submit outcome %r" % (outcome,))
 
 
@@ -391,7 +400,7 @@ async def apply_interrupted(db: AsyncConnectionPool, claim, *, caps: Caps, pools
             await add_event(conn, job.id, "system", "requeued", "interrupted before the send" + _dropped(job))
             status = "queued"
         else:
-            status = await _unknown(conn, job, "interrupted after the send")
+            status = await _unknown(conn, job, "interrupted after the send", pools)
         await leases.release(conn, claim.lease_id)
         return status
 

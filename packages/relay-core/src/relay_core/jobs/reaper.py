@@ -4,8 +4,9 @@ Every `interval_s` (30 s), for one provider, each transition is ONE transaction 
 re-checks its condition under the lock and compare-and-sets the status, so two reapers (or the reaper and a live
 worker) never both act:
 
-- a `submitting` job whose lease expired: `queued` if it was never sent, `unknown` if it was sent. The requeue counts
-  an attempt only when the lease's owner is gone (its worker's `worker_heartbeats` row is missing, older than
+- a `submitting` job whose lease expired: `queued` if it was never sent, `unknown` if it was sent (failed at once with
+  its refund, `render.unclear_send`, when its mode has nothing to read back: `after_sent = fail_refund`). The requeue
+  counts an attempt only when the lease's owner is gone (its worker's `worker_heartbeats` row is missing, older than
   `owner_gone_s`, or started after this lease's last heartbeat: the worker restarted); at `Caps.max_attempts`
   the job then fails `queue.never_started` with the refund instead. A live owner whose lease merely expired
   (a stalled keeper) is requeued without counting, so it can still record its own zero-attempt interruption;
@@ -41,7 +42,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import alerts, failpoints, leases, pool
 from relay_core.db import tx
 from relay_core.errors import RULES
-from relay_core.jobs.apply import KEPT_ON_REQUEUE, RENDER_BACKSTOP_S, UNKNOWN_FIRST_S, StartupGrace
+from relay_core.jobs.apply import KEPT_ON_REQUEUE, RENDER_BACKSTOP_S, UNCLEAR_SEND, UNKNOWN_FIRST_S, StartupGrace
 from relay_core.jobs.events import add_event
 from relay_core.jobs.fail import fail_in_tx
 from relay_core.providers import ProviderSpec
@@ -84,7 +85,8 @@ UPDATE jobs SET status = CASE WHEN sent_at IS NULL THEN 'queued' ELSE 'unknown' 
        next_poll_at = CASE WHEN sent_at IS NULL THEN NULL ELSE clock_timestamp() + make_interval(secs => %s) END,
        attempts = CASE WHEN sent_at IS NULL THEN attempts + %s ELSE attempts END,
        updated_at = clock_timestamp()
-  FROM old WHERE jobs.id = %s AND jobs.status = 'submitting' RETURNING jobs.status, old.old_ref, jobs.attempts
+  FROM old WHERE jobs.id = %s AND jobs.status = 'submitting'
+RETURNING jobs.status, old.old_ref, jobs.attempts, jobs.after_sent
 """
 
 _LATE = """
@@ -186,6 +188,10 @@ class Reaper:
             elif row[0] == "queued":
                 await add_event(conn, job_id, "system", "requeued", "the lease expired before the send: re-queued%s"
                                 % (" (dropped reference %s)" % row[1] if row[1] else ""))
+            elif row[3] == "fail_refund":
+                # nothing can be read back for this mode: unclear is failed now with its refund, never reconciled
+                await fail_in_tx(conn, job_id, ("unknown",), UNCLEAR_SEND,
+                                 "the lease expired after the send: outcome unknown", self._pools())
             else:
                 await add_event(conn, job_id, "system", "unknown", "the lease expired after the send: outcome unknown")
             return True
