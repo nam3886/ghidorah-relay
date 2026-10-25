@@ -33,7 +33,7 @@ def refunded(db, job_id) -> bool:
 
 
 def source_of(db, k, acct) -> uuid.UUID:
-    return done_job(db, k, acct, ref="batch-src")
+    return done_job(db, k, acct, ref="batch-%s" % uuid.uuid4().hex[:8])
 
 
 # ---- creation --------------------------------------------------------------------------------------------------------
@@ -166,8 +166,8 @@ def test_a_pinned_job_of_an_account_out_of_quota_ends_at_once_and_one_that_can_p
 def test_the_engine_sees_the_source_jobs_reference_and_state(db):
     k, acct = key(db), account(db)
     src = source_of(db, k, acct)
-    db.run("UPDATE jobs SET provider_state = '{\"batch\": \"batch-src\", \"outputs\": [{\"ref\": \"c-0\"}]}' "
-           "WHERE id = %s", src)
+    db.run("UPDATE jobs SET external_ref = 'batch-src', "
+           "provider_state = '{\"batch\": \"batch-src\", \"outputs\": [{\"ref\": \"c-0\"}]}' WHERE id = %s", src)
 
     async def scenario(p):
         made = await create(p, k, "extend it", source=src)

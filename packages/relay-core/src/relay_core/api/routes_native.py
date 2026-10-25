@@ -39,8 +39,8 @@ class _Common(Strict):
     callback_url: str | None = None
     source_job_id: str | None = Field(default=None, description=(
         "Id of an earlier finished job of this API key whose output this request works on (an extend, an edit). Only "
-        "for a model that takes a source (its `limits.source` names the kind of output it needs); the job runs on "
-        "the provider account that made the source and fails at once, refunded, when that account cannot run it."))
+        "for a model that takes a source (its `limits.source` names the kind of output it needs). The job is made "
+        "where the source was made, and fails at once, refunded, when it can no longer be made there."))
 
 
 class VideoBody(_Common):

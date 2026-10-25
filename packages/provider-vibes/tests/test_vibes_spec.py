@@ -99,7 +99,8 @@ def test_the_registry_takes_vibes_beside_dola_and_meta_and_no_model_name_clashes
         reg.register(spec)
     assert reg.names() == ["dola", "meta", "vibes"]
     names = check_catalog([DOLA, META, SPEC])
-    assert {n for n, (p, _m) in names.items() if p == "vibes"} == {"vibes-image", "vibes-video"}
+    assert {n for n, (p, _m) in names.items() if p == "vibes"} == {
+        "vibes-image", "vibes-video", "vibes-video-extend", "vibes-video-edit", "vibes-image-edit"}
     image, video = reg.resolve("vibes-image"), reg.resolve("vibes-video")
     assert image is not None and image[0] is SPEC and image[1].operations == ("text_to_image",)
     assert video is not None and video[0] is SPEC and video[1].operations == ("text_to_video", "image_to_video")
@@ -108,7 +109,7 @@ def test_the_registry_takes_vibes_beside_dola_and_meta_and_no_model_name_clashes
 # ---- error rules -----------------------------------------------------------------------------------------------------
 def test_vibes_registers_its_codes_on_load_and_a_warning_is_no_rule():
     codes = {"vibes.http_error", "vibes.generate_refused", "vibes.render_failed", "vibes.content_refused",
-             "vibes.output_missing"}
+             "vibes.output_missing", "vibes.source_missing"}
     assert set(SPEC.codes()) == codes and codes <= set(errors.RULES), "the codes are registered when the package loads"
     assert {c for c in errors.RULES if c.startswith("vibes.")} == codes and errors.violations(errors.RULES) == []
     assert not hasattr(vibes_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
@@ -228,7 +229,8 @@ VIDEO_KEY = "price_key=C.price_key(req.model, resolution)"
 def test_a_price_table_stored_by_the_earlier_build_prices_both_resolutions():
     """The earlier build keyed the video by its model alone: the stored price moves to both its resolutions."""
     loaded = SPEC.settings()["vibes.prices"].on_load({"vibes-video": 3})
-    assert loaded == {"vibes-image": 1, "vibes-video@480p": 3, "vibes-video@720p": 3}, (
+    assert loaded == {"vibes-image": 1, "vibes-video@480p": 3, "vibes-video@720p": 3, "vibes-video-extend": 1,
+                      "vibes-video-edit": 1, "vibes-image-edit": 1}, (
         "the stored video price was lost: %s" % loaded)
 
 

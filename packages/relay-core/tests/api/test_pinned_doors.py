@@ -46,9 +46,9 @@ def test_only_a_finished_job_of_the_same_key_and_provider_is_a_source_and_nothin
         env.add_provider(FakeSpec("other"))
         key, stranger = await env.new_key(), await env.new_key()
         cases = {"not an id": "nope", "unknown": str(uuid.uuid4()),
-                 "another key's job": str(done_job(db, stranger.id, acct)),
+                 "another key's job": str(done_job(db, stranger.id, acct, ref="r-stranger")),
                  "a job that is not done": str(db.job(key.id, provider="fake")),
-                 "another provider's job": str(done_job(db, key.id, acct))}
+                 "another provider's job": str(done_job(db, key.id, acct, ref="r-other"))}
         db.run("UPDATE jobs SET provider = 'other' WHERE id = %s", uuid.UUID(cases["another provider's job"]))
         out = {}
         for name, source in cases.items():

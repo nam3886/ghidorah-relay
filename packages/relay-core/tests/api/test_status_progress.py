@@ -301,7 +301,7 @@ def test_the_new_keys_come_after_the_nineteen_old_ones_which_keep_their_order_an
                             (IMAGE_PATH, plant(db, key.id, "waiting", model=IMAGE, kind="image", clock_s=10))):
             body = await get(env, key, ident, path)
             assert list(body)[:19] == OLD_KEYS, "key order: the old keys keep their names and order"
-            assert list(body)[19:] == NEW_KEYS, "key order: the new keys come last, in this order"
+            assert list(body)[19:] == [*NEW_KEYS, "source_job_id"], "key order: the new keys come last, in this order"
         body = await get(env, key, job)
         assert (body["status"], body["stage"], body["queue_position"], body["title"], body["model"], body["points"],
                 body["refunded"], body["finished_at"]) == ("queued", None, 1, "t", VIDEO, 10, False, None)
