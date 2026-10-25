@@ -590,7 +590,7 @@ def test_host_names_are_plain_letters_digits_hyphens_and_dots():
 
 
 # ---- bodies: encoding, framing, the cap ---------------------------------------------------------------------------
-@mutation(SRC, '{"Accept-Encoding": "identity", **headers}', "{**headers}",
+@mutation(SRC, '{"Accept-Encoding": "identity", **headers,', "{**headers,",
           expect="the request did not ask for an identity body")
 @sync
 async def test_the_request_asks_for_an_identity_body_on_both_routes():

@@ -389,6 +389,13 @@ describes each file and `fixtures/gemini/FINDINGS.md` sums them up.
 - `gemini/live-261024/t2v_accepted_reply.json`
 - `gemini/live-261024/web_request_i2v.json`
 
+## Gemini video download User-Agent (25/10/2026)
+
+The googlevideo.com link answers 403 to any User-Agent but the one that resolved it (`gemini/live-261025/`; its
+README.md describes the probe, redacted to parameter names, statuses and headers).
+
+- `gemini/live-261025/googlevideo_user_agent.json`
+
 ## chat.qwen.ai live spike (23/10/2026)
 
 Redacted calls of the qwen step-0 spike (auth refresh, WAF answers, t2i, image edit, t2v, i2v, task status, credits);
