@@ -1,0 +1,96 @@
+{
+ "rpcid": "maseQ",
+ "request": {
+  "args": [
+   [
+    null,
+    22,
+    null,
+    null,
+    null,
+    "33333333-3333-4333-8333-333333333333"
+   ],
+   "<base64 of a 143797-byte JPEG>",
+   "image/jpeg",
+   true,
+   null,
+   null,
+   null,
+   false
+  ]
+ },
+ "note": "sent once with an UPLOAD_IMAGE token in the context's last slot (this reply, 7.1 s) and once with no token (upload_maseQ_notoken: the same shape, 6.0 s): flow does not ask an upload for a token",
+ "status": 200,
+ "elapsed_s": 7.08,
+ "payload": [
+  [
+   "0ccf3f3c-ee07-441c-8a0a-7f3ae90af966",
+   "33333333-3333-4333-8333-333333333333",
+   "4600dd62-6519-4fb9-b396-83094ec7a831",
+   null,
+   null,
+   [
+    [
+     1792920907,
+     429855000
+    ],
+    null,
+    null,
+    null,
+    null,
+    null,
+    [
+     null,
+     null,
+     null,
+     null,
+     1
+    ],
+    null,
+    null,
+    1,
+    null,
+    null,
+    null,
+    209206
+   ],
+   [
+    null,
+    [
+     null,
+     null,
+     null,
+     null,
+     0,
+     null,
+     "image/jpeg"
+    ],
+    [
+     1024,
+     1024
+    ]
+   ]
+  ],
+  [
+   "4600dd62-6519-4fb9-b396-83094ec7a831",
+   null,
+   null,
+   [
+    "Red fox in snow",
+    [
+     1792920907,
+     429855000
+    ],
+    null,
+    null,
+    "0ccf3f3c-ee07-441c-8a0a-7f3ae90af966",
+    null,
+    [
+     1792920911,
+     239479000
+    ]
+   ],
+   "33333333-3333-4333-8333-333333333333"
+  ]
+ ]
+}

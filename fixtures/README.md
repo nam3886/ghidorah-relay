@@ -364,6 +364,17 @@ accounts' answers and flow's tier enum.
 - `flow/live-261025/credits_pro.json`
 - `flow/live-261025/video_jobs.json`
 
+## Google Flow input images and the full catalog (25/10/2026)
+
+GetModels read on the AI Pro account, the image upload (`maseQ`), the sizes Nano Banana 2.1 drew at each of its extra
+aspect codes, and one live job of each new mode (image to image, a video from a start frame, from a first and a last
+frame, from references; Veo 3.1 Quality; Omni 1.1 Flash); `flow/live-261025b/README.md` describes them.
+
+- `flow/live-261025b/image_ratios.json`
+- `flow/live-261025b/input_jobs.json`
+- `flow/live-261025b/models_HTrJv.json`
+- `flow/live-261025b/upload_maseQ.json`
+
 ## Gemini web spikes (23/10/2026)
 
 The signed-out probe (`gemini/spike-261023/`) and the live run with gemini's own session (`gemini/live-261023/`: t2i,

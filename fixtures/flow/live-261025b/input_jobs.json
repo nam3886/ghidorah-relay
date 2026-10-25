@@ -1,0 +1,559 @@
+{
+ "note": "one live job per new mode, 25/10, through the worktree's relay_flow (plan, submit, poll, fetch) on the AI Pro account; recover_* are accepted videos fetched by their batch",
+ "jobs": [
+  {
+   "label": "lite_frames",
+   "batch": "b21dfe3f-584f-422d-b0d1-8c597239d00e",
+   "media": "e5423ea2-1545-4701-9d83-397000e1aeb9",
+   "bytes": 5105902,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "label": "lite_i2v",
+   "batch": "2511f9d5-e48a-46f3-bbad-d8896df54905",
+   "media": "a3b5d31e-f3d1-4f99-a5a2-c7daf67ae088",
+   "bytes": 3256418,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "label": "lite_refs",
+   "batch": "0bf3e100-97da-4397-9be0-1efec1b988db",
+   "media": "0facb9e2-2d0f-4951-b9dd-2e4674ab9948",
+   "bytes": 4477549,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-nano-banana-2-lite",
+   "operation": "image_to_image",
+   "params": {
+    "model": "HARBOR_SEAL",
+    "aspect": 2,
+    "ratio": "9:16"
+   },
+   "submit_s": 26.5,
+   "outcome": "Completed",
+   "events": [],
+   "total_s": 26.5,
+   "file_bytes": 158433,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "mjpeg",
+      "width": 768,
+      "height": 1376,
+      "duration": "0.040000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-nano-banana-2.1",
+   "operation": "image_to_image",
+   "params": {
+    "model": "BELUGA",
+    "aspect": 1,
+    "ratio": "1:1"
+   },
+   "submit_s": 48.7,
+   "outcome": "Completed",
+   "events": [],
+   "total_s": 48.7,
+   "file_bytes": 356281,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "mjpeg",
+      "width": 1024,
+      "height": 1024,
+      "duration": "0.040000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-nano-banana-2.1",
+   "operation": "image_to_image",
+   "params": {
+    "model": "BELUGA",
+    "aspect": 10,
+    "ratio": "21:9"
+   },
+   "submit_s": 134.6,
+   "outcome": "Completed",
+   "events": [],
+   "total_s": 134.6,
+   "file_bytes": 413617,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "mjpeg",
+      "width": 1584,
+      "height": 672,
+      "duration": "0.040000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-nano-banana-pro",
+   "operation": "image_to_image",
+   "params": {
+    "model": "GEM_PIX_2",
+    "aspect": 5,
+    "ratio": "4:3"
+   },
+   "submit_s": 71.0,
+   "outcome": "Completed",
+   "events": [],
+   "total_s": 71.0,
+   "file_bytes": 353372,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "mjpeg",
+      "width": 1200,
+      "height": 896,
+      "duration": "0.040000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-omni-flash-360p",
+   "operation": "text_to_video",
+   "params": {
+    "model": "abra_t2v_4s_360p",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 4,
+    "credits": 4,
+    "resolution": 4
+   },
+   "submit_s": 35.7,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=4, upstream_model=None)",
+   "total_s": 70.8,
+   "file_bytes": 911809,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 640,
+      "height": 360,
+      "duration": "4.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "4.010000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-omni-flash-720p",
+   "operation": "frames_to_video",
+   "params": {
+    "model": "omni_flash_i2v_4s_first_last",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 4,
+    "credits": 7
+   },
+   "submit_s": 30.6,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=7, upstream_model=None)",
+   "total_s": 65.7,
+   "file_bytes": 2869191,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "4.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "4.010000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-omni-flash-720p",
+   "operation": "image_to_video",
+   "params": {
+    "model": "abra_i2v_4s",
+    "aspect": 1,
+    "ratio": "9:16",
+    "duration": 4,
+    "credits": 7
+   },
+   "submit_s": 36.7,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=7, upstream_model=None)",
+   "total_s": 71.7,
+   "file_bytes": 2030146,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 720,
+      "height": 1280,
+      "duration": "4.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "4.010000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-omni-flash-720p",
+   "operation": "references_to_video",
+   "params": {
+    "model": "abra_r2v_4s",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 4,
+    "credits": 7
+   },
+   "submit_s": 41.0,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=7, upstream_model=None)",
+   "total_s": 76.2,
+   "file_bytes": 1806209,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "4.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "4.010000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-omni-flash-720p",
+   "operation": "text_to_video",
+   "params": {
+    "model": "abra_t2v_4s",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 4,
+    "credits": 7
+   },
+   "submit_s": 19.1,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=7, upstream_model=None)",
+   "total_s": 54.2,
+   "file_bytes": 2223653,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "4.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "4.010000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "frames_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s_fast_fl",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 37.0,
+   "outcome": "Ambiguous",
+   "events": [],
+   "total_s": 37.0
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "frames_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s_fast_fl",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 33.9,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=20, upstream_model=None)",
+   "total_s": 88.6,
+   "file_bytes": 4907783,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "image_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s_fast_portrait",
+    "aspect": 1,
+    "ratio": "9:16",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 26.0,
+   "outcome": "Ambiguous",
+   "events": [],
+   "total_s": 26.0
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "image_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s_fast_portrait",
+    "aspect": 1,
+    "ratio": "9:16",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 22.7,
+   "outcome": "Ambiguous",
+   "events": [],
+   "total_s": 22.7
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "image_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s_fast",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 30.1,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=20, upstream_model=None)",
+   "total_s": 99.0,
+   "file_bytes": 3315368,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-veo-3.1-fast",
+   "operation": "references_to_video",
+   "params": {
+    "model": "veo_3_1_r2v_fast_landscape",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 20
+   },
+   "submit_s": 39.1,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=20, upstream_model=None)",
+   "total_s": 91.2,
+   "file_bytes": 4082759,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-veo-3.1-quality",
+   "operation": "image_to_video",
+   "params": {
+    "model": "veo_3_1_i2v_s",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 100,
+    "tiers": [
+     "pro",
+     "ultra"
+    ]
+   },
+   "submit_s": 24.9,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=100, upstream_model=None)",
+   "total_s": 110.9,
+   "file_bytes": 3072404,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  },
+  {
+   "model": "flow-veo-3.1-quality",
+   "operation": "text_to_video",
+   "params": {
+    "model": "veo_3_1_t2v",
+    "aspect": 2,
+    "ratio": "16:9",
+    "duration": 8,
+    "credits": 100,
+    "tiers": [
+     "pro",
+     "ultra"
+    ]
+   },
+   "submit_s": 27.1,
+   "outcome": "Accepted",
+   "events": [],
+   "facts": "Facts(upstream_price=100, upstream_model=None)",
+   "total_s": 79.0,
+   "file_bytes": 2678916,
+   "ffprobe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+     {
+      "codec_name": "h264",
+      "width": 1280,
+      "height": 720,
+      "duration": "8.000000"
+     },
+     {
+      "codec_name": "aac",
+      "duration": "8.000000"
+     }
+    ]
+   }
+  }
+ ]
+}

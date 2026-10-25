@@ -118,7 +118,7 @@ to image, image to video) is refused at the door with `input.unsupported` (nothi
 | out of credits at the send (balance read was enough, then not) | — | **unproven**: Ambiguous → reconcile → deadline refund; whether Flow charges or lists it is unknown |
 | the credit refresh | `nzlxg` `[…,[refresh_s,ns]]` | **unproven**: the stamp was ~24 h after the read (rolling?), the pool day is UTC; the pre-send read is the real guard |
 | 9:16 (aspect 1), Veo 3.1 Fast 8 s (20, `_portrait` key for 9:16) | HTrJv + live 25/10 | **proven** and offered (Catalog 25/10); 4/6 s and Quality (100) still unproven, not offered |
-| image upload `maseQ` (UPLOAD_IMAGE token), the image-to-image entry's refs slot, the start-image video RPC (MZZa6b/eb1hJf/nprQif, `veo_3_1_i2v_lite` 10 credits) | the JS names only | **not built**: `input.unsupported` |
+| image upload `maseQ` (UPLOAD_IMAGE token), the image-to-image entry's refs slot, the start-image video RPC (MZZa6b/eb1hJf/nprQif, `veo_3_1_i2v_lite` 10 credits) | the JS names only | **built and proven 25/10**: see "Inputs and the full catalog 25/10" (the upload needs no token) |
 
 ### The morning proof (with the owner, one account, ~20-30 credits of the day's 50)
 The flow worker is stopped first (`docker stop` of worker-flow: its 5-min check rotates the session), and the session
@@ -174,3 +174,99 @@ nothing made) and the account's pools rest `flow.traffic_rest_s` (1800 s; after 
 accepted). On a video it stays Ambiguous with the same rest. Code 7 is unchanged (retried with a new token); its
 reason is now read: `PUBLIC_ERROR_MODEL_ACCESS_DENIED` as the last refusal fails the tries as
 `flow.model_access_denied` instead of `flow.captcha_refused`.
+
+## Inputs and the full catalog 25/10
+GetModels (`HTrJv`) read again on the AI Pro account (`live-261025b/models_HTrJv.json`). The request shape of each new
+mode was read from flow's web app (module `wO1vlb`; its JSPB messages put field N at index N-1) and proven by one live
+job through the worktree's own code (`live-261025b/input_jobs.json`), on production's AI Pro session read-only (no
+rotation, nothing written back), production's flow worker running beside it.
+
+**Upload (`maseQ`, FlowService.UploadImage).** args `[[null,22,null,null,null,<project>], "<base64>", "<mime>", true,
+null, null, null, false]`: the context, the bytes, the type, then the web app's own flags (it puts an UPLOAD_IMAGE token
+in the context's last slot when it has one). Answered in 6-7 s with `[[<media id>, <project>, <workflow id>, ...],
+[<workflow id>, _, _, [<a caption flow wrote>, ...], <project>]]`. **No token is needed**: the same upload with no
+reCAPTCHA slot was taken (6.0 s). Free. The media id is then used like a generated one.
+
+**Image to image (`ogiZ0b`).** The entry's third slot is the reference list, each `[<media id>, null, null, null, 1]`
+(1 a reference; 2 is the web app's "base image"). Live on all three models: Nano Banana 2.1 with 2 refs (1:1,
+1024x1024, both subjects drawn in) and with 10 refs (21:9, 1584x672), Pro (4:3, 1200x896), 2 Lite (9:16, 768x1376).
+0 credits.
+
+**Nano Banana 2.1's ratios.** GetModels lists aspect codes 1-14 for BELUGA and 1-5 for the other two. One image at each
+of 6-14 (`image_ratios.json`): 6 2:3 (848x1264), 7 3:2, 8 4:5 (928x1152), 9 5:4, 10 21:9 (1584x672), 11 1:4
+(512x2064), 12 4:1, 13 1:8 (352x2928), 14 8:1. A 1:8 image held its reply 89 s, so `GENERATE_TIMEOUT_S` is now 150.
+
+**Video (VideoFxService).** Every send gets the same acceptance as `YhhmEf` (our batch echoed) and is polled the same
+(`jwpduf`, `as29s`). A frame or a reference is `[null, <media id>]` (field 2 of a oneof; field 1 would be bytes).
+
+| Operation | RPC | entry |
+|---|---|---|
+| text | `YhhmEf` | `[text, model, aspect, null, ids, null, null, [resolution]]` |
+| start frame | `eb1hJf` | `[text, model, aspect, null, start, ids, null, null, null, [resolution]]` |
+| first and last frame | `nprQif` | `[text, model, aspect, null, first, last, ids]` (no resolution field) |
+| references | `MZZa6b` | `[text, [refs...], model, aspect, null, ids, null, null, null, null, null, [resolution]]` |
+
+The request around the entry is `[[entry], <context with the token>, [<batch>, 1]]` for all four. `[resolution]` is sent
+only for Omni 360p (`[4]`, GetModels `[23]`; the web app omits it at 1, 720p). Trailing empty fields are not sent.
+
+**Keys (GetModels; credits on free / Pro / Ultra).**
+- Lite: `veo_3_1_t2v_lite`, `veo_3_1_i2v_lite`, `veo_3_1_interpolation_lite` (first and last), `veo_3_1_r2v_lite` (up to
+  3 refs): 10 / 10 / 5. The 4 s and 6 s keys (`veo_3_1_t2v_lite_4s`, `veo_3_1_i2v_s_lite_4s`, `..._4s_fl`) are Ultra's
+  only (5).
+- Fast: `veo_3_1_t2v_fast` and `_portrait`, `veo_3_1_i2v_s_fast` and `_portrait`, `..._fast_fl` and `_portrait_fl`,
+  `veo_3_1_r2v_fast_landscape` and `_portrait` (3 refs): 20 / 20 / none. 4 s and 6 s Ultra only (10).
+- Quality: `veo_3_1_t2v` and `_portrait`, `veo_3_1_i2v_s` and `_portrait`, `..._fl` and `_portrait_fl`: 100 on every
+  plan; no reference mode. 4 s and 6 s Ultra only (100).
+- Omni 1.1 Flash (`abra_*`): `abra_t2v_{4,6,8,10}s`, `abra_i2v_*`, `abra_r2v_*` (7 refs), `omni_flash_i2v_*_first_last`:
+  7 / 10 / 12 / 15 credits at 720p, the `_360p` keys 4 / 5 / 6 / 7, the same on every plan. `abra_edit` (video edit, 20)
+  is not built.
+- Extend: `veo_3_1_extension_lite` (10), `veo_3_1_extend_fast_landscape` / `_portrait` (20), `veo_3_1_extend_landscape`
+  / `_portrait` (100), RPC `fZytfe`: its first field names a video already in the project (`[null, <media id>, start,
+  end]`). Not built: see "What the core needs" below.
+- Upsamplers: `veo_3_1_upsampler_1080p` (Pro and Ultra, 0), `veo_3_1_upsampler_4k` (Ultra, 50), `omni_upsampler_360p`
+  (Pro and Ultra, 0), RPC `p0UkFb`, each naming a video of the project; images `GEM_PIX_2_UPSAMPLE_2K` (every plan, 0)
+  and `_4K` (Ultra, 0), RPC `SPrCad` `[<media id>, <target>, <context with an IMAGE_GENERATION token>]`.
+
+**Plan gate.** The pre-send `nzlxg` read names the plan (PaygateTier). An option whose plans do not include it is not
+sent (`flow.tier_required`; the job tries another account and fails refunded when its attempts run out): Veo 4 s and
+6 s on Ultra only, Quality on Pro and Ultra. No Ultra account exists, so the 4 s and 6 s keys are built from GetModels
+only and were never sent.
+
+**Live jobs** (AI Pro account, `input_jobs.json`; seconds from the submit's start to the file; credits from the
+acceptance's balance):
+
+| Option | Key, aspect | File | Credits | s |
+|---|---|---|---|---|
+| Lite start frame | `veo_3_1_i2v_lite`, 2 | 1280x720, 8 s, AAC | (*) | |
+| Lite first and last | `veo_3_1_interpolation_lite`, 2 | 1280x720, 8 s | (*) | |
+| Lite 2 references | `veo_3_1_r2v_lite`, 2 | 1280x720, 8 s | (*) | |
+| Fast start frame | `veo_3_1_i2v_s_fast`, 2 | 1280x720, 8 s | 20 | 99 |
+| Fast first and last | `veo_3_1_i2v_s_fast_fl`, 2 | 1280x720, 8 s | 20 | 89 |
+| Fast 2 references | `veo_3_1_r2v_fast_landscape`, 2 | 1280x720, 8 s | 20 | 91 |
+| Quality text | `veo_3_1_t2v`, 2 | 1280x720, 8 s | 100 | 79 |
+| Quality start frame | `veo_3_1_i2v_s`, 2 | 1280x720, 8 s | 100 | 111 |
+| Omni 720p text 4 s | `abra_t2v_4s`, 2 | 1280x720, 4 s, AAC | 7 | 54 |
+| Omni 720p start frame 4 s | `abra_i2v_4s`, 1 | 720x1280, 4 s | 7 | 72 |
+| Omni 720p first and last 4 s | `omni_flash_i2v_4s_first_last`, 2 | 1280x720, 4 s | 7 | 66 |
+| Omni 720p 2 references 4 s | `abra_r2v_4s`, 2 | 1280x720, 4 s | 7 | 76 |
+| Omni 360p text 4 s | `abra_t2v_4s_360p`, 2, resolution `[4]` | 640x360, 4 s | 4 | 71 |
+
+(*) The three Lite jobs were accepted (our batch echoed) but the harness stopped before it read the balance; they were
+fetched by their batch ids (`recover_*`). The Pro balance went 1000 -> 950 over them and the Fast references job, as
+3 x 10 + 20 makes. Four sends got the immediate code 7 (nothing spent): the Fast start frame in 9:16
+(`veo_3_1_i2v_s_fast_portrait`) three times and the Fast first and last once; the 9:16 start frame key is therefore
+built from GetModels and the shape the 16:9 one proved, not seen accepted. Code 7 came often this day: production's
+own jobs ran on the same account meanwhile.
+
+**Image upscale (`SPrCad`).** Probed only: with an uploaded image and target 1 the answer was error 3 (INVALID_ARGUMENT)
+once a token passed; with a generated image every try was refused at the reCAPTCHA check (code 7, four times). Whether
+the target enum or the source is wrong is not known, and the probing stopped so as not to heat the production account
+further. Not built.
+
+**What the core needs for extend and upscale.** An extend (`fZytfe`) and a video upscale (`p0UkFb`) name a video by
+its media id *in the same project*, so on the same account; an image upscale names an image the same way (an uploaded
+one gave error 3, see above). None of them is a job made from the request alone. The core would have to: take a source
+in the request (a job id and output index of the same key), copy the source output's `upstream_id` (flow's media id)
+and the source job's account into the new job, claim the new job ONLY on that account (no fallback), and fail it
+refunded when that account cannot take it (dead, out of credits, wrong plan). The migration comment of 0003 already
+names `source_job_id`, `source_idx`, `pin_account_id` for this. With that, the flow side is one RPC each.
