@@ -16,7 +16,15 @@
   ],
   "t2v_portrait_sends": [
     {"at": "06:21:15Z", "inner55": [[17]], "message_9_6": [null, [null, "9:16"]], "result": "done in 2 min 51 s", "ffprobe": {"video": "h264 1280x720 24 fps", "audio": "aac", "duration_s": 10.0078, "bytes": 2374639}, "frame": "landscape composition"},
-    {"at": "06:26:0xZ", "inner55": [[17]], "message_9_6": [null, [null, "9:16"]], "result": "done", "job_media": {"width": 1280, "height": 720, "duration_s": 10.0078}, "note": "meant to drop the message ratio; the patch missed the text to video branch, so it repeated the first send"}
+    {"at": "06:26:0xZ", "inner55": [[17]], "message_9_6": [null, [null, "9:16"]], "result": "done", "job_media": {"width": 1280, "height": 720, "duration_s": 10.0078}, "note": "meant to drop the message ratio; the patch missed the text to video branch, so it repeated the first send"},
+    {"at": "07:02:01Z", "inner55": [[17]], "message_9_6": "absent (content of 7 items, the reference shape)", "result": "failed gemini.refused in 6 s", "answer": "Sorry, something went wrong. Please try your request again.", "generating": false}
+  ],
+  "t2i_sends_looking_for_nano_banana_2": [
+    {"at": "07:03Z", "mode": "cf41b0e0dd7d53e5", "kind": 6, "status": 200, "label": null, "answer": "I encountered an error doing what you asked. Could you try again?"},
+    {"at": "07:04Z", "mode": "8c46e95b1a07cecc", "kind": 1, "status": 200, "label": "Nano Banana 2.1", "image": [1024, 1024, 1123946]},
+    {"at": "07:05Z", "mode": "8c46e95b1a07cecc", "kind": 20, "status": 200, "label": "Nano Banana 2 Lite", "image": [1024, 1024, 1368885]},
+    {"at": "07:07Z", "mode": "8c46e95b1a07cecc", "kind": 4, "status": 200, "label": "Nano Banana 2 Lite", "image": [1024, 1024, 1248739]},
+    {"at": "07:08Z", "mode": "8c46e95b1a07cecc", "kind": 2, "status": 200, "label": "Nano Banana 2 Lite", "image": [1024, 1024, 1425774]}
   ],
   "usage_5h_window": {"before_videos_06:04Z": 2400, "after_five_images_06:10Z": 2299}
 }

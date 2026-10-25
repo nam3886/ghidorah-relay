@@ -73,7 +73,7 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert (s["gemini.rotate_interval_s"].default, s["gemini.rotate_interval_s"].max) == (600, 900)
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
     assert s["gemini.render_deadline_s"].default == 900
-    assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 2}
+    assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 6}
     assert s["gemini.costs"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
     assert s["gemini.pools"].default == {"image": day_pool({"free": 100}),
                                          "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
@@ -154,7 +154,7 @@ def test_a_video_job_is_ten_seconds_landscape_detached_on_the_video_pool_from_te
     assert dict(p.params) == {"ratio": "16:9", "duration": 10}
     assert (p.completion, p.after_sent) == (Completion.DETACH, AfterSent.RECONCILE)
     assert (p.pool, p.price_key) == ("video", VIDEO + "@10s")
-    assert (priced(VIDEO).price, priced(VIDEO).account_cost) == (2, 1), "2 points, one use of the video budget"
+    assert (priced(VIDEO).price, priced(VIDEO).account_cost) == (6, 1), "6 points, one use of the video budget"
     assert plan(VIDEO, duration=10, ratio="16:9").params == p.params
     assert plan(VIDEO, images=(IMG,)).operation == "image_to_video", "an image to video planned from text"
     assert refusal(VIDEO, duration=8) == ("input.bad_duration", "duration"), "an 8 s video was planned"

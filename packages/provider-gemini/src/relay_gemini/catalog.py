@@ -25,7 +25,8 @@ RATIO_IDS = {"1:1": 61, "9:16": 59, "3:4": 60, "4:3": 62, "16:9": 63}
 VIDEO_MODEL = "gemini-omni-video"
 VIDEO_DISPLAY = "Gemini Omni video"
 # otAQ7b tool 185: 16 Landscape (the default), 17 Portrait. Portrait is not sold: two text to video sends with [[17]]
-# and the message's ratio "9:16" both came back 1280x720 landscape (25/10, FINDINGS 7).
+# and the message's ratio "9:16" both came back 1280x720 landscape, and [[17]] with no ratio in the message was answered
+# "Sorry, something went wrong" (25/10, FINDINGS 7).
 VIDEO_RATIO_IDS = {"16:9": 16}
 VIDEO_RATIO = "16:9"
 VIDEO_DURATION = 10                 # no length option; both measured clips were 10.0 s
@@ -41,7 +42,7 @@ PRICE_KEYS = (IMAGE_MODEL, PRO_IMAGE_MODEL, price_key(VIDEO_MODEL))
 # What one job costs the account (the default of `gemini.costs`): one use of the image budget, or one of the video
 # budget (a video takes about a fifth of a 5-hour window on AI Pro: 453 of 2400 units; counted as one use for now).
 DEFAULT_COSTS = {IMAGE_MODEL: 1, PRO_IMAGE_MODEL: 1, price_key(VIDEO_MODEL): 1}
-DEFAULT_PRICES = {IMAGE_MODEL: 1, PRO_IMAGE_MODEL: 2, price_key(VIDEO_MODEL): 2}   # points (default of `gemini.prices`)
+DEFAULT_PRICES = {IMAGE_MODEL: 1, PRO_IMAGE_MODEL: 2, price_key(VIDEO_MODEL): 6}   # points (default of `gemini.prices`)
 
 
 def is_blank_prompt(text: str) -> bool:

@@ -130,8 +130,11 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
 - Portrait, 25/10 06:21Z and 06:26Z (live-261025, `portrait_and_image_modes.json`): two text to video sends with
   inner[55] = [[17]] and the message's ratio `[null, [null, "9:16"]]` were taken and delivered, both 1280×720
   landscape (10.01 s, the clip landscape in its frame). The option id 17 is right (otAQ7b, and the reference repo); the
-  reference sends it with NO ratio string in the message, the shape not tried yet (the 2-video budget was spent: the
-  second send repeated the first by mistake). Portrait is not sold.
+  reference sends it with NO ratio string in the message (the second send meant to try that and repeated the first by
+  mistake). 07:02Z that reference shape (inner[55] = [[17]], the message `[text, 0, null, null, null, null, 0]` with no
+  `[9]`): a complete answer in 6 s, "Sorry, something went wrong. Please try your request again.", no video and no
+  "generating" item (`gemini.refused`, refunded). Portrait is not sold; the web app's own portrait request (a capture
+  with the send aborted, as `web_request_i2v.json`) is what is missing.
 
 ## 8. The image model follows the mode's kind (AI Pro, 25/10)
 - Each mode row of otAQ7b payload[15] carries a number at [17], its kind: Auto 6, Flash-Lite 6, Flash 1, Pro 3, Argon
@@ -140,13 +143,17 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   on `/u/4` through the relay (a scratch worker, 06:05-06:21Z), one image each, 1024×1024 or 768×1376 PNG:
   Flash-Lite id + kind 6 → "Nano Banana 2 Lite"; the Pro id + kind 6 → "Nano Banana 2 Lite"; Flash + 1, Argon + 8,
   Pro + 3 → "Nano Banana 2.1". The free plan's Auto + 6 drew "Nano Banana 2" (23/10). No mode gave "Nano Banana Pro".
+- Looking for "Nano Banana 2" on `/u/4` (07:03-07:08Z): Flash-Lite's id with kind 1 → "Nano Banana 2.1"; with kind 20,
+  4 or 2 → "Nano Banana 2 Lite"; the free plan's Auto id (`cf41b0e0dd7d53e5`) + 6 → "I encountered an error doing what
+  you asked. Could you try again?" (no image). On the AI Pro account every kind tried gives "2 Lite" or "2.1": no send
+  found that Google labels "Nano Banana 2", so `gemini-nano-banana-2` keeps the default mode there.
 - So the kind, not the id alone, picks the model, and `gemini-nano-banana-2` on the AI Pro account (its default
   Flash-Lite) is drawn by "Nano Banana 2 Lite". The provider sells `gemini-nano-banana-2.1` (the "Pro" mode and its
   kind, `provider_state.pro_mode = [id, kind]`) to pro and ultra accounts only: its `image_pro` pool has no free budget.
 
 ## Open questions
-- Portrait (9:16) video: the reference shape (option 17, no ratio string in the message) not sent yet.
-- Which mode makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".
+- Portrait (9:16) video: the web app's own request for it (neither shape tried so far makes one).
+- Whether any send makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".
 - The free plan's daily image limit and its refusal text; rate limits per account; the exact video quota (453 units
   of 2400 per 5 h suggests 5 per 5 h).
 - Whether a cut stream can ever still produce an image (two cuts produced none).

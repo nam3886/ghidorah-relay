@@ -1022,7 +1022,7 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 2 (video); 1 use each | points per job; one use of its pool |
+| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10); 1 use each | points per job; one use of its pool |
 | `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15 | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week). The free 0 of image_pro is what keeps Nano Banana 2.1 off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
