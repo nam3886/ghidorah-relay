@@ -145,7 +145,8 @@ def test_a_video_is_written_ahead_marked_sent_right_before_its_one_send_and_acce
                               for p in ("image", "video")]
 
 
-@mutation(SUBMIT_FILE, FLOW_SPENT, "    spent = balance is not None", expect="no credits taken")
+# without the guard a balance that did not fall makes a cost of 0 or less, which Facts refuses: the submit would crash
+@mutation(SUBMIT_FILE, FLOW_SPENT, "    spent = balance is not None", expect="an actual cost is a whole number above 0")
 def test_the_flow_cost_is_the_balance_delta_only_when_the_acceptance_reports_a_lower_balance():
     """flow states no price. The delta is the job's own only while an account runs one job at a time."""
     assert SPEC.caps.account_slots == 1, "the balance delta is a job's cost only with one job per account"
