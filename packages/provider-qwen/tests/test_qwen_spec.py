@@ -128,11 +128,12 @@ def test_an_image_is_held_in_the_image_pool_at_16_9_unless_a_ratio_is_asked():
     assert plan(images=(IMG,)).operation == "image_to_image"
 
 
-CREDITS = '            credits = settings.get("qwen.costs").get(C.price_key(req.model, duration))'
+CREDITS = '            credits = settings.get("qwen.costs").get(C.price_key(req.model, duration, resolution))'
 
 
 @mutation(SPEC_FILE, CREDITS, "            credits = 1", expect="'credits': 1")
-@mutation(CATALOG_FILE, "VIDEO_CREDITS[m][d] for m in VIDEO_MODELS", "1 for m in VIDEO_MODELS", expect="account cost")
+@mutation(CATALOG_FILE, "VIDEO_CREDITS[m][r][d] for m, r, d in _VIDEO_OPTIONS", "1 for m, r, d in _VIDEO_OPTIONS",
+          expect="account cost")
 def test_a_video_is_detached_in_the_video_pool_and_costs_the_account_its_credits():
     p = plan("qwen-happyhorse-1.1")
     assert (p.operation, p.media_type, p.completion, p.pool) == ("text_to_video", "video", Completion.DETACH, "video")
@@ -171,7 +172,7 @@ def test_what_qwen_cannot_make_is_refused_before_any_charge(kw, want):
     assert refusal(**kw) == want
 
 
-@mutation(SPEC_FILE, 'price_key=C.price_key(req.model, params.get("duration"))', "price_key=req.model",
+@mutation(SPEC_FILE, 'price_key=C.price_key(req.model, params.get("duration"), resolution)', "price_key=req.model",
           expect="no price for qwen-happyhorse-1.1")
 def test_a_video_is_priced_by_model_and_seconds_and_a_missing_key_is_refused():
     cfg = FakeSettings(SPEC, qwen__prices={"qwen-image-3.0": 2, "qwen-happyhorse-1.1@5s": 7})

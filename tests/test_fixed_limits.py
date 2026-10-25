@@ -108,6 +108,7 @@ NOT_SHOWN = {
     **excuse("the catalog a customer reads from GET /v1/models",
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS",
              "relay_qwen.catalog.DURATIONS", "relay_qwen.catalog.DEFAULT_DURATION",
+             "relay_qwen.catalog.MAX_IMAGE_INPUTS", "relay_qwen.catalog.MODE_MAX_IMAGES",
              "relay_flow.catalog.VIDEO_DURATION", "relay_gemini.catalog.VIDEO_DURATION"),
     **excuse("the default of the provider's prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES",

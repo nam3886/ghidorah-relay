@@ -254,14 +254,15 @@ UPLOAD_ALL = ("                files = [await upload_image(site, await read_medi
 
 @mutation(SUBMIT_FILE, UPLOAD_ALL, "                files = [await upload_image(site, await read_media(ref), "
           "ref.mime) for ref in (await job.inputs())[:1]]", expect="every reference image")
-@mutation(SUBMIT_FILE, '        gen = "multi_ref" if mode == "multi-reference" else "vid_gen"', '        gen = "vid_gen"',
-          expect="multi_ref")
+@mutation(SUBMIT_FILE, '        gen = "multi_ref" if mode == "multi-reference" else "vid_gen"',
+          '        gen = "vid_gen"', expect="multi_ref")
 def test_happyhorse_reference_images_are_all_uploaded_and_sent_as_multi_ref_in_their_order():
     log = []
     q = Qwen(log, send=I2V_TASK, sts=sts_each(9))
     result = run_submit(q, Ctx(log), job(VIDEO, image=9))
     assert isinstance(result.job, Accepted)
-    assert len(q.calls("put")) == 9 and log.index("put") < log.index("new_chat")
+    assert len(q.calls("put")) == 9, "every reference image is uploaded: %d" % len(q.calls("put"))
+    assert log.index("put") < log.index("new_chat")
     assert [p.content for p in q.calls("put")][:3] == [b"\xff\xd8\xffJPEG-bytes", b"\xff\xd8\xffJPEG-1",
                                                       b"\xff\xd8\xffJPEG-2"]
     msg = sent_body(q)["messages"][0]
