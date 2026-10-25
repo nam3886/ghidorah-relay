@@ -1416,7 +1416,7 @@ class _Run:
         return _outcome(NotTaken(code), *effects)
 
     def _refused_on_account(self) -> tuple[list, bool]:
-        """dola refused this order on this account (710022002, a throttle code, or its "something went wrong" reply).
+        """dola refused this order on this account (710022002 or a throttle code).
         Owner's ruling 25/10: a job may be tried on at most `dola.refusal_max_accounts` accounts when dola refuses it;
         22-23/10 single jobs went round all 9 accounts within minutes and 6 were logged out by dola's risk system right
         after. The count is the job's `REFUSED_BY` list, which the core keeps across every requeue, so neither a fault
@@ -1678,10 +1678,11 @@ class _Run:
                 detail = "dola refused this order (likeness protection)"
                 return _outcome(Fail(errors.LIKENESS_REFUSED, detail), *balance)
             return _outcome(Fail(errors.CONTENT_REFUSED, verdict.detail), *balance)
-        if outcome is classify.SubmitOutcome.ERROR:      # "something went wrong": a refusal like a throttle
-            return await self._refusal_outcome(errors.TEMPORARY_ERROR, errors.REFUSED_ON_ACCOUNTS, verdict.detail,
-                                               balance)
         # NEEDS_CONFIRM after the re-sends: dola is still gated but the video may come (R56): the poll decides.
+        # "Something went wrong" (ERROR) the same way: it always comes inside a conversation, and dola can still deliver
+        # there (fixtures/dola/chains/split_30s_into_15s-1e73d195: the error, then "Your video is ready"). It is not a
+        # refusal that moves the job (another account would be a second upstream order) and is not counted in
+        # `refused_by` (Codex 25/10): the poll delivers, or the render deadline fails the job with its refund.
         return _outcome(Accepted(self.conversation, taken=False), *balance)
 
     async def _out_of_points(self, credits_left: int | None, text: str) -> SubmitResult:

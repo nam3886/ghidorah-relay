@@ -61,9 +61,9 @@ def test_refusals_end_the_job_at_once_and_refund_and_transient_codes_count_an_at
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True), code
         assert r.http_status == 502, code
-    # a refusal (25/10): dola.refusal_max_accounts alone decides, so its requeue uses no attempt
+    # only a deadline cause now (Codex 25/10: the reply waits for the poll): it ends the job refunded, no attempt
     r = errors.rule("dola.temporary_error")
-    assert (r.terminal, r.refund, r.counts_attempt, r.public, r.http_status) == (False, False, False, True, 502)
+    assert (r.terminal, r.refund, r.counts_attempt, r.public, r.http_status) == (True, True, False, True, 502)
 
 
 def test_the_ui_codes_are_ours_to_fix_so_the_client_sees_a_generic_error():
@@ -127,6 +127,7 @@ def test_otherwise_the_deadline_is_dolas_last_words_then_render_deadline():
         assert SPEC.deadline_cause(SAFETY, state) == "dola.content_refused"
         assert SPEC.deadline_cause(LIKENESS, state) == "dola.likeness_refused"
         assert SPEC.deadline_cause(UPLOAD, state) == "dola.needs_confirm"
+        assert SPEC.deadline_cause("Something went wrong. Please try again.", state) == "dola.temporary_error"
         assert SPEC.deadline_cause("", state) == "render.deadline"
         assert SPEC.deadline_cause("The video will be generated using the Dreamina Seedance 2.5 model. It will use 2 "
                                    "credits and be ready in 15 minutes.", state) == "render.deadline", (
@@ -145,6 +146,6 @@ def test_a_deadline_after_only_watermarked_links_is_render_watermarked_only():
 
 def test_every_deadline_cause_is_a_job_ending_refunded_code():
     for code in ("account.dead_session", "dola.content_refused", "dola.likeness_refused", "dola.needs_confirm",
-                 "render.deadline", "render.watermarked_only"):
+                 "dola.temporary_error", "render.deadline", "render.watermarked_only"):
         r = errors.rule(code)
         assert r.code == code and r.terminal and r.refund and not r.counts_attempt, code

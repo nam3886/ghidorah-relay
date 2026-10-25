@@ -637,7 +637,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 | `dola.send_path` | how an order is sent: `browser` (Chrome) or `http` (one signed POST, no browser); read per job at the send; a job with reference images, an image with a style, or any video but Seedance 2.0 5 s or 10 s at 16:9 always goes by browser | browser |
 | `dola.signer_alarm_accounts` | HTTP send only: this many different accounts refused (710022002/710022004) before an acknowledgement within the window = relay's signature is suspect (at least 2) | 3 |
 | `dola.signer_alarm_window_s` | HTTP send only: that window, and how long HTTP sends pause after the alarm (at least 60) | 900 |
-| `dola.refusal_max_accounts` | how many accounts one job may try when dola refuses to take it (710022002, the throttle 710022004, its "something went wrong" reply); each refusal rests that account and sends the job to another, the last one ends the job failed and refunded; 1 ends it at the first (1 to 9; see "Refusals") | 2 |
+| `dola.refusal_max_accounts` | how many accounts one job may try when dola refuses to take it (710022002 or the throttle 710022004, before any conversation; one after a conversation ends the job at once); each refusal rests that account and sends the job to another, the last one ends the job failed and refunded; 1 ends it at the first (1 to 9; see "Refusals") | 2 |
 
 The range or rule of every setting is shown on the Settings page.
 
@@ -732,7 +732,7 @@ conversation's own messages (dola's API, through the page), never the page text,
 | a question or a stated length other than asked | needs confirmation | re-send in the same conversation, at most 2 times |
 | copyright, safety, likeness or "cannot generate" | content refused | job fails; likeness has its own code |
 | not enough credit, daily limit | out of credit | the pool rests until the UTC day boundary; a positive balance below the price is "cannot afford", the job moves |
-| "something went wrong", "try again later" | temporary error | not taken; the job is tried again |
+| "something went wrong", "try again later" | temporary error | accepted, not proven: the conversation is kept and the poll decides (dola can still deliver there: `split_30s_into_15s-1e73d195`); empty, the render deadline fails it with its refund (`dola.temporary_error`). Never sent to another account (25/10) |
 | anything else, or two readings that contradict | unclear | see rules below |
 
 **Send-step results** (what the engine hands the core):
@@ -742,7 +742,7 @@ conversation's own messages (dola's API, through the page), never the page text,
 | accepted, taken | dola accepted; the job waits for the poll |
 | accepted, not proven | unclear or still gated after the re-sends; the conversation is kept and the poll decides |
 | completed | image whose pictures are already there |
-| not taken | out of credit; a refusal (temporary error, throttle 710022004, 710022002) before the last account `dola.refusal_max_accounts` allows; the job goes elsewhere or later. Also a send proven not to have left the page (below) |
+| not taken | out of credit; a refusal with no conversation (throttle 710022004, 710022002) before the last account `dola.refusal_max_accounts` allows; the job goes elsewhere or later. Also a send proven not to have left the page (below) |
 | fail | content refused; a refusal on the last account allowed (`dola.refused_710022002`, else `dola.refused_on_accounts`) |
 | retry | a failure before the send (nothing was sent) |
 | ambiguous | a failure after the send, or no conversation appeared; reconcile reads the account's own conversation list |
@@ -766,7 +766,8 @@ Rules an operator must know:
   replaces the 23/10 one (710022002 ended the job at the first): 22-23/10 single jobs were re-queued across all 9
   accounts within minutes and 6 were logged out by dola's risk system right after. A refusal is dola not taking the
   order: its stream code 710022002 (dola will not take this order; 23/10: 9 of 18 tries in 3 h, all on one prompt, on
-  7 accounts) or 710022004 (throttle), or its "something went wrong" reply. Each refusal rests the account as before
+  7 accounts) or 710022004 (throttle). "Something went wrong" is not one: it always comes inside a conversation, the
+  job waits for the poll there and never moves (see the reply table). Each refusal rests the account as before
   and adds it to the job's `provider_state.refused_by`; the core keeps that list across every requeue (a page fault,
   an interrupted submit, a proven-not-sent order, the reaper's requeue of an expired lease) and a restart, so nothing
   in between resets the count. Before the last allowed account the job goes back to the queue (no attempt is used:

@@ -406,6 +406,9 @@ def no_result_cause(text: str) -> tuple[str, str] | None:
         return None
     if asks_question(text) or verdict.outcome is SubmitOutcome.NEEDS_CONFIRM:
         return codes.NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"
+    # "Something went wrong" keeps the job waiting for the poll (dola can still deliver there); empty at the deadline
+    if verdict.outcome is SubmitOutcome.ERROR:
+        return codes.TEMPORARY_ERROR, "dola reported a temporary error and never delivered"
     return None
 
 

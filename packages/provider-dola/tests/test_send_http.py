@@ -601,6 +601,26 @@ async def test_a_plain_text_refusal_of_dola_is_read_and_ends_the_job():
 
 
 
+@sync
+async def test_something_went_wrong_after_the_ack_keeps_the_conversation_for_the_poll_and_never_moves_the_job():
+    """Codex 25/10, as on the browser path: dola acknowledged (a conversation exists) and replied "Something went
+    wrong"; it can still deliver there, so the job waits for the poll and goes to no other account."""
+    went_wrong = chain("video_chain_final.json")
+    msgs = went_wrong["downlink_body"]["pull_singe_chain_downlink_body"]["messages"]
+    bot = next(m for m in msgs if m.get("user_type") == 2)
+    msgs[:] = [m for m in msgs if m.get("user_type") == 1] + [{
+        "conversation_id": VIDEO_CONV, "message_id": bot["message_id"], "user_type": 2, "content_type": 1,
+        "index_in_conv": "2", "create_time": bot["create_time"], "ext": {"is_finish": "1"},
+        "content": json.dumps({"text": "Something went wrong. Please try again."})}]
+    log: list = []
+    ctx, result = await run(Dola(log, stream=VIDEO_SSE, chains={VIDEO_CONV: went_wrong}),
+                            video_job(provider_state={REFUSED_BY: ["acct-0"]}))
+    assert type(result.job).__name__ == "Accepted" and not result.job.taken and result.job.ref == VIDEO_CONV, \
+        "something went wrong moved or ended the job: %r" % (result.job,)
+    assert (VIDEO_CONV, {}) in ctx.refs
+    assert log.count("POST") == 1
+
+
 PLAIN_REFUSAL = "I can\u2019t generate the requested content. Try something else."
 PLAIN_ASKS = "I can't generate the requested content as written; would you like me to adjust it and proceed?"
 

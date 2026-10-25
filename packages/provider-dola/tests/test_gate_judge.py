@@ -66,7 +66,7 @@ DECOY = Q + "\n" + ACCEPTED + "\n7 video credits left today\nNot Enough Credits\
 MIDNIGHT = NOW.replace(day=6, hour=0, minute=0)
 
 T2, TN, T0 = ("taken", 2), ("taken", None), ("taken", 0)     # Success, with the Balance dola reported (or none)
-MAYBE, ZERO_LEFT, POINTS, TEMP, REFUSED = "maybe", "zero", "points", "temporary", "refused"
+MAYBE, ZERO_LEFT, POINTS, REFUSED = "maybe", "zero", "points", "refused"
 MAYBE2 = ("maybe", 2)         # not taken, with the balance dola reported in its question
 OLD, NEW = False, True
 
@@ -79,14 +79,14 @@ SCENARIOS = {
     "question > unclear": dict(replies={1: [Q], 2: [UNCLEAR]}, base=(2, MAYBE)),
     "question > zero balance": dict(replies={1: [Q], 2: [ZERO]}, base=(2, ZERO_LEFT)),
     "question > refusal": dict(replies={1: [Q], 2: [DAILY_LIMIT]}, base=(2, POINTS)),
-    "question > something went wrong": dict(replies={1: [Q], 2: [SOMETHING_WRONG]}, base=(2, TEMP)),
+    "question > something went wrong": dict(replies={1: [Q], 2: [SOMETHING_WRONG]}, base=(2, MAYBE)),
     "question > late acceptance": dict(replies={1: [Q]}, late=[ACCEPTED], base=(1, T2)),
     "question > late unclear": dict(replies={1: [Q]}, late=[UNCLEAR], base=(1, MAYBE)),
     "question > acceptance after the re-send": dict(replies={1: [Q]}, late2=[ACCEPTED], base=(2, T2)),
     "question > refusal after the re-send": dict(replies={1: [Q]}, late2=[DAILY_LIMIT], base=(2, POINTS)),
     "question > dola silent after the re-send": dict(replies={1: [Q]}, base=(2, MAYBE), tag="silent"),
     "refusal": dict(replies={1: [DAILY_LIMIT]}, base=(1, POINTS)),
-    "something went wrong": dict(replies={1: [SOMETHING_WRONG]}, base=(1, TEMP)),
+    "something went wrong": dict(replies={1: [SOMETHING_WRONG]}, base=(1, MAYBE)),
     "question + refusal in one send": dict(replies={1: [Q, DAILY_LIMIT]}, base=(1, POINTS), tag="newest"),
     "question > question + refusal": dict(replies={1: [Q], 2: [Q, DAILY_LIMIT]}, base=(2, POINTS), tag="newest"),
     "acceptance then a question": dict(replies={1: [ACCEPTED, Q]}, base=(1, T2), tag="taken"),
@@ -98,7 +98,7 @@ SCENARIOS = {
     "question x3 > acceptance": dict(replies={1: [Q], 2: [Q], 3: [ACCEPTED]}, base=(3, T2), three=True),
     "question x3 > unclear": dict(replies={1: [Q], 2: [Q], 3: [UNCLEAR]}, base=(3, MAYBE), three=True),
     "question x3 > zero balance": dict(replies={1: [Q], 2: [Q], 3: [ZERO]}, base=(3, ZERO_LEFT), three=True),
-    "question x3 > something went wrong": dict(replies={1: [Q], 2: [Q], 3: [SOMETHING_WRONG]}, base=(3, TEMP),
+    "question x3 > something went wrong": dict(replies={1: [Q], 2: [Q], 3: [SOMETHING_WRONG]}, base=(3, MAYBE),
                                                three=True),
     "question x3 > refusal": dict(replies={1: [Q], 2: [Q], 3: [DAILY_LIMIT]}, base=(3, POINTS), three=True),
     "silence": dict(replies={}, base=(1, MAYBE)),
@@ -292,8 +292,6 @@ def result_kind(res):
     if isinstance(job, NotTaken):
         if job.code == "pool.account_out_of_points" and account == (Balance("video", 0),):
             return POINTS
-        if job.code == errors.TEMPORARY_ERROR and account == ():
-            return TEMP
         return "unexpected: %r %r" % (job, account)
     if isinstance(job, Fail):
         if job.code in (errors.CONTENT_REFUSED, errors.LIKENESS_REFUSED):

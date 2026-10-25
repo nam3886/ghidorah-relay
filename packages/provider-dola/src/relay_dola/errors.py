@@ -17,8 +17,8 @@ CONTENT_REFUSED = "dola.content_refused"
 # another account until `dola.refusal_max_accounts` accounts refused it, and the last one ends the job with this code,
 # refunded. A requeue in between carries it too (it uses no attempt).
 REFUSED_710022002 = "dola.refused_710022002"
-# The same cap reached by another refusal (a throttle 710022004, a "something went wrong" reply): dola would not take
-# the order on that many accounts. 22-23/10 single jobs went round all 9 accounts in minutes and 6 were logged out.
+# The same cap reached by dola's throttle (710022004): dola would not take the order on that many accounts. 22-23/10
+# single jobs went round all 9 accounts in minutes and 6 were logged out.
 REFUSED_ON_ACCOUNTS = "dola.refused_on_accounts"
 LIKENESS_REFUSED = "dola.likeness_refused"
 RENDER_WATERMARKED_ONLY = "render.watermarked_only"      # a core code: the poll saw only watermarked links
@@ -83,16 +83,16 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _refusal(REFUSED_710022002, "dola refused to take this order (its code 710022002, which it gives for prompts it "
                                 "will not make); nothing was made and the charge is returned"),
     _refusal(REFUSED_ON_ACCOUNTS, "dola would not take this order on the most accounts a job may try (it was "
-                                  "throttled or answered with an error); nothing was made and the charge is returned"),
+                                  "throttled); nothing was made and the charge is returned"),
     _refusal(LIKENESS_REFUSED,"dola refused: with a photo of a person it only makes videos of the account owner"),
     _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"),
     _refusal(NO_VIDEO, "dola made no video for this order"),
     _refusal(NO_IMAGE, "dola made no image for this order"),
-    # dola's "something went wrong" reply is a refusal (owner's ruling 25/10): `dola.refusal_max_accounts` alone
-    # decides how many accounts it may move to, so its requeue uses no attempt. Never a final code (the cap ends a job
-    # with REFUSED_ON_ACCOUNTS), so it refunds nothing itself.
-    Rule(TEMPORARY_ERROR, 502, "api_error", False, False, False, True, True,
-         "dola reported a temporary error when it took the order"),
+    # The render-deadline cause of a job whose last word from dola is "something went wrong" (spec.deadline_cause):
+    # the reply keeps the job waiting for the poll (Codex 25/10), and an empty conversation ends it with this.
+    # A deadline cause ends the job with its refund and uses no attempt (as every deadline cause).
+    Rule(TEMPORARY_ERROR, 502, "api_error", True, True, False, True, True,
+         "dola reported a temporary error when it took the order, and never delivered; the charge is returned"),
     _transient(UNKNOWN_STATUS, "dola answered with a status that is not understood"),
     _transient(HTTP_ERROR, "dola answered with an HTTP error"),
     _transient(BAD_RESPONSE, "dola answered with something that is not readable"),

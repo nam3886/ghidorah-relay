@@ -310,11 +310,36 @@ async def test_a_likeness_refusal_has_its_own_code_and_gives_no_guidance():
         "the likeness refusal carries guidance text: %r" % res.job.detail
 
 
+WENT_WRONG_WAITS = "        # NEEDS_CONFIRM after the re-sends: dola is still gated"
+WENT_WRONG_MOVES = ("        if outcome is classify.SubmitOutcome.ERROR:\n"
+                    "            return _outcome(NotTaken(POOL_THROTTLED), *balance)\n" + WENT_WRONG_WAITS)
+
+
+@mutation(SUB, WENT_WRONG_WAITS, WENT_WRONG_MOVES, expect="something went wrong moved the job")
+@pytest.mark.parametrize("before", [[], ["acct-0"]], ids=["first-account", "after-a-refusal"])
 @sync
-async def test_something_went_wrong_is_a_refusal_counted_by_the_cap_not_by_attempts_and_drops_the_conversation():
-    res = await Scene(replies={1: [SOMETHING_WRONG]}).run()
-    assert res.job == NotTaken(errors.TEMPORARY_ERROR, {REFUSED_BY: ["acct-1"]}), "a refusal: counted (25/10)"
-    assert not rule(errors.TEMPORARY_ERROR).counts_attempt, "the cap alone decides: no generic attempt as well"
+async def test_something_went_wrong_keeps_the_conversation_for_the_poll_and_never_moves_the_job(before):
+    """Codex 25/10: "Something went wrong" always comes inside a conversation, and dola can still deliver there
+    (`split_30s_into_15s-1e73d195`: the error, then "Your video is ready"; its poll delivers 2 videos in
+    test_resolver_chains). Sending the job to another account would be a second upstream order. It stays accepted,
+    not proven: the poll delivers, or the render deadline fails it with its refund. It is no refusal: `refused_by` is
+    not touched, and it never ends the job on the last account either."""
+    scene = Scene(job=make_job(provider_state={REFUSED_BY: before} if before else None), replies={1: [SOMETHING_WRONG]})
+    res = await scene.run()
+    assert res.job == Accepted(CONV, taken=False), "something went wrong moved the job: %r" % (res.job,)
+    assert scene.ctx.refs == [(CONV, {})], "the conversation is not the job's reference"
+    assert scene.log.count("send") == 1
+
+
+def test_something_went_wrong_that_never_delivers_fails_at_the_deadline_with_its_refund():
+    """An accepted-not-proven job that dola leaves empty: the core's render deadline fails it with the provider's
+    cause, refunded once (test_reaper: `test_a_waiting_job_past_the_render_deadline_fails_with_the_providers_cause_and_
+    the_refund`). For dola's "Something went wrong" that cause is `dola.temporary_error`: terminal, refunded."""
+    from relay_dola.spec import SPEC
+    cause = SPEC.deadline_cause(SOMETHING_WRONG, {})
+    assert cause == errors.TEMPORARY_ERROR, cause
+    r = rule(cause)
+    assert r.terminal and r.refund and not r.counts_attempt, "the deadline must end the job with its refund"
 
 
 @sync
@@ -429,9 +454,6 @@ DEFAULT_CAP = ('    _setting("refusal_max_accounts", int, 2,\n')
 SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
 THROTTLE_COUNTED = ("        return await self._refusal_outcome(POOL_THROTTLED, errors.REFUSED_ON_ACCOUNTS, "
                     "\"dola throttled (%d)\" % code,\n")
-TEMPORARY_COUNTED = ("            return await self._refusal_outcome(errors.TEMPORARY_ERROR, "
-                     "errors.REFUSED_ON_ACCOUNTS, verdict.detail,\n"
-                     "                                               balance)\n")
 
 
 def refusal_on_send(text):
@@ -463,8 +485,6 @@ REFUSALS = {
     "throttle-710022004": (lambda: dict(polls=False, on_send=refusal_on_send(stream_text("throttle-710022004.txt"))),
                            "pool.account_throttled", errors.REFUSED_ON_ACCOUNTS,
                            (Cooldown("dola throttled (710022004)", COOLDOWN),)),
-    "something-went-wrong": (lambda: dict(replies={1: [SOMETHING_WRONG]}), errors.TEMPORARY_ERROR,
-                             errors.REFUSED_ON_ACCOUNTS, ()),
 }
 KINDS = pytest.mark.parametrize("kind", list(REFUSALS))
 
@@ -473,8 +493,6 @@ KINDS = pytest.mark.parametrize("kind", list(REFUSALS))
           expect="the first refusal did not send the job to a second account")
 @mutation(SUB, THROTTLE_COUNTED, "        return _outcome(NotTaken(POOL_THROTTLED), Cooldown(\"dola throttled (%d)\" % "
           "code, until))\n        (\"dola throttled (%d)\" % code,\n",
-          expect="the first refusal did not send the job to a second account")
-@mutation(SUB, TEMPORARY_COUNTED, "            return _outcome(NotTaken(errors.TEMPORARY_ERROR), *balance)\n",
           expect="the first refusal did not send the job to a second account")
 @KINDS
 @sync
@@ -529,26 +547,6 @@ async def test_with_the_setting_at_1_the_first_refusal_ends_the_job(kind):
     big.ctx.settings = Cap(3)
     assert (await big.run()).job == NotTaken(REFUSALS[kind][1], {REFUSED_BY: ["acct-0", "acct-1"]}), \
         "at 3 the second refusal must still go to a third account"
-
-
-@mutation("packages/provider-dola/src/relay_dola/errors.py",
-          "    Rule(TEMPORARY_ERROR, 502, \"api_error\", False, False, False, True, True,\n",
-          "    Rule(TEMPORARY_ERROR, 502, \"api_error\", True, False, True, True, True,\n",
-          expect="the generic attempts ended the job before the cap")
-@sync
-async def test_at_9_three_something_went_wrong_replies_in_a_row_keep_the_job_going():
-    """Codex 25/10: "something went wrong" used one of the core's MAX_ATTEMPTS (3) per requeue, so the third ended
-    the job whatever the cap said. A refusal the cap counts uses no attempt: the cap alone decides."""
-    state, attempts = {}, 0
-    for n in range(1, 4):
-        scene = Scene(job=make_job(provider_state=state), acct=account(), replies={1: [SOMETHING_WRONG]})
-        scene.ctx.settings = Cap(9)
-        res = await scene.run()
-        assert isinstance(res.job, NotTaken), "refusal %d at 9 ended the job: %r" % (n, res.job)
-        attempts += rule(res.job.code).counts_attempt      # what the core's requeue would count (apply._requeue)
-        assert attempts < constants.MAX_ATTEMPTS, "the generic attempts ended the job before the cap"
-        state = dict(res.job.state_patch)
-    assert len(state[REFUSED_BY]) == 3
 
 
 def test_the_setting_is_a_live_dola_setting_from_1_to_9_defaulting_to_2():
