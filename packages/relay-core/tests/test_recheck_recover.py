@@ -36,8 +36,8 @@ MARKER_COPIED = (
     "    async with tx(db) as conn:\n"
     "        await conn.execute(\"UPDATE jobs SET marker = (SELECT marker FROM jobs WHERE id = %s) WHERE id = %s\",\n"
     "                           (job_id, created.job_id))\n")
-PLAN_USED = "    new = NewJob(provider, key_id, plan, prompt, title, request=request)"
-PLAN_FREE = "    new = NewJob(provider, key_id, replace(plan, price=0), prompt, title, request=request)"
+PLAN_USED = "    new = NewJob(provider, key_id, plan, prompt, title, request=request,"
+PLAN_FREE = "    new = NewJob(provider, key_id, replace(plan, price=0), prompt, title, request=request,"
 SWEEP = "AND share_expires_at <= clock_timestamp()"
 SWEEP_ALL = "AND share_expires_at IS NOT NULL"
 

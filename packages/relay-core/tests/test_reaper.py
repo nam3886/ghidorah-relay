@@ -19,8 +19,8 @@ from relay_core.testing.mutation import mutation
 R = "packages/relay-core/src/relay_core/jobs/reaper.py"
 REQUEUES_SENT = "CASE WHEN sent_at IS NULL THEN 'queued' ELSE 'unknown' END,\n       account_id"
 ALWAYS_QUEUED = "'queued',\n       account_id"
-CAS = " FROM old WHERE jobs.id = %s AND jobs.status = 'submitting' RETURNING"
-NO_CAS = " FROM old WHERE jobs.id = %s RETURNING"
+CAS = " FROM old WHERE jobs.id = %s AND jobs.status = 'submitting'\nRETURNING"
+NO_CAS = " FROM old WHERE jobs.id = %s\nRETURNING"
 FROM_RENDER = 'RENDER_FROM = "COALESCE(render_since, sent_at)"'
 FROM_CREATION = 'RENDER_FROM = "created_at"'
 

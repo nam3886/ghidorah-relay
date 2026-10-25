@@ -777,13 +777,13 @@ def test_an_untitled_job_is_shown_by_the_first_words_of_its_prompt_until_it_gets
 
 
 # ---- Regenerate -------------------------------------------------------------------------------------------------
-SELECT_REQUEST = "SELECT j.request, k.models FROM jobs j JOIN"
-SELECT_PARAMS = ("SELECT j.params || jsonb_build_object('model', j.model, 'prompt', j.prompt), k.models "
+SELECT_REQUEST = "SELECT j.request, k.models, j.key_id FROM jobs j JOIN"
+SELECT_PARAMS = ("SELECT j.params || jsonb_build_object('model', j.model, 'prompt', j.prompt), k.models, j.key_id "
                  "FROM jobs j JOIN")
 
 
 @mutation(ROUTES, SELECT_REQUEST, SELECT_PARAMS, expect="stored request")
-@mutation("packages/relay-core/src/relay_core/jobs/recheck.py", ", title, request=request)", ", title)",
+@mutation("packages/relay-core/src/relay_core/jobs/recheck.py", ", title, request=request,", ", title,",
           expect="the regenerated job keeps the client request")
 def test_regenerate_plans_from_the_request_the_client_sent_never_from_the_plans_params(db, monkeypatch):
     seen = []

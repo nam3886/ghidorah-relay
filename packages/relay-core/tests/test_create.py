@@ -321,10 +321,11 @@ def test_the_queue_position_counts_only_the_jobs_of_the_same_pool(db):
           expect="the text was not stored at insert")
 @mutation(C, '"sent": sent_text, "frame": frame_id,', '"sent": sent_text, "frame": None,',
           expect="the frame version was not stored at insert")
-@mutation(S, "return JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1])",
-          'return __import__("dataclasses").replace(JobView(str(row[0]), *row[1:-1], inputs, frame_id=row[-1]), '
-          'sent_text=row[5] + " [" + row[6] + "]")', expect="the job view recomposed the text")
-@mutation(S, "inputs, frame_id=row[-1])", "inputs)", expect="the job view lost the frame version")
+@mutation(S, "return JobView(str(row[0]), *row[1:12], inputs, frame_id=row[12], source=source)",
+          'return __import__("dataclasses").replace(JobView(str(row[0]), *row[1:12], inputs, frame_id=row[12], '
+          'source=source), sent_text=row[5] + " [" + row[6] + "]")', expect="the job view recomposed the text")
+@mutation(S, "inputs, frame_id=row[12], source=source)", "inputs, source=source)",
+          expect="the job view lost the frame version")
 def test_the_job_view_carries_the_text_stored_at_insert_byte_for_byte(db):
     k = key(db)
     framed = db.one("INSERT INTO prompt_frames (provider, kind, model, text, created_by) "
