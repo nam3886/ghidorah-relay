@@ -121,8 +121,7 @@ NOT_SHOWN = {
              "relay_flow.catalog.TABLE_ONLY_COSTS"),
     **excuse("an upstream fact: qwen's own credit price of a video, the default of qwen.costs",
              "relay_qwen.catalog.VIDEO_CREDITS"),
-    **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS",
-             "relay_flow.catalog.VIDEO_ASPECTS"),
+    **excuse("an upstream protocol code (flow's aspect ratio numbers), not a bound", "relay_flow.catalog.ASPECTS"),
     **excuse("an upstream protocol code (gemini's tool and ratio option ids, the web app's capability list), not a "
              "bound", "relay_gemini.catalog.RATIO_IDS", "relay_gemini.constants.IMAGE_TOOL",
              "relay_gemini.constants.CAPABILITIES", "relay_gemini.catalog.VIDEO_RATIO_IDS",

@@ -11,6 +11,7 @@ from relay_core.errors import Rule
 HTTP_ERROR = "flow.http_error"              # before the send: flow answered a step with an error; tried again
 CAPTCHA_FAILED = "flow.captcha_failed"      # before the send: the reCAPTCHA token source gave no token
 CAPTCHA_REFUSED = "flow.captcha_refused"    # flow refused every try at its reCAPTCHA check; nothing was made
+TOO_MUCH_TRAFFIC = "flow.too_much_traffic"  # flow refused a try with code 8 (too much traffic); nothing was made
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -22,6 +23,8 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     # job goes back to the queue as a new attempt.
     Rule(CAPTCHA_REFUSED, 503, "api_error", True, False, True, True, True,
          "flow refused the request at its security check; nothing was made"),
+    Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, False, True, True, True,
+         "flow said it had too much traffic from the account; nothing was made"),
 )}
 
 core_errors.register(*(r for code, r in CODES.items() if code not in core_errors.RULES))

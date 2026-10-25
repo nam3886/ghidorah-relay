@@ -190,9 +190,9 @@ SHAPE_DETAILS = "and d[0].startswith(ERROR_TYPE_PREFIX) for d in details)"
 
 @mutation(SUBMIT_FILE, "                if not reply.refused_before_anything:", "                if True:",
           expect="refused tries")
-def test_a_7_or_8_refusal_made_nothing_and_is_tried_again_with_a_new_token_and_a_new_batch():
+def test_a_7_refusal_made_nothing_and_is_tried_again_with_a_new_token_and_a_new_batch():
     log = []
-    flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, REFUSED_8, GOOD]}), Ctx(log)
+    flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, REFUSED_7, GOOD]}), Ctx(log)
     tokens, clock = Tokens(log), Clock()
     result = run_submit(flow, ctx, tokens, clock=clock)
     assert isinstance(result.job, Completed), "refused tries were not tried again: %s" % (result.job,)
@@ -206,8 +206,33 @@ def test_a_7_or_8_refusal_made_nothing_and_is_tried_again_with_a_new_token_and_a
         at = [j for j, step in enumerate(log) if step == "ogiZ0b"][i]
         assert log[at - 2:at] == ["report_ref", "mark_sent"], log
     assert clock.slept == [60, 60], "the tries are spaced by flow.captcha_retry_gap_s"
-    assert len(ctx.events) == 2 and "code 7" in ctx.events[0] and "code 8" in ctx.events[1]
+    assert len(ctx.events) == 2 and "code 7" in ctx.events[0] and "code 7" in ctx.events[1]
     assert result.job.outputs[0].meta == {"batch": batches[-1]}
+
+
+TRAFFIC_STOP = "                if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here"
+TRAFFIC_REST = '    if code == TOO_MUCH_TRAFFIC and int(settings.get("flow.traffic_rest_s")) > gap:'
+
+
+@mutation(SUBMIT_FILE, TRAFFIC_STOP, "                if False:     # no more tries here", expect="hammered")
+@mutation(SUBMIT_FILE, TRAFFIC_REST, "    if False:", expect="the traffic rest")
+def test_a_code_8_too_much_traffic_ends_the_tries_requeues_the_job_and_rests_the_account():
+    """Code 8 (RESOURCE_EXHAUSTED, ..._TOO_MUCH_TRAFFIC) may be a traffic cap: nothing was made, so the job goes back
+    to the queue for another account, and this one rests `flow.traffic_rest_s` instead of being tried again."""
+    log = []
+    flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, REFUSED_8, GOOD]}), Ctx(log)
+    result = run_submit(flow, ctx)
+    assert len(flow.calls("ogiZ0b")) == 2, "hammered after a code 8"
+    batches = [args_of(p)[4][0] for p in flow.calls("ogiZ0b")]
+    assert result.job == NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches})
+    assert rested(result) == [Rest(p, NOW + timedelta(seconds=1800), "flow said too much traffic (code 8)")
+                              for p in ("image", "video")], "the traffic rest: %s" % rested(result)
+    assert "code 8" in ctx.events[-1] and not any(isinstance(e, Success) for e in result.account)
+    # a pacing longer than the traffic rest is kept; a rest of 0 leaves the pacing alone
+    for cfg, secs in ((settings(flow__account_min_gap_s=3600), 3600), (settings(flow__traffic_rest_s=0), 300)):
+        log = []
+        result = run_submit(Flow(log, rpc={"ogiZ0b": REFUSED_8}), Ctx(log), cfg=cfg)
+        assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=secs)}, "the traffic rest"
 
 
 RECORDED = ["wrb.fr", "ogiZ0b", None, None, None,
@@ -318,7 +343,8 @@ def test_any_other_reply_that_is_not_a_drawn_image_is_ambiguous_and_never_sent_a
     flow, ctx = Flow(log, rpc={"ogiZ0b": [ambiguous_replies()[name], GOOD]}), Ctx(log)
     result = run_submit(flow, ctx)
     assert len(flow.calls("ogiZ0b")) == 1, "sent twice after %s" % name
-    assert isinstance(result.job, Ambiguous), "%s: %s" % (name, result.job)
+    assert isinstance(result.job, Ambiguous), "not Ambiguous (sent twice or re-queued) after %s: %s" % (
+        name, result.job)
     assert rested(result), "the account rests after any generate"
 
 

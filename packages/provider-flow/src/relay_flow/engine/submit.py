@@ -24,7 +24,9 @@ Money rules that shape this file (each has a test and a mutation):
   never sent again. A refusal or an out-of-credits answer to a video send was never captured, so it is ambiguous too:
   never listed, the render deadline ends it with its refund.
 - After every generate (taken, refused or unclear) the account's pools rest `flow.account_min_gap_s`: the pacing
-  between two generates of one account.
+  between two generates of one account. A code 8 (RESOURCE_EXHAUSTED, `PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC`)
+  makes it `flow.traffic_rest_s` instead, and an image refused so goes back to the queue at once (`NotTaken`
+  `flow.too_much_traffic`, nothing was made) rather than being tried again on the same account.
 
 Before the first `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a
 spaced strike, too few Flow credits for a video `pool.account_out_of_points`, a proxy that cannot reach flow
@@ -88,6 +90,7 @@ LOGGED_OUT = "pool.account_logged_out"
 OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
 POOLS = ("image", "video")
+TOO_MUCH_TRAFFIC = 8         # RESOURCE_EXHAUSTED, PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC (FINDINGS 3)
 MEDIA_PREFIX = "https://%s/image/" % MEDIA_HOSTS[0]
 
 
@@ -99,11 +102,13 @@ def is_video(job) -> bool:
     return job.operation == "text_to_video"
 
 
-def pacing(settings, now: datetime) -> tuple[Rest, ...]:
-    """After a generate the account's pools rest `flow.account_min_gap_s` (0: no rest)."""
-    gap = int(settings.get("flow.account_min_gap_s"))
-    return tuple(Rest(pool, now + timedelta(seconds=gap), "flow pacing between two generates")
-                 for pool in POOLS) if gap > 0 else ()
+def pacing(settings, now: datetime, code: int | None = None) -> tuple[Rest, ...]:
+    """After a generate the account's pools rest `flow.account_min_gap_s` (0: no rest); after flow's code 8 (too much
+    traffic) at least `flow.traffic_rest_s`."""
+    gap, why = int(settings.get("flow.account_min_gap_s")), "flow pacing between two generates"
+    if code == TOO_MUCH_TRAFFIC and int(settings.get("flow.traffic_rest_s")) > gap:
+        gap, why = int(settings.get("flow.traffic_rest_s")), "flow said too much traffic (code 8)"
+    return tuple(Rest(pool, now + timedelta(seconds=gap), why) for pool in POOLS) if gap > 0 else ()
 
 
 def media_link(record, prefix: str = MEDIA_PREFIX) -> str | None:
@@ -174,7 +179,7 @@ def video_args(params, prompt: str, project: str, token: str, batch: str) -> lis
 
 def answer(reply: Reply, batch: str, settings, now: datetime) -> SubmitResult:
     """An image reply that is not the immediate refusal: a drawn image, or unknown. Never `Retry` or `NotTaken`."""
-    rest = pacing(settings, now)
+    rest = pacing(settings, now, reply.code)
     outs = outputs_of(reply.payload, batch) if reply.status == 200 and reply.found else ()
     if outs:
         return _result(Completed(outs), Success(), *rest)
@@ -184,7 +189,7 @@ def answer(reply: Reply, batch: str, settings, now: datetime) -> SubmitResult:
 
 def video_answer(reply: Reply, batch: str, batches: list[str], project: str, settings, now: datetime) -> SubmitResult:
     """A video reply that is not the immediate refusal: the recorded acceptance, or unknown. Never `NotTaken`."""
-    rest = pacing(settings, now)
+    rest = pacing(settings, now, reply.code)
     taken = video_taken(reply.payload, batch, project) if reply.status == 200 and reply.clean else None
     if taken is None:
         return _result(Ambiguous("flow answered %d to the video send (reply item %s, code %s)"
@@ -273,6 +278,9 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s); nothing was made"
                                 % (attempt + 1, reply.code), "submit", "upstream")
+                if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here: the job goes on, this account rests
+                    return _result(NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches}), *read,
+                                   *pacing(settings, now(), reply.code))
             return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), *read,
                            *pacing(settings, now()))
     except httpx.HTTPError as e:

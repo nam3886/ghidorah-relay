@@ -33,6 +33,7 @@ CREDENTIAL_FILE = "packages/provider-flow/src/relay_flow/credential.py"
 IMG = MediaIn(sha256="0" * 64, mime="image/png", size=10)
 MODELS = ("flow-nano-banana-2.1", "flow-nano-banana-pro", "flow-nano-banana-2-lite")
 VIDEO = "flow-veo-3.1-lite"
+FAST = "flow-veo-3.1-fast"
 
 
 def plan(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", *, cfg=None, **kw):
@@ -72,12 +73,22 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.rotate_interval_s"].default, s["flow.rotate_interval_s"].max) == (600, 900)
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
-    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2}
-    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, **FC.TABLE_ONLY_COSTS}
-    assert s["flow.pools"].default == {"image": {"combine": "sum", "windows": []},
-                                       "video": day_pool({"free": 50, "pro": 50})}
+    assert (s["flow.traffic_rest_s"].default, s["flow.traffic_rest_s"].min) == (1800, 0)
+    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 2, FAST + "@8s": 4}
+    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
+                                       **FC.TABLE_ONLY_COSTS}
     assert all(s[k].description for k in s) and _problems(SPEC) == []
     assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
+
+
+@mutation(SPEC_FILE, 'POOL_DEFAULTS = {"image": day_pool({"free": 40}),',
+          'POOL_DEFAULTS = {"image": {"combine": "sum", "windows": []},', expect="no image budget")
+def test_the_image_pool_has_a_day_window_of_40_jobs_for_every_tier_and_video_counts_credits():
+    """No image cap of flow is measured yet (an image takes no Flow credit): 40 a day per account is a guard the admin
+    shows and can edit; a tier with no budget of its own takes the free one."""
+    pools = SPEC.settings()["flow.pools"].default
+    assert pools["image"] == day_pool({"free": 40}), "no image budget: %s" % pools["image"]
+    assert pools["video"] == day_pool({"free": 50, "pro": 50})
 
 
 def test_the_token_source_setting_takes_only_a_built_source():
@@ -94,19 +105,22 @@ def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
     for name in MODELS:
         spec, model = reg.resolve(name)
         assert spec is SPEC and model.operations == ("text_to_image",) and model.media_type == "image"
-    spec, model = reg.resolve(VIDEO)
-    assert spec is SPEC and model.operations == ("text_to_video",) and model.media_type == "video"
-    assert dict(model.limits) | {"description": ""} == {"max_images": 0, "ratios": ["16:9"], "default_ratio": "16:9",
-                                                        "durations": [8], "default_duration": 8, "description": ""}
-    assert {m.id for m in SPEC.catalog()} == {*MODELS, VIDEO}
+    for name in (VIDEO, FAST):
+        spec, model = reg.resolve(name)
+        assert spec is SPEC and model.operations == ("text_to_video",) and model.media_type == "video"
+        assert dict(model.limits) | {"description": ""} == {
+            "max_images": 0, "ratios": ["16:9", "9:16"], "default_ratio": "16:9", "durations": [8],
+            "default_duration": 8, "description": ""}, name
+        assert dict(model.price_keys) == {"8s": name + "@8s"}
+    assert {m.id for m in SPEC.catalog()} == {*MODELS, VIDEO, FAST}
     assert [m.display_name for m in SPEC.catalog()] == ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite",
-                                                        "Veo 3.1 Lite"]
+                                                        "Veo 3.1 Lite", "Veo 3.1 Fast"]
     # the pause list takes every model, the video too
     assert SPEC.settings()["flow.disabled_models"].validate([VIDEO]) == [VIDEO]
 
 
 def test_flow_registers_its_codes_on_load():
-    codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused"}
+    codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused", "flow.too_much_traffic"}
     assert set(SPEC.codes()) == codes and codes <= set(errors.RULES)
     for code in codes:          # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
@@ -164,7 +178,7 @@ def test_the_table_only_options_are_costed_priceable_and_refused_until_priced():
     assert [costs["flow-omni-flash-360p@%ds" % d] for d in (4, 6, 8, 10)] == [4, 5, 6, 7]
     prices = SPEC.settings()["flow.prices"]
     assert not set(FC.TABLE_ONLY_COSTS) & set(prices.default), "a table-only option has no default price"
-    assert prices.validate({"flow-veo-3.1-fast@8s": 5}) == {"flow-veo-3.1-fast@8s": 5}, "not an option"
+    assert prices.validate({"flow-veo-3.1-quality@8s": 5}) == {"flow-veo-3.1-quality@8s": 5}, "not an option"
     quality = dataclasses.replace(plan(VIDEO), price_key="flow-veo-3.1-quality@8s")
     with pytest.raises(pricing.Unpriced):
         pricing.price_plan(SPEC, quality, FakeSettings(SPEC))
@@ -176,7 +190,7 @@ def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
     """The earlier build keyed the video by its model alone (`flow-veo-3.1-lite`): the stored price moves to its key
     with the length, and every option the stored table does not name keeps its default."""
     loaded = SPEC.settings()["flow.prices"].on_load({"flow-veo-3.1-lite": 7, "flow-nano-banana-pro": 4})
-    assert loaded == {**dict.fromkeys(MODELS, 1), "flow-nano-banana-pro": 4, VIDEO + "@8s": 7}, (
+    assert loaded == {**dict.fromkeys(MODELS, 1), "flow-nano-banana-pro": 4, VIDEO + "@8s": 7, FAST + "@8s": 4}, (
         "the stored video price was lost: %s" % loaded)
 
 
@@ -274,13 +288,20 @@ def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_fra
 
 # ---- the video -----------------------------------------------------------------------------------------------------
 VIDEO_CREDITS = '                    "duration": C.VIDEO_DURATION, "credits": credits},'
-VIDEO_ASPECT = '            params={"model": video[0], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,'
+VIDEO_ASPECT = '            params={"model": video[0][ratio][0], "aspect": video[0][ratio][1], "ratio": ratio,'
 
 
 @mutation(SPEC_FILE, VIDEO_CREDITS, '                    "duration": C.VIDEO_DURATION, "credits": 0},',
           expect="credits")
-@mutation(SPEC_FILE, VIDEO_ASPECT, '            params={"model": video[0], "aspect": 3, "ratio": ratio,',
-          expect="credits")
+@mutation(SPEC_FILE, VIDEO_ASPECT, '            params={"model": video[0][ratio][0], "aspect": 2, "ratio": ratio,',
+          expect="portrait")
+@mutation(SPEC_FILE, VIDEO_ASPECT,
+          '            params={"model": video[0]["16:9"][0], "aspect": video[0][ratio][1], "ratio": ratio,',
+          expect="portrait")
+@mutation(CATALOG_FILE, '"9:16": ("veo_3_1_t2v_fast_portrait", 1)', '"9:16": ("veo_3_1_t2v_fast", 1)',
+          expect="portrait")
+@mutation(CATALOG_FILE, 'price_key("flow-veo-3.1-fast"): 20,', 'price_key("flow-veo-3.1-fast"): 10,',
+          expect="portrait or credits")
 @mutation(SPEC_FILE, '        credits = settings.get("flow.costs").get(C.price_key(req.model))',
           '        credits = 1', expect="credits")
 @mutation(SPEC_FILE, "            completion=Completion.DETACH,", "            completion=Completion.HOLD,",
@@ -297,17 +318,28 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
     assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
     cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
     assert plan(VIDEO, cfg=cheap).params["credits"] == 5, "credits: the submit checks the balance against the cost"
+    # GetModels 25/10: Lite has both orientations in one key; Fast has a key for each; the aspect code 1 is portrait
+    want = {(VIDEO, "9:16"): ("veo_3_1_t2v_lite", 1, 10), (FAST, "16:9"): ("veo_3_1_t2v_fast", 2, 20),
+            (FAST, "9:16"): ("veo_3_1_t2v_fast_portrait", 1, 20)}
+    for (model, ratio), (key, aspect, credits) in want.items():
+        p = plan(model, ratio=ratio)
+        assert dict(p.params) == {"model": key, "aspect": aspect, "ratio": ratio, "duration": 8,
+                                  "credits": credits}, "portrait or credits: %s %s: %s" % (model, ratio, dict(p.params))
+        assert (p.pool, p.price_key, p.completion) == ("video", model + "@8s", Completion.DETACH)
+    assert plan(FAST).params["aspect"] == 2 and priced(FAST).account_cost == 20, "Fast takes 20 Flow credits"
+    assert priced(FAST).price == 4
 
 
-@mutation(SPEC_FILE, "        aspects = C.VIDEO_ASPECTS if video else C.ASPECTS", "        aspects = C.ASPECTS",
+@mutation(SPEC_FILE, "        aspects = video[0] if video else C.ASPECTS", "        aspects = C.ASPECTS",
           expect="an unrecorded video ratio")
 @mutation(SPEC_FILE, "        if req.duration not in (None, C.VIDEO_DURATION):", "        if False:",
           expect="an unrecorded duration")
 def test_what_the_video_capture_did_not_prove_is_refused():
-    for ratio in ("9:16", "1:1", "4:3"):
-        assert refusal(VIDEO, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unrecorded video ratio %s" % ratio
-    for duration in (4, 6, 10):
-        assert refusal(VIDEO, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
+    for model in (VIDEO, FAST):
+        for ratio in ("1:1", "4:3", "3:4"):
+            assert refusal(model, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unrecorded video ratio %s" % ratio
+        for duration in (4, 6, 10):
+            assert refusal(model, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
     assert refusal(VIDEO, n=2) == ("input.invalid", "n")
     with pytest.raises(pricing.TooCostly):           # more credits than a day's budget: no account could take it
         priced(VIDEO, cfg=FakeSettings(SPEC, flow__pools={"video": day_pool({"free": 9})}))

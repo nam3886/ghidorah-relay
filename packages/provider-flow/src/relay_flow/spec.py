@@ -61,11 +61,12 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
     return full, Spec(full, kind, default, description, **bounds)
 
 
-# Images count jobs and have no window (nothing measured: unknown allows; the pacing rest stays). Video counts Flow
-# credits: an account showed 50 (a Veo 3.1 Lite video takes 10). Before each video the account's own balance is read
+# Images count jobs: a day window of 40 per account, every tier alike (an image takes no Flow credit and no daily cap
+# is measured yet: a guard the admin can see and edit, FINDINGS "Catalog 25/10"). Video counts Flow credits: an
+# account showed 50 (a Veo 3.1 Lite video takes 10, Fast 20). Before each video the account's own balance is read
 # too: too few credits and the job goes to another account, nothing sent.
 POOLS = (PoolSpec("image", "jobs"), PoolSpec("video", "credits"))
-POOL_DEFAULTS = {"image": {"combine": "sum", "windows": []}, "video": day_pool({"free": 50, "pro": 50})}
+POOL_DEFAULTS = {"image": day_pool({"free": 40}), "video": day_pool({"free": 50, "pro": 50})}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
@@ -90,6 +91,10 @@ _SETTINGS = dict((
     _setting("captcha_retry_gap_s", int, 60,
              "Seconds between two tries of one job after flow refused a token (back-to-back tries kept being "
              "refused).", min=0, max=600),
+    _setting("traffic_rest_s", int, 1800,
+             "Seconds a flow account rests after flow refused it with code 8 (too much traffic): an image goes back "
+             "to the queue at once instead of trying the account again. Seen once in 20 rapid tries (23/10), where "
+             "a 12-min pause was then accepted.", min=0, max=86400),
     _setting("account_min_gap_s", int, 300,
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),
@@ -164,7 +169,7 @@ class FlowSpec:
         if req.n not in (None, 1):
             raise _refuse("input.invalid", "flow makes one result per request", "n")
         ratio = C.DEFAULT_RATIO if req.ratio is None else req.ratio
-        aspects = C.VIDEO_ASPECTS if video else C.ASPECTS
+        aspects = video[0] if video else C.ASPECTS
         if ratio not in aspects:
             raise _refuse("input.bad_ratio", "%s takes the ratios %s (or none)" % (req.model, ", ".join(aspects)),
                           "ratio")
@@ -185,7 +190,7 @@ class FlowSpec:
         credits = settings.get("flow.costs").get(C.price_key(req.model))
         return Plan(
             operation="text_to_video", media_type="video", model=req.model,
-            params={"model": video[0], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,
+            params={"model": video[0][ratio][0], "aspect": video[0][ratio][1], "ratio": ratio,
                     "duration": C.VIDEO_DURATION, "credits": credits},
             completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
             pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)

@@ -202,6 +202,8 @@ def test_a_7_or_8_envelope_to_a_video_send_is_ambiguous_and_never_sent_again(cod
     assert isinstance(result.job, Ambiguous), "a %d envelope on a video must be Ambiguous: %s" % (code, result.job)
     (batch, state), = ctx.refs
     assert state["batches"] == [batch] and rested(result)
+    assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=1800 if code == 8 else 300)}, \
+        "a code 8 to a video rests the account for flow.traffic_rest_s"
 
 
 TAKEN_MATCH = ("    if wf[3][5] != batch or wf[4] != project or media[1] != project or wf[3][4] != media[0] "
