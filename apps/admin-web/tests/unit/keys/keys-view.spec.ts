@@ -464,6 +464,20 @@ describe("the one-time key", () => {
     expect(buttonIn(secretBox()!, "Done").disabled).toBe(false);
   });
 
+  it("Escape and a click beside it do nothing until the key is copied, and are ways out after", async () => {
+    const w = await createOne();
+    const dialog = () => w.findComponent({ name: "ElDialog" });
+    expect(dialog().props("closeOnPressEscape")).toBe(false);
+    expect(dialog().props("closeOnClickModal")).toBe(false);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }));
+    await settle();
+    expect(callout()).not.toBeNull();
+    callout()!.dispatchEvent(new Event("copy"));
+    await settle();
+    expect(dialog().props("closeOnPressEscape")).toBe(true);
+    expect(dialog().props("closeOnClickModal")).toBe(true);
+  });
+
   it("is never in the form drawer, which is closed by the time the key shows", async () => {
     await createOne();
     expect(markupOf(document.body.querySelector(".el-drawer"))).not.toContain(RAW);

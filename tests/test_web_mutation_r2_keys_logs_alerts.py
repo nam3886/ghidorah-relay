@@ -233,7 +233,7 @@ def test_the_keys_view_shows_a_failed_create_from_fixed_text():
 
 # ---- Keys: the list, the callout, the switch, the bars, the form ------------------------------------------------
 @mutation(KEYS, "createdLabel.value = keyName(created);", "createdLabel.value = body.label;",
-          expect=OPTIONAL + "the banner of a key made with no label names it by its prefix, never 'Key created for .'")
+          expect=OPTIONAL + "the modal of a key made with no label names it by its prefix, never 'Key created for '")
 @mutation(KEY_LIST, """<tr
             v-for="k in rows"
             :key="k.id"
@@ -429,7 +429,7 @@ def test_each_wallet_mode_is_named_after_its_wallet():
 @mutation(NEW_KEY, '  unlocked.value = true;\n  if (outcome === "select")', '  if (outcome === "select")',
           expect=ONE_TIME + "Done is locked until the key is copied, then removes it from every place")
 @mutation(NEW_KEY, ':locked="!unlocked"', ':locked="false"',
-          expect=ONE_TIME + "Done is locked until the key is copied, then removes it from every place")
+          expect=ONE_TIME + "Escape and a click beside it do nothing until the key is copied, and are ways out after")
 @pytest.mark.web_unit
 def test_the_keys_view_copy_buttons_copy_the_right_text():
     vitest(KEYS_VIEW_SPEC)
@@ -707,7 +707,7 @@ EMPTY_FILTERED = ("an empty list under a filter says so; Clear filters clears ev
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all" || filters.from', "filters.q.trim() || filters.from",
           expect=LOGS_LIST + EMPTY_FILTERED)
 @mutation(LOGS, 'filters.q.trim() || filters.status !== "all"', 'filters.q.trim() || filters.status !== "x"',
-          expect=LOGS_LIST + "an empty list with no filter says there are no requests yet, and offers nothing")
+          expect=LOGS_LIST + "an empty list with no filter says there are no requests yet and offers a test job")
 @mutation(LOG_TABLE, '<td><span class="bar bar--pill" /></td>', '<td><span class="bar bar--time" /></td>',
           expect=LOGS_LIST + "the loading skeleton draws four columns of flat bars: the time, the status pill, "
           "the request, the duration")

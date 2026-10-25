@@ -328,6 +328,9 @@ describe("the cap chip", () => {
     expect(full.find(".cap__dot").classes()).toContain("cap__dot--pulse");
     expect(full.find(".cap__fig").text()).toBe("120 / 100 · full");
     expect((full.find(".cap__bar").element as HTMLElement).style.width).toBe("100%");
+    const exact = chip({ used: 100, cap: 100 });
+    expect(exact.find(".cap").classes()).toContain("cap--full");
+    expect(exact.find(".cap__fig").text()).toBe("100 / 100 · full");
   });
 
   it("pulses only without reduced motion: 1 to 2.2, 0.6 to 0, 1.8 s ease-out", () => {

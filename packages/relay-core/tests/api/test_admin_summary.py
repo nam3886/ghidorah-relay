@@ -1,7 +1,7 @@
 """GET /admin/providers/summary: the Jobs page's provider figures in one call, today counted on the billing day."""
 
 import dataclasses
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -274,7 +274,7 @@ NEW_YORK = "America/New_York"         # DST starts 2026-03-08 at 02:00: that day
 
 
 @mutation(ROUTES, "    back = (clock.replace(tzinfo=None) - timedelta(days=days)).replace(tzinfo=zone)",
-          "    back = clock - timedelta(days=days)", expect="the same wall clock")
+          "    back = (clock.astimezone(UTC) - timedelta(days=days)).astimezone(zone)", expect="the same wall clock")
 @mutation(ROUTES, "    first = range_start(day_start, tz, days).date() - timedelta(days=days)",
           "    first = range_start(day_start, tz, days).date() - timedelta(days=days - 1)", expect="the first day")
 def test_the_stretch_before_keeps_local_calendar_days_across_a_dst_change():
@@ -283,6 +283,7 @@ def test_the_stretch_before_keeps_local_calendar_days_across_a_dst_change():
     before, until = routes_stats.previous_window(day_start, noon, NEW_YORK, 1)
     assert before == datetime(2026, 3, 7, tzinfo=ny), "the first day: yesterday's local midnight"
     assert until == datetime(2026, 3, 7, 12, tzinfo=ny), "the same wall clock yesterday (17:00 UTC, not 16:00)"
+    assert until.astimezone(UTC) == datetime(2026, 3, 7, 17, tzinfo=UTC), "the same wall clock yesterday: 17:00 UTC"
     before, until = routes_stats.previous_window(day_start, noon, NEW_YORK, 7)
     assert before == datetime(2026, 2, 23, tzinfo=ny), "the first day of the 7 days before Mar 2 to Mar 8"
     assert until == datetime(2026, 3, 1, 12, tzinfo=ny), "the same wall clock a week before"

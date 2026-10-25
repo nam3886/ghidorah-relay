@@ -316,7 +316,7 @@ SIGN_OUT_ITEM_ESC = SHELL_FAILED + (
     "opens a popup with ArrowDown on its trigger, puts the focus on the first menu item and returns it on Escape")
 WALK = SHELL_FAILED + "moves the focus into the account menu on open and walks it with Arrow, Home and End"
 LAYOUT = BAR_FAILED + ("has the tabs in the bar on a desktop and in the bottom bar on a tablet (8) and a phone "
-                       "(4 and More), with the title and the user's name where drawn")
+                       "(4 and More), with the title where drawn and the avatar alone")
 
 
 @mutation(NAV_COUNTS, "alerts: stats.openGroups,", "alerts: 0,",
