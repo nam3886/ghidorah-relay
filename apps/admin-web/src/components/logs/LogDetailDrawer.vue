@@ -128,7 +128,7 @@ async function copy(which: "request" | "answer"): Promise<void> {
           <h3 id="lg-req">Request</h3>
           <div class="rd__seg" role="tablist" aria-label="Request parts">
             <button type="button" role="tab" :aria-selected="part === 'headers'" @click="part = 'headers'">
-              Headers
+              Headers <span class="num" title="The request log keeps no headers">—</span>
             </button>
             <button type="button" role="tab" :aria-selected="part === 'body'" @click="part = 'body'">Body</button>
           </div>
@@ -151,7 +151,8 @@ async function copy(which: "request" | "answer"): Promise<void> {
       <section class="rd__block" aria-labelledby="lg-ans">
         <div class="rd__block-head">
           <h3 id="lg-ans">Answer</h3>
-          <span class="rd__help num mono">{{ log.status_code }} · {{ durationText(log.duration_ms) }}</span>
+          <!-- the size of the answer sent is not kept: a dash stands for it -->
+          <span class="rd__help num mono">{{ log.status_code }} · {{ durationText(log.duration_ms) }} · —</span>
           <IconButton
             v-if="answerText !== null"
             :icon="copied === 'answer' ? 'check' : 'copy'"

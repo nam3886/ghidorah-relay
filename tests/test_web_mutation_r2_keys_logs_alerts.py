@@ -121,8 +121,8 @@ ERROR_TONE = WRITTEN + "an error code takes its status's family, and is red on a
 @mutation(WINDOW, "isSlow = (ms: number): boolean => ms >= 1000;", "isSlow = (ms: number): boolean => ms > 1000;",
           expect=DURATION)
 @mutation(WINDOW, "path: route.slice(at + 1)", "path: route.slice(at)", expect=ROUTE)
-@mutation(WINDOW, 'label: "OK below 400"', 'label: "OK"',
-          expect=WRITTEN + "the Status select offers the canvas words for the four statuses")
+@mutation(WINDOW, '{ value: "4xx", label: "4xx" }', '{ value: "4xx", label: "4XX" }',
+          expect=WRITTEN + "the Status chips offer the canvas words for the status families")
 @pytest.mark.web_unit
 def test_a_request_is_written_as_the_design_writes_it():
     vitest(WINDOW_SPEC)
@@ -488,7 +488,7 @@ LAST_30 = QUICK + "Last 30 days searches from 2026-01-31 to 2026-03-01"
 @mutation(LOG_FILTERS, "if (!compact.value) return;", "",
           expect=LOGS_DESKTOP_TYPING + "does not search by itself: Enter does")
 @mutation(LOG_FILTERS, "const TYPING_PAUSE_MS = 350;", "const TYPING_PAUSE_MS = 3500;",
-          expect=LOGS_PHONE + "wraps its four status chips on one set and has no Search button: a choice searches at "
+          expect=LOGS_PHONE + "wraps its five status chips on one set and has no Search button: a choice searches at "
                               "once, typing after a pause")
 @pytest.mark.web_unit
 def test_the_logs_range_fields_reach_the_query():

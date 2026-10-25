@@ -41,7 +41,7 @@ NOT_SHOWN = {
              "admin.routes_alert_groups.MAX_OFFSET", "admin.routes_alert_groups.MAX_ID", "admin.routes_common.MAX_PAGE",
              "admin.routes_jobs.MAX_OFFSET", "admin.routes_logs.MAX_QUERY", "admin.routes_logs.MAX_MS",
              "admin.routes_alert_groups.RESOLVED_LIMIT", "admin.routes_jobs.SEARCH_MAX",
-             "admin.routes_jobs.MAX_SEARCH_DAYS"),
+             "admin.routes_jobs.MAX_SEARCH_DAYS", "admin.routes_logs.EXPORT_MAX", "admin.routes_logs.EXPORT_CHUNK"),
     **excuse("the longest mute the admin may set on an alert kind: an input bound of the Alert rules, it changes "
              "nothing a job or a customer does", "alerts.MAX_MUTE_MIN", "alerts.MONEY_MUTE_MAX_MIN"),
     **excuse("the admin Jobs page's range choices (Today, 7 days, 30 days) as local days: a view, not a limit",

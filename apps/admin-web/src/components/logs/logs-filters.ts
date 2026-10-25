@@ -10,12 +10,15 @@ export const useLogsFilters = defineStore("logs-filters", () => {
   const status = ref<LogFilters["status"]>("all");
   const from = ref("");
   const to = ref("");
+  // a key's id, empty for every key
+  const key = ref("");
 
   function reset(): void {
     q.value = "";
     status.value = "all";
     from.value = "";
     to.value = "";
+    key.value = "";
   }
   useAuthStore().onSignOut(reset);
 
@@ -28,5 +31,5 @@ export const useLogsFilters = defineStore("logs-filters", () => {
     }
   }
 
-  return { q, status, from, to, reset, keepRangeWhole };
+  return { q, status, from, to, key, reset, keepRangeWhole };
 });

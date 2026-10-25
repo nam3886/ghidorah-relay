@@ -18,7 +18,7 @@ OPEN_REQUEST = re.compile(r"^Open request")    # the button of a table row, the 
 
 def filters_sheet(page):
     """Below 1280 px the date range sits in the Filters sheet, opened from the head."""
-    button = page.get_by_role("button", name="Filters: dates")
+    button = page.get_by_role("button", name="Filters: key and dates")
     if button.count():
         button.click()
         expect(page.get_by_test_id("logs-filters-sheet")).to_be_visible()

@@ -1,14 +1,26 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { clearLogs, getLog, type LogDetail, listLogs, type LogRow } from "@/api/logs";
+import {
+  clearLogs,
+  exportLogs,
+  getLog,
+  getLogsToday,
+  type LogDetail,
+  listLogs,
+  type LogRow,
+  type LogsToday,
+  type StatusCounts,
+} from "@/api/logs";
+import { saveBlob } from "@/components/jobs/blob-actions";
 import { loadFailedText } from "@/components/jobs/job-text";
 import LogDetailDrawer from "@/components/logs/LogDetailDrawer.vue";
 import LogsDatesField from "@/components/logs/LogsDatesField.vue";
 import LogsFilterForm from "@/components/logs/LogsFilterForm.vue";
+import LogsKeyField from "@/components/logs/LogsKeyField.vue";
 import LogsStats from "@/components/logs/LogsStats.vue";
 import LogsTable from "@/components/logs/LogsTable.vue";
-import { isLogStatus, logQuery, PAGE_SIZE, thousands } from "@/components/logs/log-window";
+import { EXPORT_MAX, filterQuery, isLogStatus, logQuery, PAGE_SIZE, thousands } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import IconButton from "@/components/shared/IconButton.vue";
 import BottomSheet from "@/components/shared/overlays/BottomSheet.vue";
@@ -44,16 +56,21 @@ const error = ref<string | null>(null);
 
 const detail = shallowRef<LogDetail | null>(null);
 const detailOpen = ref(false);
+// the rows of each Status chip under the other filters, from the last read
+const counts = shallowRef<StatusCounts | null>(null);
+// Today in numbers; null until read, and when the read failed (the card is then left out, the list says nothing)
+const today = shallowRef<LogsToday | null>(null);
 
 // `more`: the next page is added under the rows on hand (a phone's Load older), else it replaces them
 async function load(more = false): Promise<void> {
   const ticket = latest.next();
   loading.value = true;
   try {
-    const out = await listLogs(logQuery(filters, scope.provider, offset.value, limit.value));
+    const out = await listLogs({ ...logQuery(filters, scope.provider, offset.value, limit.value), counts: true });
     if (!latest.isCurrent(ticket)) return;
     items.value = more ? [...items.value, ...out.items] : out.items;
     total.value = out.total;
+    counts.value = out.status_counts ?? null;
     error.value = null;
   } catch (err) {
     if (!latest.isCurrent(ticket)) return;
@@ -68,8 +85,17 @@ function applyRouteStatus(): void {
   const status = route.query.status;
   if (isLogStatus(status)) filters.status = status;
 }
+async function loadToday(): Promise<void> {
+  try {
+    today.value = await getLogsToday();
+  } catch {
+    today.value = null;
+  }
+}
+
 filters.keepRangeWhole();
 applyRouteStatus();
+void loadToday();
 watch(
   () => route.query.status,
   () => {
@@ -94,7 +120,9 @@ function search(): void {
 }
 
 // An empty list under a filter offers to clear it, as the Jobs list does (LogsStates, no match).
-const filtered = computed(() => !!(filters.q.trim() || filters.status !== "all" || filters.from || filters.to));
+const filtered = computed(
+  () => !!(filters.q.trim() || filters.status !== "all" || filters.from || filters.to || filters.key),
+);
 function clearFilters(): void {
   filters.reset();
   search();
@@ -113,8 +141,31 @@ async function clear() {
     notify.success(`Cleared ${out.deleted} rows`);
     offset.value = 0;
     await load();
+    void loadToday();
   });
 }
+
+// Export CSV: the rows of the filters on the page (every page, the newest EXPORT_MAX at most), as the server redacts
+// them; saved under the viewer's own date.
+async function exportCsv(): Promise<void> {
+  await run(async () => {
+    const blob = await exportLogs(filterQuery(filters, scope.provider));
+    const d = new Date();
+    const day = [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+    saveBlob(blob, `request-logs-${day}.csv`);
+    const n = Math.min(total.value, EXPORT_MAX);
+    notify.success(
+      total.value > EXPORT_MAX
+        ? `Exported the newest ${thousands(n)} of ${thousands(total.value)} rows`
+        : `Exported ${thousands(n)} ${n === 1 ? "row" : "rows"}`,
+    );
+  });
+}
+
+// The head's sentence says how long rows are kept, from the log retention setting.
+const keptText = computed(() =>
+  today.value ? ` Kept for ${today.value.kept_days} ${today.value.kept_days === 1 ? "day" : "days"}.` : "",
+);
 
 async function openDetail(row: LogRow) {
   const ticket = detailLatest.next();
@@ -148,9 +199,6 @@ const more = () => {
   void load(true);
 };
 
-// The day numbers of the design: off the page until the API serves them (LogsStats says so when it is shown).
-const statsServed = false;
-
 // A tablet or phone folds the search and the dates behind two buttons of the head.
 const searchOpen = ref(false);
 // A phone's actions go to the top bar when the shell drew its target (the view alone, in a spec, keeps them here).
@@ -172,7 +220,7 @@ async function toggleSearch(): Promise<void> {
     <div class="lv-head" :class="{ 'is-compact': compact, 'is-bar': inBar }">
       <div v-if="!compact" class="lv-head__text">
         <h1>Request logs</h1>
-        <p>Every call to the relay API, newest first.</p>
+        <p data-testid="logs-sub">Every call to the relay API, newest first.{{ keptText }}</p>
       </div>
       <h1 v-else class="sr-only">Request logs</h1>
       <!-- a phone draws its actions in the top bar (LogsPhone), the shell's teleport target -->
@@ -192,35 +240,45 @@ async function toggleSearch(): Promise<void> {
             <button
               type="button"
               class="lv-text-btn"
-              aria-label="Filters: dates"
+              aria-label="Filters: key and dates"
               aria-haspopup="dialog"
               @click="filtersOpen = true"
             >
-              Filters: dates
+              Filters: key and dates
             </button>
           </template>
           <IconButton v-if="isPhone" icon="search" label="Search requests" placement="bottom" @click="toggleSearch" />
           <IconButton
             v-if="isPhone"
             icon="filter"
-            label="Filters: dates"
+            label="Filters: key and dates"
             placement="bottom"
             @click="filtersOpen = true"
+          />
+          <!-- a phone draws no Export (LogsPhone): a CSV is a desk task -->
+          <IconButton
+            v-if="!isPhone"
+            icon="export"
+            label="Export CSV"
+            placement="bottom"
+            :disabled="total === 0"
+            @click="exportCsv"
           />
           <IconButton icon="delete" label="Clear logs" danger placement="bottom-end" @click="clear" />
         </span>
       </Teleport>
     </div>
 
-    <LogsStats v-if="statsServed" />
+    <LogsStats v-if="today" :today="today" />
 
     <section class="lv-card" aria-label="Request log list">
-      <LogsFilterForm :search-open="showSearch" @search="search" />
+      <LogsFilterForm :search-open="showSearch" :counts="counts" @search="search" />
       <LogsTable
         :rows="items"
         :loading="loading"
         :error="error"
         :filtered="filtered"
+        :kept-days="today?.kept_days ?? null"
         @open="openDetail"
         @job="ui.openJob"
         @retry="() => load()"
@@ -248,7 +306,8 @@ async function toggleSearch(): Promise<void> {
       Load older
     </button>
 
-    <BottomSheet v-model="filtersOpen" title="Filters" sub="Dates" testid="logs-filters-sheet">
+    <BottomSheet v-model="filtersOpen" title="Filters" sub="Key and dates" testid="logs-filters-sheet">
+      <div class="lv-sheet-key"><LogsKeyField field @search="search" /></div>
       <LogsDatesField label="Dates" @search="search" />
       <template #footer>
         <button type="button" class="lv-done" @click="filtersOpen = false">Done</button>
@@ -356,6 +415,10 @@ async function toggleSearch(): Promise<void> {
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+
+.lv-sheet-key {
+  margin-bottom: 16px;
 }
 
 /* the phone's Load older, and the sheet's Done: full-width text buttons at the touch height */

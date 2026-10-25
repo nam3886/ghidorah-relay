@@ -6,6 +6,7 @@ import {
   dayStart,
   durationText,
   errorTone,
+  filterQuery,
   fullTime,
   isLogStatus,
   isSlow,
@@ -115,9 +116,25 @@ describe("logQuery", () => {
 });
 
 describe("isLogStatus", () => {
-  it("accepts the four statuses and nothing else", () => {
-    for (const s of ["all", "ok", "error", "pre_job"]) expect(isLogStatus(s)).toBe(true);
-    for (const s of ["", "done", "OK", undefined, null, ["ok"], 3]) expect(isLogStatus(s)).toBe(false);
+  it("accepts the five statuses and nothing else", () => {
+    for (const s of ["all", "2xx", "4xx", "5xx", "pre_job"]) expect(isLogStatus(s)).toBe(true);
+    for (const s of ["", "done", "ok", "error", "3xx", undefined, null, ["2xx"], 3]) expect(isLogStatus(s)).toBe(false);
+  });
+});
+
+describe("the filters alone (the export)", () => {
+  it("carry the key, the provider, the status, the search and the window, and no page", () => {
+    const f = { q: " x ", status: "5xx" as const, from: "2026-10-01", to: "2026-10-01", key: "key-a" };
+    expect(filterQuery(f, "dola")).toEqual({
+      status: "5xx",
+      provider: "dola",
+      key_id: "key-a",
+      q: "x",
+      since_ms: dayStart("2026-10-01"),
+      until_ms: dayAfter("2026-10-01"),
+    });
+    expect(logQuery(f, "dola", 50)).toEqual({ limit: 50, offset: 50, ...filterQuery(f, "dola") });
+    expect(filterQuery({ ...f, key: "" }, "")).not.toHaveProperty("key_id");
   });
 });
 
@@ -126,11 +143,12 @@ describe("how a request is written", () => {
     expect(PAGE_SIZE).toBe(50);
   });
 
-  it("the Status select offers the canvas words for the four statuses", () => {
+  it("the Status chips offer the canvas words for the status families", () => {
     expect(STATUS_OPTIONS.map((o) => [o.value, o.label])).toEqual([
       ["all", "All"],
-      ["ok", "OK below 400"],
-      ["error", "Errors"],
+      ["2xx", "2xx"],
+      ["4xx", "4xx"],
+      ["5xx", "5xx"],
       ["pre_job", "Failed before a job"],
     ]);
   });

@@ -1,16 +1,20 @@
 // The date window of the Request logs: a date field is a day, and the window is [that day's midnight, the next day's
 // midnight) in the viewer's own time zone, sent as epoch milliseconds. The server reads `until` as exclusive.
-import type { LogQuery, LogRow, LogStatus } from "@/api/logs";
+import type { LogFilterQuery, LogQuery, LogRow, LogStatus } from "@/api/logs";
 import { keyName } from "@/components/jobs/job-text";
 
 export const PAGE_SIZE = 50;
-export const LOG_STATUSES: readonly LogStatus[] = ["all", "ok", "error", "pre_job"];
+// the rows one CSV export holds at most: the server's own cap (routes_logs.EXPORT_MAX), said in the toast
+export const EXPORT_MAX = 10_000;
+export const LOG_STATUSES: readonly LogStatus[] = ["all", "2xx", "4xx", "5xx", "pre_job"];
 
-// The Status select: the words are the canvas's, the values what the server filters by.
+// The Status chips: the canvas's four, the values what the server filters by. The canvas has no place for a failed
+// request that made no job (the Jobs stats link here with it), so it is the last chip.
 export const STATUS_OPTIONS: ReadonlyArray<{ value: LogStatus; label: string }> = [
   { value: "all", label: "All" },
-  { value: "ok", label: "OK below 400" },
-  { value: "error", label: "Errors" },
+  { value: "2xx", label: "2xx" },
+  { value: "4xx", label: "4xx" },
+  { value: "5xx", label: "5xx" },
   { value: "pre_job", label: "Failed before a job" },
 ];
 
@@ -69,6 +73,8 @@ export interface LogFilters {
   // `YYYY-MM-DD` from a date field, or empty
   from: string;
   to: string;
+  // a key's id, or empty for every key
+  key?: string;
 }
 
 function parts(value: string): [number, number, number] {
@@ -109,8 +115,14 @@ export function isLogStatus(value: unknown): value is LogStatus {
 }
 
 export function logQuery(filters: LogFilters, provider: string, offset: number, limit = PAGE_SIZE): LogQuery {
-  const query: LogQuery = { limit, offset, status: filters.status };
+  return { limit, offset, ...filterQuery(filters, provider) };
+}
+
+// The filters alone: what the list and its CSV export both send.
+export function filterQuery(filters: LogFilters, provider: string): LogFilterQuery {
+  const query: LogFilterQuery = { status: filters.status };
   if (provider) query.provider = provider;
+  if (filters.key) query.key_id = filters.key;
   const q = filters.q.trim();
   if (q) query.q = q;
   if (filters.from) query.since_ms = dayStart(filters.from);

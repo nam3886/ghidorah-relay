@@ -80,7 +80,7 @@ def test_shots(app, app_session, db, color_scheme):
             page.screenshot(path="%s/logs-390-%s-bottom.png" % (SHOTS, color_scheme))
             page.evaluate("window.scrollTo(0, 0)", isolated_context=False)
         if width < 1280:
-            page.get_by_role("button", name="Filters: dates").click()
+            page.get_by_role("button", name="Filters: key and dates").click()
             expect(page.get_by_test_id("logs-filters-sheet")).to_be_visible()
             page.wait_for_timeout(500)
             page.screenshot(path="%s/logs-%d-%s-filters.png" % (SHOTS, width, color_scheme))

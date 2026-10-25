@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from "vue";
-import type { LogStatus } from "@/api/logs";
+import type { LogStatus, StatusCounts } from "@/api/logs";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import { IconSearch } from "@/components/shared/icons";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import LogsDatesField from "./LogsDatesField.vue";
+import LogsKeyField from "./LogsKeyField.vue";
 import { useLogsFilters } from "./logs-filters";
-import { STATUS_OPTIONS } from "./log-window";
+import { STATUS_OPTIONS, thousands } from "./log-window";
 
-// The filters of the Request logs, drawn as Logs.dc.html draws them. A desktop: one row with the Status segments, the
-// date range and the search field, and under it the Provider chips. A tablet or phone: the Status chips (a set of 4
-// wraps on a phone), the Provider chips, and the search field only while the header's Search button has it open; the
-// dates sit in the Filters sheet. A choice in Status or Provider, or a range, asks for a new search at once; the search
-// text goes with Enter (a tablet or phone has no Enter to rely on, so the text goes after a short pause in typing).
-defineProps<{ searchOpen: boolean }>();
+// The filters of the Request logs, drawn as Logs.dc.html draws them. A desktop: one row with the Status segments (each
+// with its count under the other filters), the Key select, the date range and the search field, and under it the
+// Provider chips. A tablet or phone: the Status chips (`4xx · 295`), the Provider chips, and the search field only
+// while the header's Search button has it open; the key and the dates sit in the Filters sheet. A choice in Status,
+// Key or Provider, or a range, asks for a new search at once; the search text goes with Enter (a tablet or phone has
+// no Enter to rely on, so the text goes after a short pause in typing).
+defineProps<{ searchOpen: boolean; counts?: StatusCounts | null }>();
 const emit = defineEmits<{ search: [] }>();
 const filters = useLogsFilters();
 const scope = useScopeStore();
@@ -66,7 +68,8 @@ function typed(): void {
           :aria-pressed="filters.status === o.value"
           @click="pickStatus(o.value)"
         >
-          {{ o.label }}
+          <span class="lf__word">{{ o.label }}</span>
+          <span v-if="counts" class="lf__n">{{ ` ${thousands(counts[o.value])}` }}</span>
         </button>
       </div>
       <ArrowScroller
@@ -85,9 +88,11 @@ function typed(): void {
           :aria-pressed="filters.status === o.value"
           @click="pickStatus(o.value)"
         >
-          {{ o.label }}
+          <span class="lf__word">{{ o.label }}</span>
+          <span v-if="counts" class="lf__n">{{ ` · ${thousands(counts[o.value])}` }}</span>
         </button>
       </ArrowScroller>
+      <LogsKeyField v-if="!compact" @search="emit('search')" />
       <LogsDatesField v-if="!compact" @search="emit('search')" />
       <label v-if="!compact || searchOpen" class="lf__search" :class="{ 'is-row': compact }">
         <IconSearch class="lf__icon" :size="15" />
@@ -195,6 +200,18 @@ function typed(): void {
   color: var(--rl-fg);
   font-weight: 700;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+/* a choice's count: faint, 600, a space after the word (in the text, so the name reads "4xx 295") */
+.lf__n {
+  font-weight: 600;
+  color: var(--rl-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* a chip is a flex row with a 6 px gap: the count's own space stands in for it */
+.chip .lf__n {
+  margin-left: -6px;
+  white-space: pre;
+  color: inherit;
 }
 .lf__seg-btn:focus-visible,
 .chip:focus-visible {

@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/api/client";
 import * as logs from "@/api/logs";
-import type { LogRow } from "@/api/logs";
+import type { LogRow, LogsToday } from "@/api/logs";
+import * as keys from "@/api/keys";
+import type { ApiKey } from "@/api/keys";
+import { saveBlob } from "@/components/jobs/blob-actions";
 import { dayAfter, dayStart } from "@/components/logs/log-window";
 import { useLogsFilters } from "@/components/logs/logs-filters";
 import * as confirm from "@/components/shared/confirm-dialog";
@@ -14,7 +17,15 @@ import { useUiStore } from "@/stores/ui";
 import LogsStats from "@/components/logs/LogsStats.vue";
 import LogsView from "@/views/LogsView.vue";
 
-vi.mock("@/api/logs", () => ({ listLogs: vi.fn(), getLog: vi.fn(), clearLogs: vi.fn() }));
+vi.mock("@/api/logs", () => ({
+  listLogs: vi.fn(),
+  getLog: vi.fn(),
+  clearLogs: vi.fn(),
+  getLogsToday: vi.fn(),
+  exportLogs: vi.fn(),
+}));
+vi.mock("@/api/keys", () => ({ listKeys: vi.fn() }));
+vi.mock("@/components/jobs/blob-actions", () => ({ saveBlob: vi.fn() }));
 vi.mock("@/api/shell", () => ({ getModels: vi.fn() }));
 vi.mock("@/components/shared/confirm-dialog", () => ({ confirmDialog: vi.fn() }));
 vi.mock("@/lib/notify", () => ({ notify: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -36,6 +47,21 @@ const row = (over: Partial<LogRow> = {}): LogRow => ({
   error_code: null,
   ...over,
 });
+
+const TODAY: LogsToday = {
+  day_tz: "Asia/Ho_Chi_Minh",
+  day_start_ms: Date.UTC(2026, 9, 23, 17),
+  kept_days: 7,
+  requests: 18442,
+  by_class: { "2xx": 17962, "4xx": 295, "5xx": 185 },
+  top_code: { "4xx": { code: "key.cap_reached", count: 120 }, "5xx": { code: "provider.no_account", count: 142 } },
+  p50_ms: 212,
+  p95_ms: 1840,
+};
+const COUNTS = { all: 18442, "2xx": 17962, "4xx": 295, "5xx": 185, pre_job: 61 };
+const aKey = (id: string, label: string, prefix: string) => ({ id, label, prefix }) as unknown as ApiKey;
+const KEY_A = aKey("key-a", "Studio Saigon", "rk-aaaa");
+const KEY_B = aKey("key-b", "", "rk-bbbb");
 
 const list = vi.mocked(logs.listLogs);
 let wrapper: VueWrapper | null = null;
@@ -65,14 +91,16 @@ const older = (w: VueWrapper) => named(w, "Older page");
 const lastQuery = () => list.mock.calls.at(-1)![0];
 // The Status choices: segments on a desktop, chips on a tablet and a phone.
 const statusButtons = (w: VueWrapper) => w.findAll(".lf__seg-btn, .lf [role='group'][aria-label='Status'] .chip");
+// a choice's word, without the count after it
+const wordOf = (b: ReturnType<VueWrapper["find"]>) => b.find(".lf__word").text();
 const statusShown = (w: VueWrapper) =>
   statusButtons(w)
     .filter((b) => b.attributes("aria-pressed") === "true")
-    .map((b) => b.text());
-const statusWords = (w: VueWrapper): string[] => statusButtons(w).map((b) => b.text());
+    .map(wordOf);
+const statusWords = (w: VueWrapper): string[] => statusButtons(w).map(wordOf);
 async function chooseStatus(w: VueWrapper, word: string): Promise<void> {
   await statusButtons(w)
-    .find((b) => b.text() === word)!
+    .find((b) => wordOf(b) === word)!
     .trigger("click");
   await settle();
 }
@@ -130,10 +158,12 @@ beforeEach(() => {
   );
   pinia = createPinia();
   setActivePinia(pinia);
-  for (const fn of [...Object.values(logs), confirm.confirmDialog, ...Object.values(notify)]) {
+  for (const fn of [...Object.values(logs), confirm.confirmDialog, ...Object.values(notify), keys.listKeys, saveBlob]) {
     (fn as ReturnType<typeof vi.fn>).mockReset();
   }
   list.mockResolvedValue({ items: [row()], total: 120 });
+  vi.mocked(logs.getLogsToday).mockResolvedValue(TODAY);
+  vi.mocked(keys.listKeys).mockResolvedValue({ items: [KEY_A, KEY_B] });
 });
 afterEach(() => {
   wrapper?.unmount();
@@ -305,7 +335,7 @@ describe("the list", () => {
 
   it("the first load asks for 50 rows, all statuses, no dates", async () => {
     await open();
-    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all" });
+    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", counts: true });
   });
 
   it("a failed load says what failed and what the relay answered; Retry reads again", async () => {
@@ -361,7 +391,7 @@ describe("the list", () => {
     const { w } = await open();
     list.mockResolvedValue({ items: [], total: 0 });
     // a status alone is a filter
-    await chooseStatus(w, "Errors");
+    await chooseStatus(w, "5xx");
     expect(w.find(".lt__title").text()).toBe("No requests match these filters");
     expect(button(w, "Clear filters")).toBeDefined();
     await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("nothing");
@@ -369,24 +399,172 @@ describe("the list", () => {
     list.mockResolvedValue({ items: [row()], total: 1 });
     await button(w, "Clear filters").trigger("click");
     await settle();
-    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all" });
+    expect(lastQuery()).toEqual({ limit: 50, offset: 0, status: "all", counts: true });
     expect(w.find<HTMLInputElement>('input[aria-label="Search"]').element.value).toBe("");
     expect(statusShown(w)).toEqual(["All"]);
     expect(picker(w, "From").element.value).toBe("");
     expect(picker(w, "To").element.value).toBe("");
     expect(rowsOf(w)).toHaveLength(1);
   });
+});
 
-  it("draws no day numbers, and no developer sentence, until the API serves them", async () => {
+describe("today in numbers", () => {
+  const cellsOf = (w: VueWrapper | ReturnType<typeof mount>) =>
+    w
+      .findAll(".lv-stats__cell")
+      .map((c) => [
+        c.find(".lv-stats__label").text(),
+        c.find(".lv-stats__value").text(),
+        c.find(".lv-stats__note").text(),
+      ]);
+
+  it("a desktop draws the five cells: requests since the dashboard midnight, each family's share, the p95", async () => {
     const { w } = await open();
-    expect(w.find('[data-testid="logs-stats"]').exists()).toBe(false);
-    expect(w.text()).not.toContain("not served");
+    const card = w.find('[data-testid="logs-stats"]');
+    expect(card.attributes("aria-label")).toBe("Today in numbers");
+    expect(cellsOf(w)).toEqual([
+      ["Requests today", "18,442", "since 00:00 GMT+7"],
+      ["2xx", "97.4%", "17,962 requests"],
+      ["4xx", "1.6%", "295 · mostly key.cap_reached"],
+      ["5xx", "1.0%", "185 · mostly provider.no_account"],
+      ["p95 duration", "1.84 s", "p50 212 ms"],
+    ]);
+    expect(w.findAll(".lv-stats__dot").map((d) => d.classes().find((c) => c.startsWith("tone-")))).toEqual([
+      "tone-ok",
+      "tone-warn",
+      "tone-bad",
+    ]);
   });
 
-  it("the stats card, kept for when the numbers come, names itself and says what is missing", () => {
-    const card = mount(LogsStats);
-    expect(card.attributes("aria-label")).toBe("Today in numbers");
-    expect(card.text()).toContain("not served by the API yet");
+  it("a tablet leaves out the duration, a phone keeps the three families", async () => {
+    showAt(768);
+    let { w } = await open();
+    expect(cellsOf(w).map((c) => c[0])).toEqual(["Requests today", "2xx", "4xx", "5xx"]);
+    expect(cellsOf(w)[0]![2]).toBe("since 00:00");
+    w.unmount();
+    showAt(390);
+    ({ w } = await open());
+    expect(cellsOf(w)).toEqual([
+      ["2xx", "97.4%", "17,962"],
+      ["4xx", "1.6%", "295"],
+      ["5xx", "1.0%", "185"],
+    ]);
+    // one tile each, no dot, the count in its family's colour and a 5xx share in red
+    expect(w.find(".lv-stats").classes()).toContain("is-tiles");
+    expect(w.findAll(".lv-stats__dot")).toHaveLength(0);
+    expect(w.findAll(".lv-stats__note").map((n) => n.classes().find((c) => c.startsWith("tone-")))).toEqual([
+      "tone-ok",
+      "tone-warn",
+      "tone-bad",
+    ]);
+    expect(w.findAll(".lv-stats__value.tone-bad")).toHaveLength(1);
+  });
+
+  it("an empty day has no share and no duration", () => {
+    const empty = { ...TODAY, requests: 0, by_class: { "2xx": 0, "4xx": 0, "5xx": 0 }, p50_ms: null, p95_ms: null };
+    const card = mount(LogsStats, { props: { today: { ...empty, top_code: { "4xx": null, "5xx": null } } } });
+    expect(cellsOf(card)).toEqual([
+      ["Requests today", "0", "since 00:00 GMT+7"],
+      ["2xx", "—", "0 requests"],
+      ["4xx", "—", "0 requests"],
+      ["5xx", "—", "0 requests"],
+      ["p95 duration", "—", "no request yet"],
+    ]);
+  });
+
+  it("the head says how long rows are kept, from the retention setting; nothing when today could not be read", async () => {
+    let { w } = await open();
+    expect(w.find('[data-testid="logs-sub"]').text()).toBe(
+      "Every call to the relay API, newest first. Kept for 7 days.",
+    );
+    w.unmount();
+    vi.mocked(logs.getLogsToday).mockRejectedValue(new ApiError(502, {}));
+    ({ w } = await open());
+    expect(w.find('[data-testid="logs-sub"]').text()).toBe("Every call to the relay API, newest first.");
+    expect(w.find('[data-testid="logs-stats"]').exists()).toBe(false);
+    expect(rowsOf(w)).toHaveLength(1);
+  });
+
+  it("the first empty list says how long rows are kept", async () => {
+    list.mockResolvedValue({ items: [], total: 0 });
+    const { w } = await open();
+    expect(w.find(".lt__text").text()).toContain("Rows are kept for 7 days.");
+  });
+});
+
+describe("the status chips, the key and the export", () => {
+  it("each status chip carries its count under the other filters", async () => {
+    list.mockResolvedValue({ items: [row()], total: 120, status_counts: COUNTS });
+    const { w } = await open();
+    // the space is in the text, so the button's name reads "All 18,442"
+    expect(statusButtons(w).map((b) => b.element.textContent?.trim())).toEqual([
+      "All 18,442",
+      "2xx 17,962",
+      "4xx 295",
+      "5xx 185",
+      "Failed before a job 61",
+    ]);
+    showAt(768);
+    w.unmount();
+    const again = (await open()).w;
+    expect(statusButtons(again).map((b) => b.text().replace(/\s+/g, " "))).toEqual([
+      "All · 18,442",
+      "2xx · 17,962",
+      "4xx · 295",
+      "5xx · 185",
+      "Failed before a job · 61",
+    ]);
+  });
+
+  it("the Key select lists All keys and each key by its name; a choice searches for that key and is a filter", async () => {
+    const { w } = await open();
+    const trigger = w.find<HTMLButtonElement>('.lf button[role="combobox"]');
+    expect(trigger.text()).toContain("Key");
+    expect(trigger.text()).toContain("All keys");
+    await trigger.trigger("click");
+    await settle();
+    const options = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(options.map((o) => o.textContent?.trim())).toEqual(["All keys", "Studio Saigon", "rk-bbbb"]);
+    list.mockResolvedValue({ items: [], total: 0 });
+    options[1]!.click();
+    await settle();
+    expect(lastQuery()).toMatchObject({ key_id: "key-a", offset: 0 });
+    expect(w.find(".lt__title").text()).toBe("No requests match these filters");
+    await button(w, "Clear filters").trigger("click");
+    await settle();
+    expect(lastQuery()).not.toHaveProperty("key_id");
+  });
+
+  it("a tablet holds the key in the Filters sheet with the dates", async () => {
+    showAt(768);
+    const { w } = await open();
+    expect(w.find('.lf button[role="combobox"]').exists()).toBe(false);
+    await named(w, "Filters: key and dates").trigger("click");
+    await settle();
+    const sheet = document.body.querySelector('[data-testid="logs-filters-sheet"]')!;
+    expect(sheet.querySelector('button[role="combobox"]')?.textContent).toContain("All keys");
+  });
+
+  it("Export CSV saves the filtered view under the viewer's date and says how many rows; a phone has none", async () => {
+    vi.mocked(logs.exportLogs).mockResolvedValue(new Blob(["a"]));
+    const { w } = await open();
+    await chooseStatus(w, "5xx");
+    await named(w, "Export CSV").trigger("click");
+    await settle();
+    expect(logs.exportLogs).toHaveBeenCalledWith({ status: "5xx" });
+    const d = new Date();
+    const day = [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+    expect(vi.mocked(saveBlob).mock.calls[0]![1]).toBe(`request-logs-${day}.csv`);
+    expect(notify.success).toHaveBeenCalledWith("Exported 120 rows");
+    list.mockResolvedValue({ items: [row()], total: 25000 });
+    await chooseStatus(w, "All");
+    await named(w, "Export CSV").trigger("click");
+    await settle();
+    expect(notify.success).toHaveBeenLastCalledWith("Exported the newest 10,000 of 25,000 rows");
+    w.unmount();
+    showAt(390);
+    const phone = (await open()).w;
+    expect(named(phone, "Export CSV").exists()).toBe(false);
   });
 });
 
@@ -398,6 +576,7 @@ describe("filters", () => {
       limit: 50,
       offset: 0,
       status: "all",
+      counts: true,
       since_ms: dayStart("2026-10-01"),
       until_ms: dayAfter("2026-10-15"),
     });
@@ -651,10 +830,10 @@ describe("paging", () => {
     const { w } = await open();
     await older(w).trigger("click");
     await settle();
-    await chooseStatus(w, "Errors");
-    expect(lastQuery()).toMatchObject({ status: "error", offset: 0 });
-    expect(statusWords(w)).toEqual(["All", "OK below 400", "Errors", "Failed before a job"]);
-    expect(statusShown(w)).toEqual(["Errors"]);
+    await chooseStatus(w, "4xx");
+    expect(lastQuery()).toMatchObject({ status: "4xx", offset: 0 });
+    expect(statusWords(w)).toEqual(["All", "2xx", "4xx", "5xx", "Failed before a job"]);
+    expect(statusShown(w)).toEqual(["4xx"]);
   });
 });
 
@@ -768,12 +947,14 @@ describe("the detail", () => {
     expect(drawer.querySelector(".rd__method")!.className).toContain("post");
   });
 
-  it("says what the API does not keep: the request headers, and the upstream exchange", async () => {
+  it("says what the API does not keep: the request headers, the answer's size, and the upstream exchange", async () => {
     const { drawer } = await openOne(detail());
     expect(drawer.textContent).toContain("The API does not keep the upstream exchange yet.");
-    const headers = [...drawer.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
-      (t) => t.textContent?.trim() === "Headers",
+    const headers = [...drawer.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((t) =>
+      t.textContent?.trim().startsWith("Headers"),
     )!;
+    expect(headers.textContent!.replace(/\s+/g, " ").trim()).toBe("Headers —");
+    expect(drawer.querySelector(".rd__help")!.textContent).toMatch(/ · —$/);
     headers.click();
     await settle();
     expect(drawer.textContent).toContain("The API does not keep request headers yet.");
@@ -871,7 +1052,7 @@ describe("the tablet", () => {
     await named(w, "Search requests").trigger("click");
     await settle();
     expect(w.find('input[aria-label="Search"]').exists()).toBe(true);
-    await named(w, "Filters: dates").trigger("click");
+    await named(w, "Filters: key and dates").trigger("click");
     await settle();
     const sheet = document.body.querySelector('[data-testid="logs-filters-sheet"]')!;
     expect(sheet.querySelector('input[aria-label="From"]')).not.toBeNull();
@@ -934,15 +1115,15 @@ describe("the phone", () => {
     expect(logs.getLog).toHaveBeenCalledWith("l1");
   });
 
-  it("wraps its four status chips on one set and has no Search button: a choice searches at once, typing after a pause", async () => {
+  it("wraps its five status chips on one set and has no Search button: a choice searches at once, typing after a pause", async () => {
     showAt(390);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       const { w } = await open();
       expect(button(w, "Search")).toBeUndefined();
       expect(w.find('[data-testid="arrow-scroller"]').classes()).toContain("asc--wrap");
-      await chooseStatus(w, "Errors");
-      expect(lastQuery().status).toBe("error");
+      await chooseStatus(w, "5xx");
+      expect(lastQuery().status).toBe("5xx");
       await named(w, "Search requests").trigger("click");
       const calls = list.mock.calls.length;
       await w.find<HTMLInputElement>('input[aria-label="Search"]').setValue("abc");
@@ -980,7 +1161,7 @@ describe("the phone", () => {
     await button(w, "Load older").trigger("click");
     await settle();
     list.mockResolvedValueOnce({ items: [row({ id: "z" })], total: 1 });
-    await chooseStatus(w, "Errors");
+    await chooseStatus(w, "4xx");
     expect(w.findAll(".p-row").map((r) => r.attributes("aria-label"))).toEqual(["Open request z"]);
   });
 });

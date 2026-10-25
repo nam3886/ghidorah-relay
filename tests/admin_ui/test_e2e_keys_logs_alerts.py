@@ -298,8 +298,9 @@ def request_buttons(page):
 
 
 def status_button(page, label):
-    """One choice of the Status filter: a segment on a desktop, a chip below it."""
-    return page.get_by_role("group", name="Status", exact=True).get_by_role("button", name=label, exact=True)
+    """One choice of the Status filter: a segment on a desktop, a chip below it; its count follows the word."""
+    name = re.compile(r"^%s(?: ·)? [\d,]+$" % re.escape(label))
+    return page.get_by_role("group", name="Status", exact=True).get_by_role("button", name=name)
 
 
 def card_chips(page):
@@ -310,7 +311,7 @@ def card_chips(page):
 def show_dates(page, width):
     """The date range sits in the toolbar on a desktop and in the Filters sheet below 1280 px."""
     if width < 1280:
-        page.get_by_role("button", name="Filters: dates").click()
+        page.get_by_role("button", name="Filters: key and dates").click()
         expect(page.get_by_test_id("logs-filters-sheet")).to_be_visible()
 
 
@@ -538,7 +539,9 @@ def test_the_toolbar_is_one_row_on_a_desktop_and_chips_with_search_and_dates_beh
     assert box["height"] >= 40 and box["width"] > (card[2] - card[0]) - 40, "the search field is a full row: %r" % box
     show_dates(page, width)
     editor = page.locator('[data-testid="logs-filters-sheet"] .el-date-editor').bounding_box()
-    assert editor["height"] >= 44 and editor["width"] > width - 60, "the date field fills the sheet: %r" % editor
+    # rounded to 1/100 px: below the key field the sheet can sit on a fraction of a pixel (43.9999 is 44)
+    assert round(editor["height"], 2) >= 44 and editor["width"] > width - 60, (
+        "the date field fills the sheet: %r" % editor)
     assert sideways(page) <= 1, "the page scrolls sideways"
 
 
@@ -946,9 +949,9 @@ def test_each_screen_renders_without_a_sideways_scroll_and_its_main_action_is_re
     expect(page.get_by_role("button", name="New key")).to_be_visible()
     no_sideways_scroll(page)
     open_tab(page, "Request logs")
-    expect(page.get_by_text("input.invalid")).to_be_visible()
+    expect(page.get_by_test_id("logs-table").get_by_text("input.invalid")).to_be_visible()
     # below 1280 px the head has the icon buttons: Search, Filters and Clear logs
-    for name in ("Search requests", "Filters: dates", "Clear logs"):
+    for name in ("Search requests", "Filters: key and dates", "Clear logs"):
         expect(page.get_by_role("button", name=name)).to_be_visible()
     no_sideways_scroll(page)
     open_tab(page, "Alerts")

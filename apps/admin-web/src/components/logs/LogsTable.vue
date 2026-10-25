@@ -12,7 +12,14 @@ import { clockMs, clockTime, durationText, errorTone, isSlow, logKey, splitRoute
 // the list empty for the first time, empty under a filter, and a failed read. Every wide table scrolls inside its own
 // box (the arrow scroller). A failed request is never tinted: its pill and its code carry it. Server strings reach the
 // page as text.
-const props = defineProps<{ rows: LogRow[]; loading: boolean; error: string | null; filtered: boolean }>();
+// `keptDays`: the log retention setting, said in the first empty list when known
+const props = defineProps<{
+  rows: LogRow[];
+  loading: boolean;
+  error: string | null;
+  filtered: boolean;
+  keptDays?: number | null;
+}>();
 const emit = defineEmits<{
   open: [row: LogRow];
   job: [id: string];
@@ -111,7 +118,11 @@ const ICONS = {
       <template v-else>
         <span class="lt__icon is-brand"><PathIcon :paths="ICONS.inbox" :size="22" :stroke="1.8" /></span>
         <b class="lt__title">No requests yet</b>
-        <span class="lt__text"> Each call to the relay API lands here with its status, key, timing and bodies. </span>
+        <span class="lt__text">
+          Each call to the relay API lands here with its status, key, timing and bodies.<template v-if="keptDays">
+            Rows are kept for {{ keptDays }} {{ keptDays === 1 ? "day" : "days" }}.</template
+          >
+        </span>
         <div class="lt__btns">
           <button type="button" class="lt__primary" @click="emit('send-test')">Send a test job</button>
         </div>

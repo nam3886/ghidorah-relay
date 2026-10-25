@@ -1,7 +1,9 @@
 """The admin request-log viewer: filters, half-open dates, search without pattern characters,
-pagination, the detail, and Clear removing only the log rows."""
+pagination, the detail, Clear removing only the log rows, the Status chips, today's numbers and the export."""
 
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from accountkit import done_job
 from apikit import run_app
@@ -37,8 +39,7 @@ def log(db, k, *, status=200, job=None, provider="fake", route="/v1/video/genera
 
 
 def ms_of(text: str) -> int:
-    import datetime
-    return int(datetime.datetime.fromisoformat(text).timestamp() * 1000)
+    return int(datetime.fromisoformat(text).timestamp() * 1000)
 
 
 async def get(env, query: str = ""):
@@ -167,9 +168,9 @@ def test_the_detail_shows_the_redacted_request_and_unknown_rows_are_404(db):
     assert ghost.status_code == 404 and huge.status_code == 404
 
 
-LIST_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+LIST_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n         + SHOWN_TITLE + '
                '", l.duration_ms, l.error_code " + _FROM')
-LIST_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
+LIST_NO_PREFIX = ('NULL, l.provider, l.route, l.status_code, l.job_id, "\n         + SHOWN_TITLE + '
                   '", l.duration_ms, l.error_code " + _FROM')
 DETAIL_PREFIX = ('k.key_prefix, l.provider, l.route, l.status_code, l.job_id, "\n            + SHOWN_TITLE + '
                  '", l.duration_ms, l.error_code, l.body')
@@ -415,7 +416,7 @@ def test_the_log_day_totals_query_is_served_by_the_at_index_on_a_realistic_table
            "SELECT %s, 'fake', '/v1/x', 200, 7, '{}'::jsonb, timestamptz '2026-03-30 00:00+00' - g * interval '259 s' "
            "FROM generate_series(1, 10000) g", k)
     db.run("ANALYZE request_logs")
-    args = {"provider": None, "status": "all", "since": None, "until": None, "q": None, "tz": TZ,
+    args = {"provider": None, "key": None, "status": "all", "since": None, "until": None, "q": None, "tz": TZ,
             "day_first": "2026-03-10", "day_last": "2026-03-10"}
     with db.connect() as conn:
         plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
@@ -424,3 +425,154 @@ def test_the_log_day_totals_query_is_served_by_the_at_index_on_a_realistic_table
     cond = [line for line in plan.splitlines() if "Index Cond" in line and "(at >=" in line and "(at <" in line]
     assert "request_logs_at" in plan and cond and "Seq Scan on request_logs" not in plan, (
         "the day totals are served by request_logs_at:\n" + plan)
+
+
+# ---- the Status chips, their counts and the Key filter -----------------------------------------------------------
+@mutation(ROUTES, "WHEN '4xx' THEN l.status_code BETWEEN 400 AND 499", "WHEN '4xx' THEN l.status_code >= 400",
+          expect="a 4xx chip")
+@mutation(ROUTES, "WHEN '2xx' THEN l.status_code BETWEEN 200 AND 299", "WHEN '2xx' THEN l.status_code < 400",
+          expect="a 2xx chip")
+@mutation(ROUTES, "AND (%(key)s::uuid IS NULL OR l.key_id = %(key)s) ", "", expect="the key filter")
+@mutation(ROUTES, '"count(*) FILTER (WHERE %s)" % _STATUS.replace("%(status)s", "\'%s\'" % c)',
+          '"count(*) FILTER (WHERE %s)" % _STATUS', expect="the chips count under every filter but the status")
+def test_status_chips_list_a_family_count_under_the_other_filters_and_a_key_keeps_its_own_rows(db):
+    a, b = key(db), key(db)
+    job = done_job(db, a)
+    a1, a2 = log(db, a, status=200, job=job), log(db, a, status=201, job=job)
+    a3, a4 = log(db, a, status=404), log(db, a, status=499)
+    a5 = log(db, a, status=502, job=job)
+    b1, b2 = log(db, b, status=200), log(db, b, status=503)
+
+    async def scenario(env):
+        return [await get(env, q) for q in (
+            "?counts=true", "?status=4xx&counts=true", "?status=2xx", "?status=5xx", "?key_id=%s&counts=true" % a,
+            "?key_id=%s&status=5xx" % a, "?key_id=not-a-key", "")]
+
+    every, client, ok, server, of_a, a_server, junk, plain = run_app(db, scenario)
+    check = Soft()
+    check(every.json()["status_counts"] == {"all": 7, "2xx": 3, "4xx": 2, "5xx": 2, "pre_job": 3},
+          "the chips count under every filter but the status")
+    check(client.json()["status_counts"] == every.json()["status_counts"],
+          "the chips count under every filter but the status: a chosen status changes no count")
+    check(sorted(ids(client)) == sorted([a3, a4]) and client.json()["total"] == 2, "a 4xx chip: 404 and 499 only")
+    check(sorted(ids(ok)) == sorted([a1, a2, b1]), "a 2xx chip")
+    check(sorted(ids(server)) == sorted([a5, b2]), "a 5xx chip")
+    check(sorted(ids(of_a)) == sorted([a1, a2, a3, a4, a5]), "the key filter keeps one key's rows")
+    check(of_a.json()["status_counts"] == {"all": 5, "2xx": 2, "4xx": 2, "5xx": 1, "pre_job": 2},
+          "the key filter: the chips count that key's rows")
+    check(ids(a_server) == [a5], "the key filter with a status")
+    check(junk.status_code in (400, 422), "a key id that is no uuid is refused")
+    check("status_counts" not in plain.json(), "no counts asked, none sent")
+    check.done()
+
+
+# ---- Today in numbers --------------------------------------------------------------------------------------------
+MIDNIGHT = "date_trunc('day', now() AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh'"
+
+
+def timed(db, k, status: int, duration_ms: int, at_sql: str, error: str | None = None) -> None:
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms, error_code, at) "
+           "VALUES (%s, 'fake', 'POST /v1/videos', %s, %s, %s, " + at_sql + ")", k, status, duration_ms, error)
+
+
+@mutation(ROUTES, 'FROM request_logs WHERE at >= %(start)s")', 'FROM request_logs")', expect="today only")
+@mutation(ROUTES, "percentile_disc(0.95)", "percentile_disc(0.9)", expect="the 95th percentile")
+@mutation(ROUTES, "ORDER BY status_code / 100, count(*) DESC, error_code",
+          "ORDER BY status_code / 100, count(*) ASC, error_code", expect="the commonest code")
+@mutation(ROUTES, '"kept_days": settings.get("log_retention_days")', '"kept_days": 30', expect="kept days")
+def test_today_counts_the_dashboard_day_by_status_family_with_its_commonest_codes_and_percentiles(db):
+    k = key(db)
+    timed(db, k, 500, 99_999, MIDNIGHT + " - interval '1 min'", "internal.error")     # yesterday, local time
+    codes = {17: "key.cap_reached", 18: "key.cap_reached", 19: "wallet.empty", 20: "provider.no_account"}
+    for i in range(1, 21):          # 10 ms .. 200 ms: 16 x 201, 3 x 429, 1 x 503
+        status = 503 if i == 20 else 429 if i in codes else 201
+        timed(db, k, status, i * 10, MIDNIGHT + " + interval '%d s'" % i, codes.get(i))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        first = await env.client.get("/admin/logs/today", headers=h)
+        await env.settings.set("log_retention_days", 7, by="test")
+        return first, await env.client.get("/admin/logs/today", headers=h)
+
+    body, later = (r.json() for r in run_app(db, scenario))
+    local = datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0, second=0, microsecond=0)
+    check = Soft()
+    check((body["day_tz"], body["day_start_ms"]) == (TZ, int(local.timestamp() * 1000)), "today only: the local day")
+    check(body["requests"] == 20, "today only: yesterday's row is left out")
+    check(body["by_class"] == {"2xx": 16, "4xx": 3, "5xx": 1}, "today only: by family")
+    check((body["p50_ms"], body["p95_ms"]) == (100, 190), "the 95th percentile and the median")
+    check(body["top_code"] == {"4xx": {"code": "key.cap_reached", "count": 2},
+                               "5xx": {"code": "provider.no_account", "count": 1}}, "the commonest code")
+    check((body["kept_days"], later["kept_days"]) == (30, 7), "kept days: the log_retention_days setting")
+    check.done()
+
+
+def test_today_on_an_empty_log_is_zeros_and_no_percentile(db):
+    async def scenario(env):
+        return await env.client.get("/admin/logs/today", headers=await env.admin_headers())
+
+    body = run_app(db, scenario).json()
+    assert (body["requests"], body["by_class"], body["p95_ms"], body["top_code"]) == (
+        0, {"2xx": 0, "4xx": 0, "5xx": 0}, None, {"4xx": None, "5xx": None})
+
+
+@mutation(ROUTES, 'FROM request_logs WHERE at >= %(start)s")',
+          "FROM request_logs WHERE at + interval '0' >= %(start)s\")", expect="today is served by request_logs_at")
+def test_today_is_served_by_the_at_index_on_a_realistic_table(db):
+    import psycopg
+
+    k = key(db)
+    db.run("INSERT INTO request_logs (key_id, provider, route, status_code, duration_ms, body_redacted, at) "
+           "SELECT %s, 'fake', '/v1/x', 200, 7, '{}'::jsonb, now() - g * interval '259 s' "
+           "FROM generate_series(1, 10000) g", k)
+    db.run("ANALYZE request_logs")
+    with db.connect() as conn:
+        plan = "\n".join(r[0] for r in psycopg.ClientCursor(conn).execute(
+            "EXPLAIN " + routes_logs._TODAY, {"start": datetime.now(ZoneInfo(TZ)).replace(hour=0, minute=0)}))
+    assert "request_logs_at" in plan and "Seq Scan on request_logs" not in plan, (
+        "today is served by request_logs_at:\n" + plan)
+
+
+# ---- Export ------------------------------------------------------------------------------------------------------
+@mutation(ROUTES, "return \"'\" + value if", "return value if", expect="a formula sign")
+@mutation(ROUTES, "shown = redact_shown([", "shown = ([", expect="redacted")
+@mutation(ROUTES, '{**params, "limit": EXPORT_MAX, "offset": 0}', '{**params, "limit": EXPORT_MAX + 5, "offset": 0}',
+          expect="bounded")
+@mutation(ROUTES, '{**params, "limit": EXPORT_MAX, "offset": 0}',
+          '{**params, "status": "all", "limit": EXPORT_MAX, "offset": 0}', expect="the filters")
+def test_export_is_the_filtered_view_as_csv_newest_first_bounded_redacted_and_without_bodies(db, monkeypatch):
+    import csv
+    import io
+
+    monkeypatch.setattr(routes_logs, "EXPORT_MAX", 3)
+    monkeypatch.setattr(routes_logs, "EXPORT_CHUNK", 2)
+    k = key(db)
+    db.run("UPDATE api_keys SET label = '=HYPERLINK(\"x\")' WHERE id = %s", k)
+    job = done_job(db, k)
+    db.run("UPDATE jobs SET title = 'Lake token=abc123secret' WHERE id = %s", job)
+    made = [log(db, k, job=job, at="2026-01-10 12:00:0%d+00" % i, body='{"api_key": "sk-body-secret-1"}',
+                route="POST /v1/x?u=https://h.example/p?sig=SIGSECRET1") for i in range(5)]
+    log(db, k, status=500, at="2026-01-10 12:00:09+00", error="internal.error")
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return (await env.client.get("/admin/logs/export?status=2xx", headers=h),
+                await env.client.get("/admin/logs/export?status=4xx", headers=h),
+                await env.client.get("/admin/logs/export"))
+
+    found, none, anonymous = run_app(db, scenario)
+    rows = list(csv.reader(io.StringIO(found.text)))
+    check = Soft()
+    check(found.headers["content-type"].startswith("text/csv")
+          and "attachment" in found.headers["content-disposition"], "a CSV download")
+    check(rows[0] == list(routes_logs._CSV_HEAD), "a head row")
+    check(len(rows) == 4, "bounded: the newest EXPORT_MAX rows")
+    check([r[3] for r in rows[1:]] == [str(job)] * 3 and rows[1][0] == "2026-01-10T12:00:04.000+00:00",
+          "the filters: newest first, the 2xx rows only")
+    check(rows[1][6] == "'=HYPERLINK(\"x\")", "a formula sign is quoted")
+    check("abc123secret" not in found.text and "SIGSECRET1" not in found.text, "redacted")
+    check("sk-body-secret-1" not in found.text, "no body is exported")
+    check(list(csv.reader(io.StringIO(none.text))) == [list(routes_logs._CSV_HEAD)], "an empty view is the head alone")
+    check(anonymous.status_code == 401, "the export needs an admin session")
+    check(made, "rows were made")
+    check.done()
