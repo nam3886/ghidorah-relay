@@ -57,7 +57,7 @@ from relay_flow import errors
 from relay_flow.engine import results as R
 from relay_flow.engine.captcha import CaptchaError
 from relay_flow.engine.http import Sessions
-from relay_flow.engine.submit import submit
+from relay_flow.engine.submit import REASONS, submit
 from relay_flow.spec import SPEC
 
 SUBMIT_FILE = "packages/provider-flow/src/relay_flow/engine/submit.py"
@@ -365,7 +365,7 @@ def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_
 DENIED = REFUSED_7.replace("PUBLIC_ERROR_UNUSUAL_ACTIVITY", "PUBLIC_ERROR_MODEL_ACCESS_DENIED")
 
 
-@mutation(SUBMIT_FILE, "                refused = errors.REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)", "",
+@mutation(SUBMIT_FILE, "                refused = REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)", "",
           expect="model access")
 @mutation(HTTP_FILE, "        reason = err[2][0][1][0]", "        reason = None", expect="the reason")
 def test_the_refusals_reason_names_the_code_when_the_tries_run_out_and_code_7_is_still_tried_again():
@@ -384,10 +384,10 @@ def test_the_refusals_reason_names_the_code_when_the_tries_run_out_and_code_7_is
         assert len(flow.calls("ogiZ0b")) == 2, "code 7 is tried again whatever its reason"
         assert result.job.code == code, "model access: %s" % (result.job,)
         assert "PUBLIC_ERROR_MODEL_ACCESS_DENIED" in " ".join(ctx.events), "the reason is in the job's events"
-    assert set(errors.REASONS.values()) <= set(SPEC.codes())
+    assert set(REASONS.values()) <= set(SPEC.codes())
 
 
-@mutation(SUBMIT_FILE, "                            > SUBMIT_TIMEOUT_S:", "                            > 10**9:",
+@mutation(SUBMIT_FILE, "API_TIMEOUT_S > SUBMIT_TIMEOUT_S:", "API_TIMEOUT_S > 10**9:",
           expect="a try past the submit bound")
 def test_no_try_starts_that_would_not_end_inside_the_submit_bound():
     log = []

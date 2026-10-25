@@ -42,13 +42,5 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "flow refused the model for the account; nothing was made"),
 )}
 
-# flow's ErrorInfo reason of a refused generate -> our code when the tries run out (or end at once, code 8). The
-# unusual-activity refusal is the reCAPTCHA one (`flow.captcha_refused`); an unknown reason keeps that code too.
-REASONS = {
-    "PUBLIC_ERROR_UNUSUAL_ACTIVITY": CAPTCHA_REFUSED,
-    "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC": TOO_MUCH_TRAFFIC,
-    "PUBLIC_ERROR_MODEL_ACCESS_DENIED": MODEL_ACCESS_DENIED,
-}
-
 core_errors.register(*(r for code, r in CODES.items() if code not in core_errors.RULES))
 

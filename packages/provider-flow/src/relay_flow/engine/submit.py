@@ -91,6 +91,13 @@ LOGGED_OUT = "pool.account_logged_out"
 OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
 POOLS = ("image", "video")
+# flow's ErrorInfo reason of a refused generate -> our code when the tries run out (or end at once, code 8). The
+# unusual-activity refusal is the reCAPTCHA one (`flow.captcha_refused`); an unknown reason keeps that code too.
+REASONS = {
+    "PUBLIC_ERROR_UNUSUAL_ACTIVITY": errors.CAPTCHA_REFUSED,
+    "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC": errors.TOO_MUCH_TRAFFIC,
+    "PUBLIC_ERROR_MODEL_ACCESS_DENIED": errors.MODEL_ACCESS_DENIED,
+}
 TOO_MUCH_TRAFFIC = 8         # RESOURCE_EXHAUSTED, PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC (FINDINGS 3)
 MEDIA_PREFIX = "https://%s/image/" % MEDIA_HOSTS[0]
 
@@ -246,7 +253,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
             captcha_s = int(settings.get("flow.captcha_timeout_s"))
             batches: list[str] = []
-            refused = errors.CAPTCHA_REFUSED      # the code of the last refusal's reason (`errors.REASONS`)
+            refused = errors.CAPTCHA_REFUSED      # the code of the last refusal's reason (`REASONS`)
             for attempt in range(tries):
                 if attempt:
                     if clock() - start + gap + captcha_s + GENERATE_TIMEOUT_S + API_TIMEOUT_S > SUBMIT_TIMEOUT_S:
@@ -286,7 +293,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s, %s); nothing was made"
                                 % (attempt + 1, reply.code, reply.reason or "no reason"), "submit", "upstream")
-                refused = errors.REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)
+                refused = REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)
                 if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here: the job goes on, this account rests
                     return _result(NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches}), *read,
                                    *pacing(settings, now(), reply.code))
