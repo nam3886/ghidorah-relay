@@ -623,7 +623,8 @@ edit) works on an output of the key's own earlier job: the native doors take `so
 key and provider, checked at the door and again in the creation transaction before the charge (else 400
 `input.bad_source`; a model that works on no source refuses one, 400 `input.source_unsupported`). The job runs only on the
 account that made the source (`jobs.pin_account_id`), because upstreams refuse another account's media and uploads. The
-claim offers it to that account alone and never lets it hold up or join another account's work. While it is queued it
+claim offers it to that account alone and never lets it hold up or join another account's work. While it is queued the
+reaper (every 30 s) ends it
 ends at once with its refund when that account is dead or disabled (`source.account_unavailable`) or its pool's
 balance is below the job's cost (`source.account_exhausted`); a cooldown, a rest, a busy slot or the send gap only make
 it wait, up to `unsent_deadline_s`. The status answer carries `source_job_id`; admin Regenerate keeps the pin.

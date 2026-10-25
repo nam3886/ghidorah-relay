@@ -17,6 +17,12 @@ worker) never both act:
 - a `running` command with no lease (delete, wake, check all, check) whose `started_at` is older than its bound
   (`leases.COMMAND_HARD_S`, else `COMMAND_STALL_S`, plus a margin) has stalled: it is failed (I14).
 - a `queued` job past `unsent_deadline_s` from its creation fails `queue.never_started`.
+- a `queued` pinned job (it works on an earlier job's output, so only the account that made it can run it) whose
+  account can no longer run it fails at once: the account is dead or disabled (`source.account_unavailable`), or the
+  job's pool balance (reported or computed: the unrefunded charges count, so the account's taken jobs do) is below the
+  job's cost (`source.account_exhausted`); an unknown balance allows. A pause that passes (a cooldown, a rest, a busy
+  slot, the send gap) only waits, up to `unsent_deadline_s`. Each job is its own transaction; one that fails to end is
+  logged and the next is tried.
 - a `waiting` or `unknown` job past `<provider>.render_deadline_s`, counted from `render_since` (from the send
   when it has none), so a Re-check that restarts the clock saves it (I17), fails with the spec's
   `deadline_cause` code, but only once a final read can no longer save it: a read that started after the deadline and
@@ -126,6 +132,13 @@ UPDATE jobs SET late_seen_at = clock_timestamp(),
    AND %(r)s + make_interval(secs => %%s) <= clock_timestamp()
    AND (late_seen_at IS NULL OR late_seen_at <= %(r)s + make_interval(secs => %%s))
 """ % {"r": RENDER_FROM}
+SOURCE_UNAVAILABLE = "source.account_unavailable"
+SOURCE_EXHAUSTED = "source.account_exhausted"
+_PINNED_QUEUED = ("SELECT id FROM jobs WHERE provider = %s AND status = 'queued' AND pin_account_id IS NOT NULL "
+                  "ORDER BY created_at, id")
+_PINNED_LOCK = ("SELECT j.pool, j.account_cost, j.pin_account_id, a.state FROM jobs j "
+                "JOIN accounts a ON a.id = j.pin_account_id WHERE j.id = %s AND j.status = 'queued' "
+                "FOR UPDATE OF j SKIP LOCKED")
 _LAST_TEXT = ("SELECT text FROM job_events WHERE job_id = %s AND source = 'upstream' AND at >= %s "
               "ORDER BY id DESC LIMIT 1")
 
@@ -151,7 +164,8 @@ class Reaper:
         done: Counter = Counter()
         for name, step in (("submit_lease", self._submit_leases), ("other_lease", self._other_leases),
                            ("stalled_command", self._stalled_commands),
-                           ("never_started", self._never_started), ("render_deadline", self._render_deadline),
+                           ("never_started", self._never_started), ("blocked_pins", self._blocked_pins),
+                           ("render_deadline", self._render_deadline),
                            ("visibility", self._visibility)):
             try:
                 done[name] += await step()
@@ -277,6 +291,39 @@ class Reaper:
         """The newest upstream text of this render: anything first seen before `render_since` is ignored (I17)."""
         row = await (await conn.execute(_LAST_TEXT, (job_id, since or "-infinity"))).fetchone()
         return row[0] if row else ""
+
+    # ---- pinned jobs whose account can no longer run them ------------------------------------------------------
+    async def _blocked_pins(self) -> int:
+        async with tx(self.db) as conn:
+            ids = [r[0] for r in await (await conn.execute(_PINNED_QUEUED, (self.spec.name,))).fetchall()]
+        failed = 0
+        for job_id in ids:
+            try:
+                failed += await self._end_blocked_pin(job_id)
+            except Exception:
+                log.exception("reaper: the pinned job %s could not be judged", job_id)
+        return failed
+
+    async def _end_blocked_pin(self, job_id) -> bool:
+        """The job row is locked first (one a claim holds is skipped: the next pass sees it), then the account's pool
+        row `SKIP LOCKED` (lock order)."""
+        pools = self._pools()
+        async with tx(self.db) as conn:
+            row = await (await conn.execute(_PINNED_LOCK, (job_id,))).fetchone()
+            if row is None:
+                return False
+            name, cost, account_id, state = row
+            if state != "available":
+                why = (SOURCE_UNAVAILABLE, "the account that made the source job is %s" % state)
+            elif name in pools:
+                cap = await pool.lock_capacity(conn, account_id, pools[name])
+                if cap is None or cap.left_n is None or cap.left_n >= cost:
+                    return False            # held by another transaction (seen next pass), or it can pay
+                why = (SOURCE_EXHAUSTED, "the account that made the source job has %d left in its %s pool, the job "
+                       "costs %d" % (cap.left_n, name, cost))
+            else:
+                return False                # a pool the provider no longer declares: it waits
+            return await fail_in_tx(conn, job_id, ("queued",), *why, pools)
 
     async def _never_started(self) -> int:
         return await self._fail_late(UNSENT_FROM, ("queued",), self.settings.get("unsent_deadline_s"),

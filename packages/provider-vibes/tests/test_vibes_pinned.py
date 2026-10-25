@@ -188,6 +188,27 @@ def test_an_unclear_image_edit_is_ambiguous_one_post_and_its_plan_fails_it_with_
     assert result.account == (Cooldown("vibes security checkpoint", NOW + timedelta(seconds=600), recheck=True),)
 
 
+RESTING_FIRST = "        left = rests.left_s(ctx.account.id)\n        if left:"
+SIGNED_OUT_DOUBT = "        if resp.status_code in SIGNED_OUT_STATUSES:     # unclear for the job"
+
+
+@mutation(SUBMIT_FILE, RESTING_FIRST, "        left = 0\n        if left:", expect="a rest sends nothing")
+@mutation(SUBMIT_FILE, SIGNED_OUT_DOUBT, "        if False:     # unclear for the job",
+          expect="a doubt about the account")
+def test_an_image_edit_on_a_resting_account_is_a_retry_and_a_signed_out_answer_doubts_the_account():
+    rests = Rests(lambda: NOW)
+    rests.start("acc-1", 300)
+    log: list = []
+    result, _ = run_submit(Vibes(log), job("vibes-image-edit"), rests)
+    assert log == [] and result.job == Retry("pool.account_throttled"), "a rest sends nothing: %s %s" % (log,
+                                                                                                         result.job)
+    result, _ = run_submit(Vibes([], generate=httpx.Response(401, json={"error": "Unauthorized"})),
+                           job("vibes-image-edit"))
+    assert isinstance(result.job, Ambiguous)
+    assert [type(e).__name__ for e in result.account] == ["Suspect", "Cooldown"], (
+        "a doubt about the account: %s" % (result.account,))
+
+
 @mutation(SUBMIT_FILE, '            if item.get("error") or not has_media(item):', "            if False:",
           expect="a refused edit")
 def test_an_image_edit_vibes_refused_fails_with_its_refund_and_a_source_without_an_image_id_sends_nothing():

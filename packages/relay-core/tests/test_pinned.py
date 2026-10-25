@@ -95,7 +95,7 @@ def test_a_pinned_job_is_claimed_only_by_the_account_that_made_its_source(db):
 
 @mutation(K, "   AND pin_account_id IS NULL\n ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
           "\n ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
-          expect="another account's pinned job is never picked")
+          expect="jobs_pinned_account")      # the last guard refuses the claim
 def test_a_waiting_pinned_job_never_blocks_newer_jobs_and_no_other_account_takes_it(db):
     k = key(db)
     owner = account(db, cooldown_s=600)       # cooling: its pinned job waits
@@ -125,7 +125,7 @@ def test_the_database_refuses_a_pinned_job_on_any_other_account(db):
 
 # ---- a pinned job whose account can no longer run it ----------------------------------------------------------------
 @pytest.mark.parametrize("state", ["dead", "disabled"])
-@mutation(K, '            if state != "available":', '            if False:', expect="ends at once")
+@mutation(R, '            if state != "available":', '            if False:', expect="ends at once")
 def test_a_pinned_job_of_a_dead_or_disabled_account_ends_at_once_with_its_refund(db, state):
     k = key(db)
     owner = account(db)
@@ -133,15 +133,15 @@ def test_a_pinned_job_of_a_dead_or_disabled_account_ends_at_once_with_its_refund
     async def scenario(p):
         made = await create(p, k, "extend it", source=source_of(db, k, owner))
         db.run("UPDATE accounts SET state = %s WHERE id = %s", state, owner)
-        return made, await claim(p)
+        return made, (await reaper(p).tick())["blocked_pins"]
 
-    made, got = run(db, scenario)
-    assert got is None
+    made, ended = run(db, scenario)
+    assert ended == 1, "ends at once: %d" % ended
     assert row(db, made.job_id, "status, error_code") == ("failed", "source.account_unavailable"), "ends at once"
     assert refunded(db, made.job_id), "the charge is returned"
 
 
-@mutation(K, "if cap is None or cap.left_n is None or cap.left_n >= cost:",
+@mutation(R, "if cap is None or cap.left_n is None or cap.left_n >= cost:",
           "if cap is None or cap.left_n is None or cap.left_n >= 0:", expect="an account out of quota")
 def test_a_pinned_job_of_an_account_out_of_quota_ends_at_once_and_one_that_can_pay_waits_its_turn(db):
     k = key(db)
@@ -150,10 +150,10 @@ def test_a_pinned_job_of_an_account_out_of_quota_ends_at_once_and_one_that_can_p
     async def scenario(p):
         broke = await create(p, k, "extend it", source=source_of(db, k, empty))
         later = await create(p, k, "extend it", source=source_of(db, k, busy))
-        return broke, later, await claim(p)
+        return broke, later, (await reaper(p).tick())["blocked_pins"]
 
-    broke, later, got = run(db, scenario)
-    assert got is None
+    broke, later, ended = run(db, scenario)
+    assert ended == 1, "an account out of quota ends its pinned job at once: %d" % ended
     assert row(db, broke.job_id, "status, error_code") == ("failed", "source.account_exhausted"), (
         "an account out of quota ends its pinned job at once")
     assert refunded(db, broke.job_id)

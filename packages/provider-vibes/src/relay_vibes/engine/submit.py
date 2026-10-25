@@ -252,6 +252,9 @@ class _Run:
             said = body.get("error") or body.get("message") or "no reason given"
             return _result(Fail(errors.GENERATE_REFUSED, "vibes refused the image edit (%d): %s"
                                 % (resp.status_code, str(said)[:300])))
+        if resp.status_code in SIGNED_OUT_STATUSES:     # unclear for the job, but a doubt about the account
+            return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code), *doubt_effects(
+                "not signed in: vibes answered %d to the image edit" % resp.status_code, self.now()))
         return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code))
 
     def generate_body(self, batch: str, prompt: str, config: dict, frame: dict | None) -> dict:
@@ -341,6 +344,10 @@ async def _edit_image(ctx, job, settings, rests: Rests, transport, now: Callable
             source = run.source_image()
         except _Stop as stop:
             return stop.result
+        left = rests.left_s(ctx.account.id)
+        if left:        # nothing is sent while the account rests after a checkpoint: an ordinary retry, not a failure
+            return _result(Retry(THROTTLED), Cooldown("vibes security checkpoint",
+                                                      now() + timedelta(seconds=left), recheck=True))
         await ctx.mark_sent()                               # immediately before the POST
         try:
             resp = await client.post(IMAGE_EDIT_PATH, json={"sourceImageEntId": source, "editPrompt": prompt,

@@ -1035,6 +1035,39 @@ def test_a_model_with_resolutions_offers_them_and_sends_the_one_picked_in_option
     assert sent.value.post_data_json["options"] == {"resolution": "720p"}
 
 
+def test_a_model_that_works_on_a_source_job_takes_its_id_and_sends_it_and_no_other_model_shows_the_field(
+        app_session, live, db):
+    """A model whose catalog names `limits.source` (vibes' extend and edits) has a Source job field; the request
+    carries the id typed as `source_job_id`. A model that names none has no such field. With RELAY_SCREENSHOTS_DIR set
+    the form is saved as test-source-job.png."""
+    import dataclasses
+    import os
+
+    from relay_core.providers import check_catalog
+
+    page = app_session
+    for name in live.env.registry.names():
+        spec = live.env.registry.spec(name)
+        listed = spec.catalog()
+        spec.catalog = lambda listed=listed: [
+            dataclasses.replace(m, limits={**m.limits, "source": "video", "max_images": 0})
+            if m.media_type == "video" else m for m in listed]
+    registry = live.env.registry
+    registry._models = check_catalog([registry.spec(n) for n in registry.names()])
+    open_test_tab(page, db, live)
+    form = page.locator("section.form")
+    page.get_by_test_id("test-model").filter(has_text="fake-image").click()
+    expect(form.get_by_label("Source job", exact=True)).to_have_count(0)
+    page.get_by_test_id("test-model").filter(has_text="fake-video").click()
+    page.get_by_label("Prompt", exact=True).fill("the birds fly away")
+    form.get_by_label("Source job", exact=True).fill(" 6f0c3c1e-7a58-4b8e-9d57-0a2d1f0e5a11 ")
+    if os.environ.get("RELAY_SCREENSHOTS_DIR"):
+        form.screenshot(path=os.path.join(os.environ["RELAY_SCREENSHOTS_DIR"], "test-source-job.png"))
+    with page.expect_request(lambda r: r.method == "POST" and "/generations" in r.url) as sent:
+        page.get_by_role("button", name="Send test job", exact=True).click()
+    assert sent.value.post_data_json["source_job_id"] == "6f0c3c1e-7a58-4b8e-9d57-0a2d1f0e5a11"
+
+
 def test_generate_polls_to_a_result_draws_a_share_link_and_shows_any_other_link_as_text(app_session, live, db):
     page = app_session
     requests = []
