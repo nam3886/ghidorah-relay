@@ -32,6 +32,13 @@ export function stylesOf(m: PublicModel | null): string[] {
   return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string" && s !== "") : [];
 }
 
+// The kind of output ("video", "image") an earlier job must have made for a model that works on one (`limits.source`:
+// vibes' extend and edits), else "": only such a model is sent a source job.
+export function sourceKindOf(m: PublicModel | null): string {
+  const kind = (m?.limits as { source?: unknown } | undefined)?.source;
+  return typeof kind === "string" ? kind : "";
+}
+
 // False only for a model that says it takes no input image (`limits.max_images` 0: meta-image, vibes-image).
 export const takesImages = (m: PublicModel | null): boolean =>
   (m?.limits as { max_images?: unknown } | undefined)?.max_images !== 0;

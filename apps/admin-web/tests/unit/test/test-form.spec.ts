@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe("the saved form", () => {
-  it("is kept under relay_test_form with the model and the nine fields, and nothing else", () => {
+  it("is kept under relay_test_form with the model and the ten fields, and nothing else", () => {
     expect(FORM_KEY).toBe("relay_test_form");
     expect(FIELDS).toEqual([
       "prompt",
@@ -36,6 +36,7 @@ describe("the saved form", () => {
       "title",
       "options",
       "resolution",
+      "source",
     ]);
     const typed = form({
       model: "veo-3",
@@ -47,6 +48,7 @@ describe("the saved form", () => {
       title: "t",
       options: "{}",
       resolution: "720p",
+      source: "job-1",
     });
     saveForm(typed);
     expect(JSON.parse(localStorage.getItem("relay_test_form") ?? "")).toEqual({
@@ -60,6 +62,7 @@ describe("the saved form", () => {
       title: "t",
       options: "{}",
       resolution: "720p",
+      source: "job-1",
     });
     expect(localStorage.length).toBe(1);
   });
@@ -203,5 +206,12 @@ describe("the request body", () => {
     expect(buildBody(vibes, form(), [])).not.toHaveProperty("options");
     // no list: the form shows no Resolution, so a value saved earlier is not sent
     expect(buildBody(video, form({ resolution: "720p" }), [])).not.toHaveProperty("options");
+  });
+
+  it("sends the source job trimmed for a model that works on one, and never for another model", () => {
+    const extend: PublicModel = { ...video, limits: { source: "video" } };
+    expect(buildBody(extend, form({ source: "  job-1 " }), []).source_job_id).toBe("job-1");
+    expect(buildBody(extend, form(), [])).not.toHaveProperty("source_job_id");
+    expect(buildBody(video, form({ source: "job-1" }), [])).not.toHaveProperty("source_job_id");
   });
 });

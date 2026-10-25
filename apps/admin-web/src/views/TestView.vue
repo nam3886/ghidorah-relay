@@ -22,6 +22,7 @@ import {
   pointsFor,
   ratiosOf,
   resolutionsOf,
+  sourceKindOf,
   stylesOf,
   takesImages,
   titleOf,
@@ -167,6 +168,8 @@ const styleList = computed(() =>
 );
 const hasStyle = computed(() => chosen.value?.kind === "image" && styleList.value.length > 0);
 const hasImages = computed(() => takesImages(chosen.value));
+// a model that works on an earlier job's output (vibes' extend and edits) takes that job's id
+const sourceKind = computed(() => sourceKindOf(chosen.value));
 const styleChoices = computed(() =>
   form.style && !styleList.value.some((s) => s.value === form.style)
     ? [...styleList.value, { value: form.style, label: form.style }]
@@ -314,6 +317,7 @@ async function generateNow(): Promise<void> {
     ratio: hasRatio.value ? form.ratio : "",
     style: hasStyle.value ? form.style : "",
     images: images ? form.images : "",
+    source: sourceKind.value ? form.source : "",
   };
   const picked = images ? files.value : [];
   await generate.start(model, async () => {
@@ -530,6 +534,21 @@ onMounted(async () => {
                 ><label for="test-title" class="lbl">Title</label><span class="help">optional</span></span
               >
               <input id="test-title" v-model="form.title" type="text" class="ctl" @input="persist" />
+            </div>
+            <div v-if="sourceKind" class="field">
+              <span class="blk__head"
+                ><label for="test-source" class="lbl">Source job</label
+                ><span class="help">the id of an earlier finished {{ sourceKind }} job of this key</span></span
+              >
+              <input
+                id="test-source"
+                v-model="form.source"
+                type="text"
+                class="ctl num"
+                spellcheck="false"
+                autocomplete="off"
+                @input="persist"
+              />
             </div>
           </div>
 

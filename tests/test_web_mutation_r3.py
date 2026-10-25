@@ -87,7 +87,7 @@ def test_image_limits():
 
 # ---- the form: localStorage, and the request body ----------------------------------------------------------------
 SAVED_FORM = (FORM_SPEC
-              + "the saved form > is kept under relay_test_form with the model and the nine fields, and nothing else")
+              + "the saved form > is kept under relay_test_form with the model and the ten fields, and nothing else")
 BODY = FORM_SPEC + "the request body > "
 BODY_KINDS = BODY + ("sends duration for a video that names its lengths and for nothing else, style for an image and "
                      "not for a video")
@@ -95,6 +95,7 @@ BODY_TRIM = BODY + "sends ratio, count as n, and title trimmed, and leaves empty
 BODY_RESOLUTION = BODY + ("sends the resolution in options for a model that names resolutions, under one the JSON "
                           "sets, and not for others")
 BODY_IMAGES = BODY + "sends the URL lines, then the attached files as data URIs, in that order"
+BODY_SOURCE = BODY + "sends the source job trimmed for a model that works on one, and never for another model"
 BODY_OPTIONS = BODY + "parses the options as JSON and fails on text that is not JSON"
 READ_FAILS = FORM_SPEC + "the saved form > reports a store that cannot be read as a failure"
 WRITE_REPORTS = (FORM_SPEC + "the saved form > reports a refused write and a refused clear as failures, "
@@ -115,6 +116,8 @@ READ_STRINGS = FORM_SPEC + "the saved form > ignores a field that is not a strin
 @mutation(FORM, "body.options = { resolution, ...own };", "body.options = { ...own, resolution };",
           expect=BODY_RESOLUTION)
 @mutation(FORM, ".map((line) => line.trim())", ".map((line) => line)", expect=BODY_IMAGES)
+@mutation(FORM, "if (sourceKindOf(model) && source) body.source_job_id", "if (source) body.source_job_id",
+          expect=BODY_SOURCE)
 @mutation(FORM, "if (form.options.trim()) body.options", "if (form.options) body.options", expect=BODY_OPTIONS)
 @mutation(FORM, "return { form, ok: false };", "return { form, ok: true };", expect=READ_FAILS)
 @mutation(FORM, "JSON.stringify(out));\n    return true;", "JSON.stringify(out));\n    return false;",

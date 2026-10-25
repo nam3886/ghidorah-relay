@@ -667,7 +667,7 @@ def test_every_provider_has_its_own_frames_and_a_vibes_edit_previews_verbatim_an
     assert sorted({r[0] for r in before}) == ["dola", "flow", "meta", "vibes"]
     nav.get_by_test_id("provider-tab-vibes").click()
     expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
-    page.get_by_test_id("frame-models").get_by_role("button", name="Edit frame for vibes-video").click()
+    page.get_by_test_id("frame-models").get_by_role("button", name="Edit frame for vibes-video", exact=True).click()
     expect(page.locator(".filter-select__value")).to_contain_text("vibes-video")
     expect(page.get_by_test_id("frame-verbatim")).to_contain_text("vibes sends the text as written")
     page.get_by_label("Frame text").fill("Cinematic, {{client_prompt}} {{tracking_code}}")

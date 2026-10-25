@@ -1,7 +1,7 @@
 // The Test tab's form: what is kept in localStorage (relay_test_form), and the request body built from it. The typed
 // API key is NOT part of the form and never reaches localStorage (it lives in sessionStorage, see test-key.ts).
 import type { PublicModel } from "@/api/test";
-import { durationsOf, resolutionsOf } from "@/components/test/test-models";
+import { durationsOf, resolutionsOf, sourceKindOf } from "@/components/test/test-models";
 
 export const FORM_KEY = "relay_test_form";
 export const FIELDS = [
@@ -14,6 +14,7 @@ export const FIELDS = [
   "title",
   "options",
   "resolution",
+  "source",
 ] as const;
 export type FormField = (typeof FIELDS)[number];
 export type FormFields = Record<FormField, string>;
@@ -33,6 +34,7 @@ export function emptyForm(): TestForm {
     title: "",
     options: "",
     resolution: "",
+    source: "",
   };
 }
 
@@ -101,7 +103,8 @@ export function optionValue(option: Record<string, unknown>): string {
 // other model, so a value saved earlier is not sent), style for image; a field left empty is not sent. `images` are the
 // https URLs (one per line) followed by the attached files as data URIs. Options must be JSON: invalid text throws a
 // SyntaxError, which the tab shows in its status line. Resolution goes in `options.resolution`, only for a model that
-// names a list of them; a `resolution` the options JSON sets itself wins over the select.
+// names a list of them; a `resolution` the options JSON sets itself wins over the select. The source job goes as
+// `source_job_id`, only for a model that works on one (`limits.source`).
 export function buildBody(model: PublicModel, form: FormFields, dataUris: string[]): Record<string, unknown> {
   const body: Record<string, unknown> = { model: model.id, prompt: form.prompt };
   if (model.kind === "video" && durationsOf(model).length && form.duration.trim())
@@ -122,6 +125,8 @@ export function buildBody(model: PublicModel, form: FormFields, dataUris: string
   ];
   if (images.length) body.images = images;
   if (form.options.trim()) body.options = JSON.parse(form.options);
+  const source = form.source.trim();
+  if (sourceKindOf(model) && source) body.source_job_id = source;
   const resolution = form.resolution.trim();
   if (resolutionsOf(model).length && resolution) {
     const own = body.options;
