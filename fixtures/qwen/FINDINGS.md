@@ -320,3 +320,24 @@ Revisit when a web version adds a video `attachments` type or a `genMode` beyond
   on top of the daily ones. `pro` is also what VIP-only models require (`requiredMemberType: pro`).
 - The check maps free → free and pro → pro; go and plus have no core tier and are not written. Only free is measured
   (`spike-261023/member_level.json`).
+
+## Catalog 25/10 (public reads only: no account, no token)
+Read through a box proxy with no cookies, 16:30 GMT+7. No account was used: the access token comes only from a
+refresh, and a refresh beside the relay forked the session earlier today (both accounts signed out).
+- The page still loads web bundle **0.3.22** (`assets.alicdn.com/g/qwenweb/qwen-chat-fe/0.3.22/js/main.js`). The
+  backend's `GET /api/config` says `version: 0.4.4`; its `features.limits.image_edit.image_max_count` is **3** (the
+  image composer's upload cap, `image_max_count` 5 is for chats). `GET /api/v2/models/` answers without a token and
+  lists chat models only (`qwen3.7-plus`, `qwen3.8-max`, `qwen3.8-omni-flash`); the media models are in the bundle.
+  `GET /api/v2/credits/pricing` needs a token (`Unauthorized`), so the costs are the recorded list (23/10).
+- From the bundle (unchanged from FINDINGS 8):
+  - images `qwen-image-3.0` (default ratio 16:9) and `qwen-image-3.0-pro` (`vip`, `requiredMemberType: pro`, ratios
+    `auto` + the seven, default `auto`); the request names it in `extra.meta.model`;
+  - videos `happyhorse-1.1` / `happyhorse-1.0` (modes `standard`, `multi-reference`) and `wan-2.7` (`standard`,
+    `first-last-frame`); Wan is in the hidden set `Un`, so the picker shows only HappyHorse;
+  - images per mode (`gs`): standard 1, multi-reference 9, first-last-frame 2. The builder (`VX`) sends every image
+    as `attachments [{type: "image", materialId}]`, first frame then last frame for first-last-frame; `genMode` is
+    `multi_ref` for multi-reference, else `vid_gen`; `extra.meta.videoGenerationMode` is the mode;
+  - resolutions `720P`, `1080P`; 1080P is member-only for HappyHorse (`es`: a non-member switching model is put back
+    to 720P), not for Wan. Durations 5/10/15; ratios as before plus `original` (`origin` on the wire, not sold).
+- The recorded price list has scenes the web app never builds: Wan 3.0 / 3.0 prime (480P-1080P, `purchase`), Wan 2.5
+  preview (480P-1080P, `all`), video edit, extend and motion imitation. Not built: no request shape for them.

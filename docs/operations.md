@@ -1040,11 +1040,17 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 
 ## The qwen provider (`relay worker --provider qwen`)
 
-Qwen Chat (chat.qwen.ai) over plain HTTP; Chrome only mints the anti-bot pair. Models: `qwen-image-3.0` (text to
-image and one-image edit; ratios 16:9 default, 1:1, 9:16, 4:3, 3:4, 3:2, 2:3) and `qwen-happyhorse-1.1`,
-`qwen-happyhorse-1.0` (text or one image to a 720p video with sound, 5/10/15 s; ratios 16:9 default, 4:3, 1:1, 3:4,
-9:16). Wan 2.7 is hidden in the web app's picker and not offered; HappyHorse 1080P is for paid plans. The protocol is
-in `fixtures/qwen/FINDINGS.md`.
+Qwen Chat (chat.qwen.ai) over plain HTTP; Chrome only mints the anti-bot pair. Models:
+- `qwen-image-3.0` and `qwen-image-3.0-pro` (text to image, or a prompt with up to 3 reference images; ratios 16:9
+  default, 1:1, 9:16, 4:3, 3:4, 3:2, 2:3; the pro model also `auto`, its default);
+- `qwen-happyhorse-1.1`, `qwen-happyhorse-1.0` and `qwen-wan-2.7` (a video with sound, 5/10/15 s, 720p or 1080p by
+  `options.resolution`; ratios 16:9 default, 4:3, 1:1, 3:4, 9:16). One image is a start frame; HappyHorse takes 2-9
+  reference images (`multi-reference`), Wan a first and a last frame (2 images, in that order). Wan 2.7 is hidden in the
+  web app's picker: offered, not yet confirmed live.
+
+The pro image model and HappyHorse 1080P are for paid qwen plans: they draw on the pools `image_pro` and `video_pro`,
+which hold nothing for a free account, so only an account whose plan read says `pro` is picked. The protocol is in
+`fixtures/qwen/FINDINGS.md`.
 
 **What the worker needs.** The browser image (`worker-qwen`, target `browser`, profiles on `profiles-qwen`) and
 `deploy/worker-qwen.env` with the usual worker variables. No key of its own.
@@ -1085,8 +1091,8 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
 | `qwen.refusal_grace_s` | 300 | a lost video answer whose chat shows words and no task is refused after this |
 | `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
-| `qwen.prices` | 1 per image, 1/2/3 per 5/10/15 s video | points, keyed `model` or `model@<s>s`; a missing option is refused |
-| `qwen.costs` | 1 per image, the qwen price list per video (HappyHorse 1.1 30/60/90, 1.0 40/80/120) | one job of the image budget, or qwen credits |
+| `qwen.prices` | 1 per image (pro 2), 1/2/3 per 5/10/15 s 720p video, twice that at 1080p | points, keyed `model`, `model@<s>s` or `model@1080p@<s>s`; a missing option is refused |
+| `qwen.costs` | 1 per image, the qwen price list per video (720p: HappyHorse 1.1 30/60/90, 1.0 40/80/120, Wan 2.7 20/40/60; 1080p: 40/80/120, 70/140/210, 30/60/90) | one job of the image budget, or qwen credits |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
