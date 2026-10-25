@@ -1,10 +1,11 @@
 """Shared helpers for the relay-browser suites: an account, a site profile that stays inside tmp_path, the real
-redactor, and a sync wrapper for async tests. Headless or headful is the kit's own decision (conftest sets
-RELAY_BROWSER_HEADLESS for the Mac tier); a site profile here never forces it."""
+redactor, and a sync wrapper for async tests. A site profile here is headless on a Mac (the Mac tier must not raise
+windows) and headful elsewhere (the box runs Xvfb), as production is."""
 
 import asyncio
 import functools
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,7 +31,7 @@ class Proxy:
 
 def site_for(tmp_path: Path, **overrides) -> SiteProfile:
     fields = dict(name="test", host="127.0.0.1", profile_root=str(tmp_path / "profiles"),
-                  executable_path=os.environ.get("RELAY_TEST_CHROME") or None)
+                  executable_path=os.environ.get("RELAY_TEST_CHROME") or None, headless=sys.platform == "darwin")
     return SiteProfile(**{**fields, **overrides})
 
 

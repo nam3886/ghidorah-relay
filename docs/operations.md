@@ -42,10 +42,9 @@ The same version (without the `-1` package revision) is the constant `PINNED_CHR
 Chrome once (`browser Chrome/154.0.8037.92`) and logs a warning that names both versions when the major version or the
 build number differs from the pin. It never refuses to run.
 
-**On the Mac, run the pinned build, not the installed Google Chrome.** The installed Chrome updates itself, and
-Chrome 155.0.8059.40 restarts its network service a few seconds into a dola load; the restart empties the cookie store
-and the page reads as a guest. Use Chrome for Testing 154.0.8037.92 and point `RELAY_CHROME_PATH` at it (the steps are
-at the top of `reports/live-run-mac.md`).
+**Only the image's pinned build runs.** Chrome 155.0.8059.40 restarts its network service a few seconds into a dola
+load; the restart empties the cookie store and the page reads as a guest. Everything runs on the box, in the image, so
+no variable points at another Chrome (a test passes its own `executable_path`).
 
 The Chrome layer sits before the code in the Dockerfile (stages `xvfb` and `chrome`), so a code change does not
 rebuild or re-download it. Google's pool serves only the current stable: when this version is superseded, put the
@@ -116,10 +115,10 @@ pull fails.
 - `CREDENTIAL_SEAL_PUBLIC_KEY` is in `api.env` only. Any `*PRIVATE_KEY*` variable (`CREDENTIAL_SEAL_PRIVATE_KEY`
   today) may appear only for `worker-<provider>` services; `api` and `migrate` never see one (I20).
   `tests/test_deploy.py` enforces both.
-- `migrate.env` holds `DATABASE_URL` (the owner role), `BILLING_TZ` and the passwords `relay_api` and `relay_worker`
-  get (`RELAY_API_DB_PASSWORD`, `RELAY_WORKER_DB_PASSWORD`). `relay migrate` applies the SQL migrations, sets those
-  passwords, and pins `BILLING_TZ` on the first run (UTC when unset); a service whose `BILLING_TZ` differs from the
-  pin refuses to start. `MINIO_REGION` is read by every service that talks to MinIO (api and the workers).
+- `migrate.env` holds `DATABASE_URL` (the owner role) and the passwords `relay_api` and `relay_worker` get
+  (`RELAY_API_DB_PASSWORD`, `RELAY_WORKER_DB_PASSWORD`). `relay migrate` applies the SQL migrations, sets those
+  passwords, and on the first run pins the billing day's timezone in `billing_pin` (Asia/Ho_Chi_Minh). The pin is its
+  only source: no variable names it, the admin shows it read-only, and a service refuses to start without one. `MINIO_REGION` is read by every service that talks to MinIO (api and the workers).
 - Images are named `relay-<service>:${GIT_SHA}`, so a rollback is a retag.
 
 ## Graceful stop of the browser workers
@@ -141,13 +140,12 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
 
 ## The browser kit (`relay-browser`)
 
-Used by browser workers only (dola, meta). Everything is read from the environment of the worker process.
+Used by browser workers only (dola, meta, qwen). It reads no environment variable (owner, 25/10):
 
-| Variable | Meaning |
-|---|---|
-| `RELAY_CHROME_PATH` | Chrome binary; wins over the provider's `executable_path` and over the default `channel="chrome"` (the installed Google Chrome) |
-| `RELAY_BROWSER_HEADLESS` | `1` = headless; unset = headful (on the box under Xvfb). Only the Mac test tier sets it. A provider's own `headless` setting wins |
-| `RELAY_PROFILE_ROOT` | Directory holding the profiles. Unset = `<system temp>/relay-profiles` (lost on restart). The compose workers mount a volume at `/profiles`; the `worker-*.env.example` files do not set this variable yet, so set `RELAY_PROFILE_ROOT=/profiles` in `deploy/worker-<provider>.env` or the cache is not kept (see below) |
+- **Chrome**: the image's pinned Google Chrome (`channel="chrome"`), headful under Xvfb. A test passes its own
+  `executable_path` and `headless=True` on its `SiteProfile`.
+- **Profiles**: under `PROFILE_ROOT` = `/profiles` (`relay_browser/session.py`), where `deploy/compose.yml` mounts each
+  browser worker's profiles volume; the two must match. A test passes its own `profile_root`.
 
 - **One profile per account and credential generation**: `<root>/<account id>-g<credential_gen>`, plus a
   `<name>.lock` file. A replaced credential gets a new profile and never inherits page state. Account ids must match
@@ -186,7 +184,7 @@ Used by browser workers only (dola, meta). Everything is read from the environme
     `SingletonLock`, and the forwarder, profile reset, lock and temp dir are still cleaned up. A killed close is
     logged `browser did not close ... killing it` and drops Local Storage whole.
   - `BrowserLaunchError`: Chrome failed to start twice (the profile is wiped and the launch retried once). Check
-    `RELAY_CHROME_PATH` and the display (`xvfb-exec` refuses to start the worker without one).
+    the image's Chrome and the display (`xvfb-exec` refuses to start the worker without one).
 
 ## Gates
 
@@ -344,10 +342,11 @@ Environment (names only; the template is `deploy/api.env.example`):
 | `DATABASE_URL` | required; the `relay_api` role |
 | `CREDENTIAL_SEAL_PUBLIC_KEY` | required; account import and proxy edits seal with it. Missing or malformed refuses |
 | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION` | required object-store settings; the bucket is created at start, by `relay serve` and by `relay worker` alike (a fresh object store has none) |
-| `PORT` | keep 8100 (the container mapping is fixed; the compose file publishes it as `API_PORT`, default 8100) |
-| `BILLING_TZ` | must equal the value pinned by `relay migrate` (first run pins it, UTC when unset); a different value refuses. Never stored in the settings table |
-| `PUBLIC_BASE_URL` | base of the media URLs in job answers; unset = built from the request |
-| `TRUSTED_PROXIES` | `X-Forwarded-*` is honoured only when this is set; there is no reverse proxy in the compose file |
+
+Nothing else is a variable (owner, 25/10): the api listens on 8100 (fixed; the compose file publishes it as
+`API_PORT`, default 8100); the base of the media URLs is the setting `public_address` (empty: built from the
+request); the proxies whose `X-Forwarded-For` is believed are the setting `trusted_proxies` (empty: none, and there is
+no reverse proxy in the compose file); the billing day's timezone is the pin `relay migrate` wrote.
 
 A status read of a `waiting` job may run one median query over recent finished jobs of its model and duration: at most one per shape every 5 minutes, in its own transaction with a 500 ms statement timeout; if it fails or is slow the answer is still served (progress by stage, no estimated finish) and the api log carries a one-line warning. It needs no index at today's volume; past about 200 000 rows in `jobs`, add a partial index on `(provider, model, finished_at DESC) WHERE status = 'done'`, built concurrently outside a migration transaction.
 
@@ -359,7 +358,7 @@ A status read of a `waiting` job may run one median query over recent finished j
 - `MINIO_SECRET_KEY` is empty or an example value (for example `minioadmin`): set the real secret;
 - the public key is missing or malformed, or the object-store settings are missing or malformed;
 - two providers declare the same model id or alias;
-- after it connects: `BILLING_TZ` differs from the pin.
+- after it connects: no billing timezone is pinned (run `relay migrate`).
 
 Then it gives every (provider, kind) wallet that the built providers declare a closed wallet on the keys that exist,
 and serves. A key therefore runs nothing until `--wallet` (below) or the admin Keys page opens a wallet.
@@ -377,7 +376,7 @@ no trace and no secret.
 
 | Command | Does |
 |---|---|
-| `relay migrate` | applies the SQL migrations as the owner (the only DDL path), sets the service role passwords, pins `BILLING_TZ` |
+| `relay migrate` | applies the SQL migrations as the owner (the only DDL path), sets the service role passwords, pins the billing timezone on its first run |
 | `relay serve` | the api (above) |
 | `relay worker --provider X` | the worker (below) |
 | `relay admin create-user USERNAME` | makes an admin user |
@@ -385,6 +384,7 @@ no trace and no secret.
 | `relay key create`, `relay key disable ID` | API keys |
 | `relay provider drain\|resume X` | drain mode (above) |
 | `relay jobs restore-mark --dump-time T` | the restore runbook |
+| `relay seed-settings` | one-off (25/10): stores each unset setting that was a variable from this container's env (below) |
 | `relay e2e --provider X` | live end-to-end run of one provider |
 
 **`relay admin create-user USERNAME`.** The password is read twice without echo on a terminal, or as one line from a
@@ -392,6 +392,15 @@ pipe; it is never an argument. A password under 10 or over 256 characters, or an
 examples), is refused with exit 2, and so
 is a user that already exists. Run it for the first admin after `relay migrate`:
 `printf '%s\n' "$PW" | docker compose ... run --rm api relay admin create-user alice`.
+
+**`relay seed-settings`** (one-off, 25/10; `ponytail:` it goes once production is seeded). Each setting that was an
+environment variable and has no stored value takes that variable from the env of the container it runs in:
+`public_address` <- `PUBLIC_BASE_URL` and `trusted_proxies` <- `TRUSTED_PROXIES` (comma-separated) from the api's,
+flow's three solver keys `flow.<source>_key` <- `FLOW_<SOURCE>_KEY` from worker-flow's (sealed with the public half of
+its private key). A stored value is never replaced; an empty variable stores nothing. It prints one line per setting
+(stored, already set, or empty) and never a value. After the deploy:
+`docker compose -p relay --profile app exec api relay seed-settings` and
+`docker compose -p relay --profile flow exec worker-flow relay seed-settings`; then the old lines go from the env files.
 
 **`relay keygen`.** Prints the key id, `CREDENTIAL_SEAL_PUBLIC_KEY=...` (for `api.env` and the admin's import tool)
 and `CREDENTIAL_SEAL_PRIVATE_KEY=...` (the worker env files only). It is printed once and stored nowhere: keep a copy
@@ -433,11 +442,16 @@ token sent as the `X-Admin-Session` header (no cookie).
   Each item carries `allowed`, the range or rule the value must meet, `group` (the provider of a `<p>.<name>` key, else
   `core`, as the `fixed` rows) and `basic` (true for the few an admin changes often: a provider's `claims_enabled`,
   `prices`, budgets, `disabled_models`, a browser provider's `browser_slots`, dola's `master_quality`, flow's
-  `captcha_provider`; the page may fold the others away). The answer also carries `fixed` (the code
+  `captcha_provider` and solver keys; the page may fold the others away). `choices` is the whole list of allowed
+  values when the rule has one (flow's `captcha_provider`: a multiple select whose order is the try order). A
+  `secret` setting (a solver key) is stored sealed with the credential seal: the api seals it with
+  `CREDENTIAL_SEAL_PUBLIC_KEY`, only a worker opens it (at its next settings reload, no restart); no read returns it,
+  `value` and `default` are null, `source` says set or not and `hint` its last 4 characters (none under 16); a put
+  replaces it, a delete clears it, and its history rows keep only who changed it and when. The answer also carries `fixed` (the code
   constants that shape behaviour, each with a reason; the list is `relay_core/limits.py` and each provider's `LIMITS`)
   and `containers` (the api's and each recently reporting worker's CPU, memory, PID and `/dev/shm` limits, read from
-  its cgroup at start, and when each was reported). An item no longer names an environment variable. The boot-only list
-  (`env_only`) is unchanged.
+  its cgroup at start, and when each was reported). An item no longer names an environment variable. The read-only list
+  (`env_only`) holds only `BILLING_TZ`, the pin.
 - **Account actions are commands.** Delete, wake, check, proxy re-check, Check all, catalog refresh, job recover and
   fetch-title answer 202 `{command_id}`; the provider's worker runs them (see "What an operator must know").
   `GET /admin/commands/{id}` shows status and result. Editing the proxy or enabling an account that holds a live
@@ -548,23 +562,25 @@ Environment (read at boot; the full list is in the per-service env files):
 
 | Variable | Meaning |
 |---|---|
-| `DATABASE_URL`, `BILLING_TZ`, the credential private keys, MinIO settings | required; a missing or malformed value exits 2 before any connection |
-| `WORKER_ID` | default `worker-<provider>`. Names the heartbeat row, so it must be **unique per worker process** and contain **no `/`** (else exit 2). Two processes sharing an id share one row. Each boot appends its own `/<suffix>` to form the lease owner |
-| `WORKER_GRACE_S` | default 720. One deadline for the whole stop; keep it below the compose `stop_grace_period` (780 s) so Docker never kills first |
+| `DATABASE_URL`, the credential private keys, MinIO settings | required; a missing or malformed value exits 2 before any connection |
+
+Nothing else is a variable: the heartbeat row is `worker-<provider>` (one worker process per provider; each boot
+appends its own `/<suffix>` to form the lease owner), and the stop grace is `DEFAULT_GRACE_S` = 720 s
+(`relay_core/jobs/worker.py`, on the Fixed limits card), which must stay below the compose `stop_grace_period` (780 s)
+so Docker never kills first.
 
 At start the worker reads its container limits from its own cgroup (v2: `cpu.max`, `memory.max`, `pids.max`, plus the
-`/dev/shm` size) and the five boot knobs named in `BOOT_NAMES` (`relay_core/cgroup.py`; no other variable is ever
-copied, so a secret cannot be reported). It writes both with its heartbeat row (`worker_heartbeats.limits`, migration
-`0019_worker_limits.sql`). A `docker update` shows only after a restart.
+`/dev/shm` size) and writes them with its heartbeat row (`worker_heartbeats.limits`, migration
+`0019_worker_limits.sql`). No environment value is copied. A `docker update` shows only after a restart.
 
-Start: the worker refuses (exit 2) when `BILLING_TZ` differs from the value pinned by `relay migrate`.
+Start: the worker refuses (exit 2) when no billing timezone is pinned (run `relay migrate`).
 
 Exit codes: 0 clean stop; 1 after 5 consecutive unexpected errors in the claim loop, or a loop that died; 2 refused
 to start. A submit stopped by the core's own timeout does not count toward the 5. Docker restarts the
 container on 1.
 
 Graceful stop (SIGTERM or SIGINT; the entry script is under "Graceful stop of the browser workers"): no new claim,
-check or command starts; in-flight submits finish or are fenced inside `WORKER_GRACE_S`; the other loops finish the
+check or command starts; in-flight submits finish or are fenced inside `DEFAULT_GRACE_S`; the other loops finish the
 item they are on within what is left of the same deadline; leases are released, except that of a job still
 `submitting` (the reaper moves it); a command that was running is failed so the admin can run it again. A job
 requeued by a graceful stop is claimed again at once by another worker.
@@ -607,11 +623,9 @@ Drives dola.com in Chrome, one browser session per claimed job, or sends the ord
 
 - **Env file** `deploy/worker-dola.env` (gitignored), copied from `deploy/worker-dola.env.example`. Keys, names only:
   `DATABASE_URL`, `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_REGION`,
-  `CREDENTIAL_SEAL_PRIVATE_KEY`, `BILLING_TZ`, `RELAY_PROFILE_ROOT`. The number of browser sessions is not an
-  environment variable: it is the live setting `dola.browser_slots`. In the compose stack `compose.yml` sets
-  `RELAY_PROFILE_ROOT=/profiles` itself.
-- **Chrome** on the Mac (history: relay runs on the box now, whose image holds the same pinned build): the pinned Chrome for Testing 154.0.8037.92 through `RELAY_CHROME_PATH` (see "Google Chrome"),
-  not the installed Google Chrome. Set `RELAY_PROFILE_ROOT` too, or the profile cache is not kept.
+  `CREDENTIAL_SEAL_PRIVATE_KEY`. The number of browser sessions is not an environment variable: it is the live
+  setting `dola.browser_slots`. The profiles live under `/profiles`, the volume `compose.yml` mounts there.
+- **Chrome**: the image's pinned build (see "Google Chrome"); relay runs on the box only.
 - **Accounts and proxies live outside the repo**, in `~/relay-secrets/` (the Mac, mode 0600 files; copied to the box once at intake, see "The secret tools"). They are imported
   through the admin accounts import (`scripts/import-accounts.py` on the box), which seals each credential with the public key. Never print, paste or commit
   their contents, and never copy them into `deploy/` or `tests/`.
@@ -896,14 +910,16 @@ Input images are uploaded into the account's project first (free; one flow does 
 retry). Extending a video and upscaling are not sold: both name an output already in the account's project. The
 protocol and what is still unproven are in `fixtures/flow/FINDINGS.md`.
 
-**What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables plus
-the key of each reCAPTCHA solver `flow.captcha_provider` names: `FLOW_YESCAPTCHA_KEY` (YesCaptcha),
-`FLOW_CAPSOLVER_KEY` (CapSolver), `FLOW_ANTICAPTCHA_KEY` (Anti-Captcha). They are secrets of this worker only: read once
-at start, removed from the environment, never a setting, never logged. A chosen source without its key, or whose
-service refuses the key, retries every job as `flow.captcha_key_invalid`; an empty solver balance is
-`flow.captcha_no_balance`, no token within `flow.captcha_timeout_s` `flow.captcha_timeout`; each fails refunded after
-its attempts and never blames the flow account; checks still run. `flow.captcha_provider` may name an order
-(`capsolver,yescaptcha`): the next source is tried when one gives no token, inside the same timeout. Each account
+**What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables only. The key
+of each reCAPTCHA solver is a secret setting entered in the admin (Settings, flow: Replace or Clear; the page shows only
+set or not and the last 4 characters): `flow.yescaptcha_key` (YesCaptcha client key), `flow.capsolver_key` (CapSolver
+API key), `flow.anticaptcha_key` (Anti-Captcha account key). The api seals it; the worker opens it with
+`CREDENTIAL_SEAL_PRIVATE_KEY` at its next settings reload (no restart) and reads it at each solve; it is never logged.
+A chosen source without its key, or whose service refuses the key, retries every job as `flow.captcha_key_invalid`;
+an empty solver balance is `flow.captcha_no_balance`, no token within `flow.captcha_timeout_s` `flow.captcha_timeout`;
+each fails refunded after its attempts and never blames the flow account; checks still run. `flow.captcha_provider` is
+an ordered list of sources (a multiple select in the admin; an empty list is refused): the next source is tried when
+one gives no token, inside the same timeout. Each account
 should have a proxy: every call to Google, every result download and every call to a solver's API goes through it
 (owner, 23/10; direct only for an account with none). The token tasks: YesCaptcha `RecaptchaV3TaskProxylessM1` and
 Anti-Captcha `RecaptchaV3TaskProxyless` (no proxy task exists for it; `flow.anticaptcha_min_score`) are minted from the
@@ -955,7 +971,8 @@ deadline with its refund. Both pools rest after any generate.
 |---|---|---|
 | `flow.claims_enabled` | false | drain mode: no new job; the checks (and so the session upkeep) go on |
 | `flow.rotate_interval_s` | 600 | between two `RotateCookies` of one account (120-900) |
-| `flow.captcha_provider` | yescaptcha | the token source: `yescaptcha`, `capsolver`, `anticaptcha`, or an order such as `capsolver,yescaptcha` |
+| `flow.captcha_provider` | ["yescaptcha"] | the token sources in the order tried, one or more of `yescaptcha`, `capsolver`, `anticaptcha` |
+| `flow.yescaptcha_key`, `flow.capsolver_key`, `flow.anticaptcha_key` | not set | the solver keys, secret settings (stored sealed, never read back) |
 | `flow.captcha_timeout_s`, `flow.captcha_poll_s` | 120, 3 | one token's time (all sources of the order), between two task reads |
 | `flow.capsolver_proxy_task` | true | CapSolver solves through the account's proxy; false: proxyless |
 | `flow.anticaptcha_min_score` | 0.9 | Anti-Captcha's score queue (0.3, 0.7, 0.9) |
@@ -1127,7 +1144,7 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Test and gate runs | `~/relay-runs/<folder>/` through `scripts/box.sh` (see above), under its CPU budget |
 | Live-window marker | `~/relay-deploy/live-window` |
 | Logs of replaced containers | `~/relay-logs/<service>/<UTC time>-<random>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
-| Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
+| Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`PROFILE_ROOT` in `relay_browser/session.py`) |
 
 ### Deploy and rollback
 
@@ -1172,7 +1189,7 @@ The manual steps stay below as the reference for what the scripts do.
    must be free. A gate that started earlier decided "uncapped" at its start and would run next to production; wait for
    it or `--clear` it. (Same check as before a live window.)
 1. Start `postgres` and `minio` (`docker compose -p relay up -d`), run `migrate` to completion
-   (`--profile app run --rm migrate`: roles, every migration, the `BILLING_TZ` pin), then start `api`
+   (`--profile app run --rm migrate`: roles, every migration, the billing timezone pin), then start `api`
    (`--profile app up -d api`).
 2. **Store the drain:** `relay provider drain dola`. Run it a second time: it must print "(no change)". (That
    holds from the fix of the drain message on: until it is deployed the first run prints "(no change)" too, because the
@@ -1231,8 +1248,8 @@ service with real CPU load (Chrome on four slots), so it keeps 8; Postgres, MinI
 day and one uvicorn process, so they were lowered: 8 + 2 + 1.5 + 1.5 = 13, and 13 + 12 = 25 fits. The load test can move
 any of them through a deploy recorded in the go-live log.
 
-`worker-dola` also gets `RELAY_PROFILE_ROOT=/profiles` from `compose.yml` itself, so a cold profile directory cannot
-come from a forgotten line in the env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
+`worker-dola` keeps its profiles under `/profiles`, the code's `PROFILE_ROOT` and its volume's mount, so a cold
+profile directory cannot come from a forgotten line in an env file; `api` stops with a 30 s grace and `worker-dola` with 780 s.
 
 The Settings page's Containers card shows each relay service's limits as read inside the container. It is the check
 after a deploy that changes them.

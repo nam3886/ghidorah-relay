@@ -78,14 +78,15 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert s["flow.claims_enabled"].default is False, "flow must stay drained until the owner turns it on"
     assert (s["flow.rotate_interval_s"].default, s["flow.rotate_interval_s"].max) == (600, 900)
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
-    assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
+    assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == ["yescaptcha"]
     assert (s["flow.traffic_rest_s"].default, s["flow.traffic_rest_s"].min) == (1800, 0)
     assert s["flow.prices"].default == FC.DEFAULT_PRICES and s["flow.costs"].default == FC.DEFAULT_COSTS
     assert set(s["flow.prices"].default) == set(s["flow.costs"].default) == set(FC.PRICE_KEYS)
     pools = s["flow.pools"]
     assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
     assert all(s[k].description for k in s) and _problems(SPEC) == []
-    assert not [k for k in s if "key" in k.lower()], "a secret is never a setting"
+    keys = [k for k in s if "key" in k.lower()]           # owner 25/10: the solver keys, and only as secrets
+    assert keys and all(s[k].secret for k in keys), "a key that is a setting is a secret one"
 
 
 @mutation(SPEC_FILE, 'POOL_DEFAULTS = {"image": day_pool({"free": 40}),',
@@ -100,14 +101,22 @@ def test_the_image_pool_has_a_day_window_of_40_jobs_and_video_50_credits_a_day_a
         {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]}, "50 from first use + 1000 a month"
 
 
-def test_the_token_source_setting_takes_a_built_source_or_an_order_of_them():
+def test_the_token_source_setting_is_an_ordered_list_of_built_sources_never_empty():
+    """Owner 25/10: a select of yescaptcha, capsolver, anticaptcha whose order is the try order; removing every choice
+    is refused. A str stored before (comma-separated) is read as the list it names."""
     s = SPEC.settings()
     rule = s["flow.captcha_provider"]
-    for ok in ("yescaptcha", "capsolver", "anticaptcha", "capsolver,yescaptcha", "anticaptcha, capsolver"):
+    assert rule.type is list and rule.rule.choices == ("yescaptcha", "capsolver", "anticaptcha")
+    for ok in (["yescaptcha"], ["capsolver", "yescaptcha"], ["anticaptcha", "capsolver", "yescaptcha"]):
         assert rule.validate(ok) == ok
-    for bad in ("2captcha", "", "capsolver,capsolver", "capsolver,", "capsolver;yescaptcha"):
+    for bad in ([], ["2captcha"], ["capsolver", "capsolver"], ["capsolver", ""], "capsolver", [1]):
         with pytest.raises(ValueError):
             rule.validate(bad)
+    assert rule.on_load("capsolver, yescaptcha") == ["capsolver", "yescaptcha"]
+    assert rule.on_load("2captcha") == "2captcha" and rule.on_load(["anticaptcha"]) == ["anticaptcha"]
+    keys = {k: v for k, v in s.items() if v.secret}
+    assert sorted(keys) == ["flow.anticaptcha_key", "flow.capsolver_key", "flow.yescaptcha_key"]
+    assert all(v.type is str and v.default == "" and v.basic for v in keys.values())
     assert (s["flow.captcha_timeout_s"].default, s["flow.captcha_poll_s"].default) == (120, 3)
     assert s["flow.capsolver_proxy_task"].default is True
     score = s["flow.anticaptcha_min_score"]

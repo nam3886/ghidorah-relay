@@ -17,6 +17,12 @@ export interface SettingItem {
   allowed: string | null;
   // the keys a dict setting may hold (a provider's price options), null for any other setting
   keys?: string[] | null;
+  // the whole list of allowed values (each item of a list setting is one of them; its order is kept), null when any
+  choices?: string[] | null;
+  // a sealed setting (a solver's key): `value` and `default` are always null; `source` says whether it is set and
+  // `hint` is its last characters ("" for a short one, null when not set). Save sends the typed text; Reset clears it.
+  secret?: boolean;
+  hint?: string | null;
 }
 
 export interface EnvOnlyItem {
@@ -33,7 +39,7 @@ export interface FixedLimit {
 }
 
 // One service's container limits, as text. The four texts are null when a worker has not reported (an older version);
-// "unreadable" and "no limit" come from the server. `boot` are the variables a worker started with (never a secret).
+// "unreadable" and "no limit" come from the server.
 export interface ContainerRow {
   service: string;
   provider: string | null;
@@ -44,7 +50,6 @@ export interface ContainerRow {
   memory: string | null;
   pids: string | null;
   shm: string | null;
-  boot: Record<string, string | null> | null;
   reported_ms: number;
   started_ms: number;
 }

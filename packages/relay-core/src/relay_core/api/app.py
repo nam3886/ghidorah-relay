@@ -9,7 +9,6 @@ Route modules are imported by name, so a mistyped or missing one fails at import
 - admin: `ADMIN_ROUTES`, included under `/admin` behind the admin session.
 """
 
-import os
 import time
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -35,7 +34,6 @@ from relay_core.admin import (
 )
 from relay_core.admin.router import AdminGuard, AdminHeaders, build_admin_router
 from relay_core.api import errors_http, routes_catalog, routes_gemini, routes_media, routes_native, routes_openai
-from relay_core.api.deps import trusted_networks
 from relay_core.api.openapi_docs import public_schema
 from relay_core.api.request_log import RequestLogMiddleware
 from relay_core.providers import ProviderRegistry
@@ -69,19 +67,15 @@ class PublicCors:
 
 
 def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectStore, registry: ProviderRegistry,
-               public_base_url: str | None = None, trusted_proxies: str | None = None,
                routers: Sequence[APIRouter] = (), admin_routers: Sequence[APIRouter] = (),
                container: Mapping[str, Any] | None = None) -> FastAPI:
-    """`public_base_url` (env `PUBLIC_BASE_URL`) builds media links; None builds them from the request.
-    `trusted_proxies` (env `TRUSTED_PROXIES`) are the peers whose `X-Forwarded-For` is believed.
+    """The media links' address (`public_address`) and the proxies whose `X-Forwarded-For` is believed
+    (`trusted_proxies`) are settings, read at each request.
     `routers` and `admin_routers` are extra routers beside the lane modules (a test's own routes).
     `container` is this process's container limits (`cgroup.own_limits()` when None), read once, here."""
     # FastAPI's own schema URL stays off: it would list the admin routes. `/openapi.json` below serves the public one.
     app = FastAPI(title="relay", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.pool, app.state.settings, app.state.store, app.state.registry = pool, settings, store, registry
-    app.state.public_base_url = public_base_url if public_base_url is not None else os.environ.get("PUBLIC_BASE_URL")
-    app.state.trusted_proxies = trusted_networks(
-        trusted_proxies if trusted_proxies is not None else os.environ.get("TRUSTED_PROXIES", ""))
     app.state.container = dict(container) if container is not None else cgroup.own_limits()
     app.state.started_ms = int(time.time() * 1000)
     errors_http.install(app)

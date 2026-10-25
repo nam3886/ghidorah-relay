@@ -219,3 +219,55 @@ def test_the_states_fit_each_width_in_both_themes(app, app_page, width, height, 
     page.reload()
     expect(page.locator("#settings [data-state=loading]")).to_be_visible()
     shot(page, "%s-state-loading" % theme)
+
+
+PLANTED_KEY = "PLANTED-yes-key-0123456789abcd"
+
+
+def test_flow_captcha_sources_are_an_ordered_select_and_the_solver_keys_are_sealed(app, app_page, live, db,
+                                                                                    real_providers, monkeypatch):
+    """Owner 25/10: `flow.captcha_provider` is a multiple select of the three solvers in try order (none at all is
+    refused), and each solver key is entered here: stored sealed, shown only as set and its last 4 characters."""
+    from relay_core import crypto
+    from relay_core.settings import open_secret
+
+    keys = crypto.generate_keypair()
+    monkeypatch.setenv(crypto.PUBLIC_KEY_VAR, keys.public)      # the api seals with it (the live server's environ)
+    page = app_page
+    open_settings(app, page, 1440, 1000)
+    page.get_by_role("navigation", name="Settings areas").get_by_test_id("settings-tab-flow").click()
+    flow = page.get_by_test_id("settings-card-flow")
+    state = flow.get_by_test_id("secret-state-flow.yescaptcha_key")
+    expect(state).to_have_text("Not set")
+    sources = flow.locator('.field[data-key="flow.captcha_provider"]')
+    sources.locator(".el-select").click()
+    page.locator(".el-select-dropdown__item", has_text="capsolver").click()
+    page.keyboard.press("Escape")
+    expect(sources.locator(".el-tag")).to_have_text(["yescaptcha", "capsolver"])
+    flow.get_by_role("button", name="Set flow.yescaptcha_key").click()
+    flow.get_by_label("New value of flow.yescaptcha_key").fill(PLANTED_KEY)
+    bar = page.get_by_role("region", name="Unsaved changes")
+    expect(bar).to_contain_text("2 unsaved changes")
+    assert PLANTED_KEY not in bar.inner_text()
+    bar.get_by_role("button", name="Save changes").click()
+    expect(page.locator(".el-message--success")).to_contain_text("Saved")
+    expect(bar).to_have_count(0)
+    assert stored(db, "flow.captcha_provider") == ["yescaptcha", "capsolver"]
+    sealed = stored(db, "flow.yescaptcha_key")
+    assert PLANTED_KEY not in json.dumps(sealed) and open_secret(sealed, [keys.private]) == PLANTED_KEY
+    expect(state).to_have_text("Set · ends in " + PLANTED_KEY[-4:])
+    assert PLANTED_KEY not in page.content(), "a key came back to the page"
+    no_cut_text(page)
+    if SHOTS:
+        settle(page)
+        flow.locator("#flow-taking").screenshot(path=str(Path(SHOTS) / "flow-captcha-after.png"))
+
+    # removing every source is refused, and the stored order stays
+    for _ in range(2):
+        sources.locator(".el-tag__close").first.click()
+    bar.get_by_role("button", name="Save changes").click()
+    expect(sources.get_by_role("alert")).to_contain_text("(value)")
+    page.problems.clear()                                    # the 400 is a console line
+    assert stored(db, "flow.captcha_provider") == ["yescaptcha", "capsolver"]
+    bar.get_by_role("button", name="Discard changes").click()
+    expect(sources.locator(".el-tag")).to_have_text(["yescaptcha", "capsolver"])

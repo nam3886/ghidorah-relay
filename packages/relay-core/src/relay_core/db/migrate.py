@@ -44,8 +44,9 @@ def run_migrations(dsn: str, *, passwords: Mapping[str, str] | None = None, bill
     """Apply every pending migration; return the versions applied now. The DSN is the owner role's.
 
     `passwords` maps a service role to the password it gets (and LOGIN); a role with no entry is left as it is.
-    `billing_tz` (BILLING_TZ) is validated, then pinned in `billing_pin` by the first migrate (UTC when unset); a
-    later migrate that names another timezone is refused, since the billing day never changes.
+    `billing_tz` is validated, then pinned in `billing_pin` by the first migrate (billing.DEFAULT_TZ when not given;
+    `relay migrate` never gives one, a test does); a later migrate that names another timezone is refused, since the
+    billing day never changes. No environment variable sets it.
     """
     files = migration_files()
     unknown = set(passwords or ()) - set(ROLES)
@@ -61,7 +62,7 @@ def run_migrations(dsn: str, *, passwords: Mapping[str, str] | None = None, bill
         conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations "
                      "(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT clock_timestamp())")
         done = {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
-        # A pin that disagrees with BILLING_TZ refuses the run BEFORE any pending file is applied.
+        # A pin that disagrees with `billing_tz` refuses the run BEFORE any pending file is applied.
         row = _pin_row(conn)
         if row is not None:
             check_pin(row[0], billing_tz)

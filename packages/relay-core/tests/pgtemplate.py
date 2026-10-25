@@ -46,7 +46,7 @@ def migrated_database(passwords: dict[str, str], tag: str):
     prefix = os.environ.get("RELAY_TEST_PG_TEMPLATE", "")
     if not prefix:
         with disposable_database() as dsn:
-            run_migrations(dsn, passwords=passwords)
+            run_migrations(dsn, passwords=passwords, billing_tz="UTC")
             yield dsn
         return
     admin, name = admin_dsn(), PREFIX + uuid.uuid4().hex[:12]
@@ -56,7 +56,7 @@ def migrated_database(passwords: dict[str, str], tag: str):
         try:
             if conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (template,)).fetchone() is None:
                 conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(template)))
-                run_migrations(dsn_of(admin, template), passwords=passwords)
+                run_migrations(dsn_of(admin, template), passwords=passwords, billing_tz="UTC")
         finally:
             conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
         conn.execute(sql.SQL("CREATE DATABASE {} TEMPLATE {}").format(sql.Identifier(name), sql.Identifier(template)))

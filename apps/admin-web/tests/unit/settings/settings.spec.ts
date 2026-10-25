@@ -10,6 +10,7 @@ import {
   isLongDefault,
   newPasswordProblem,
   parseValue,
+  sentValue,
   valueText,
 } from "@/components/settings/settings-value";
 import * as shell from "@/api/shell";
@@ -67,6 +68,13 @@ describe("setting values", () => {
     expect(valueText({ value: false })).toBe("false");
     expect(valueText({ value: [1, 2] })).toBe("[1,2]");
     expect(valueText({ value: null })).toBe("null");
+  });
+
+  it("start a secret's input empty and send its typed text as it is, a key of digits included", () => {
+    expect(valueText({ value: null, secret: true })).toBe("");
+    expect(sentValue({ secret: true }, "123456789")).toBe("123456789");
+    expect(sentValue({ secret: false }, "123456789")).toBe(123456789);
+    expect(sentValue(undefined, "[1]")).toEqual([1]);
   });
 
   it("hold a new password to the server's rule, 10 to 256 characters", () => {
@@ -185,7 +193,7 @@ beforeEach(() => {
     items: items(),
     env_only: [
       { name: "BILLING_TZ", value: "Asia/Saigon" },
-      { name: "PUBLIC_BASE_URL", value: null },
+      { name: "RELAY_UNSET_EXAMPLE", value: null },
     ],
     fixed: [],
     containers: [],
@@ -363,7 +371,7 @@ describe("the tabs", () => {
     const env = wrapper!
       .find('table[aria-label="Boot-only values"]')
       .findAll("tbody tr")
-      .find((r) => r.text().includes("PUBLIC_BASE_URL"));
+      .find((r) => r.text().includes("RELAY_UNSET_EXAMPLE"));
     expect(env!.findAll("td")[1]!.text()).toBe("-");
   });
 
@@ -488,6 +496,89 @@ describe("the tabs", () => {
     expect(alerts).toContain("Could not load the measured prices: network error, please try again.");
     expect(wrapper!.find("#settings [role=alert]").text()).toContain("GET /admin/settings");
     expect(wrapper!.text()).toContain("Retry");
+  });
+});
+
+describe("a secret setting and a setting with choices (flow)", () => {
+  const flowItems = (): api.SettingItem[] => [
+    ...items(),
+    setting({
+      key: "flow.captcha_provider",
+      value: ["yescaptcha"],
+      type: "list",
+      basic: true,
+      choices: ["yescaptcha", "capsolver", "anticaptcha"],
+    }),
+    setting({
+      key: "flow.yescaptcha_key",
+      value: null,
+      default: null,
+      source: "db",
+      basic: true,
+      secret: true,
+      hint: "WXYZ",
+    }),
+    setting({ key: "flow.capsolver_key", value: null, default: null, basic: true, secret: true, hint: null }),
+  ];
+  async function openFlow(): Promise<void> {
+    vi.mocked(api.getSettings).mockImplementation(async () => ({
+      items: flowItems(),
+      env_only: [],
+      fixed: [],
+      containers: [],
+    }));
+    await open();
+    await tabButton("flow").trigger("click");
+    await flushPromises();
+  }
+  const state = (key: string) => wrapper!.find(`[data-testid="secret-state-${key}"]`);
+  const newValue = (key: string) => wrapper!.find(`input[aria-label="New value of ${key}"]`);
+
+  it("a secret shows only set or not; Replace takes a password input whose text Save sends as it is", async () => {
+    await openFlow();
+    expect(state("flow.yescaptcha_key").text()).toBe("Set · ends in WXYZ");
+    expect(state("flow.capsolver_key").text()).toBe("Not set");
+    expect(newValue("flow.yescaptcha_key").exists()).toBe(false);
+    expect(button("Reset flow.yescaptcha_key").exists()).toBe(false);
+    expect(button("Set flow.capsolver_key").exists()).toBe(true);
+    await button("Replace flow.yescaptcha_key").trigger("click");
+    expect(newValue("flow.yescaptcha_key").attributes("type")).toBe("password");
+    await newValue("flow.yescaptcha_key").setValue("123456789");
+    expect(bar().text()).toContain("flow · Yescaptcha key: replaced");
+    expect(bar().text()).not.toContain("123456789");
+    vi.mocked(api.putSetting).mockResolvedValue(flowItems()[0]!);
+    await saveAll();
+    expect(api.putSetting).toHaveBeenCalledWith("flow.yescaptcha_key", "123456789");
+    expect(api.putSetting).toHaveBeenCalledTimes(1);
+  });
+
+  it("Cancel drops the typed key; Clear is offered for a stored key only and deletes it once confirmed", async () => {
+    await openFlow();
+    await button("Replace flow.yescaptcha_key").trigger("click");
+    await newValue("flow.yescaptcha_key").setValue("typed");
+    await field("flow.yescaptcha_key").find("button.sbtn").trigger("click");
+    expect(newValue("flow.yescaptcha_key").exists()).toBe(false);
+    expect(bar().exists()).toBe(false);
+    expect(button("Clear flow.yescaptcha_key").exists()).toBe(true);
+    expect(button("Clear flow.capsolver_key").exists()).toBe(false);
+    vi.mocked(api.deleteSetting).mockResolvedValue({});
+    field("flow.yescaptcha_key").findComponent({ name: "ElPopconfirm" }).vm.$emit("confirm");
+    await flushPromises();
+    expect(api.deleteSetting).toHaveBeenCalledWith("flow.yescaptcha_key");
+  });
+
+  it("a list with choices is a multiple select whose order is the one sent", async () => {
+    await openFlow();
+    const select = field("flow.captcha_provider").findComponent({ name: "ElSelect" });
+    expect(select.exists()).toBe(true);
+    expect(select.props("modelValue")).toEqual(["yescaptcha"]);
+    expect(select.props("multiple")).toBe(true);
+    select.vm.$emit("update:modelValue", ["capsolver", "yescaptcha"]);
+    await flushPromises();
+    expect(bar().text()).toContain("flow · Captcha provider: yescaptcha → capsolver, yescaptcha");
+    vi.mocked(api.putSetting).mockResolvedValue(flowItems()[0]!);
+    await saveAll();
+    expect(api.putSetting).toHaveBeenCalledWith("flow.captcha_provider", ["capsolver", "yescaptcha"]);
   });
 });
 

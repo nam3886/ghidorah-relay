@@ -123,12 +123,16 @@ async def serving(db, *, routers=(), admin_routers=(), peer_ip: str = PEER_IP, t
         own = [s for one in specs for s in one.settings().values()]
         settings = Settings(pool, db.api_dsn, registry=Registry(*REGISTRY.specs.values(), *own))
         await settings.reload()
+        # the address and the front proxies are settings: a test that names them stores them
+        if public_base_url is not None:
+            await settings.set("public_address", public_base_url)
+        if trusted_proxies:
+            await settings.set("trusted_proxies", [n.strip() for n in trusted_proxies.split(",")])
         registry = ProviderRegistry()
         for one in specs:
             registry.register(one)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry, routers=routers,
-                         admin_routers=admin_routers, public_base_url=public_base_url,
-                         trusted_proxies=trusted_proxies)
+                         admin_routers=admin_routers)
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=raise_app_exceptions, client=(peer_ip, 4321))
         async with httpx.AsyncClient(transport=transport, base_url="http://relay.test") as client:
             yield Env(app, client, pool, settings, registry, store)

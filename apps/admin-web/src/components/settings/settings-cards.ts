@@ -213,6 +213,9 @@ type PoolsShape = Record<string, { windows?: Array<{ tz?: string; budget?: Recor
 export function changeLines(item: SettingItem, draft: string): string[] {
   const name = shortKey(item);
   const own = item.group !== "core";
+  // a secret's typed value is never written out, not even here
+  if (item.secret)
+    return [`${own ? `${item.group} · ` : ""}${fieldLabel(item)}: ${item.source === "db" ? "replaced" : "set"}`];
   let next: unknown;
   try {
     next = JSON.parse(draft);
@@ -253,7 +256,8 @@ export function changeLines(item: SettingItem, draft: string): string[] {
     }
     return out.length ? out : [`${item.group} pools changed`];
   }
-  const word = (v: unknown): unknown => (v === true ? "on" : v === false ? "off" : v);
+  const word = (v: unknown): unknown =>
+    v === true ? "on" : v === false ? "off" : Array.isArray(v) && item.choices ? v.join(", ") : v;
   return [
     `${own ? `${item.group} · ` : ""}${fieldLabel(item)}: ${shortText(word(item.value))} → ${shortText(word(next))}`,
   ];

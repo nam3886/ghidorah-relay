@@ -59,7 +59,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|
 | `flow.captcha_failed` | 502 | api_error | no | yes | yes | 0 | yes | the security token for flow could not be obtained; the order was not sent |
-| `flow.captcha_key_invalid` | 502 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the security token for flow could not be obtained; the order was not sent) the reCAPTCHA solver refused its key, or the flow worker has none |
+| `flow.captcha_key_invalid` | 502 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the security token for flow could not be obtained; the order was not sent) the reCAPTCHA solver refused its key, or none is set (Settings, flow.<source>_key) |
 | `flow.captcha_no_balance` | 502 | api_error | no | yes | yes | 0 | yes | (shown as `internal.unexpected`: the security token for flow could not be obtained; the order was not sent) the reCAPTCHA solver account has no balance left |
 | `flow.captcha_refused` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the request at its security check; nothing was made |
 | `flow.captcha_timeout` | 504 | api_error | no | yes | yes | 0 | yes | the security token for flow did not come in time; the order was not sent |

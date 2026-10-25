@@ -1,5 +1,6 @@
 """The worker process (invariants I1, I14): every loop of a provider runs under one stop signal,
-shutdown goes in order and leaves no lease that a job still depends on, a different BILLING_TZ refuses to start, and
+shutdown goes in order and leaves no lease that a job still depends on, a database with no billing pin refuses to
+start, and
 the claim loop's error limit is the process's exit code."""
 
 import asyncio
@@ -246,13 +247,13 @@ def test_a_claim_loop_that_outlasts_the_shutdown_deadline_is_cancelled_with_the_
 # ---- start and exit codes -----------------------------------------------------------------------------------------
 @mutation(W, "            await self._verify_billing()\n        except BillingTzMismatch", "            pass\n"
           "        except BillingTzMismatch",
-          expect="timed out waiting for the worker to refuse a billing timezone that differs from the pin")
-def test_a_billing_timezone_that_differs_from_the_pin_refuses_to_start(db, objects):
-    db.pin("UTC")
+          expect="timed out waiting for the worker to refuse a database with no billing pin")
+def test_a_database_with_no_billing_pin_refuses_to_start(db, objects):
+    db.run("DELETE FROM billing_pin")
 
     async def scenario(owner, wp):
-        worker = make_worker(wp, FakeEngine(), objects, billing_tz="Asia/Tokyo")
-        return await within(worker.run(), 5, what="the worker to refuse a billing timezone that differs from the pin")
+        worker = make_worker(wp, FakeEngine(), objects)
+        return await within(worker.run(), 5, what="the worker to refuse a database with no billing pin")
 
     assert run_as_worker(db, scenario) == 2
     assert db.one("SELECT count(*) FROM worker_heartbeats")[0] == 0
@@ -329,7 +330,7 @@ def test_serve_takes_the_private_keys_out_of_the_environment_once_it_has_read_th
     db.pin("UTC")
     keys = "FAKE-key-one,FAKE-key-two"
     monkeypatch.setenv(crypto.PRIVATE_KEY_VAR, keys)
-    env = env_for(db, BILLING_TZ="UTC", **{crypto.PRIVATE_KEY_VAR: keys})
+    env = env_for(db, **{crypto.PRIVATE_KEY_VAR: keys})
     seen = {}
 
     class Stop(Exception):
@@ -357,42 +358,20 @@ def test_serve_refuses_a_spec_that_does_not_declare_the_settings_the_core_reads(
             return {k: v for k, v in super().settings().items() if not k.endswith(".render_deadline_s")}
 
     async def refused():
-        return await within(serve(NoRenderDeadline(), lambda s, st: FakeEngine(), env_for(db, BILLING_TZ="UTC"),
+        return await within(serve(NoRenderDeadline(), lambda s, st: FakeEngine(), env_for(db),
                                   install_signals=False), 15,
                             what="serve to refuse a spec that lacks a setting the core reads")
 
     assert asyncio.run(refused()) == 2
 
 
-def test_serve_refuses_a_billing_timezone_other_than_the_pin(db):
-    db.pin("UTC")
-    code = asyncio.run(serve(FakeSpec(), lambda s, st: FakeEngine(), env_for(db, BILLING_TZ="Asia/Tokyo"),
-                             install_signals=False))
+def test_serve_refuses_a_database_with_no_billing_pin(db):
+    db.run("DELETE FROM billing_pin")
+    code = asyncio.run(serve(FakeSpec(), lambda s, st: FakeEngine(), env_for(db), install_signals=False))
     assert code == 2 and db.one("SELECT count(*) FROM worker_heartbeats")[0] == 0
 
 
-SLASH_CHECK = '    if "/" in worker_id:'
-NO_SLASH_CHECK = '    if False:'
-
-
-@mutation(W, SLASH_CHECK, NO_SLASH_CHECK, expect="timed out waiting for serve to refuse a WORKER_ID with a slash")
-def test_serve_refuses_a_worker_id_that_contains_a_slash_with_a_clear_message(db, caplog):
-    """The reaper cuts the owner's final "/<suffix>" to find the heartbeat row: a "/" inside the id would make a live
-    worker look gone. The refusal comes before any connection is opened."""
-    db.pin("UTC")
-
-    async def refused():
-        return await within(serve(FakeSpec(), lambda s, st: FakeEngine(),
-                                  env_for(db, BILLING_TZ="UTC", WORKER_ID="dola/eu"), install_signals=False), 15,
-                            what="serve to refuse a WORKER_ID with a slash")
-
-    assert asyncio.run(refused()) == 2
-    assert "WORKER_ID 'dola/eu' contains '/'" in caplog.text
-    assert db.one("SELECT count(*) FROM worker_heartbeats")[0] == 0
-
-
-def test_a_boot_owner_is_the_worker_id_and_one_suffix_and_a_plain_id_is_accepted():
-    assert worker_module.check_worker_id("dola-eu") == "dola-eu"
+def test_a_boot_owner_is_the_worker_id_and_one_suffix():
     owner = worker_module.boot_owner("dola-eu")
     assert owner.rpartition("/")[0] == "dola-eu" and len(owner.rpartition("/")[2]) == 8
 
@@ -412,15 +391,13 @@ def test_serve_sizes_a_browser_budget_from_the_stored_setting_with_no_ceiling_va
             return 0
 
     monkeypatch.setattr(worker_module, "Worker", Recorder)
-    env = env_for(db, BILLING_TZ="UTC", WORKER_GRACE_S="9", RELAY_CHROME_PATH="/opt/chrome", WORKER_ID="w-boot")
+    env = env_for(db)
     assert not [name for name in env if name.endswith("_BROWSER_SLOTS_MAX")], "premise: no ceiling variable"
     secrets = {n: env[n] for n in ("MINIO_SECRET_KEY", "CREDENTIAL_SEAL_PRIVATE_KEY", "DATABASE_URL")}
     code = asyncio.run(serve(FakeSpec(execution="browser"), lambda s, st: FakeEngine(), env, install_signals=False))
     assert code == 0
     assert seen["size"] == 3, "the budget size is the stored setting: %r" % seen
-    boot = seen["container"]["boot"]
-    assert boot == {"WORKER_GRACE_S": "9", "WORKER_ID": "w-boot", "RELAY_PROFILE_ROOT": None,
-                    "RELAY_CHROME_PATH": "/opt/chrome", "RELAY_BROWSER_HEADLESS": None}
+    assert "boot" not in seen["container"], "no environment value is reported any more"
     assert {"read", "cpus", "memory_bytes", "pids", "shm_bytes"} <= set(seen["container"])
     for name, value in secrets.items():       # read before `serve` took the private key out of the environment
         assert value not in repr(seen["container"]), "%s must never be reported" % name
@@ -432,7 +409,7 @@ def test_serve_runs_a_worker_from_the_environment_until_sigterm(db):
 
     async def scenario():
         task = asyncio.create_task(serve(FakeSpec(), lambda s, st: FakeEngine(),
-                                         env_for(db, BILLING_TZ="UTC", WORKER_GRACE_S="2")))
+                                         env_for(db)))
         await until(lambda: db.one("SELECT count(*) FROM worker_heartbeats WHERE worker_id = 'worker-fake'")[0] == 1,
                     timeout_s=15, what="the worker's heartbeat row")
         os.kill(os.getpid(), signal.SIGTERM)

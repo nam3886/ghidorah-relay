@@ -375,6 +375,14 @@ POOLS_RESET = (SETTINGS_SPEC + "the pools editor > tells the reset on the GMT+7 
                + "a whole hour")
 POOLS_EMPTY = (SETTINGS_SPEC + "the pools editor > drops an emptied tier, gives a pool with no window a day window "
                + "in the shared zone, and an edit back is no change")
+SECRET_VALUE = SETTINGS_SPEC + ("setting values > start a secret's input empty and send its typed text as it is, a "
+                                "key of digits included")
+SECRET_FIELD = SETTINGS_SPEC + ("a secret setting and a setting with choices (flow) > a secret shows only set or not; "
+                                "Replace takes a password input whose text Save sends as it is")
+SECRET_CLEAR = SETTINGS_SPEC + ("a secret setting and a setting with choices (flow) > Cancel drops the typed key; "
+                                "Clear is offered for a stored key only and deletes it once confirmed")
+CHOICES = SETTINGS_SPEC + ("a secret setting and a setting with choices (flow) > a list with choices is a "
+                           "multiple select whose order is the one sent")
 STRING_VALUE = 'typeof item.value === "string" ? item.value : JSON.stringify(item.value)'
 BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 
@@ -382,7 +390,7 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTING_VALUE, "return text;", "return null;", expect=PARSE)
 @mutation(SETTING_VALUE, STRING_VALUE, "JSON.stringify(item.value)", expect=TEXT)
 @mutation(SETTINGS_VIEW, "return !!item && drafts[key] !== valueText(item);", "return !!item;", expect=DIRTY)
-@mutation(SETTING_FIELD, 'props.item.source === "db"', "true", expect=RESET_RULE)
+@mutation(SETTING_FIELD, 'props.item.source === "db" && !props.item.secret', "true", expect=RESET_RULE)
 @mutation(SETTINGS_VIEW, "        errors[key] = errorText(err);\n", "", expect=REFUSED)
 @mutation(SETTINGS_VIEW, "for (const item of list) if (!(item.key in errors)) drafts[item.key]",
           "for (const item of list) if (true) drafts[item.key]", expect=REFUSED)
@@ -417,8 +425,17 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
           "- (area ? area.getBoundingClientRect().top : 0);", expect=NAV_AREA)
 @mutation(PRICES, 'const NONE = "—";', 'const NONE = "-";', expect=PRICES_FIGURES)
 @mutation(PRICES, ': "0"', ': "none"', expect=PRICES_FIGURES)
-@mutation(SETTINGS_VIEW, 'await putSetting(key, parseValue(drafts[key] ?? ""));',
+@mutation(SETTINGS_VIEW, 'await putSetting(key, sentValue(byKey.value.get(key), drafts[key] ?? ""));',
           'await putSetting(key, drafts[key] ?? "");', expect=SAVE_SENDS)
+@mutation(SETTING_VALUE, "  item?.secret ? text : parseValue(text);", "  parseValue(text);", expect=SECRET_VALUE)
+@mutation(SETTING_VALUE, '  if (item.secret) return "";\n', "", expect=SECRET_VALUE)
+@mutation(SETTINGS_CARDS, "  if (item.secret)\n    return [", "  if (false)\n    return [", expect=SECRET_FIELD)
+@mutation(SETTING_FIELD, '<template v-if="secret">', '<template v-if="false">', expect=SECRET_FIELD)
+@mutation(SETTING_FIELD, '          type="password"\n', "", expect=SECRET_FIELD)
+@mutation(SETTING_FIELD, '        v-if="isSet && !replacing && !draft"', '        v-if="!replacing && !draft"',
+          expect=SECRET_CLEAR)
+@mutation(SETTING_FIELD, '        v-else-if="choices"', '        v-else-if="false"', expect=CHOICES)
+@mutation(SETTING_FIELD, "multiple.value ? JSON.stringify(v) : String(v)", "String(v)", expect=CHOICES)
 @mutation(SETTINGS_VIEW, "watch(() => scope.provider, loadPrices);", "watch(() => scope.provider, () => undefined);",
           expect=SCOPE)
 @mutation(SETTINGS_VIEW, "getPrices(scope.provider)", 'getPrices("")', expect=SCOPE)

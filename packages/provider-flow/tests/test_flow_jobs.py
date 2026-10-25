@@ -414,9 +414,9 @@ def test_the_token_source_is_given_the_accounts_proxy():
 def test_no_token_is_a_retry_before_the_send_and_not_taken_after_a_refusal():
     log = []
     flow, ctx = Flow(log, rpc={"ogiZ0b": GOOD}), Ctx(log)
-    result = run_submit(flow, ctx, Tokens(log, CaptchaError("FLOW_YESCAPTCHA_KEY is not set on the flow worker")))
+    result = run_submit(flow, ctx, Tokens(log, CaptchaError("flow.yescaptcha_key is not set (Settings, flow)")))
     assert result.job == Retry(errors.CAPTCHA_FAILED) and "mark_sent" not in log and not flow.calls("ogiZ0b")
-    assert ctx.events == ["no reCAPTCHA token: FLOW_YESCAPTCHA_KEY is not set on the flow worker"]
+    assert ctx.events == ["no reCAPTCHA token: flow.yescaptcha_key is not set (Settings, flow)"]
     log = []
     flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, GOOD]}), Ctx(log)
     result = run_submit(flow, ctx, Tokens(log, None, CaptchaError("no token in 120 s")))

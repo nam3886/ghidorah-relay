@@ -98,11 +98,9 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
     env_file: [worker-dola.env]
     command: ["relay", "worker", "--provider", "dola"]
-    # Set here and not in worker-dola.env, so the template keeps only names and it cannot be left out: the profiles
-    # volume is mounted at /profiles (cold profiles caused the composer re-queues and ~13 MB a load). The number of
-    # browser slots is the live setting dola.browser_slots, not an environment variable.
-    environment:
-      RELAY_PROFILE_ROOT: /profiles
+    # The profiles volume is mounted at /profiles, the code's PROFILE_ROOT (relay_browser/session.py): cold profiles
+    # caused the composer re-queues and ~13 MB a load. The number of browser slots is the live setting
+    # dola.browser_slots, not an environment variable.
     shm_size: 1g
     stop_grace_period: 780s   # the longest submit timeout (video 720 s) plus a minute to release leases
     volumes: ["profiles-dola:/profiles"]
@@ -119,9 +117,8 @@ services:
     command: ["relay", "worker", "--provider", "meta"]
     shm_size: 1g
     stop_grace_period: 780s   # the longest submit timeout meta's settings allow (720 s) plus a minute
-    # Warm profiles on the volume, like worker-dola; the number of browser slots is the live setting meta.browser_slots.
-    environment:
-      RELAY_PROFILE_ROOT: /profiles
+    # Warm profiles on the volume at /profiles (PROFILE_ROOT), like worker-dola; the number of browser slots is the
+    # live setting meta.browser_slots.
     volumes: ["profiles-meta:/profiles"]
     cpus: ${META_CPUS:-4}
     mem_limit: ${META_MEM_LIMIT:-6g}
@@ -134,7 +131,7 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-vibes.env]
     command: ["relay", "worker", "--provider", "vibes"]
-    stop_grace_period: 780s   # the worker's own stop grace (720 s, WORKER_GRACE_S) plus a minute; no browser, no volume
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, DEFAULT_GRACE_S) plus a minute; no browser, no volume
     cpus: ${VIBES_CPUS:-1}
     mem_limit: ${VIBES_MEM_LIMIT:-1g}
     pids_limit: ${VIBES_PIDS_LIMIT:-256}
@@ -146,7 +143,7 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-flow.env]
     command: ["relay", "worker", "--provider", "flow"]
-    stop_grace_period: 780s   # the worker's own stop grace (720 s, WORKER_GRACE_S) plus a minute; no browser, no volume
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, DEFAULT_GRACE_S) plus a minute; no browser, no volume
     cpus: ${FLOW_CPUS:-1}
     mem_limit: ${FLOW_MEM_LIMIT:-1g}
     pids_limit: ${FLOW_PIDS_LIMIT:-256}
@@ -158,7 +155,7 @@ services:
     build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-gemini.env]
     command: ["relay", "worker", "--provider", "gemini"]
-    stop_grace_period: 780s   # the worker's own stop grace (720 s, WORKER_GRACE_S) plus a minute; no browser, no volume
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, DEFAULT_GRACE_S) plus a minute; no browser, no volume
     cpus: ${GEMINI_CPUS:-1}
     mem_limit: ${GEMINI_MEM_LIMIT:-1g}
     pids_limit: ${GEMINI_PIDS_LIMIT:-256}
@@ -173,9 +170,7 @@ services:
     env_file: [worker-qwen.env]
     command: ["relay", "worker", "--provider", "qwen"]
     shm_size: 1g
-    volumes: ["profiles-qwen:/profiles"]
-    environment:
-      RELAY_PROFILE_ROOT: /profiles
+    volumes: ["profiles-qwen:/profiles"]          # PROFILE_ROOT in relay_browser/session.py
     stop_grace_period: 780s   # the longest submit timeout (image 720 s) plus a minute to release leases
     cpus: ${QWEN_CPUS:-2}
     mem_limit: ${QWEN_MEM_LIMIT:-3g}

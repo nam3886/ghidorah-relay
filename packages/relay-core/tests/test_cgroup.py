@@ -2,7 +2,6 @@
 `/dev/shm` size. "No limit" (`max`) is told apart from "could not read", and the text the admin shows says which."""
 
 import os
-import re
 
 import pytest
 
@@ -138,12 +137,3 @@ def test_a_limit_that_could_not_be_read_is_shown_unreadable_and_not_as_no_limit(
     assert cgroup.describe(limits) == {"cpus": "unreadable", "memory": "1 GiB", "pids": "unreadable", "shm": "1 MiB"}
     assert cgroup.describe({k: v for k, v in limits.items() if k != "missing"})["pids"] == "no limit", (
         "a record from a worker that predates `missing` still reads")
-
-
-def test_a_worker_reports_five_boot_names_and_never_anything_secret_looking():
-    env = {"WORKER_GRACE_S": "9", "WORKER_ID": "w-1", "RELAY_PROFILE_ROOT": "/profiles", "RELAY_CHROME_PATH": "",
-           "CREDENTIAL_SEAL_PRIVATE_KEY": "k", "MINIO_SECRET_KEY": "s", "DATABASE_URL": "postgres://u:p@h/d"}
-    got = cgroup.boot_knobs(env)
-    assert got == {"WORKER_GRACE_S": "9", "WORKER_ID": "w-1", "RELAY_PROFILE_ROOT": "/profiles",
-                   "RELAY_CHROME_PATH": None, "RELAY_BROWSER_HEADLESS": None}
-    assert not [n for n in cgroup.BOOT_NAMES if re.search(r"KEY|SECRET|PASSWORD|TOKEN|DSN|URL|CREDENTIAL", n)]

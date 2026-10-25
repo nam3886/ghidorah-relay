@@ -505,7 +505,7 @@ async def _retry_of(pool: AsyncConnectionPool, key_id, request_hash: str) -> Mad
 
 # ---- status -------------------------------------------------------------------------------------------------------
 def public_base(request: Request) -> str:
-    return (request.app.state.public_base_url or str(request.base_url)).rstrip("/")
+    return (request.app.state.settings.get("public_address") or str(request.base_url)).rstrip("/")
 
 
 # `points` is what the job's charge took from the key's points wallet (the `*` rows; the provider cap's rows repeat

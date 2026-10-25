@@ -129,7 +129,8 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "unsent_deadline_s": 10_800, "session_ttl_s": 86_400,
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3, "dead_check_interval_h": 24,
         "alert_pool_drift": 5,
-        "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh"}
+        "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh", "public_address": "",
+        "trusted_proxies": []}
 
 
 @mutation(S, "return dict(self._registry.specs)", "return {}", expect="the listing must hold every setting")
@@ -291,9 +292,28 @@ def test_every_core_setting_states_what_it_allows():
         "unsent_deadline_s": "at least 60", "session_ttl_s": "at least 60", "max_unfinished_default": "at least 0",
         "alert_disk_free_gb": "at least 0", "alert_accounts_low": "at least 0", "filename_pattern": "not empty",
         "dead_check_interval_h": "at least 1", "alert_pool_drift": "at least 0",
-        "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh"}
+        "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh",
+        "public_address": "empty, or an http(s) address with no query",
+        "trusted_proxies": "a list of IP addresses or CIDR networks"}
     with pytest.raises(SettingsError, match="must not be empty"):
         REGISTRY.specs["filename_pattern"].validate("  ")
+
+
+@mutation(S, "    if parts.scheme not in (\"http\", \"https\") or not parts.hostname", "    if False",
+          expect="DID NOT RAISE")
+@mutation(S, "            ipaddress.ip_network(item.strip(), strict=False)", "            pass", expect="DID NOT RAISE")
+def test_the_public_address_and_the_trusted_proxies_take_only_what_they_can_use():
+    """Owner 25/10: the two are settings now, so the admin types them: a bad one is refused before it is stored."""
+    address, proxies = REGISTRY.specs["public_address"], REGISTRY.specs["trusted_proxies"]
+    for ok in ("", "https://relay.example.com", "http://192.168.18.227:8100", "https://relay.example.com/base"):
+        assert address.validate(ok) == ok
+    assert proxies.validate([]) == [] and proxies.validate(["172.16.0.0/12", "10.0.0.1", "::1"])
+    for bad in ("relay.example.com", "ftp://relay.example.com", "https://", "https://x.example?a=1", " https://x.io"):
+        with pytest.raises(SettingsError):
+            address.validate(bad)
+    for bad in (["10.0.0.0/33"], ["proxy.example"], [5], "10.0.0.0/8"):
+        with pytest.raises(SettingsError):
+            proxies.validate(bad)
 
 
 @mutation("packages/relay-core/src/relay_core/settings.py", "        ZoneInfo(v)\n", "        pass\n",

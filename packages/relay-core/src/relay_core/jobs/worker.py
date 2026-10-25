@@ -9,13 +9,10 @@ One `LeaseKeeper` serves the checks and the commands. The claim loop and the rec
 holds (a task registers its lease with `holding()` for as long as it needs it), so a lease nobody holds expires
 within its TTL.
 
-Start: BILLING_TZ is checked against the pin; a different value refuses to start (exit 2). The heartbeat row is the
+Start: a database with no billing pin (`relay migrate` writes it) refuses to start (exit 2). The heartbeat row is the
 first write, before any loop starts: a restore mark holds the heartbeat table, so a booting worker waits for it as a
-whole (N17). So does a WORKER_ID that
-contains "/": the reaper derives the worker id from a lease owner by removing the final "/<suffix>".
-`WORKER_ID` (default `worker-<provider>`) names this process's heartbeat row, so it must be unique per worker
-process: two processes sharing one id share one row (each boot resets `started_at`, and one clean exit deletes
-the row for both).
+whole (N17). The heartbeat row is `worker-<provider>`: one worker process per provider (the reaper derives the worker
+id from a lease owner by removing the final "/<suffix>").
 
 Stop (SIGTERM, SIGINT, `stop()`), in this order:
   1. claims, checks and commands stop (no new one starts);
@@ -65,7 +62,7 @@ log = logging.getLogger(__name__)
 
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
 REGISTER_RETRY_S = 1.0         # between tries of the first heartbeat write while a restore mark holds its table
-DEFAULT_GRACE_S = 720.0        # below the container's stop grace period (compose: 780 s) so Docker never kills first
+DEFAULT_GRACE_S = 720.0        # must stay below compose's stop_grace_period (780 s) so Docker never kills first
 
 LoadAccount = Callable[[Any], Awaitable[AccountView]]
 
@@ -80,13 +77,13 @@ class Worker:
     def __init__(self, db: AsyncConnectionPool, spec: ProviderSpec, engine: ProviderEngine, settings: Any, *,
                  owner: str, load_account: LoadAccount, store: ObjectStore, budget: BrowserBudget | None = None,
                  container: Mapping[str, Any] | None = None, evidence_sink: EvidenceSink | None = None,
-                 grace_s: float | None = DEFAULT_GRACE_S, billing_tz: str | None = None, max_errors: int = MAX_ERRORS,
+                 grace_s: float | None = DEFAULT_GRACE_S, max_errors: int = MAX_ERRORS,
                  tick_s: float = 1.0, lease_ttl_s: float = leases.LEASE_TTL_S,
                  lease_beat_s: float = leases.HEARTBEAT_S, beat_s: float = BEAT_S,
                  reaper_interval_s: float = INTERVAL_S, housekeeping_s: float = SWEEP_EVERY_S,
                  worker_id: str | None = None,
                  startup_grace_s: float = STARTUP_GRACE_S):
-        self.db, self.spec, self.owner, self.grace_s, self.billing_tz = db, spec, owner, grace_s, billing_tz
+        self.db, self.spec, self.owner, self.grace_s = db, spec, owner, grace_s
         self.tick_s, self._housekeeping_s = tick_s, housekeeping_s
         self.grace = grace = StartupGrace(startup_grace_s)
         caps = spec.caps
@@ -122,7 +119,7 @@ class Worker:
 
     async def _verify_billing(self) -> None:
         async with tx(self.db) as conn:
-            await verify_billing_tz(conn, self.billing_tz)
+            await verify_billing_tz(conn)
 
     # ---- run ---------------------------------------------------------------------------------------------------
     async def run(self, *, install_signals: bool = False) -> int:
@@ -252,14 +249,6 @@ class Worker:
             self.exit_code = max(self.exit_code, EXIT_FAILED)
 
 
-def check_worker_id(worker_id: str) -> str:
-    """The worker id, or ValueError when it contains "/": the reaper strips the owner's final "/<suffix>" to find
-    the heartbeat row, so a "/" inside the id would make a live worker look gone."""
-    if "/" in worker_id:
-        raise ValueError("WORKER_ID %r contains '/': use a name without it, unique per worker process" % worker_id)
-    return worker_id
-
-
 def boot_owner(worker_id: str) -> str:
     """The lease owner of one worker boot: a restart gets a new one, so it never inherits a dead process's leases."""
     return "%s/%s" % (worker_id, uuid.uuid4().hex[:8])
@@ -272,10 +261,10 @@ def provider_settings(spec: ProviderSpec) -> Registry:
 
 async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settings], ProviderEngine],
                 env: Mapping[str, str] = os.environ, *, install_signals: bool = True) -> int:
-    """Everything a worker process needs, from the environment: DSN, the private keys of the credential seal, the
-    object store and the stop grace; a browser provider's size is its `<p>.browser_slots` setting. The worker also reads
-    its own container limits once and reports them with its boot knobs. Returns the exit code. `WORKER_ID`
-    must be unique per worker process and contain no "/" (exit 2 otherwise)."""
+    """Everything a worker process needs, from the environment: DSN, the private keys of the credential seal and the
+    object store; a browser provider's size is its `<p>.browser_slots` setting, the stop grace is DEFAULT_GRACE_S and
+    the heartbeat row `worker-<provider>`. The worker also reads its own container limits once and reports them.
+    Returns the exit code."""
     dsn = env.get("DATABASE_URL", "")
     if not dsn:
         log.critical("DATABASE_URL is not set")
@@ -289,15 +278,14 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
                 source.pop(crypto.PRIVATE_KEY_VAR, None)
         store = ObjectStore.from_env(env)
         browser = spec.caps.execution == "browser"
-        grace_s = float(env.get("WORKER_GRACE_S") or DEFAULT_GRACE_S)
-        worker_id = check_worker_id(env.get("WORKER_ID") or "worker-" + spec.name)
-        container = {**cgroup.own_limits(), "boot": cgroup.boot_knobs(env)}
+        worker_id = "worker-" + spec.name
+        container = cgroup.own_limits()
         ProviderRegistry().register(spec)        # a spec that does not declare the settings the core reads is refused
     except Exception as e:                       # a missing or malformed variable: refuse before any connection
         log.critical("the worker cannot start: %s", e)
         return EXIT_REFUSED
     db = await open_pool(dsn, name="worker-" + spec.name)
-    settings = Settings(db, dsn, registry=provider_settings(spec))
+    settings = Settings(db, dsn, registry=provider_settings(spec), open_keys=keys)     # opens the secret settings
     try:
         await settings.start()
         budget = None
@@ -310,7 +298,7 @@ async def serve(spec: ProviderSpec, build_engine: Callable[[ProviderSpec, Settin
         worker = Worker(db, spec, build_engine(spec, settings), settings, worker_id=worker_id,
                         owner=boot_owner(worker_id), load_account=load_account, store=store,
                         budget=budget, container=container, evidence_sink=job_sink(db, store),
-                        grace_s=grace_s, billing_tz=env.get("BILLING_TZ"))
+                        grace_s=DEFAULT_GRACE_S)
         return await worker.run(install_signals=install_signals)
     finally:
         await settings.stop()

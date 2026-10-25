@@ -24,13 +24,14 @@ VIDEO_MIME = "video/mp4"          # H.264 1280x720 8 s with AAC (FINDINGS 5)
 RECAPTCHA_SITE_KEY = "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV"
 IMAGE_ACTION = "IMAGE_GENERATION"
 VIDEO_ACTION = "VIDEO_GENERATION"
-# The token sources (solver services). Each key is a secret of the worker's environment, never a setting. All three
-# speak the same createTask / getTaskResult JSON API.
+# The token sources (solver services). Each key is a secret setting (`flow.<source>_key`), stored sealed and opened by
+# the worker only; never an environment variable. All three speak the same createTask / getTaskResult JSON API.
 CAPTCHA_PROVIDERS = ("yescaptcha", "capsolver", "anticaptcha")
 CAPTCHA_URLS = {"yescaptcha": "https://api.yescaptcha.com", "capsolver": "https://api.capsolver.com",
                 "anticaptcha": "https://api.anti-captcha.com"}
-CAPTCHA_KEY_VARS = {"yescaptcha": "FLOW_YESCAPTCHA_KEY", "capsolver": "FLOW_CAPSOLVER_KEY",
-                    "anticaptcha": "FLOW_ANTICAPTCHA_KEY"}
+CAPTCHA_KEY_SETTINGS = {source: "flow.%s_key" % source for source in CAPTCHA_PROVIDERS}
+CAPTCHA_KEY_NAMES = {"yescaptcha": "YesCaptcha client key", "capsolver": "CapSolver API key",
+                     "anticaptcha": "Anti-Captcha account key"}
 YESCAPTCHA_TASK = "RecaptchaV3TaskProxylessM1"
 # CapSolver (docs.capsolver.com, ReCaptchaV3): the Enterprise task solved through the proxy given in it, or proxyless
 CAPSOLVER_TASK = "ReCaptchaV3EnterpriseTask"
@@ -42,13 +43,18 @@ ANTICAPTCHA_SCORES = (0.3, 0.7, 0.9)        # its minScore queues
 
 
 def captcha_sources(value) -> tuple[str, ...]:
-    """`flow.captcha_provider`: one source, or a fallback order such as "capsolver,yescaptcha" (each tried in turn
-    while the token's time lasts). Raises ValueError for anything else."""
-    order = tuple(s.strip() for s in str(value).split(","))
-    if any(s not in CAPTCHA_PROVIDERS for s in order) or len(set(order)) != len(order):
-        raise ValueError("the token source is one of %s, or several of them in order, comma-separated, each once"
+    """`flow.captcha_provider`: the sources in the order they are tried (each in turn while the token's time lasts), a
+    list such as ["capsolver", "yescaptcha"]; a str "capsolver,yescaptcha" is the form stored before 25/10. Raises
+    ValueError for anything else: none, an unknown source, or one named twice."""
+    if not isinstance(value, (str, list, tuple)):
+        raise ValueError("the token sources are a list")
+    order = tuple(str(s).strip() for s in (value.split(",") if isinstance(value, str) else value))
+    if not order or any(s not in CAPTCHA_PROVIDERS for s in order) or len(set(order)) != len(order):
+        raise ValueError("the token sources are one or more of %s, in the order tried, each once"
                          % ", ".join(CAPTCHA_PROVIDERS))
     return order
+
+
 # A desktop Chrome, as the web app is used.
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
               "Chrome/141.0.0.0 Safari/537.36")

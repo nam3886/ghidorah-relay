@@ -9,7 +9,6 @@ row that goes with it (see `relay_core.db.tx`).
 """
 
 import logging
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -22,7 +21,7 @@ from relay_core.txguard import NotInTransaction, require_tx  # noqa: F401  (re-e
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TZ = "UTC"   # the billing day is 00:00 UTC; `relay migrate` pins BILLING_TZ in billing_pin
+DEFAULT_TZ = "Asia/Ho_Chi_Minh"   # what the first `relay migrate` pins in billing_pin; the pin never moves
 STAR = "*"           # the scope of a key's points wallet; any other scope is a provider's cap
 _PIN = "SELECT tz FROM billing_pin"
 
@@ -87,24 +86,24 @@ class Refund:
 
 
 class BillingTzMismatch(RuntimeError):
-    """The process environment names a different billing timezone than the one pinned at the first migrate."""
+    """No billing timezone is pinned, or a migrate was asked for another one than the pin."""
 
 
-def check_pin(pinned: str | None, env_tz: str | None) -> str:
-    """The pinned timezone, or a refusal when it is missing or `env_tz` (BILLING_TZ, when set) differs from it."""
+def check_pin(pinned: str | None, wanted: str | None = None) -> str:
+    """The pinned timezone, or a refusal when it is missing or `wanted` (given to `run_migrations`) differs from it."""
     if pinned is None:
         raise BillingTzMismatch("no billing timezone is pinned: run `relay migrate`")
-    if env_tz and env_tz != pinned:
-        raise BillingTzMismatch("BILLING_TZ=%s but the billing day was pinned to %s when `relay migrate` first ran; "
-                                "it never changes" % (env_tz, pinned))
+    if wanted and wanted != pinned:
+        raise BillingTzMismatch("billing timezone %s asked, but the billing day was pinned to %s when `relay migrate` "
+                                "first ran; it never changes" % (wanted, pinned))
     return pinned
 
 
-async def verify_billing_tz(conn: AsyncConnection, env_tz: str | None = None) -> str:
-    """Process start: refuse to run when BILLING_TZ is set to something other than the pinned value. An unset
-    variable asserts nothing, since every charge reads the pin from the database."""
+async def verify_billing_tz(conn: AsyncConnection) -> str:
+    """Process start: refuse to run when no billing timezone is pinned. The pin is the only source: every charge reads
+    it from the database."""
     row = await (await conn.execute(_PIN)).fetchone()
-    return check_pin(row[0] if row else None, os.environ.get("BILLING_TZ") if env_tz is None else env_tz)
+    return check_pin(row[0] if row else None)
 
 
 _require_tx = require_tx   # local name kept: the money paths call it first, before any SQL

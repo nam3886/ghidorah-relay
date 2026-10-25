@@ -26,6 +26,7 @@ from relay_flow import catalog as C
 from relay_flow import errors as codes
 from relay_flow.constants import (
     ANTICAPTCHA_SCORES,
+    CAPTCHA_KEY_NAMES,
     CAPTCHA_PROVIDERS,
     CHECK_INTERVAL_S,
     LIMITS,
@@ -55,8 +56,19 @@ def _anticaptcha_score(v: float) -> None:
         raise ValueError("Anti-Captcha's score queues are %s" % ", ".join(map(str, ANTICAPTCHA_SCORES)))
 
 
-CAPTCHA_RULE = Rule("one of: %s; or several, comma-separated, tried in that order" % ", ".join(CAPTCHA_PROVIDERS),
-                    captcha_sources)
+CAPTCHA_RULE = Rule("one or more of: %s, tried in the order listed" % ", ".join(CAPTCHA_PROVIDERS),
+                    captcha_sources, CAPTCHA_PROVIDERS)
+
+
+def _captcha_order(v: Any) -> Any:
+    """A stored "capsolver,yescaptcha" (the str form before 25/10) is read as the list it names; anything else as it
+    is (validate refuses what is wrong)."""
+    if not isinstance(v, str):
+        return v
+    try:
+        return list(captcha_sources(v))
+    except ValueError:
+        return v
 SCORE_RULE = Rule("one of: %s" % ", ".join(map(str, ANTICAPTCHA_SCORES)), _anticaptcha_score)
 
 
@@ -106,11 +118,15 @@ _SETTINGS = dict((
              "Seconds between two rotations of an account's Google session (RotateCookies); the session ages out in "
              "about 20 min without one. The account check (every 5 min) and each job rotate when this is due.",
              min=120, max=900),
-    _setting("captcha_provider", str, "yescaptcha",
-             "Where the reCAPTCHA token of a generate comes from: yescaptcha, capsolver or anticaptcha, or several "
-             "comma-separated (e.g. 'capsolver,yescaptcha': the next is tried when one gives no token). Their keys "
-             "are the worker's FLOW_YESCAPTCHA_KEY, FLOW_CAPSOLVER_KEY and FLOW_ANTICAPTCHA_KEY. Every call to a "
-             "solver goes through the account's proxy.", rule=CAPTCHA_RULE, basic=True),
+    _setting("captcha_provider", list, ["yescaptcha"],
+             "Where the reCAPTCHA token of a generate comes from, in the order tried: the next is tried when one gives "
+             "no token. Each needs its key on this card. Every call to a solver goes through the account's proxy.",
+             rule=CAPTCHA_RULE, basic=True, on_load=_captcha_order),
+    *(_setting("%s_key" % source, str, "",
+               "The %s. Stored sealed: only the flow worker opens it, at its next settings read (no restart); this "
+               "page shows only whether it is set and its last 4 characters." % CAPTCHA_KEY_NAMES[source],
+               basic=True, secret=True)
+      for source in CAPTCHA_PROVIDERS),
     _setting("captcha_timeout_s", int, 120,
              "Seconds one reCAPTCHA token may take, all sources of the order together (10-17 s measured); none in "
              "time is a failed try.", min=30, max=300),

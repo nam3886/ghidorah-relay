@@ -914,8 +914,7 @@ def test_when_the_lease_is_gone_the_submit_is_cancelled_the_result_is_dropped_an
     assert errors == 0
 
 
-CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 1024**3,
-             "boot": {"WORKER_ID": "w1"}}
+CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 1024**3}
 
 
 @mutation(E, LIMITS_INSERT, LIMITS_NULL_INSERT, expect="assert None == {")

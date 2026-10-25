@@ -65,7 +65,7 @@ def test_the_worker_that_serve_builds_has_an_evidence_sink(db, monkeypatch):
             return 0
 
     monkeypatch.setattr(worker_module, "Worker", Recorder)
-    assert asyncio.run(worker_module.serve(FakeSpec(), lambda s, st: FakeEngine(), env_for(db, BILLING_TZ="UTC"),
+    assert asyncio.run(worker_module.serve(FakeSpec(), lambda s, st: FakeEngine(), env_for(db),
                                            install_signals=False)) == 0
     assert callable(seen.get("evidence_sink")), "the worker that serve builds has no evidence sink"
 

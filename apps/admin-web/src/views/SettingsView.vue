@@ -28,7 +28,7 @@ import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import PathIcon from "@/components/shared/icons/PathIcon.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { loadFailedText } from "@/components/jobs/job-text";
-import { bootValue, parseValue, valueText } from "@/components/settings/settings-value";
+import { bootValue, sentValue, valueText } from "@/components/settings/settings-value";
 import { errorText } from "@/lib/errors";
 import { providerClass } from "@/lib/providers";
 import PricesTable from "@/components/settings/PricesTable.vue";
@@ -140,14 +140,14 @@ const edited = (key: string): boolean => {
   return !!item && drafts[key] !== valueText(item);
 };
 
-// Save sends each changed setting of the page, the input text parsed as JSON (or the raw string when it is not JSON),
-// one after another; a refusal is kept on its field and toasted, the others still go. Then the lists are read again.
+// Save sends each changed setting of the page, the input text parsed as JSON (or the raw string when it is not JSON; a
+// secret's text always as it is), one after another; a refusal is kept on its field and toasted, the others still go. Then the lists are read again.
 const save = (keys: string[]) =>
   run(async () => {
     let refused = 0;
     for (const key of keys.filter(edited)) {
       try {
-        await putSetting(key, parseValue(drafts[key] ?? ""));
+        await putSetting(key, sentValue(byKey.value.get(key), drafts[key] ?? ""));
         delete errors[key];
       } catch (err) {
         refused++;

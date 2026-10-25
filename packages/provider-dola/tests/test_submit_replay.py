@@ -435,12 +435,11 @@ async def test_a_real_chrome_replay_gives_the_engine_the_same_receipt(name, tmp_
     from relay_core.redact import redact_text
     from relay_dola.engine.site import DOLA_SITE
     monkeypatch.syspath_prepend(str(KIT_TESTS))
-    monkeypatch.setenv("RELAY_BROWSER_HEADLESS", "1")
     from browserkit import Account, settle
     from fixtures_server import ReplayServer
     cap = capture(name)
     site = dataclasses.replace(DOLA_SITE, host="127.0.0.1", profile_root=str(tmp_path / "profiles"), viewport=None,
-                               refuse_hosts=(), telemetry_url_patterns=())
+                               refuse_hosts=(), telemetry_url_patterns=(), headless=True)
     async with ReplayServer(name) as server:
         async with open_session(site, Account(), purpose="submit", token=token, redact=redact_text) as session:
             await session.page.goto(server.url())

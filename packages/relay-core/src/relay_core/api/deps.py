@@ -81,7 +81,7 @@ def skip_body_log(request: Request) -> None:
 
 
 def trusted_networks(spec: str | Iterable[str]) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
-    """`TRUSTED_PROXIES` (comma separated addresses or CIDRs) as networks."""
+    """The `trusted_proxies` setting (addresses or CIDRs; a comma-separated str is read too) as networks."""
     items = spec.split(",") if isinstance(spec, str) else spec
     return tuple(ipaddress.ip_network(i.strip(), strict=False) for i in items if i.strip())
 
@@ -90,7 +90,7 @@ def client_ip(request: Request) -> str:
     """The caller's address. `X-Forwarded-For` counts only when the direct peer is a trusted proxy, and then the
     rightmost address that is not itself a trusted proxy is the client; anything unparseable falls back to the peer."""
     peer = request.client.host if request.client else "0.0.0.0"
-    trusted = request.app.state.trusted_proxies
+    trusted = trusted_networks(request.app.state.settings.get("trusted_proxies"))
 
     def ip_of(text: str):
         try:

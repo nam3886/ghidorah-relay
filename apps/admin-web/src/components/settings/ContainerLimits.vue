@@ -25,34 +25,13 @@ const LIMITS = [
   ["PIDs", "pids"],
   ["Shared memory (/dev/shm)", "shm"],
 ] as const;
-// the four limits, then every boot knob any service reported, in the order first seen
-const lines = computed(() => {
-  const boot = new Set<string>();
-  for (const row of props.rows) for (const name of Object.keys(row.boot ?? {})) boot.add(name);
-  return [
-    ...LIMITS.map(([label, key]) => ({ label, key, boot: false })),
-    ...[...boot].map((name) => ({ label: name, key: name, boot: true })),
-  ];
-});
-// A value the service does not report is a dash, dimmed (the api reports no boot value, an older worker nothing); a
-// boot value it reported unset reads "not set" (the default is in use).
+// the four limits under one band (no worker reports an environment value: every one became code or a setting)
+const lines = LIMITS.map(([label, key]) => ({ label, key }));
+// a value the service does not report is a dash, dimmed (an older worker reports nothing)
 const NONE = "-";
-const cell = (row: ContainerRow, line: { key: string; boot: boolean }): string => {
-  if (!line.boot) return bootValue(row[line.key as (typeof LIMITS)[number][1]]);
-  const value = row.boot?.[line.key];
-  if (value === undefined) return NONE;
-  return value === null || value === "" ? "not set" : String(value);
-};
-// the limits under one band, the boot values under another (a band only when it has a line)
-const groups = computed(() =>
-  [
-    { name: "Container limits", lines: lines.value.filter((l) => !l.boot) },
-    { name: "Boot values", lines: lines.value.filter((l) => l.boot) },
-  ].filter((g) => g.lines.length),
-);
-// a phone block lists only what its service reported
-const own = (row: ContainerRow, g: { lines: (typeof lines.value)[number][] }) =>
-  g.lines.filter((l) => !l.boot || row.boot?.[l.key] !== undefined);
+const cell = (row: ContainerRow, line: { key: string }): string =>
+  bootValue(row[line.key as (typeof LIMITS)[number][1]]);
+const groups = [{ name: "Container limits", lines }];
 const stamp = (row: ContainerRow): string =>
   row.this_process ? `this process, read at start ${fmtTime(row.started_ms)}` : `seen ${ago(row.reported_ms)}`;
 const rowKey = (row: ContainerRow): string => `${row.this_process}:${row.service}`;
@@ -82,10 +61,10 @@ const SKELETON = ["96px", "72px", "64px", "128px", "88px"];
         <p v-if="!row.reported" class="set-block__none">Not reported by this worker version</p>
         <template v-else>
           <template v-for="g in groups" :key="g.name">
-            <template v-if="own(row, g).length">
+            <template v-if="g.lines.length">
               <h4 class="set-list__group">{{ g.name }}</h4>
               <ul class="set-list" :aria-label="`${g.name} of ${row.service}`">
-                <li v-for="line in own(row, g)" :key="line.label">
+                <li v-for="line in g.lines" :key="line.label">
                   <span class="set-list__name">{{ line.label }}</span>
                   <span class="set-list__value">{{ cell(row, line) }}</span>
                 </li>

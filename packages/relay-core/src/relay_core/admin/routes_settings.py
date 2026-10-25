@@ -4,10 +4,12 @@ The list shows each registered key with its value, where the value comes from (`
 description and the values it allows. A put validates before it writes (a refused value leaves the stored one as it
 was); a delete restores the default. Each item names its `group` (the provider, or "core", as the `fixed` rows do) and
 says whether it is `basic` (one the admin changes often) so the page can group them and fold the rest away. The list
-also carries `fixed`, the limits that are code and not settings. The boot-only values (an upstream URL, the billing
-timezone, the proxy list...) are configuration of the deployment: they are listed read-only under `env_only` and a put
-or delete of one is refused. Every put that changes the stored value and every delete of one adds a row to the change
-history (`GET /settings/history`); the list's `last_saved` is its newest row.
+also carries `fixed`, the limits that are code and not settings. `env_only` lists, read-only, what is no setting: the
+billing day's timezone, pinned by the first `relay migrate` (moving it would shift every daily window); a put or delete
+of a boot-only name is refused. Every put that changes the stored value and every delete of one adds a row to the change
+history (`GET /settings/history`); the list's `last_saved` is its newest row. A secret setting (a solver's key) is
+put as its plain value, stored sealed, and never read back: an item says only whether it is set (`source`) and its last
+characters (`hint`); a delete clears it.
 """
 
 from typing import Any
@@ -39,13 +41,13 @@ def _containers(state: Any, workers: list) -> list[dict]:
     A worker that stopped cleanly has no row; one that predates the limits has NULL and shows as not reported. `stale`
     is read on the server's clock against HEARTBEAT_STALE_S, as the admin stats do."""
     rows = [{"service": "api", "provider": None, "this_process": True, "reported": True,
-             **cgroup.describe(state.container), "boot": None, "stale": False,
+             **cgroup.describe(state.container), "stale": False,
              "reported_ms": state.started_ms, "started_ms": state.started_ms}]
     for worker_id, provider, started_at, at, limits, age_s in workers:
         reported = isinstance(limits, dict)
         texts = cgroup.describe(limits) if reported else dict.fromkeys(("cpus", "memory", "pids", "shm"))
         rows.append({"service": worker_id, "provider": provider, "this_process": False, "reported": reported,
-                     **texts, "boot": limits.get("boot") if reported else None,
+                     **texts,
                      "stale": age_s > HEARTBEAT_STALE_S, "reported_ms": ms(at), "started_ms": ms(started_at)})
     return rows
 
@@ -56,12 +58,19 @@ class SettingPut(Strict):
 
 def _item(settings: Settings, key: str) -> dict:
     """`group`: the provider of a namespaced key (`<p>.<name>`), else "core", as in `fixed`. `basic`: shown first.
-    `keys`: the keys a dict setting may hold (a provider's price options), null for any other setting."""
+    `keys`: the keys a dict setting may hold (a provider's price options), null for any other setting. `choices`: the
+    whole list of allowed values (each item of a list setting is one of them), null when the rule names none.
+    `secret`: a sealed setting: its `value` and `default` are always null, `source` says whether it is set and `hint` is
+    its last characters ("" for a short one; null when not set or not secret). The value never leaves the server."""
     spec = settings.specs()[key]
+    choices = spec.rule.choices if spec.rule else None
     return {"key": key, "group": key.partition(".")[0] if "." in key else "core", "basic": spec.basic,
-            "type": spec.type.__name__, "value": settings.get(key), "source": settings.source(key),
-            "default": spec.default, "description": spec.description, "allowed": spec.allowed, "read_only": False,
-            "keys": None if spec.keys is None else list(spec.keys)}
+            "type": spec.type.__name__, "value": None if spec.secret else settings.get(key),
+            "source": settings.source(key), "default": None if spec.secret else spec.default,
+            "description": spec.description, "allowed": spec.allowed, "read_only": False,
+            "keys": None if spec.keys is None else list(spec.keys),
+            "choices": None if choices is None else list(choices),
+            "secret": spec.secret, "hint": settings.hint(key) if spec.secret else None}
 
 
 def _known(settings: Settings, key: str) -> None:
@@ -83,8 +92,6 @@ async def list_settings(request: Request, pool: AsyncConnectionPool = Depends(ge
     state = request.app.state
     env_only = [
         {"name": "BILLING_TZ", "value": pin[0] if pin else None, "read_only": True},
-        {"name": "PUBLIC_BASE_URL", "value": state.public_base_url, "read_only": True},
-        {"name": "TRUSTED_PROXIES", "value": ",".join(str(n) for n in state.trusted_proxies), "read_only": True},
     ]
     return {"items": [_item(settings, k) for k in sorted(settings.specs())], "env_only": env_only,
             "fixed": fixed_limits(state.registry), "containers": _containers(state, workers),

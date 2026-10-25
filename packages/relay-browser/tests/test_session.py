@@ -387,23 +387,15 @@ def test_an_account_with_a_proxy_gets_the_webrtc_preference_on_top_of_the_seed(t
     sess.release_profile(claim)
 
 
-@mutation(S, "    if site.headless is not None:\n        return site.headless\n", "",
-          expect="an explicit headless setting must win")
-@mutation(S, 'return os.environ.get("RELAY_BROWSER_HEADLESS") == "1"', "return False",
-          expect="the environment must decide")
-def test_headless_is_the_sites_choice_then_the_environments_then_headful(monkeypatch):
-    site = lambda **kw: SiteProfile(name="t", host="t.test", **kw)      # noqa: E731
-    monkeypatch.delenv("RELAY_BROWSER_HEADLESS", raising=False)
-    assert sess.is_headless(site()) is False, "with nothing set the browser must be headful (the box runs Xvfb)"
-    assert sess.is_headless(site(headless=True)) is True, "an explicit headless setting must win (nothing set)"
-    assert sess.is_headless(site(headless=False)) is False, "an explicit headless setting must win (still nothing set)"
+def test_headless_is_the_sites_choice_and_headful_by_default(monkeypatch):
+    """Production is headful under Xvfb with the image's pinned Chrome; no environment variable changes either
+    (owner, 25/10: RELAY_BROWSER_HEADLESS and RELAY_CHROME_PATH are gone)."""
+    site = lambda **kw: SiteProfile(name="t", host="t.test", **kw)  # noqa: E731
     monkeypatch.setenv("RELAY_BROWSER_HEADLESS", "1")
-    assert sess.is_headless(site()) is True, "the environment must decide when the site does not"
-    assert sess.is_headless(site(headless=False)) is False, "an explicit headless setting must win over the environment"
-    assert sess.is_headless(site(headless=True)) is True
-    monkeypatch.setenv("RELAY_BROWSER_HEADLESS", "0")
-    assert sess.is_headless(site()) is False, "only 1 means headless"
-    assert sess.launch_kwargs(site(headless=False), None)["headless"] is False
+    monkeypatch.setenv("RELAY_CHROME_PATH", "/opt/chrome")
+    kw = sess.launch_kwargs(site(), None)
+    assert kw["headless"] is False and kw["channel"] == "chrome" and "executable_path" not in kw
+    assert sess.launch_kwargs(site(headless=True), None)["headless"] is True
 
 
 @mutation(S, '        env["TMPDIR"] = tmpdir', "        pass", expect="Chrome keeps its temp files")
@@ -442,8 +434,6 @@ def test_chrome_gets_its_own_temp_directory_and_only_an_allow_list_of_the_enviro
 
 @mutation(S, "launch_timeout_ms: int = 60_000", "launch_timeout_ms: int = 180_000", expect="no 60 s timeout")
 def test_launch_settings(tmp_path, monkeypatch):
-    monkeypatch.delenv("RELAY_CHROME_PATH", raising=False)
-    monkeypatch.delenv("RELAY_BROWSER_HEADLESS", raising=False)
     site = SiteProfile(name="t", host="t.test", viewport=(1440, 900))
     kw = sess.launch_kwargs(site, {"server": "http://127.0.0.1:1"})
     assert kw["timeout"] == 60_000, "the launch has no 60 s timeout"
@@ -451,9 +441,7 @@ def test_launch_settings(tmp_path, monkeypatch):
     assert "env" in kw, "without an env Playwright hands Chrome the whole environment of the worker"
     assert kw["locale"] == "en-US" and kw["timezone_id"] == "Asia/Ho_Chi_Minh"
     assert kw["viewport"] == {"width": 1440, "height": 900} and kw["proxy"] == {"server": "http://127.0.0.1:1"}
-    monkeypatch.setenv("RELAY_CHROME_PATH", "/opt/chrome")
-    monkeypatch.setenv("RELAY_BROWSER_HEADLESS", "1")
-    kw = sess.launch_kwargs(site, None)
+    kw = sess.launch_kwargs(SiteProfile(name="t", host="t.test", executable_path="/opt/chrome", headless=True), None)
     assert kw["executable_path"] == "/opt/chrome" and "channel" not in kw and kw["headless"] is True
     assert "viewport" not in sess.launch_kwargs(SiteProfile(name="t", host="t.test"), None)
     with pytest.raises(ValueError):
@@ -713,7 +701,6 @@ async def test_no_redactor_means_nothing_starts(tmp_path, token):
 @mutation(S, RELEASE_RESET, "pass", expect="lock was not released")
 @sync
 async def test_a_launch_that_fails_leaves_no_forwarder_scratch_directory_or_lock(tmp_path, token, monkeypatch):
-    monkeypatch.delenv("RELAY_CHROME_PATH", raising=False)
     shared = tmp_path / "shared-tmp"
     shared.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(shared))

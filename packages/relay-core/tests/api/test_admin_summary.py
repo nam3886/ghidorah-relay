@@ -261,8 +261,7 @@ def test_a_provider_whose_execution_setting_lists_http_and_browser_registers():
     ProviderRegistry().register(Switching())
 
 
-@mutation(SETTINGS, "if self.rule.choices is not None and value not in self.rule.choices:", "if False:",
-          expect="DID NOT RAISE")
+@mutation(SETTINGS, "if self.rule.choices is not None and any(", "if False and any(", expect="DID NOT RAISE")
 def test_a_rule_with_choices_refuses_a_value_outside_them_whatever_its_check_says():
     spec = Spec("sw.send_path", str, "http", "How it sends now.", rule=SEND_PATHS)
     assert spec.validate("browser") == "browser"

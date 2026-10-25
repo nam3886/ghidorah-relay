@@ -1,0 +1,1 @@
+import{R as e}from"./auth-CPBotfB-.js";var t=()=>e(`/keys`),n=t=>e(`/keys`,{method:`POST`,body:t}),r=(t,n)=>e(`/keys/${encodeURIComponent(t)}`,{method:`PATCH`,body:n}),i=(t,n)=>e(`/keys/${encodeURIComponent(t)}/${n?`enable`:`disable`}`,{method:`POST`}),a=t=>e(`/keys/${encodeURIComponent(t)}`,{method:`DELETE`});export{i as a,r as i,a as n,t as r,n as t};

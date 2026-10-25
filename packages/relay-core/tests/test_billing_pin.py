@@ -1,4 +1,5 @@
-"""The billing day timezone is fixed when `relay migrate` first runs and never changes (Q2)."""
+"""The billing day timezone is fixed when `relay migrate` first runs and never changes (Q2). The pin is its only
+source: no environment variable names it (owner, 25/10)."""
 
 import asyncio
 from datetime import UTC, datetime
@@ -22,11 +23,12 @@ def pinned(dsn):
         return [r[0] for r in c.execute("SELECT tz FROM relay.billing_pin")]
 
 
-def test_the_first_migrate_pins_the_timezone_and_defaults_to_utc():
+@mutation(B, 'DEFAULT_TZ = "Asia/Ho_Chi_Minh"', 'DEFAULT_TZ = "UTC"', expect="the default pin")
+def test_the_first_migrate_pins_the_timezone_and_defaults_to_ho_chi_minh():
     with disposable_database() as a, disposable_database() as b:
-        run_migrations(a, billing_tz="Asia/Ho_Chi_Minh")
+        run_migrations(a, billing_tz="Asia/Tokyo")
         run_migrations(b)
-        assert pinned(a) == ["Asia/Ho_Chi_Minh"] and pinned(b) == ["UTC"]
+        assert pinned(a) == ["Asia/Tokyo"] and pinned(b) == ["Asia/Ho_Chi_Minh"], "the default pin"
         with psycopg.connect(a) as c, pytest.raises(psycopg.errors.IntegrityError):    # one row, ever
             c.execute("INSERT INTO relay.billing_pin (tz, only_row) VALUES ('UTC', false)")
 
@@ -42,32 +44,32 @@ def test_a_later_migrate_with_another_timezone_is_refused_and_changes_nothing():
         assert pinned(dsn) == ["Asia/Ho_Chi_Minh"]
 
 
-def test_the_migrate_command_reports_the_refusal(monkeypatch, capsys):
+def test_the_migrate_command_reads_no_environment_timezone_and_keeps_the_pin(monkeypatch, capsys):
     from relay_cli.main import main
 
     with disposable_database() as dsn:
+        run_migrations(dsn, billing_tz="Asia/Tokyo")
         monkeypatch.setenv("DATABASE_URL", dsn)
-        monkeypatch.setenv("BILLING_TZ", "Asia/Tokyo")
+        monkeypatch.setenv("BILLING_TZ", "Asia/Seoul")                 # a leftover variable is ignored
         assert main(["migrate"]) == 0
-        monkeypatch.setenv("BILLING_TZ", "Asia/Seoul")
-        assert main(["migrate"]) == 1
-        assert "pinned to Asia/Tokyo" in capsys.readouterr().err
+        assert pinned(dsn) == ["Asia/Tokyo"]
 
 
-@mutation(B, "if env_tz and env_tz != pinned:", "if False:", expect="DID NOT RAISE BillingTzMismatch")
-def test_a_process_whose_environment_disagrees_with_the_pin_refuses_to_start():
-    async def start(dsn, env_tz):
+@mutation(B, "    return check_pin(row[0] if row else None)", "    return \"UTC\"",
+          expect="the pin is not what the process read")
+def test_a_process_reads_the_pin_and_refuses_to_start_without_one(monkeypatch):
+    async def start(dsn):
         async with await psycopg.AsyncConnection.connect(dsn, options="-c search_path=relay") as conn:
-            return await billing.verify_billing_tz(conn, env_tz)
+            return await billing.verify_billing_tz(conn)
 
+    monkeypatch.setenv("BILLING_TZ", "UTC")                            # names nothing any more
     with disposable_database() as dsn:
         run_migrations(dsn, billing_tz="Asia/Tokyo")
-        assert asyncio.run(start(dsn, "Asia/Tokyo")) == "Asia/Tokyo"
-        assert asyncio.run(start(dsn, "")) == "Asia/Tokyo"                   # unset: the pin rules
-        with pytest.raises(BillingTzMismatch, match="BILLING_TZ=UTC but .* pinned to Asia/Tokyo"):
-            asyncio.run(start(dsn, "UTC"))
-    with pytest.raises(BillingTzMismatch, match="run `relay migrate`"):
-        billing.check_pin(None, "")
+        assert asyncio.run(start(dsn)) == "Asia/Tokyo", "the pin is not what the process read"
+        with psycopg.connect(dsn) as c:
+            c.execute("DELETE FROM relay.billing_pin")
+        with pytest.raises(BillingTzMismatch, match="run `relay migrate`"):
+            asyncio.run(start(dsn))
 
 
 @mutation(B, '_PIN = "SELECT tz FROM billing_pin"', '_PIN = "SELECT NULL::text"',

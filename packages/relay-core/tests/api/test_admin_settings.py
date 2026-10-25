@@ -5,6 +5,8 @@ import json
 
 from apikit import ADMIN_USER, run_app
 
+from relay_core import crypto
+from relay_core.settings import Settings, SettingsError, Spec
 from relay_core.testing.mutation import mutation
 
 ROUTES = "packages/relay-core/src/relay_core/admin/routes_settings.py"
@@ -19,8 +21,7 @@ NO_FIXED = '"fixed": []'
 WORKER_QUERY = "ORDER BY at DESC, worker_id LIMIT %s"
 NO_WORKERS = "AND false ORDER BY at DESC, worker_id LIMIT %s"
 API_CONTAINER = {"read": True, "cpus": 1.5, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 64 * 1024**2}
-WORKER_CONTAINER = {"read": True, "cpus": 8.0, "memory_bytes": 12 * 1024**3, "pids": None, "shm_bytes": 1024**3,
-                    "boot": {"WORKER_ID": "w-new", "RELAY_PROFILE_ROOT": "/profiles"}}
+WORKER_CONTAINER = {"read": True, "cpus": 8.0, "memory_bytes": 12 * 1024**3, "pids": None, "shm_bytes": 1024**3}
 ALLOWED = '"allowed": spec.allowed'
 NO_ALLOWED = '"allowed": None'
 KEY = "log_retention_days"
@@ -180,14 +181,14 @@ def test_containers_list_the_api_then_the_recent_workers_newest_first_and_mark_t
     assert api["reported_ms"] == api["started_ms"] > 0
     assert {k: v for k, v in api.items() if not k.endswith("_ms")} == {
         "service": "api", "provider": None, "this_process": True, "reported": True, "cpus": "1.5", "memory": "12 GiB",
-        "pids": "2048", "shm": "64 MiB", "boot": None, "stale": False}
+        "pids": "2048", "shm": "64 MiB", "stale": False}
     assert {k: v for k, v in new.items() if not k.endswith("_ms")} == {
         "service": "w-new", "provider": "fake", "this_process": False, "reported": True, "cpus": "8",
-        "memory": "12 GiB", "pids": "no limit", "shm": "1 GiB", "boot": WORKER_CONTAINER["boot"], "stale": False}
+        "memory": "12 GiB", "pids": "no limit", "shm": "1 GiB", "stale": False}
     assert {k: v for k, v in old.items() if not k.endswith("_ms")} == {
         "service": "w-old", "provider": "fake", "this_process": False, "reported": False, "cpus": None,
-        "memory": None, "pids": None, "shm": None, "boot": None, "stale": False}
-    assert (gone["stale"], gone["reported"], gone["boot"]) == (True, False, None), "a limits value that is no object"
+        "memory": None, "pids": None, "shm": None, "stale": False}
+    assert (gone["stale"], gone["reported"], gone["cpus"]) == (True, False, None), "a limits value that is no object"
     for r, name in ((new, "w-new"), (old, "w-old")):
         at_ms, started_ms = db.one("SELECT floor(extract(epoch FROM at) * 1000)::bigint, "
                                    "floor(extract(epoch FROM started_at) * 1000)::bigint FROM worker_heartbeats "
@@ -300,15 +301,74 @@ def test_a_refused_value_leaves_the_stored_one_and_a_foreign_key_or_a_boot_only_
         "a refused write changed nothing")
 
 
-def test_the_boot_only_values_are_listed_read_only_and_a_secret_is_never_among_them(db):
+def test_the_read_only_list_holds_only_the_billing_pin_and_the_address_and_proxies_are_settings(db):
+    """Owner 25/10: the public address and the trusted proxies are settings (no env); the billing day's zone is the
+    pin `relay migrate` wrote, shown read-only (moving it would shift every daily window)."""
     async def scenario(env):
         h = await env.admin_headers()
         return await env.client.get("/admin/settings", headers=h)
 
     r = run_app(db, scenario, public_base_url="https://relay.example", trusted_proxies="10.0.0.0/8")
     only = {e["name"]: e for e in r.json()["env_only"]}
-    assert set(only) == {"BILLING_TZ", "PUBLIC_BASE_URL", "TRUSTED_PROXIES"}
-    assert all(e["read_only"] is True for e in only.values())
-    assert only["BILLING_TZ"]["value"] == "UTC" and only["PUBLIC_BASE_URL"]["value"] == "https://relay.example"
-    assert only["TRUSTED_PROXIES"]["value"] == "10.0.0.0/8"
-    assert all(i["key"] not in only for i in r.json()["items"])
+    assert set(only) == {"BILLING_TZ"}
+    assert only["BILLING_TZ"]["read_only"] is True and only["BILLING_TZ"]["value"] == "UTC"
+    assert item(r, "public_address")["value"] == "https://relay.example"
+    assert item(r, "trusted_proxies")["value"] == ["10.0.0.0/8"]
+
+
+SETTINGS_FILE = "packages/relay-core/src/relay_core/settings.py"
+PLAIN = "abcdefghijklmnopWXYZ"
+
+
+@mutation(SETTINGS_FILE, "        return seal_secret(spec.key, value)\n", "        return value\n",
+          expect="a secret was stored in plain")
+def test_a_secret_setting_is_sealed_never_read_back_and_opened_only_with_the_private_key(db, monkeypatch):
+    """A solver key (owner 25/10): the API seals it with the public key; no admin read returns it (only set or not and
+    its last 4 characters); only a process given the private keys opens it, at its next reload, no restart."""
+    keys, stranger = crypto.generate_keypair(), crypto.generate_keypair()
+    monkeypatch.setenv(crypto.PUBLIC_KEY_VAR, keys.public)
+
+    async def scenario(env):
+        registry = env.settings._registry
+        registry.register(Spec("relay_token", str, "", "A token.", secret=True))
+        h = await env.admin_headers()
+        out = {"start": item(await env.client.get("/admin/settings", headers=h), "relay_token")}
+        out["put"] = await env.client.put("/admin/settings/relay_token", json={"value": "  %s \n" % PLAIN}, headers=h)
+        out["row"] = db.one("SELECT value::text FROM settings_kv WHERE key = 'relay_token'")[0]
+        listing = await env.client.get("/admin/settings", headers=h)
+        out["listing"], out["after"] = listing.text, item(listing, "relay_token")
+        out["history"] = (await env.client.get("/admin/settings/history", headers=h)).text
+        worker = Settings(env.pool, db.api_dsn, registry=registry, open_keys=[keys.private])
+        other = Settings(env.pool, db.api_dsn, registry=registry, open_keys=[stranger.private])
+        await worker.reload()
+        await other.reload()
+        out["opened"], out["unopened"] = worker.get("relay_token"), other.get("relay_token")
+        try:
+            env.settings.get("relay_token")
+            out["api_read"] = "read"
+        except SettingsError:
+            out["api_read"] = "refused"
+        out["refused"] = [(await env.client.put("/admin/settings/relay_token", json={"value": v}, headers=h)
+                           ).status_code for v in ("  ", 1234, None)]
+        await env.client.put("/admin/settings/relay_token", json={"value": "short"}, headers=h)
+        out["short"] = item(await env.client.get("/admin/settings", headers=h), "relay_token")["hint"]
+        out["cleared"] = (await env.client.delete("/admin/settings/relay_token", headers=h)).json()
+        await worker.reload()
+        out["after_clear"] = worker.get("relay_token")
+        return out
+
+    out = run_app(db, scenario)
+    assert PLAIN not in out["row"], "a secret was stored in plain"
+    assert (out["start"]["secret"], out["start"]["source"], out["start"]["hint"], out["start"]["value"],
+            out["start"]["default"]) == (True, "default", None, None, None)
+    assert out["put"].status_code == 200 and out["put"].json()["value"] is None
+    assert (out["after"]["source"], out["after"]["hint"], out["after"]["value"]) == ("db", "WXYZ", None)
+    for text in (out["put"].text, out["listing"], out["history"]):
+        assert PLAIN not in text and "abcdefghijklmnop" not in text, "a secret came back from an admin read"
+    assert out["opened"] == PLAIN, "the worker did not open the key"
+    assert out["unopened"] == "", "a key sealed for another key pair was opened"
+    assert out["api_read"] == "refused"
+    assert out["refused"] == [400, 400, 400]
+    assert out["short"] == "", "a short secret showed its last characters"
+    assert out["cleared"]["deleted"] is True and out["cleared"]["source"] == "default" and out["after_clear"] == ""
+    assert db.one("SELECT count(*) FROM settings_history WHERE key = 'relay_token' AND secret") == (3,)

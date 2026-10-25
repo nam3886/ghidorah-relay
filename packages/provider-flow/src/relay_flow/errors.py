@@ -33,7 +33,7 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "no flow account of a plan that offers this option took the order; it was not sent", free_retries=5),
     # The solver's own faults: ours to fix (a key, a top-up), never the flow account's; nothing was sent.
     Rule(CAPTCHA_KEY_INVALID, 502, "api_error", True, False, True, False, True,
-         "the reCAPTCHA solver refused its key, or the flow worker has none",
+         "the reCAPTCHA solver refused its key, or none is set (Settings, flow.<source>_key)",
          "the security token for flow could not be obtained; the order was not sent"),
     Rule(CAPTCHA_NO_BALANCE, 502, "api_error", True, False, True, False, True,
          "the reCAPTCHA solver account has no balance left",

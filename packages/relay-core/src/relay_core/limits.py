@@ -26,6 +26,7 @@ from relay_core.jobs import (
     sweeps,
     titles,
     webhooks,
+    worker,
 )
 from relay_core.providers import FixedLimit, ProviderRegistry
 
@@ -59,6 +60,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(leases, "RECONCILE_HARD_S", "hard bound of one reconcile", "s"),
     _c(leases, "COMMAND_HARD_S", "hard bound per command kind that runs under an account lease", "s"),
     _c(engine, "BEAT_S", "a worker beats this often", "s"),
+    _c(worker, "DEFAULT_GRACE_S", "a stopping worker gives its in-flight work this long; below the container's "
+       "780 s stop grace in deploy/compose.yml", "s"),
     _c(reaper, "OWNER_GONE_S", "3 x the worker heartbeat: an owner silent this long is gone", "s"),
     _c(reaper, "INTERVAL_S", "the reaper runs this often", "s"),
     _c(reaper, "COMMAND_STALL_S", "bound of a command that takes no lease and has no hard bound of its own", "s"),

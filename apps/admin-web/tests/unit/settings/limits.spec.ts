@@ -48,7 +48,7 @@ const fixed = (): api.FixedLimit[] => [
 ];
 const bootRows = (): api.EnvOnlyItem[] => [
   { name: "RELAY_BIND", value: "0.0.0.0:8100" },
-  { name: "RELAY_CHROME_PATH", value: null },
+  { name: "RELAY_UNSET_EXAMPLE", value: null },
 ];
 const containers = (): api.ContainerRow[] => [
   {
@@ -61,7 +61,6 @@ const containers = (): api.ContainerRow[] => [
     memory: "2 GiB",
     pids: "512",
     shm: "64 MiB",
-    boot: null,
     reported_ms: NOW - 3600_000,
     started_ms: NOW - 3600_000,
   },
@@ -75,7 +74,6 @@ const containers = (): api.ContainerRow[] => [
     memory: "12 GiB",
     pids: "2048",
     shm: "1 GiB",
-    boot: { WORKER_ID: "worker-dola", RELAY_CHROME_PATH: null },
     reported_ms: NOW - 120_000,
     started_ms: NOW - 7200_000,
   },
@@ -89,7 +87,6 @@ const containers = (): api.ContainerRow[] => [
     memory: null,
     pids: null,
     shm: null,
-    boot: null,
     reported_ms: NOW - 600_000,
     started_ms: NOW - 9000_000,
   },
@@ -103,7 +100,6 @@ const containers = (): api.ContainerRow[] => [
     memory: "unreadable",
     pids: "2048",
     shm: "64 MiB",
-    boot: null,
     reported_ms: NOW - 30_000,
     started_ms: NOW - 3600_000,
   },
@@ -231,7 +227,7 @@ describe("the boot-only card", () => {
     expect(card.findAll("thead th").map((h) => h.text())).toEqual(["Name", "Value"]);
     expect(card.findAll("tbody tr").map(cells)).toEqual([
       ["RELAY_BIND", "0.0.0.0:8100"],
-      ["RELAY_CHROME_PATH", "-"],
+      ["RELAY_UNSET_EXAMPLE", "-"],
     ]);
   });
 
@@ -242,7 +238,7 @@ describe("the boot-only card", () => {
     expect(card.find("table").exists()).toBe(false);
     expect(card.findAll("li").map((li) => li.findAll("span").map((c) => c.text()))).toEqual([
       ["RELAY_BIND", "0.0.0.0:8100"],
-      ["RELAY_CHROME_PATH", "-"],
+      ["RELAY_UNSET_EXAMPLE", "-"],
     ]);
   });
 });
@@ -250,7 +246,7 @@ describe("the boot-only card", () => {
 describe("the containers card", () => {
   const mountContainers = () => mount(ContainerLimits, { props: { rows: containers(), loading: false, error: null } });
 
-  it("has a column per service and a row per measure, then one per boot knob any service reported", () => {
+  it("has a column per service and a row per measure under one band", () => {
     phone(false);
     wrapper = mountContainers();
     expect(wrapper.find("thead th").text()).toBe("Name");
@@ -267,27 +263,17 @@ describe("the containers card", () => {
       ["Memory", "2 GiB", "12 GiB", "-", "unreadable"],
       ["PIDs", "512", "2048", "-", "2048"],
       ["Shared memory (/dev/shm)", "64 MiB", "1 GiB", "-", "64 MiB"],
-      ["Boot values"],
-      ["WORKER_ID", "-", "worker-dola", "-", "-"],
-      ["RELAY_CHROME_PATH", "-", "not set", "-", "-"],
     ]);
   });
 
-  it("reads not set for a value a service reported unset, and dims the dash of a value it does not report", () => {
+  it("dims the dash of a value a service does not report", () => {
     phone(false);
     wrapper = mountContainers();
-    const knob = wrapper.findAll("tbody tr").find((tr) => tr.find("th").text() === "RELAY_CHROME_PATH")!;
-    const cell = (service: string) => knob.find(`td[data-service="${service}"]`);
-    expect(cell("worker-dola").text()).toBe("not set");
+    const cpus = wrapper.findAll("tbody tr").find((tr) => tr.find("th").text() === "CPUs")!;
+    const cell = (service: string) => cpus.find(`td[data-service="${service}"]`);
+    expect(cell("worker-old").text()).toBe("-");
+    expect(cell("worker-old").classes()).toContain("set-table__none");
     expect(cell("worker-dola").classes()).not.toContain("set-table__none");
-    expect(cell("api").text()).toBe("-");
-    expect(cell("api").classes()).toContain("set-table__none");
-  });
-
-  it("has no Boot values band when no service reports a boot value", () => {
-    phone(false);
-    wrapper = mount(ContainerLimits, { props: { rows: [containers()[0]!], loading: false, error: null } });
-    expect(wrapper.findAll("tbody tr.set-table__group").map((tr) => tr.text())).toEqual(["Container limits"]);
   });
 
   it("says this process for the api and how long ago a worker reported, under the service name", () => {
@@ -337,7 +323,7 @@ describe("the containers card", () => {
     expect(old.slice(0, 4)).toEqual(["-", "-", "-", "-"]);
   });
 
-  it("is one block per service on a phone, with its stamp, its chip and its own boot knobs", () => {
+  it("is one block per service on a phone, with its stamp, its chip and its limits", () => {
     phone(true);
     wrapper = mountContainers();
     expect(wrapper.find("table").exists()).toBe(false);
@@ -348,10 +334,8 @@ describe("the containers card", () => {
       ["Memory", "12 GiB"],
       ["PIDs", "2048"],
       ["Shared memory (/dev/shm)", "1 GiB"],
-      ["WORKER_ID", "worker-dola"],
-      ["RELAY_CHROME_PATH", "not set"],
     ]);
-    expect(worker.findAll(".set-list__group").map((h) => h.text())).toEqual(["Container limits", "Boot values"]);
+    expect(worker.findAll(".set-list__group").map((h) => h.text())).toEqual(["Container limits"]);
     expect(
       wrapper
         .find('section[data-service="api"]')

@@ -12,14 +12,15 @@ site key, the project page and the generate's page action:
   task for v3.
 
 The calls to every solver's API go through the account's proxy (owner, 23/10), direct only for an account without one,
-like every other call. The keys come from the worker's environment (`constants.CAPTCHA_KEY_VARS`). Neither a key, a
+like every other call. The keys are the secret settings `flow.<source>_key` (`constants.CAPTCHA_KEY_SETTINGS`), sealed
+in the database and opened by the worker's settings at each reload, read at each solve. Neither a key, a
 token nor the proxy login is ever logged or put in an error text. A solver's fault (a bad key, no balance, no token
 in time) is a `CaptchaError` with its own code: the job is retried, the flow account is never blamed.
 """
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 
 import httpx
 
@@ -30,7 +31,7 @@ from relay_flow.constants import (
     API_TIMEOUT_S,
     CAPSOLVER_TASK,
     CAPSOLVER_TASK_PROXYLESS,
-    CAPTCHA_KEY_VARS,
+    CAPTCHA_KEY_SETTINGS,
     CAPTCHA_MIN_LEFT_S,
     CAPTCHA_URLS,
     RECAPTCHA_SITE_KEY,
@@ -60,15 +61,15 @@ class CaptchaError(Exception):
 
 class Tokens:
     """`await tokens(action, page_url, proxy)` -> a token from the source(s) `flow.captcha_provider` names, its calls
-    through `proxy` (the account's; None: direct). `keys` maps a source to its key (None or missing: not set)."""
+    through `proxy` (the account's; None: direct), each source's key read from its secret setting at the solve ("" is
+    not set)."""
 
-    def __init__(self, settings, keys: Mapping[str, str | None], *, transport: httpx.AsyncBaseTransport | None = None,
+    def __init__(self, settings, *, transport: httpx.AsyncBaseTransport | None = None,
                  sleep: Callable[[float], Awaitable] = asyncio.sleep, clock: Callable[[], float] = time.monotonic):
-        self.settings, self._keys, self.transport, self.sleep, self.clock = (
-            settings, dict(keys), transport, sleep, clock)
+        self.settings, self.transport, self.sleep, self.clock = settings, transport, sleep, clock
 
-    def __repr__(self) -> str:          # a key never shows in a traceback's locals or a log line
-        return "Tokens(keys set: %s)" % (", ".join(sorted(k for k, v in self._keys.items() if v)) or "none")
+    def __repr__(self) -> str:          # holds no key: the settings view opens them
+        return "Tokens()"
 
     async def __call__(self, action: str, page_url: str, proxy: Proxy | None = None) -> str:
         chosen = self.settings.get("flow.captcha_provider")
@@ -90,9 +91,9 @@ class Tokens:
 
     async def _solve(self, source: str, action: str, page_url: str, proxy: Proxy | None, end: float,
                      timeout: int) -> str:
-        key = self._keys.get(source)
+        key = self.settings.get(CAPTCHA_KEY_SETTINGS[source])
         if not key:
-            raise CaptchaError("%s is not set on the flow worker" % CAPTCHA_KEY_VARS[source],
+            raise CaptchaError("%s is not set (Settings, flow)" % CAPTCHA_KEY_SETTINGS[source],
                                errors.CAPTCHA_KEY_INVALID)
         task = self._task(source, action, page_url, proxy)
         transport = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(proxy), trust_env=False)

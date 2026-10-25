@@ -93,8 +93,8 @@ PROXY_PREFERENCES = {"webrtc": {"ip_handling_policy": "disable_non_proxied_udp"}
 
 
 # The Chrome the box runs: `CHROME_VERSION` in deploy/Dockerfile without its package revision (a test keeps them equal).
-# A Mac run sets RELAY_CHROME_PATH to the same version: Chrome 155.0.8059.40 restarts its network service during a dola
-# load, and the restart empties the cookie store, so the page reads as a guest.
+# Chrome 155.0.8059.40 restarts its network service during a dola load, and the restart empties the cookie store, so
+# the page reads as a guest: every run uses the image's pinned Chrome.
 PINNED_CHROME_VERSION = "154.0.8037.92"
 _VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)\.(\d+)")
 
@@ -150,9 +150,9 @@ class SiteProfile:
     capture_ws_hosts: tuple[str, ...] = ()     # NetRecorder: WebSocket hosts whose frames are kept
     launch_timeout_ms: int = 60_000            # Chrome starts in seconds; Playwright's default 180 s is a hang
     channel: str = "chrome"                    # the pinned Google Chrome
-    executable_path: str | None = None         # wins over `channel`; env RELAY_CHROME_PATH wins over both
-    headless: bool | None = None               # None: env RELAY_BROWSER_HEADLESS=1 means headless, else headful (Xvfb)
-    profile_root: str | None = None            # the profiles volume; env RELAY_PROFILE_ROOT; else a temp directory
+    executable_path: str | None = None         # wins over `channel` (a test's own Chrome; production: the channel)
+    headless: bool = False                     # production is headful under Xvfb; a test passes True
+    profile_root: str | None = None            # None: PROFILE_ROOT, the profiles volume; a test passes its own
     refuse_hosts: tuple[str, ...] = CHROME_BACKGROUND_HOSTS   # the proxy forwarder answers 502 for these hosts
 
     def __post_init__(self):
@@ -180,9 +180,11 @@ def check_token(token, purpose) -> None:
 
 
 # ---- profile directory ---------------------------------------------------------------------------------------------
+PROFILE_ROOT = "/profiles"      # must match the profiles volume's mount in deploy/compose.yml
+
+
 def profile_root(site: SiteProfile) -> str:
-    return site.profile_root or os.environ.get("RELAY_PROFILE_ROOT") or os.path.join(tempfile.gettempdir(),
-                                                                                       "relay-profiles")
+    return site.profile_root or PROFILE_ROOT
 
 
 def profile_name(account) -> str:
@@ -390,13 +392,6 @@ def launch_args(site: SiteProfile, images: bool = False) -> list[str]:
     return args + ["--disk-cache-size=%d" % site.disk_cache_bytes]
 
 
-def is_headless(site: SiteProfile) -> bool:
-    """The site's own `headless` wins; else `RELAY_BROWSER_HEADLESS=1`; else headful (the box runs Xvfb)."""
-    if site.headless is not None:
-        return site.headless
-    return os.environ.get("RELAY_BROWSER_HEADLESS") == "1"
-
-
 # What Chrome is given of the worker's environment: a name list, never the whole of it. The worker holds the credential
 # private key, the database URL and the storage keys, and Chrome runs with `--no-sandbox` on third-party pages, so a
 # renderer that is taken over could read them out of its own environment.
@@ -414,12 +409,11 @@ def chrome_env(tmpdir: str | None = None) -> dict[str, str]:
 
 
 def launch_kwargs(site: SiteProfile, proxy: dict | None, images: bool = False, tmpdir: str | None = None) -> dict:
-    kw: dict = {"headless": is_headless(site), "env": chrome_env(tmpdir),
+    kw: dict = {"headless": site.headless, "env": chrome_env(tmpdir),
                 "proxy": proxy, "args": launch_args(site, images), "locale": site.locale,
                 "timezone_id": site.timezone, "timeout": site.launch_timeout_ms}
-    exe = os.environ.get("RELAY_CHROME_PATH") or site.executable_path
-    if exe:
-        kw["executable_path"] = exe
+    if site.executable_path:
+        kw["executable_path"] = site.executable_path
     else:
         kw["channel"] = site.channel
     if site.viewport:

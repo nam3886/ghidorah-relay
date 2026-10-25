@@ -16,7 +16,7 @@ SIZES = ((1440, 900), (1024, 768), (390, 800))
 ALLOWED = (("log_retention_days", "at least 1"), ("fake.browser_slots", "1–30"),
            ("media_orphan_sweep", "true or false"), ("filename_pattern", "not empty"))
 WORKER_LIMITS = {"read": True, "cpus": 8.0, "memory_bytes": 12 * 1024**3, "pids": 2048, "shm_bytes": 1024**3,
-                 "missing": [], "boot": {"WORKER_ID": "w-limits", "RELAY_PROFILE_ROOT": "/profiles"}}
+                 "missing": []}
 # a text that the page cuts off has more width than its box shows
 CLIPPED_JS = """(el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1"""
 
@@ -134,8 +134,7 @@ def test_a_reporting_worker_shows_its_limits_and_one_from_an_older_version_says_
     open_settings(app, page, width, height)
     worker = service_head(page, "w-limits")
     expect(worker).to_be_visible()
-    for label, text in (("CPUs", "8"), ("Memory", "12 GiB"), ("PIDs", "2048"), ("Shared memory (/dev/shm)", "1 GiB"),
-                        ("RELAY_PROFILE_ROOT", "/profiles")):
+    for label, text in (("CPUs", "8"), ("Memory", "12 GiB"), ("PIDs", "2048"), ("Shared memory (/dev/shm)", "1 GiB")):
         expect(limit_cell(page, "w-limits", label)).to_have_text(text)
     expect(worker).to_contain_text("seen just now")
     expect(worker.locator(".status-chip")).to_have_count(0)

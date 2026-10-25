@@ -6,6 +6,10 @@ restores the default. Each process keeps a cache of the stored values; `NOTIFY r
 reload it, and a listener that loses its connection reloads everything once it is back (a notification sent meanwhile
 is lost).
 
+A secret setting (`Spec.secret`, a solver's key) is stored sealed with the credential seal: the API seals it with the
+public key, only a worker holding the private keys opens it, at each reload like any value, so a change takes effect
+without a restart. No admin read ever returns it: only whether it is set and its last characters.
+
 Boot-only rule: an upstream URL, host, endpoint, proxy or user agent is configuration of the deployment, not a live
 setting. A key ending in one of BOOT_ONLY_SUFFIXES can never be registered, so it can never be written to the
 database by an operator or by a stolen admin session. Providers register their own namespaced keys (`<p>.<name>`)
@@ -13,17 +17,21 @@ with `REGISTRY.register(...)` when their package loads; this module names no pro
 """
 
 import asyncio
+import base64
+import ipaddress
 import json
 import logging
 from collections.abc import Callable, Iterable
 from dataclasses import KW_ONLY, dataclass
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
+from relay_core import crypto
 from relay_core.db import tx
 
 log = logging.getLogger(__name__)
@@ -63,7 +71,10 @@ class Spec:
     strictly); it may drop what a newer catalog no longer knows, so the rest of the stored value keeps its effect.
     `keys`: for a dict setting whose keys are a fixed list (a provider's price options), that list, so the settings page
     can draw an input for a key the value does not hold yet.
-    `secret`: the change history keeps only that it changed, never a value."""
+    `secret`: a str whose value is written sealed with the credential seal (`crypto.seal`, the API's public key) and
+    opened only by a process given the private keys (a worker); the change history keeps only that it changed, never a
+    value, and the admin sees only whether it is set and its last characters (`Settings.hint`). Its default is ""
+    (not set); clearing it is a delete."""
 
     key: str
     type: type
@@ -103,7 +114,8 @@ class Spec:
         if self.max is not None and value > self.max:
             raise SettingsError("%s: must be at most %g" % (self.key, self.max))
         if self.rule:
-            if self.rule.choices is not None and value not in self.rule.choices:
+            if self.rule.choices is not None and any(
+                    v not in self.rule.choices for v in (value if self.type is list else [value])):
                 raise SettingsError("%s: must be one of %s" % (self.key, ", ".join(map(str, self.rule.choices))))
             try:
                 self.rule.check(value)
@@ -125,6 +137,8 @@ class Registry:
                                     % (s.key, ", ".join(BOOT_ONLY_SUFFIXES)))
             if s.key in self.specs:
                 raise SettingsError("%s is already registered" % s.key)
+            if s.secret and (s.type is not str or s.default != ""):
+                raise SettingsError("%s: a secret setting is a str whose default is \"\" (not set)" % s.key)
             s.validate(s.default)
             self.specs[s.key] = s
 
@@ -147,6 +161,24 @@ def _iana_zone(v: str) -> None:
         ZoneInfo(v)
     except (ZoneInfoNotFoundError, ValueError):
         raise ValueError("not an IANA time zone: %r" % v) from None
+
+
+def _public_address(v: str) -> None:
+    if not v:
+        return                          # links from each request's own address
+    parts = urlsplit(v)
+    if parts.scheme not in ("http", "https") or not parts.hostname or parts.query or parts.fragment or v != v.strip():
+        raise ValueError("not an http(s) address such as https://relay.example.com: %r" % v[:80])
+
+
+def _networks(v: list) -> None:
+    for item in v:
+        try:
+            if not isinstance(item, str):
+                raise TypeError
+            ipaddress.ip_network(item.strip(), strict=False)
+        except (TypeError, ValueError):
+            raise ValueError("not an IP address or CIDR network: %r" % str(item)[:60]) from None
 
 
 def disabled_models(provider: str, model_ids: Iterable[str]) -> Spec:
@@ -198,16 +230,59 @@ REGISTRY = Registry(
          "The time zone of the admin's \"today\" (the Jobs page's day and hours start at its midnight). Billing and "
          "the account pools keep their own days.",
          rule=Rule("an IANA time zone, such as Asia/Ho_Chi_Minh", _iana_zone)),
+    # The relay's own address and its front proxies, not an upstream's: settings since 25/10 (owner), no env.
+    Spec("public_address", str, "",
+         "The address customers reach the relay at, such as https://relay.example.com: the links to a job's media are "
+         "built on it. Empty: from the address of each request.",
+         rule=Rule("empty, or an http(s) address with no query", _public_address)),
+    Spec("trusted_proxies", list, [],
+         "The proxies in front of the API (addresses or CIDR networks, such as 172.16.0.0/12) whose X-Forwarded-For "
+         "names the caller. Empty: none is trusted, the caller is the direct peer.",
+         rule=Rule("a list of IP addresses or CIDR networks", _networks)),
 )
+
+
+SECRET_HINT_CHARS = 4       # the last characters of a secret the admin sees...
+SECRET_HINT_MIN = 16        # ...only for one at least this long (a short one shows none)
+
+
+def seal_secret(key: str, value: str) -> dict:
+    """The stored form of a secret setting: the value (trimmed, not empty) sealed with the API's public key of the
+    credential seal, and its last characters. A missing public key raises crypto.CryptoError."""
+    value = value.strip()
+    if not value:
+        raise SettingsError("%s: empty; clear it instead" % key)
+    sealed = crypto.seal(crypto.public_key_from_env(), value.encode())
+    return {"sealed": base64.b64encode(sealed).decode("ascii"),
+            "hint": value[-SECRET_HINT_CHARS:] if len(value) >= SECRET_HINT_MIN else ""}
+
+
+def _sealed_form(value: Any) -> dict:
+    if not (isinstance(value, dict) and set(value) == {"sealed", "hint"}
+            and isinstance(value["sealed"], str) and isinstance(value["hint"], str)):
+        raise SettingsError("not a sealed secret")
+    return value
+
+
+def open_secret(value: Any, keys: Iterable[str]) -> str:
+    """The plain value of a stored secret setting. SettingsError when it is not one or no key opens it."""
+    try:
+        return crypto.open_blob(base64.b64decode(_sealed_form(value)["sealed"]), keys).decode()
+    except (crypto.CryptoError, ValueError) as e:
+        raise SettingsError("the sealed value cannot be opened: %s" % e) from None
 
 
 class Settings:
     """The per-process view of the registry. `start()` loads the stored values and keeps them fresh."""
 
     def __init__(self, pool: AsyncConnectionPool, dsn: str, *, registry: Registry = REGISTRY,
-                 reconnect_s: float = 1.0):
+                 reconnect_s: float = 1.0, open_keys: Iterable[str] | None = None):
+        """`open_keys`: the private keys of the credential seal (a worker's): with them `get` opens a secret setting;
+        without them (the API) a secret is never opened and `get` of one is refused."""
         self._pool, self._dsn, self._registry, self._reconnect_s = pool, dsn, registry, reconnect_s
+        self._open_keys = None if open_keys is None else list(open_keys)
         self._stored: dict[str, Any] = {}
+        self._secrets: dict[str, str] = {}      # the opened secret settings (only with open_keys)
         self._reload_lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
         self._ready = asyncio.Event()
@@ -218,22 +293,43 @@ class Settings:
 
     def get(self, key: str) -> Any:
         spec = self._registry.spec(key)
+        if spec.secret:
+            if self._open_keys is None:
+                raise SettingsError("%s is secret: only a process holding the seal's private keys reads it" % key)
+            return self._secrets.get(key, "")
         return self._stored.get(key, spec.default)
+
+    def hint(self, key: str) -> str | None:
+        """A secret setting as the admin may see it: None when not set, else its last characters ("" for a short one).
+        Never the value."""
+        if not self._registry.spec(key).secret:
+            raise SettingsError("%s is not a secret setting" % key)
+        stored = self._stored.get(key)
+        return None if stored is None else stored["hint"]
 
     def source(self, key: str) -> str:
         self._registry.spec(key)
         return "db" if key in self._stored else "default"
 
     async def set(self, key: str, value: Any, *, by: str | None = None) -> Any:
+        """Validate, then write. A secret setting is written sealed (what is returned is that sealed form)."""
         spec = self._registry.spec(key)
         value = spec.validate(value)  # before anything is written
+        value = self._sealed(spec, value)
         await self._write(key, value, by)
         return value
 
     async def set_changed(self, key: str, value: Any, *, by: str | None = None) -> bool:
         """`set`, but says whether the STORED row was absent or different before the write (not whether the effective
-        value moved: the default may already give the same one)."""
-        return await self._write(key, self._registry.spec(key).validate(value), by)
+        value moved: the default may already give the same one). A secret is sealed anew each time: always a change."""
+        spec = self._registry.spec(key)
+        return await self._write(key, self._sealed(spec, spec.validate(value)), by)
+
+    @staticmethod
+    def _sealed(spec: Spec, value: Any) -> Any:
+        if not spec.secret:
+            return value
+        return seal_secret(spec.key, value)
 
     async def _write(self, key: str, value: Any, by: str | None) -> bool:
         async with tx(self._pool) as conn:
@@ -285,19 +381,24 @@ class Settings:
         async with self._reload_lock:      # an older read must not finish after a newer one and overwrite it
             async with tx(self._pool) as conn:
                 rows = await (await conn.execute("SELECT key, value FROM settings_kv")).fetchall()
-            self._stored = self._validated(rows)
+            self._stored, self._secrets = self._validated(rows)
 
-    def _validated(self, rows) -> dict[str, Any]:
-        fresh = {}
+    def _validated(self, rows) -> tuple[dict[str, Any], dict[str, str]]:
+        fresh, opened = {}, {}
         for key, value in rows:
             spec = self._registry.specs.get(key)
             try:
                 if spec is None:
                     raise SettingsError("not a setting")
+                if spec.secret:
+                    fresh[key] = _sealed_form(value)
+                    if self._open_keys is not None:
+                        opened[key] = open_secret(value, self._open_keys)
+                    continue
                 fresh[key] = spec.validate(spec.on_load(value) if spec.on_load else value)
             except SettingsError as e:
                 log.error("stored setting %s ignored: %s", key, e)
-        return fresh
+        return fresh, opened
 
     async def start(self, timeout_s: float = 10.0) -> None:
         """Load the values and start listening; returns once the first load (after LISTEN) is done."""

@@ -1,4 +1,4 @@
-"""`relay serve | worker | migrate | admin | keygen | key | provider | jobs | e2e`.
+"""`relay serve | worker | migrate | admin | keygen | key | provider | seed-settings | jobs | e2e`.
 
 Imports happen per subcommand, because they are the process boundary: `serve` loads relay_core and
 every provider's spec and never an engine; `worker --provider X` loads X's engine, and so pulls in
@@ -28,7 +28,7 @@ from relay_core.redact import install_log_redaction, redact, redact_text
 PROVIDERS = {"dola": "relay_dola", "vibes": "relay_vibes", "meta": "relay_meta", "flow": "relay_flow",
              "gemini": "relay_gemini", "qwen": "relay_qwen"}
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
-DEFAULT_PORT = 8100
+LISTEN_PORT = 8100           # fixed: deploy/compose.yml publishes and health-checks this port
 API_POOL_MAX = 15            # the api's pool; a worker's is 10
 SHUTDOWN_GRACE_S = 25         # under the api container stop grace (30 s): the runners and the pool still close
 
@@ -66,8 +66,7 @@ def worker(provider: str) -> int:
     A provider package offers `spec.SPEC` (its ProviderSpec) and `engine.build_engine(spec, settings)`; the engine
     module is imported only here, so a browser provider pulls in the browser kit and no other process does.
 
-    `WORKER_ID` (default `worker-<provider>`) names the process's heartbeat row: it must be unique per worker
-    process and contain no "/"; a worker that finds a "/" in it refuses to start (exit 2)."""
+    Its heartbeat row is `worker-<provider>`: one worker process per provider."""
     from relay_core.jobs.worker import EXIT_REFUSED as REFUSED
     from relay_core.jobs.worker import serve as serve_worker
 
@@ -104,7 +103,7 @@ def migrate() -> int:
         return 1
     passwords = {role: os.environ.get(role.upper() + "_DB_PASSWORD", "") for role in ROLES}
     try:
-        applied = run_migrations(dsn, passwords=passwords, billing_tz=os.environ.get("BILLING_TZ") or None)
+        applied = run_migrations(dsn, passwords=passwords)
     except (psycopg.Error, RuntimeError, ValueError) as e:
         print("relay migrate: %s" % str(e).strip().splitlines()[0], file=sys.stderr)
         return 1
@@ -192,8 +191,8 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     Refuses (exit 2) before it connects when a private key is set (the api cannot open a sealed credential and must
     never be able to), when the credential PUBLIC key is missing or malformed (account import and proxy edits seal
     with it), when the database or object store settings are missing, or when the object-store secret is empty or an
-    example value; when the bucket cannot be made (exit 1, before the pool opens); after it connects, when
-    BILLING_TZ differs from the pin. Then every provider the registered specs declare gets a closed cap row
+    example value; when the bucket cannot be made (exit 1, before the pool opens); after it connects, when no billing
+    day is pinned (`relay migrate` pins it). Then every provider the registered specs declare gets a closed cap row
     on the keys that exist (I29), each shipped default prompt frame without a row is seeded, the app is
     built, and `http` serves until a stop signal. Shutdown order: stop serving, stop the runners, then the pool."""
     from relay_core import billing, crypto, frames
@@ -217,7 +216,6 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
     try:
         crypto.seal(crypto.public_key_from_env(env), b"")        # present and a real key: imports and edits need it
         store = ObjectStore.from_env(env)
-        port = int(env.get("PORT") or DEFAULT_PORT)
         registry = ProviderRegistry()
         for spec in specs:
             registry.register(spec)
@@ -236,7 +234,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
         await settings.start()
         try:
             async with tx(pool) as conn:
-                await billing.verify_billing_tz(conn, env.get("BILLING_TZ", ""))
+                await billing.verify_billing_tz(conn)
         except billing.BillingTzMismatch as e:
             raise CliError(str(e), EXIT_REFUSED) from None
         async with tx(pool) as conn:
@@ -246,7 +244,7 @@ async def serve_api(specs: list[Any], env: Mapping[str, str], *,
                     await frames.seed(conn, spec.name, spec.frames.defaults)
         app = create_app(pool=pool, settings=settings, store=store, registry=registry)
         running = runners.start_runners(pool, settings, store)
-        await (http or run_uvicorn)(app, port)
+        await (http or run_uvicorn)(app, LISTEN_PORT)
         return EXIT_OK
     finally:
         if running is not None:
@@ -396,6 +394,57 @@ def provider_mode(specs: list[Any], provider: str, drain: bool) -> int:
     return asyncio.run(with_pool(run))
 
 
+# ponytail: a one-off path from the environment to the settings (owner, 25/10); remove this command and its table
+# once production is seeded and the variables are gone from the box's env files.
+SEED_FROM_ENV = {"public_address": "PUBLIC_BASE_URL", "trusted_proxies": "TRUSTED_PROXIES"}
+
+
+def seed_settings(specs: list[Any], env: Mapping[str, str] = os.environ) -> int:
+    """One-off, after the deploy that made these values settings: each setting below that has no stored value takes
+    its old environment variable. `public_address` <- PUBLIC_BASE_URL and `trusted_proxies` <- TRUSTED_PROXIES (comma
+    separated) are in the api's env; every secret setting `<p>.<name>` <- `<P>_<NAME>` (each of flow's three solver
+    keys) is in that provider's worker env, and is stored sealed. Run it in each container whose env
+    holds them: a variable that is empty here is skipped. A stored value is never replaced. Prints the outcome per
+    setting, never a value."""
+    from relay_core import crypto
+    from relay_core.settings import Settings, SettingsError
+
+    seeds = dict(SEED_FROM_ENV)
+    for spec in specs:
+        seeds.update({k: k.upper().replace(".", "_") for k, s in spec.settings().items() if s.secret})
+    if not env.get(crypto.PUBLIC_KEY_VAR, "").strip():
+        try:                                        # a worker holds the private key: its public half seals
+            os.environ[crypto.PUBLIC_KEY_VAR] = crypto.public_key_of(crypto.private_keys_from_env(env)[0])
+        except crypto.CryptoError:
+            pass                                    # no key at all: a secret with a value is refused below
+
+    async def run(pool) -> int:
+        settings = Settings(pool, os.environ["DATABASE_URL"], registry=settings_registry(specs))
+        await settings.reload()
+        counts = {"stored": 0, "already set": 0, "empty": 0}
+        for key, var in seeds.items():
+            text = env.get(var, "").strip()
+            if settings.source(key) == "db":
+                outcome = "already set"
+            elif not text:
+                outcome = "empty"
+            else:
+                value = [n.strip() for n in text.split(",") if n.strip()] if key == "trusted_proxies" else text
+                try:
+                    await settings.set(key, value, by="relay seed-settings")
+                except (SettingsError, crypto.CryptoError) as e:
+                    reason = "no seal key in this container" if isinstance(e, crypto.CryptoError) else "refused"
+                    raise CliError("%s from %s: %s (the value is not shown)" % (key, var, reason)) from None
+                outcome = "stored"
+            counts[outcome] += 1
+            print("%s: %s" % (key, {"stored": "stored from %s" % var, "already set": "already set, left as it is",
+                                     "empty": "%s is empty here, nothing stored" % var}[outcome]))
+        print("stored %(stored)d, already set %(already set)d, empty %(empty)d" % counts)
+        return EXIT_OK
+
+    return asyncio.run(with_pool(run))
+
+
 def restore_mark(dump_time: str) -> int:
     """After a restore, with NO worker running (runbook): jobs that may have been sent after the dump
     become `unknown`. Refuses while a worker heartbeat is fresh."""
@@ -435,8 +484,9 @@ def e2e(provider: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="relay")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("serve", help="public and admin API (env: DATABASE_URL, CREDENTIAL_SEAL_PUBLIC_KEY, MINIO_*, PORT)")
-    worker_help = "the worker of one provider (env WORKER_ID: unique per worker process, no '/')"
+    sub.add_parser("serve", help="public and admin API on port %d (env: DATABASE_URL, CREDENTIAL_SEAL_PUBLIC_KEY, "
+                   "MINIO_*)" % LISTEN_PORT)
+    worker_help = "the worker of one provider (its heartbeat row is worker-<provider>)"
     for cmd, help_text in (("worker", worker_help), ("e2e", "live end-to-end run of one provider")):
         sub.add_parser(cmd, help=help_text).add_argument("--provider", required=True, choices=sorted(PROVIDERS))
     sub.add_parser("migrate", help="apply the SQL migrations (the only DDL path)")
@@ -459,6 +509,9 @@ def build_parser() -> argparse.ArgumentParser:
     provider = sub.add_parser("provider", help="drain or resume a provider").add_subparsers(dest="mode", required=True)
     provider.add_parser("drain", help="stop claiming new work; open jobs still finish").add_argument("name")
     provider.add_parser("resume", help="claim again").add_argument("name")
+    sub.add_parser("seed-settings", help="one-off: store each unset setting that was an env variable (the public "
+                   "address, the trusted proxies, every secret <p>.<name> from <P>_<NAME>, sealed) from this "
+                   "container's env; prints outcomes only")
     jobs = sub.add_parser("jobs", help="job operations").add_subparsers(dest="jobs_cmd", required=True)
     jobs.add_parser("restore-mark", help="after a restore, with no worker running").add_argument(
         "--dump-time", required=True, help="ISO 8601 time of the dump, with an offset")
@@ -493,6 +546,8 @@ def main(argv: list[str] | None = None) -> int:
             return key_disable(args.key_id)
         elif args.cmd == "provider":
             return provider_mode(built_specs(load_specs()), args.name, args.mode == "drain")
+        elif args.cmd == "seed-settings":
+            return seed_settings(built_specs(load_specs()))
         elif args.cmd == "jobs":
             return restore_mark(args.dump_time)
     except CliError as e:

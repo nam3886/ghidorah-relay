@@ -1,6 +1,7 @@
 """The `relay` commands (I20, I29): `serve` and its refusals, wallet backfill at start,
 shutdown order, `admin create-user`, `keygen`, `key create|disable`, `provider drain|resume`, `jobs restore-mark`,
-`e2e`. Each command is run through `main(argv)` against the real database, as the role its URL names."""
+`seed-settings`, `e2e`.
+Each command is run through `main(argv)` against the real database, as the role its URL names."""
 
 import asyncio
 import io
@@ -19,6 +20,7 @@ from relay_core import crypto, keys
 from relay_core.admin import users
 from relay_core.api import runners
 from relay_core.db import open_pool, tx
+from relay_core.settings import Spec, open_secret
 from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec
 from relay_core.testing.mutation import mutation
 
@@ -45,7 +47,7 @@ def serve_env(monkeypatch, db, **extra) -> None:
     endpoint, access, secret = minio_settings()
     env = {"DATABASE_URL": db.api_dsn, "MINIO_ENDPOINT": endpoint, "MINIO_ACCESS_KEY": access,
            "MINIO_SECRET_KEY": secret, crypto.PUBLIC_KEY_VAR: crypto.generate_keypair().public,
-           "BILLING_TZ": "UTC", "PORT": "8123", **extra}
+           **extra}
     for name, value in env.items():
         monkeypatch.setenv(name, value)
 
@@ -89,14 +91,16 @@ def test_serve_refuses_to_start_when_any_private_key_variable_is_set_and_never_p
     assert cli.main(["serve"]) == 0 and http.calls
 
 
-@mutation(M, 'await billing.verify_billing_tz(conn, env.get("BILLING_TZ", ""))',
-          'await billing.verify_billing_tz(conn, "")', expect="BILLING_TZ that differs from the pin")
-def test_serve_refuses_a_billing_timezone_that_differs_from_the_pin(db, monkeypatch, capsys, http):
+@mutation(M, "                await billing.verify_billing_tz(conn)\n", "                pass\n",
+          expect="serve started with no billing pin")
+def test_serve_refuses_a_database_with_no_billing_pin(db, monkeypatch, capsys, http):
+    """The pin `relay migrate` wrote is the billing day's only source (no BILLING_TZ any more)."""
     specs(monkeypatch, "fake")
-    serve_env(monkeypatch, db, BILLING_TZ="Asia/Tokyo")            # the pin is UTC
+    serve_env(monkeypatch, db)
+    db.run("DELETE FROM billing_pin")
     code = cli.main(["serve"])
-    assert code == 2 and not http.calls, "serve started with a BILLING_TZ that differs from the pin"
-    assert "pinned to UTC" in err(capsys)
+    assert code == 2 and not http.calls, "serve started with no billing pin"
+    assert "no billing timezone is pinned" in err(capsys)
 
 
 @mutation(M, 'crypto.seal(crypto.public_key_from_env(env), b"")', "None", expect="without the credential public key")
@@ -193,7 +197,7 @@ def test_serve_backfills_a_closed_cap_for_a_newly_declared_provider_and_leaves_t
     key = db.key(("fake", 5, None))                                # "other" is new
     specs(monkeypatch, "fake", "other")
     serve_env(monkeypatch, db)
-    assert cli.main(["serve"]) == 0 and http.calls == [(8123, {"ok": True})]
+    assert cli.main(["serve"]) == 0 and http.calls == [(8100, {"ok": True})]
     rows = db.all("SELECT scope, day_limit, total_limit FROM key_wallets WHERE key_id = %s ORDER BY scope", key)
     assert rows == [("*", None, None), ("fake", 5, None), ("other", 0, None)], (
         "a newly declared provider must be closed on the existing key, and an existing wallet untouched")
@@ -733,3 +737,48 @@ def test_an_exception_argument_of_an_access_record_is_redacted():
     shown = record.getMessage()
     assert RAW_KEY_TEXT not in shown, "a key reached the exception argument: %s" % shown.replace(RAW_KEY_TEXT, "<key>")
     assert record.args[1] == 7
+
+
+# ---- seed-settings -------------------------------------------------------------------------------------------------
+class SecretFake(FakeSpec):
+    def settings(self):
+        return {**super().settings(), "fake.solver_key": Spec("fake.solver_key", str, "", "A key.", secret=True)}
+
+
+PLANTED = "PLANTED-solver-key-0123456789"
+NEVER_REPLACES = "            if settings.source(key) == \"db\":\n                outcome = \"already set\""
+
+
+@mutation(M, NEVER_REPLACES, "            if False:\n                outcome = \"already set\"",
+          expect="a stored value was replaced")
+def test_seed_settings_stores_each_unset_value_from_the_old_env_once_and_never_prints_one(db, monkeypatch, capsys):
+    """Owner 25/10: the one-off path from env to settings. In a worker container (the private key only) a secret is
+    sealed with its public half; a value already stored is never replaced; an empty variable stores nothing."""
+    pair = crypto.generate_keypair()
+    monkeypatch.setattr(cli, "load_specs", lambda: {"fake": SimpleNamespace(SPEC=SecretFake("fake"))})
+    monkeypatch.setenv(crypto.PUBLIC_KEY_VAR, "")          # restored after: the command sets it for its own process
+    for name, value in {"DATABASE_URL": db.api_dsn, crypto.PRIVATE_KEY_VAR: pair.private, "FAKE_SOLVER_KEY": PLANTED,
+                        "PUBLIC_BASE_URL": "https://relay.example.com", "TRUSTED_PROXIES": "172.16.0.0/12, 10.0.0.1"
+                        }.items():
+        monkeypatch.setenv(name, value)
+    stored = lambda key: db.one("SELECT value FROM settings_kv WHERE key = %s", key)[0]  # noqa: E731
+    assert cli.main(["seed-settings"]) == 0
+    first = capsys.readouterr().out
+    assert stored("public_address") == "https://relay.example.com"
+    assert stored("trusted_proxies") == ["172.16.0.0/12", "10.0.0.1"]
+    sealed = stored("fake.solver_key")
+    assert PLANTED not in str(sealed) and open_secret(sealed, [pair.private]) == PLANTED
+    assert PLANTED not in first and "relay.example.com" not in first, first
+    assert "stored 3, already set 0, empty 0" in first
+    monkeypatch.setenv("FAKE_SOLVER_KEY", "PLANTED-another-key-000000000")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://other.example.com")
+    assert cli.main(["seed-settings"]) == 0
+    assert stored("public_address") == "https://relay.example.com", "a stored value was replaced"
+    assert open_secret(stored("fake.solver_key"), [pair.private]) == PLANTED, "a stored value was replaced"
+    assert "stored 0, already set 3, empty 0" in capsys.readouterr().out
+    db.run("DELETE FROM settings_kv")
+    for name in ("FAKE_SOLVER_KEY", "PUBLIC_BASE_URL", "TRUSTED_PROXIES"):
+        monkeypatch.delenv(name)
+    assert cli.main(["seed-settings"]) == 0
+    assert "stored 0, already set 0, empty 3" in capsys.readouterr().out
+    assert db.one("SELECT count(*) FROM settings_kv")[0] == 0

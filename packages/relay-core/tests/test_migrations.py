@@ -120,7 +120,6 @@ def test_the_migrate_command_applies_sets_role_passwords_and_is_idempotent(monke
     with disposable_database() as dsn:
         monkeypatch.setenv("DATABASE_URL", dsn)
         monkeypatch.setenv("RELAY_API_DB_PASSWORD", API_PASSWORD)
-        monkeypatch.setenv("BILLING_TZ", "UTC")
         assert main(["migrate"]) == 0
         assert "applied 0001" in capsys.readouterr().out
         assert main(["migrate"]) == 0
@@ -128,7 +127,7 @@ def test_the_migrate_command_applies_sets_role_passwords_and_is_idempotent(monke
         login = psycopg.conninfo.make_conninfo(dsn, user="relay_api", password=API_PASSWORD)
         with psycopg.connect(login) as c:
             assert c.execute("SELECT current_user").fetchone()[0] == "relay_api"
-        monkeypatch.setenv("BILLING_TZ", "Not/AZone")
+        monkeypatch.setenv("DATABASE_URL", psycopg.conninfo.make_conninfo(dsn, dbname="relay_no_such_db"))
         assert main(["migrate"]) == 1
         assert capsys.readouterr().err.startswith("relay migrate: ")
 

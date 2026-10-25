@@ -171,7 +171,7 @@ def test_the_history_masks_a_key_that_is_secret_now_or_no_longer_known(db):
 
 # without the code's rule the table's own check refuses the row: two guards, the mutation meets the second
 @mutation(SETTINGS, "        if secret:\n            old = new = None\n", "", expect="settings_history_check")
-def test_a_secret_setting_keeps_only_that_it_changed(db):
+def test_a_secret_setting_keeps_only_that_it_changed(db, pair):
     registry = Registry(Spec("relay_token", str, "", "A token.", secret=True), Spec("plain_word", str, "", "A word."))
 
     async def scenario():

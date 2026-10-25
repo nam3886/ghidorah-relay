@@ -15,13 +15,9 @@ SETTINGS_VIEW = f"{SRC}/views/SettingsView.vue"
 
 SPEC = "FAILED tests/unit/settings/limits.spec.ts > "
 BOOT_TABLE = SPEC + "the boot-only card > is a table of Name and Value, an unset value as a dash"
-MATRIX = SPEC + ("the containers card > has a column per service and a row per measure, then one per boot knob any "
-                 "service reported")
+MATRIX = SPEC + "the containers card > has a column per service and a row per measure under one band"
 REPORTED_AGO = SPEC + ("the containers card > says this process for the api and how long ago a worker reported, "
                        "under the service name")
-EXACT_WORDS = SPEC + ("the containers card > shows an unreadable limit and a limit that is not set as the server's "
-                      "exact words, apart from a dash")
-NO_BOOT_BAND = SPEC + "the containers card > has no Boot values band when no service reports a boot value"
 FIVE_SECTIONS = SPEC + ("the page > lists the five sections in the General card and moves the mark to Fixed limits on "
                         "a click")
 FIXED_ROWS = SPEC + "the page > shows the Fixed limits rows that the settings read brought"
@@ -30,13 +26,8 @@ CONTAINER_ROWS = SPEC + "the page > shows the Containers rows that the settings 
 
 @mutation(SETTINGS_VIEW, "value: bootValue(row.value)", "value: String(row.value)", expect=BOOT_TABLE)
 @mutation(CONTAINER_LIMITS, "ago(row.reported_ms)", '"never"', expect=REPORTED_AGO)
-@mutation(CONTAINER_LIMITS, "if (!line.boot) return bootValue(row[line.key as (typeof LIMITS)[number][1]]);",
-          "if (!line.boot) return String(row[line.key as (typeof LIMITS)[number][1]]);", expect=MATRIX)
-@mutation(CONTAINER_LIMITS, '? "not set" : String(value);', '? NONE : String(value);', expect=MATRIX)
-@mutation(CONTAINER_LIMITS, "if (value === undefined) return NONE;", "", expect=MATRIX)
-@mutation(CONTAINER_LIMITS, '{ name: "Boot values", lines: lines.value.filter((l) => l.boot) },', "", expect=MATRIX)
-@mutation(CONTAINER_LIMITS, "].filter((g) => g.lines.length),", "],", expect=NO_BOOT_BAND)
-@mutation(CONTAINER_LIMITS, "if (!line.boot) return bootValue(", "if (!line.boot) return String(", expect=EXACT_WORDS)
+@mutation(CONTAINER_LIMITS, "  bootValue(row[line.key as (typeof LIMITS)[number][1]]);",
+          "  String(row[line.key as (typeof LIMITS)[number][1]]);", expect=MATRIX)
 @mutation(SETTINGS_VIEW, '  { id: "limits", label: "Fixed limits" },\n', "", expect=FIVE_SECTIONS)
 @mutation(SETTINGS_VIEW,
           '  { id: "password", label: "Change password" },\n  { id: "boot", label: "Boot-only values" },\n',

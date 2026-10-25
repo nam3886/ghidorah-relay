@@ -21,10 +21,16 @@ export const fullDefault = (value: unknown): string =>
 export const bootValue = (value: unknown): string =>
   value === null || value === undefined || value === "" ? "-" : String(value);
 
-// The text a setting's input starts with: a string as it is, anything else (a number, a boolean, a list) as JSON.
-export function valueText(item: Pick<SettingItem, "value">): string {
+// The text a setting's input starts with: a string as it is, anything else (a number, a boolean, a list) as JSON. A
+// secret's is empty: its value never reaches the page, and a draft that is not empty is a new value to save.
+export function valueText(item: Pick<SettingItem, "value" | "secret">): string {
+  if (item.secret) return "";
   return typeof item.value === "string" ? item.value : JSON.stringify(item.value);
 }
+
+// What Save sends for a setting: a secret's typed text as it is (a key of digits stays a string), else `parseValue`.
+export const sentValue = (item: Pick<SettingItem, "secret"> | undefined, text: string): unknown =>
+  item?.secret ? text : parseValue(text);
 
 // What Save sends: the input text parsed as JSON first (so `5`, `true` and `[1]` keep their type); text that is not JSON
 // is sent as the string it is.

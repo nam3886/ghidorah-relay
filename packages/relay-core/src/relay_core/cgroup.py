@@ -12,9 +12,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-# The environment names a worker reports beside its container limits. A fixed list: nothing else is ever copied from
-# the environment, so a secret cannot end up in the record.
-BOOT_NAMES = ("WORKER_GRACE_S", "WORKER_ID", "RELAY_PROFILE_ROOT", "RELAY_CHROME_PATH", "RELAY_BROWSER_HEADLESS")
 LIMIT_FILES = {"cpus": "cpu.max", "memory_bytes": "memory.max", "pids": "pids.max"}
 UNREADABLE, NO_LIMIT = "unreadable", "no limit"
 GIB, MIB, KIB = 1024**3, 1024**2, 1024
@@ -89,11 +86,6 @@ def own_limits(root: str = "/sys/fs/cgroup", proc: str = "/proc/self/cgroup", sh
     missing = [name for name, ok in (("cpus", cpus_ok), ("memory_bytes", memory_ok), ("pids", pids_ok)) if not ok]
     return {"read": True, "cpus": cpus, "memory_bytes": memory, "pids": pids, "shm_bytes": shm_bytes,
             "missing": missing}
-
-
-def boot_knobs(env: Mapping[str, str]) -> dict[str, str | None]:
-    """The boot-time variables a worker reports (None when unset), from the fixed list `BOOT_NAMES` only."""
-    return {name: env.get(name) or None for name in BOOT_NAMES}
 
 
 def _size(n: int) -> str:

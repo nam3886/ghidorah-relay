@@ -29,7 +29,7 @@ from flowkit import (
 
 from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
-from relay_flow.constants import CAPTCHA_KEY_VARS
+from relay_flow.constants import CAPTCHA_KEY_SETTINGS
 from relay_flow.credential import dump, jar_of
 from relay_flow.engine import FlowEngine, build_engine
 from relay_flow.engine import http as H
@@ -39,7 +39,6 @@ from relay_flow.engine.http import Sessions, Site
 
 HTTP_FILE = "packages/provider-flow/src/relay_flow/engine/http.py"
 CHECK_FILE = "packages/provider-flow/src/relay_flow/engine/check.py"
-ENGINE_FILE = "packages/provider-flow/src/relay_flow/engine/__init__.py"
 NOW = datetime(2026, 10, 23, 8, 0, tzinfo=UTC)
 WALL = 1_792_737_600.0
 
@@ -308,10 +307,18 @@ class FakeTime:
         self.t += s
 
 
+def keyed(cfg, keys=None):
+    """The settings view with the solver keys as the worker's opened secret settings ("" = not set)."""
+    keys = KEYS if keys is None else keys
+    for source, key in CAPTCHA_KEY_SETTINGS.items():
+        cfg.set(key, keys.get(source) or "")
+    return cfg
+
+
 def tokens(transport, keys=None, cfg=None, proxy=None, time=None, source="yescaptcha"):
-    cfg = cfg or settings(flow__captcha_provider=source)
+    cfg = keyed(cfg or settings(flow__captcha_provider=source), keys)
     timing = {"sleep": time.sleep, "clock": time.now} if time else {"sleep": no_sleep}
-    t = Tokens(cfg, KEYS if keys is None else keys, transport=transport, **timing)
+    t = Tokens(cfg, transport=transport, **timing)
     return asyncio.run(t("IMAGE_GENERATION", PAGE, proxy))
 
 
@@ -432,12 +439,12 @@ def test_each_solver_fault_has_its_own_code_and_its_reason_never_holds_a_secret(
         assert reason in text, text
         for secret in (YES_KEY, CAP_KEY, ANTI_KEY, "p@ss", "tok-abc"):
             assert secret not in text, text
-    with pytest.raises(CaptchaError, match="FLOW_CAPSOLVER_KEY is not set") as caught:
+    with pytest.raises(CaptchaError, match=r"flow.capsolver_key is not set \(Settings, flow\)") as caught:
         tokens(solver([]), keys={"yescaptcha": YES_KEY}, source="capsolver")
     assert caught.value.code == "flow.captcha_key_invalid"
     with pytest.raises(CaptchaError, match="no token source"):
         tokens(solver([]), source="other")
-    assert repr(Tokens(settings(), KEYS)) == "Tokens(keys set: anticaptcha, capsolver, yescaptcha)"
+    assert repr(Tokens(keyed(settings()))) == "Tokens()"
     for secret in (YES_KEY, CAP_KEY, ANTI_KEY, "p@ss"):
         assert secret not in caplog.text
 
@@ -456,7 +463,7 @@ def test_an_order_of_sources_falls_back_to_the_next_and_names_every_reason_when_
     with pytest.raises(CaptchaError) as caught:
         tokens(solver([{"errorId": 1, "errorCode": "ERROR_KEY_DOES_NOT_EXIST"}]), cfg=cfg,
                keys={"yescaptcha": YES_KEY})
-    assert str(caught.value) == ("capsolver: FLOW_CAPSOLVER_KEY is not set on the flow worker; "
+    assert str(caught.value) == ("capsolver: flow.capsolver_key is not set (Settings, flow); "
                                  "yescaptcha: the solver refused the task (ERROR_KEY_DOES_NOT_EXIST)")
     assert caught.value.code == "flow.captcha_key_invalid"
     # a ready answer whose solution is not an object is a failed source like any other: the next one is tried
@@ -549,7 +556,7 @@ def test_every_solver_is_called_through_the_accounts_proxy_and_direct_only_witho
     for source, host in hosts.items():
         made.clear()
         seen.clear()
-        t = Tokens(settings(flow__captcha_provider=source), KEYS, sleep=no_sleep)
+        t = Tokens(keyed(settings(flow__captcha_provider=source)), sleep=no_sleep)
         assert asyncio.run(t("IMAGE_GENERATION", PAGE, ACCOUNT_PROXY)) == "tok-abc"
         assert made == [{"proxy": "http://us%20er:p%40ss@10.0.0.1:8080", "trust_env": False}], \
             "the solver was called without the account proxy: %s %s" % (source, made)
@@ -558,33 +565,41 @@ def test_every_solver_is_called_through_the_accounts_proxy_and_direct_only_witho
         assert asyncio.run(t("IMAGE_GENERATION", PAGE, None)) == "tok-abc"
         assert made == [{"proxy": None, "trust_env": False}]
     made.clear()
-    t = Tokens(settings(flow__captcha_provider="capsolver,anticaptcha"), {"anticaptcha": ANTI_KEY}, sleep=no_sleep)
+    t = Tokens(keyed(settings(flow__captcha_provider=["capsolver", "anticaptcha"]), {"anticaptcha": ANTI_KEY}),
+               sleep=no_sleep)
     assert asyncio.run(t("IMAGE_GENERATION", PAGE, ACCOUNT_PROXY)) == "tok-abc"
     assert made and all(m["proxy"] for m in made), "the solver was called without the account proxy: %s" % made
 
 
-@mutation(ENGINE_FILE, "{source: (env.pop(var, None)", "{source: (env.get(var, None)",
-          expect="the keys stayed in the environment")
-def test_the_engine_takes_every_solver_key_out_of_the_environment():
-    env = {"FLOW_YESCAPTCHA_KEY": " %s \n" % YES_KEY, "FLOW_CAPSOLVER_KEY": CAP_KEY, "FLOW_ANTICAPTCHA_KEY": " ",
-           "OTHER": "1"}
-    engine = build_engine(None, settings(), env)
-    assert isinstance(engine, FlowEngine)
-    assert engine.tokens._keys == {"yescaptcha": YES_KEY, "capsolver": CAP_KEY, "anticaptcha": None}
-    assert env == {"OTHER": "1"}, "the keys stayed in the environment"
-    assert build_engine(None, settings(), {}).tokens._keys == dict.fromkeys(KEYS)
+CAPTCHA_KEY_READ = "        key = self.settings.get(CAPTCHA_KEY_SETTINGS[source])"
 
 
-def test_only_the_flow_worker_env_template_names_the_solver_keys():
+@mutation(CAPTCHA_FILE, CAPTCHA_KEY_READ, '        key = self.settings.get("flow.yescaptcha_key")',
+          expect="the capsolver key was not the one sent")
+def test_each_solver_takes_its_own_key_from_the_settings_at_each_solve():
+    """The keys are secret settings the worker's settings view opens at each reload: a key replaced in the admin is
+    the one the next solve sends, with no restart."""
+    cfg = keyed(settings(flow__captcha_provider="capsolver"))
+    transport = solver([CREATED, READY, CREATED, READY])
+    t = Tokens(cfg, transport=transport, sleep=no_sleep)
+    assert asyncio.run(t("IMAGE_GENERATION", PAGE)) == "tok-abc"
+    assert transport.seen[0][2]["clientKey"] == CAP_KEY, "the capsolver key was not the one sent"
+    cfg.set("flow.capsolver_key", "CAP-REPLACED-in-the-admin-0000")
+    assert asyncio.run(t("IMAGE_GENERATION", PAGE)) == "tok-abc"
+    assert transport.seen[2][2]["clientKey"] == "CAP-REPLACED-in-the-admin-0000", "a replaced key was not read"
+
+
+def test_no_env_file_or_worker_reads_the_solver_keys_any_more():
+    """Owner 25/10: the keys live only in the sealed settings; `relay seed-secrets` stored the old env values once.
+    No env template names them and the flow package never reads them."""
+    old = {"FLOW_YESCAPTCHA_KEY", "FLOW_CAPSOLVER_KEY", "FLOW_ANTICAPTCHA_KEY"}
     deploy = FIX.parents[1] / "deploy"
-
-    def names(path):
-        return {line.split("=", 1)[0].strip() for line in path.read_text(encoding="utf-8").splitlines()
-                if "=" in line and not line.lstrip().startswith("#")}
-    assert set(CAPTCHA_KEY_VARS.values()) <= names(deploy / "worker-flow.env.example")
-    for other in deploy.glob("*.env.example"):
-        if other.name != "worker-flow.env.example":
-            assert not set(CAPTCHA_KEY_VARS.values()) & names(other), other.name
+    for path in deploy.glob("*.env.example"):
+        assert not any(name in path.read_text(encoding="utf-8") for name in old), path.name
+    src = FIX.parents[1] / "packages" / "provider-flow" / "src"
+    for path in src.rglob("*.py"):
+        assert not any(name in path.read_text(encoding="utf-8") for name in old), path
+    assert isinstance(build_engine(None, keyed(settings())), FlowEngine)
 
 
 # ---- the account's credits and plan ---------------------------------------------------------------------------------
