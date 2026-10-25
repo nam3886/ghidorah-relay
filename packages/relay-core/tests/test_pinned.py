@@ -5,6 +5,7 @@ mode with nothing to read back (`fail_refund`) fails an unclear send at once wit
 
 import uuid
 
+import psycopg
 import pytest
 from accountkit import done_job
 from jobkit import account, claim, create, key, new_job, run, status, submit
@@ -77,7 +78,7 @@ PINNED_ONLY = '"tried": list(head_tried), "only": pin}'
 NOT_PINNED = '"tried": list(head_tried), "only": None}'
 
 
-@mutation(K, PINNED_ONLY, NOT_PINNED, expect="a pinned job runs only on its account")
+@mutation(K, PINNED_ONLY, NOT_PINNED, expect="jobs_pinned_account")    # the last guard refuses the claim
 def test_a_pinned_job_is_claimed_only_by_the_account_that_made_its_source(db):
     k = key(db)
     owner = account(db, used_ago_s=10)
@@ -110,6 +111,16 @@ def test_a_waiting_pinned_job_never_blocks_newer_jobs_and_no_other_account_takes
     assert first is not None and first.job_id == newer.job_id and first.account_id == free, (
         "another account's pinned job is never picked, nor does it hold up a newer job: %s" % (first,))
     assert second is None and status(db, pinned.job_id) == "queued", "another account's pinned job is never picked"
+
+
+def test_the_database_refuses_a_pinned_job_on_any_other_account(db):
+    k = key(db)
+    owner, other = account(db), account(db)
+    made = run(db, lambda p: create(p, k, "extend it", source=source_of(db, k, owner)))
+    with pytest.raises(psycopg.errors.CheckViolation, match="jobs_pinned_account"):
+        db.run("UPDATE jobs SET account_id = %s WHERE id = %s", other, made.job_id)
+    db.run("UPDATE jobs SET account_id = %s WHERE id = %s", owner, made.job_id)    # its own account is fine
+    db.run("UPDATE jobs SET account_id = NULL WHERE id = %s", made.job_id)
 
 
 # ---- a pinned job whose account can no longer run it ----------------------------------------------------------------
