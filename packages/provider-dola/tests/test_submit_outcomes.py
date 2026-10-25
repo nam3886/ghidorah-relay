@@ -90,12 +90,19 @@ def kinds(log):
 
 
 # ---- the taken order ------------------------------------------------------------------------------------------------
+STATED = '        price, source = classify.read_price_stated(reply), "reply"'
+INFERRED = '                price, source = before - after, "balance_delta"'
+
+
+@mutation(SUB, STATED, '        price, source = classify.read_price_stated(reply), "balance_delta"',
+          expect="the price dola stated")
 @sync
 async def test_a_taken_order_is_accepted_with_what_dola_stated():
     scene = Scene(replies={1: [ACCEPTED]})
     res = await scene.run()
     assert res.job == Accepted(CONV, facts=res.job.facts, taken=True)
     assert (res.job.facts.upstream_price, res.job.facts.upstream_model) == (2, "Dreamina Seedance 2.5")
+    assert res.job.facts.cost_source == "reply", "the price dola stated is a reply cost: %s" % (res.job.facts,)
     assert res.account == (Success(), Balance("video", 2))
     assert res.warnings == () and scene.ctx.refs == [(CONV, {})], "the conversation was not reported as the job's ref"
     assert scene.driver.sent == [SENT], "the engine must type the core's sent_text and nothing else"
@@ -194,6 +201,7 @@ async def test_two_orders_in_a_row_until_the_account_is_exhausted():
     assert res.account == (Success(), Balance("video", 0)), "the last credit: a reported 0, which the core rests"
 
 
+@mutation(SUB, INFERRED, '                price, source = before - after, "reply"', expect="a balance delta")
 @sync
 async def test_a_price_not_stated_is_inferred_from_the_balance_dola_just_reported():
     said = ("The video will be generated using the Dreamina Seedance 2.5 model. "
@@ -202,6 +210,7 @@ async def test_a_price_not_stated_is_inferred_from_the_balance_dola_just_reporte
         scene = Scene(replies={1: [said % after]}, acct=account(video=before))
         res = await scene.run()
         assert res.job.facts.upstream_price == before - after, "the price was inferred from an old balance"
+        assert res.job.facts.cost_source == "balance_delta", "an inferred price is a balance delta"
 
 
 @sync

@@ -66,7 +66,7 @@ def test_a_done_poll_moves_the_job_to_fetching_with_its_outputs_and_charges_the_
         job_id = await waiting(db, p, k, completion)
         engine = FakeEngine()
         out = Output("ref://a", "video/mp4", 0, "up-1")
-        engine.script_poll("*", PollResult(Done((out,), Facts(7, "m-up"))))
+        engine.script_poll("*", PollResult(Done((out,), Facts(7, "m-up", "reply"))))
         eng = poller(p, engine)
         await pass_once(eng)
         await pass_once(eng)             # a second pass finds nothing waiting

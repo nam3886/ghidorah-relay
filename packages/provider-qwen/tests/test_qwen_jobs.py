@@ -57,6 +57,7 @@ from relay_core.providers import (
     Completed,
     Cooldown,
     Done,
+    Facts,
     Fail,
     Failed,
     Found,
@@ -152,14 +153,21 @@ def test_a_job_queued_before_frames_sends_its_bare_words():
     assert sent_body(q)["messages"][0]["content"] == "bare words"
 
 
+QWEN_COST = '    if quota.get("state") == "deducted" and type(amount) is int and amount >= 0:'
+
+
+@mutation(SUBMIT_FILE, QWEN_COST, "    if False:", expect="the credits qwen says it took")
 def test_a_video_checks_its_credits_first_and_is_accepted_with_its_task():
     log = []
     q = Qwen(log, send=VIDEO_TASK)
     result = run_submit(q, Ctx(log), job(VIDEO))
     assert log.index("verify") < log.index("new_chat") < log.index("mark_sent") < log.index("send")
     assert json.loads(q.calls("verify")[0].content) == {"chat_type": "t2v", "task_info": {"create_credits": 30}}
+    assert result.job.facts == Facts(30, cost_source="reply"), \
+        "the credits qwen says it took (quota.consume_amount 30, deducted): %s" % (result.job.facts,)
     assert result.job == Accepted("tsk_6993c8657bf4a05bc4593e3eca35a1f7",
-                                  {"chat": CHAT, "task": "tsk_6993c8657bf4a05bc4593e3eca35a1f7"}, taken=True)
+                                  {"chat": CHAT, "task": "tsk_6993c8657bf4a05bc4593e3eca35a1f7"},
+                                  Facts(30, cost_source="reply"), taken=True)
     body = sent_body(q)
     msg = body["messages"][0]
     assert body["stream"] is False and (msg["chat_type"], msg["sub_chat_type"]) == ("t2v", "zaodian_generate_video")
@@ -168,6 +176,19 @@ def test_a_video_checks_its_credits_first_and_is_accepted_with_its_task():
     assert json.loads(meta["biz_data"]) == {"bizScene": "genVideo", "req": {
         "rootModel": "happyhorse11", "genMode": "vid_gen",
         "params": {"resolution": "720P", "size": "16:9", "duration": 5, "audio": True}}}
+
+
+@mutation(SUBMIT_FILE, QWEN_COST, '    if type(amount) is int and amount >= 0:', expect="not deducted")
+def test_qwen_states_a_cost_only_when_the_quota_says_it_was_deducted():
+    from relay_qwen.engine.submit import stated_cost
+    assert stated_cost(json.loads(VIDEO_TASK)) == stated_cost(json.loads(I2V_TASK)) == Facts(30, cost_source="reply")
+    for change, why in ((lambda q: q.update(state="pending"), "not deducted"),
+                        (lambda q: q.update(consume_amount="30"), "not a number"),
+                        (lambda q: q.pop("consume_amount"), "no amount")):
+        body = json.loads(VIDEO_TASK)
+        change(body["data"]["messages"][0]["extra"]["quota"])
+        assert stated_cost(body) == Facts(), why
+    assert stated_cost(None) == stated_cost({}) == Facts(), "no answer states nothing"
 
 
 ATTACH = '            params["attachments"] = [{"type": "image", "materialId": f["id"]} for f in files]\n'

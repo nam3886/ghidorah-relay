@@ -199,7 +199,7 @@ def test_a_submit_with_a_strike_keeps_its_error_with_the_job_and_records_the_hou
         await jobkit.create(p, k, "x")
         got = await jobkit.claim(p)
         engine = FakeEngine()
-        engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {}, Facts(5, "m")),
+        engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {}, Facts(5, "m", "reply")),
                                                     account=(Suspect("dola.content_refused"),))))
         await jobkit.submit(p, got, engine)
         return got.job_id
@@ -244,7 +244,7 @@ def test_a_job_that_is_still_rendering_records_no_health(db):
         await jobkit.create(p, k, "x")
         got = await jobkit.claim(p)
         engine = FakeEngine()
-        engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {}, Facts(5, "m")))))
+        engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {}, Facts(5, "m", "reply")))))
         await jobkit.submit(p, got, engine)
         db.run("DELETE FROM account_health")
         db.run("UPDATE jobs SET poll_token = %s", token)

@@ -8,7 +8,8 @@ half-applied.
 
 The account is charged only when the order is proven taken, and a `Balance` effect of the same result is
 applied after that charge, so the report is stamped later than the charge and wins (the charge is already in it).
-Facts are stored only when taken. A job that leaves `submitting` releases its lease in the same transaction.
+Facts are stored only when taken, with a `cost_mismatch` alert when the actual cost is not the expected one. A job
+that leaves `submitting` releases its lease in the same transaction.
 """
 
 import logging
@@ -36,6 +37,7 @@ from relay_core.providers import (
     Caps,
     Completed,
     Done,
+    Facts,
     Fail,
     Failed,
     Found,
@@ -202,6 +204,28 @@ async def _charge_taken(conn: AsyncConnection, job: _Job, pools: Mapping[str, po
         await pool.charge_account(conn, job.account_id, job.id, pools[job.pool], job.account_cost)
 
 
+# One row per job: the first actual cost that is not the expected one. Every column is the job's own but the cost.
+_COST_MISMATCH = (
+    "INSERT INTO billing_alerts (alert, job_id, provider, price_key, expected, actual, detail) "
+    "SELECT 'cost_mismatch', j.id, j.provider, j.price_key, j.account_cost, %s, %s FROM jobs j WHERE j.id = %s "
+    "AND NOT EXISTS (SELECT 1 FROM billing_alerts b WHERE b.alert = 'cost_mismatch' AND b.job_id = j.id)")
+
+
+async def _facts(conn: AsyncConnection, job: _Job, facts: Facts) -> dict:
+    """The columns a taken order's facts write. A fact the result does not carry keeps the stored one (a poll's Done
+    after a send that stated its price). An actual cost that differs from the expected `account_cost` raises one
+    `cost_mismatch` alert per job in this transaction: recorded only, nothing charged or refunded changes."""
+    cols: dict[str, Any] = {}
+    if facts.upstream_model is not None:
+        cols["upstream_model"] = redact_log(facts.upstream_model)
+    if facts.upstream_price is not None:
+        cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)
+        if facts.upstream_price != job.account_cost:
+            await conn.execute(_COST_MISMATCH, (facts.upstream_price, facts.cost_source, job.id))
+            await failpoints.hit("apply.cost_mismatch")
+    return cols
+
+
 async def _effects(conn: AsyncConnection, job: _Job, effects, caps: Caps, pools) -> None:
     if effects and job.account_id is not None:
         await pool.apply_effects(conn, job.account_id, effects, caps, pools, job_id=job.id)
@@ -281,8 +305,7 @@ async def _submit_outcome(conn: AsyncConnection, job: _Job, outcome: SubmitOutco
                         provider_state=_merge(outcome.provider_state))
             if outcome.taken:
                 await _charge_taken(conn, job, pools)
-                cols.update(taken_at=_NOW, upstream_price=outcome.facts.upstream_price,
-                            upstream_model=redact_log(outcome.facts.upstream_model))
+                cols.update(taken_at=_NOW, **await _facts(conn, job, outcome.facts))
             await _set(conn, job.id, "submitting", **cols)
             await add_event(conn, job.id, "system", "accepted", "accepted by upstream")
             return "waiting"
@@ -290,9 +313,7 @@ async def _submit_outcome(conn: AsyncConnection, job: _Job, outcome: SubmitOutco
             await _charge_taken(conn, job, pools)
             await _set(conn, job.id, "submitting", status="fetching", sent_at=_SENT_OR_NOW, accepted_at=_NOW,
                        taken_at=_NOW, render_since=_SENT_OR_NOW, next_poll_at=_NOW,
-                       upstream_price=outcome.facts.upstream_price,
-                       upstream_model=redact_log(outcome.facts.upstream_model),
-                       provider_state=_merge_outputs(outcome.outputs))
+                       provider_state=_merge_outputs(outcome.outputs), **await _facts(conn, job, outcome.facts))
             await add_event(conn, job.id, "system", "completed", "%d output(s) ready to fetch" % len(outcome.outputs))
             return "fetching"
         case NotTaken():
@@ -398,8 +419,7 @@ async def apply_poll(db: AsyncConnectionPool, job_id, poll_token, result: PollRe
                 await _charge_taken(conn, job, pools)
                 await _set(conn, job_id, "waiting", status="fetching", poll_token=None, next_poll_at=_NOW,
                            taken_at=_Raw("COALESCE(taken_at, clock_timestamp())"),
-                           upstream_price=out.facts.upstream_price, upstream_model=redact_log(out.facts.upstream_model),
-                           provider_state=_merge_outputs(out.outputs))
+                           provider_state=_merge_outputs(out.outputs), **await _facts(conn, job, out.facts))
                 await add_event(conn, job_id, "system", "completed", "%d output(s) ready to fetch" % len(out.outputs))
                 status = "fetching"
             case Failed():

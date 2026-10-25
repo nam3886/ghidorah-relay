@@ -116,7 +116,8 @@ def test_a_job_reaches_fetching_in_either_completion_mode_charged_once_with_its_
         if mode == "hold":
             first = await submit(p, got, engine)
         else:
-            engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {"conv": "c1"}, Facts(5, "up-model")),
+            facts = Facts(5, "up-model", "reply")
+            engine.script_submit("*", sent(SubmitResult(Accepted("ref-1", {"conv": "c1"}, facts),
                                                          account=(Success(),))))
             first = await submit(p, got, engine)
             assert first == "waiting"
@@ -124,7 +125,7 @@ def test_a_job_reaches_fetching_in_either_completion_mode_charged_once_with_its_
                         ) == ("ref-1", True, True)
             db.run("UPDATE jobs SET poll_token = %s WHERE id = %s", token, got.job_id)
             outs = (Output("u://1", "video/mp4", 0, "a"), Output("u://2", "video/mp4", 1, "b"))
-            first = await store.apply_poll(p, got.job_id, token, PollResult(Done(outs, Facts(6, "up-model"))),
+            first = await store.apply_poll(p, got.job_id, token, PollResult(Done(outs, Facts(6, "up-model", "reply"))),
                                            caps=CAPS, pools=POOLS)
         return got, first
 
@@ -144,12 +145,115 @@ def test_completed_outputs_are_all_kept_in_one_transaction_with_the_status_move(
     async def scenario(p):
         got = await start(p, k, completion="hold")
         outs = tuple(Output("u://%d" % i, "video/mp4", i, "id%d" % i, {"w": 1}) for i in range(3))
-        return await store.apply_submit(p, got, SubmitResult(Completed(outs, Facts(1, "m"))), caps=CAPS, pools=POOLS)
+        return await store.apply_submit(p, got, SubmitResult(Completed(outs, Facts(1, "m", "reply"))), caps=CAPS,
+                                        pools=POOLS)
 
     assert run(db, scenario) == "fetching"
     state = db.one("SELECT provider_state FROM jobs")[0]
     assert [o["upstream_id"] for o in state["outputs"]] == ["id0", "id1", "id2"]
     assert db.one("SELECT upstream_price, upstream_model FROM jobs") == (1, "m")
+
+
+# ---- the actual cost and the mismatch alert (money v2 section 5) ---------------------------------------------------
+COST_DIFFERS = "        if facts.upstream_price != job.account_cost:\n"
+COST_ONCE = "AND NOT EXISTS (SELECT 1 FROM billing_alerts b WHERE b.alert = 'cost_mismatch' AND b.job_id = j.id)"
+COST_SOURCE = "cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)"
+COST_KEPT = ("    if facts.upstream_price is not None:\n"
+             "        cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)\n")
+COST_OVERWRITTEN = ("    cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)\n"
+                    "    if facts.upstream_price is not None:\n")
+
+
+def mismatches(db):
+    return db.all("SELECT job_id, provider, price_key, expected, actual, detail, key_id FROM billing_alerts "
+                  "WHERE alert = 'cost_mismatch' ORDER BY id")
+
+
+async def poll_done(p, db, job_id, facts):
+    token = uuid.uuid4()
+    db.run("UPDATE jobs SET poll_token = %s WHERE id = %s", token, job_id)
+    return await store.apply_poll(p, job_id, token, PollResult(Done((Output("u", "video/mp4", 0),), facts)),
+                                  caps=CAPS, pools=POOLS)
+
+
+@mutation(A, COST_DIFFERS, "        if False:\n", expect="one cost_mismatch alert")
+@mutation(A, COST_ONCE, "", expect="once per job")
+@mutation(A, COST_SOURCE, "cols.update(upstream_price=facts.upstream_price)", expect="with its source")
+def test_a_taken_job_whose_actual_cost_differs_raises_one_cost_mismatch_alert(db):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        got = await start(p, k, account_cost=2)
+        engine = engine_with(sent(SubmitResult(Accepted("ref", facts=Facts(3, "m", "balance_delta")))))
+        assert await submit(p, got, engine) == "waiting"
+        assert cols(db, got.job_id, "upstream_price, cost_source") == (3, "balance_delta"), "with its source"
+        assert await poll_done(p, db, got.job_id, Facts(4, None, "reply")) == "fetching"
+        return got
+
+    got = run(db, scenario)
+    assert cols(db, got.job_id, "upstream_price, cost_source, upstream_model") == (4, "reply", "m")
+    price_key = cols(db, got.job_id, "price_key")[0]
+    found = mismatches(db)
+    assert found, "a cost that is not the expected one raises one cost_mismatch alert"
+    assert found == [(got.job_id, "fake", price_key, 2, 3, "balance_delta", None)], \
+        "once per job, naming the job, its provider, option and both costs: %s" % found
+    assert charges(db, got.job_id) == [(2, False)], "recorded only: the account charge stays the expected cost"
+
+
+@mutation(A, COST_DIFFERS, "        if True:\n", expect="no alert when the costs agree")
+@mutation(A, COST_KEPT, COST_OVERWRITTEN, expect="keeps the stored cost")
+def test_no_alert_when_the_actual_cost_is_the_expected_one_or_unknown(db):
+    k, _ = key(db), account(db)
+
+    async def scenario(p):
+        same = await start(p, k, account_cost=2)
+        assert await submit(p, same, engine_with(sent(SubmitResult(Accepted("r1", facts=Facts(2, None, "reply")))))
+                            ) == "waiting"
+        await poll_done(p, db, same.job_id, Facts())
+        unknown = await start(p, k, account_cost=2)
+        await submit(p, unknown, engine_with(sent(SubmitResult(Completed((Output("u", "video/mp4", 0),))))))
+        return same, unknown
+
+    same, unknown = run(db, scenario)
+    assert mismatches(db) == [], "no alert when the costs agree, nor when no actual cost is known"
+    assert cols(db, same.job_id, "upstream_price, cost_source") == (2, "reply"), \
+        "a Done that states no cost keeps the stored cost"
+    assert cols(db, unknown.job_id, "upstream_price, cost_source") == (None, None)
+
+
+def test_the_mismatch_alert_and_the_stored_cost_roll_back_with_the_result(db):
+    k, _ = key(db), account(db)
+
+    async def die():
+        raise failpoints.FailpointError("after the alert")
+
+    async def scenario(p):
+        got = await start(p, k, account_cost=2)
+        failpoints.arm("apply.cost_mismatch", die)
+        try:
+            with pytest.raises(failpoints.FailpointError):
+                await store.apply_submit(p, got, SubmitResult(Accepted("r", facts=Facts(5, None, "reply"))),
+                                         caps=CAPS, pools=POOLS)
+        finally:
+            failpoints.disarm("apply.cost_mismatch")
+        return got
+
+    got = run(db, scenario)
+    assert mismatches(db) == [] and charges(db, got.job_id) == []
+    assert cols(db, got.job_id, "status, upstream_price, cost_source") == ("submitting", None, None)
+
+
+FACTS_PAIR = "        if (self.upstream_price is None) != (self.cost_source is None) or ("
+
+
+@mutation("packages/relay-core/src/relay_core/providers.py", FACTS_PAIR, "        if False or (",
+          expect="a cost without its source")
+def test_an_actual_cost_never_comes_without_its_source():
+    for bad in (dict(upstream_price=3), dict(cost_source="reply"), dict(upstream_price=3, cost_source="guess")):
+        with pytest.raises(ValueError):
+            Facts(**bad)
+            pytest.fail("a cost without its source, or a source without its cost: %s" % bad)
+    assert Facts(3, cost_source="balance_delta").cost_source == "balance_delta"
 
 
 # ---- taken or not (I7) -----------------------------------------------------------------------------------------
@@ -160,12 +264,13 @@ def test_an_order_not_yet_proven_taken_charges_no_account_and_stores_no_facts(db
 
     async def scenario(p):
         got = await start(p, k, account_cost=2)
-        engine = engine_with(sent(SubmitResult(Accepted("ref", taken=False, facts=Facts(9, "m")))))
+        engine = engine_with(sent(SubmitResult(Accepted("ref", taken=False, facts=Facts(9, "m", "reply")))))
         assert await submit(p, got, engine) == "waiting"
         assert charges(db, got.job_id) == [] and left(db) == (4, "computed")
         assert cols(db, got.job_id, "taken_at, upstream_price, upstream_model") == (None, None, None)
         db.run("UPDATE jobs SET poll_token = %s WHERE id = %s", token, got.job_id)
-        await store.apply_poll(p, got.job_id, token, PollResult(Done((Output("u", "video/mp4", 0),), Facts(9, "m"))),
+        done = Done((Output("u", "video/mp4", 0),), Facts(9, "m", "reply"))
+        await store.apply_poll(p, got.job_id, token, PollResult(done),
                                caps=CAPS, pools=POOLS)
         return got
 
@@ -938,8 +1043,8 @@ def test_a_secret_in_an_output_meta_is_not_stored_but_the_output_ref_is_kept_as_
     assert stored["ref"] == signed and stored["meta"]["w"] == 4          # the fetcher still gets its URL
 
 
-MODEL_REDACT = "upstream_model=redact_log(outcome.facts.upstream_model),\n                       provider_state"
-MODEL_RAW = "upstream_model=outcome.facts.upstream_model,\n                       provider_state"
+MODEL_REDACT = 'cols["upstream_model"] = redact_log(facts.upstream_model)'
+MODEL_RAW = 'cols["upstream_model"] = facts.upstream_model'
 
 
 @mutation(A, MODEL_REDACT, MODEL_RAW, expect="assert LEAK not in cols(db, got.job_id, \"upstream_model\")[0]")
@@ -949,7 +1054,8 @@ def test_a_secret_in_the_upstream_model_fact_is_not_stored(db):
     async def scenario(p):
         got = await start(p, k, completion="hold")
         out = Output("u://1", "video/mp4", 0, "up-0")
-        await submit(p, got, engine_with(sent(SubmitResult(Completed((out,), Facts(5, "veo sessionid=" + LEAK))))))
+        facts = Facts(5, "veo sessionid=" + LEAK, "reply")
+        await submit(p, got, engine_with(sent(SubmitResult(Completed((out,), facts)))))
         return got
 
     got = run(db, scenario)

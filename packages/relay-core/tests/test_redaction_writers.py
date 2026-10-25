@@ -191,7 +191,7 @@ def test_a_long_upstream_model_fact_is_redacted_before_it_is_stored(db):
         got = await claim(p)
         assert await store.apply_submit(p, got, SubmitResult(Accepted("ref-1")), caps=CAPS, pools=POOLS) == "waiting"
         db.run("UPDATE jobs SET poll_token = %s", token)
-        done = PollResult(Done((Output("u", "video/mp4", 0, "up-1"),), Facts(5, text)))
+        done = PollResult(Done((Output("u", "video/mp4", 0, "up-1"),), Facts(5, text, "reply")))
         await store.apply_poll(p, got.job_id, token, done, caps=CAPS, pools=POOLS)
 
     run(db, scenario)

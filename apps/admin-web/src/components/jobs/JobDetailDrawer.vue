@@ -186,8 +186,14 @@ const asText = (v: unknown): string => (v === undefined || v === null || v === "
 const param = (...names: string[]): string => jobParam(job.value?.params, ...names);
 
 // Money (JobDetail): Charged, Refunded, Upstream cost, Margin. The upstream cost is what the upstream took (else the
-// expected cost of a done job), in its pool's unit ("1 credit", "2 uses", "1 job"); the margin is the server's: net
-// points less that cost where Settings' rule turns the unit into points (a credit or a use is a point), else the dash.
+// expected cost of a done job), in its pool's unit ("1 credit", "2 uses", "1 job"), its note saying how it was learnt
+// (the server's `cost_source`); the margin is the server's: net points less that cost where Settings' rule turns the
+// unit into points (a credit or a use is a point), else the dash.
+const COST_SOURCES: Record<string, string> = {
+  reply: "stated by upstream",
+  balance_delta: "balance before − after",
+  expected: "expected",
+};
 const unitWord = (unit: string | null | undefined): string =>
   unit === "credits" ? "credit" : unit === "uses" ? "use" : unit === "jobs" ? "job" : "";
 const costText = (n: number, unit: string | null | undefined, pool = ""): string => {
@@ -222,7 +228,15 @@ const money = computed(() => {
     {
       label: "Upstream cost",
       value: cost === null ? "—" : costText(cost, j.cost_unit),
-      note: cost === null ? "not known yet" : [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
+      note:
+        cost === null
+          ? "not known yet"
+          : [
+              COST_SOURCES[j.cost_source ?? ""] ?? "",
+              [j.provider, j.pool, j.pool ? "pool" : ""].filter(Boolean).join(" "),
+            ]
+              .filter(Boolean)
+              .join(" · "),
       tone: "",
     },
     {

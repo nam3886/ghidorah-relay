@@ -40,6 +40,7 @@ from relay_core.providers import (
     Balance,
     Completed,
     Cooldown,
+    Facts,
     Fail,
     NotTaken,
     Output,
@@ -201,6 +202,18 @@ def json_verdict(status: int, body: dict | None) -> tuple[str, Any]:
     return "unclear", "qwen answered with no task and no reason"
 
 
+def stated_cost(body: dict | None) -> Facts:
+    """What qwen says a taken video cost: `extra.quota.consume_amount` once `quota.state` is "deducted" (FINDINGS 6:
+    the same figure as the words "consuming 30 Credits", in structured form). Anything else states nothing."""
+    msg = _first_message(body or {})
+    extra = msg.get("extra") if isinstance(msg.get("extra"), dict) else {}
+    quota = extra.get("quota") if isinstance(extra.get("quota"), dict) else {}
+    amount = quota.get("consume_amount")
+    if quota.get("state") == "deducted" and type(amount) is int and amount >= 0:
+        return Facts(amount, cost_source="reply")
+    return Facts()
+
+
 def _events(lines: list[str]) -> list[dict]:
     out = []
     for line in lines:
@@ -302,6 +315,7 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
         headers = site.headers("/c/" + chat, bx=True)
         await ctx.report_ref(chat, {CHAT_KEY: chat})       # write-ahead: the chat is on the job first
         await ctx.mark_sent()                               # then marked sent, immediately before the POST
+        answer = None
         if kind == "image":
             status, lines, cut, answered = await _post_image(site, url, body, headers)
             verdict, said = stream_verdict(status, lines, cut, answered)
@@ -314,7 +328,8 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
             if is_waf_block(resp.status_code, resp.headers, resp.text):
                 verdict, said = "waf", None
             else:
-                verdict, said = json_verdict(resp.status_code, _obj(resp.text))
+                answer = _obj(resp.text)
+                verdict, said = json_verdict(resp.status_code, answer)
         if verdict == "waf":
             return await _waf(ctx, sessions, chat, cred.minted_at)
         rest = pacing(settings, now())
@@ -322,7 +337,8 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
             outs = tuple(Output(link, IMAGE_MIME, i, None, {CHAT_KEY: chat}) for i, link in enumerate(said))
             return _result(Completed(outs), Success(), *rest)
         if verdict == "task":
-            return _result(Accepted(said, {CHAT_KEY: chat, TASK_KEY: said}, taken=True), Success(), *rest)
+            return _result(Accepted(said, {CHAT_KEY: chat, TASK_KEY: said}, stated_cost(answer), taken=True),
+                           Success(), *rest)
         if verdict == "no_credits":
             return _result(Fail(errors.OUT_OF_CREDITS, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}),
                            Balance(pool, 0), *rest)

@@ -478,6 +478,15 @@ describe("conclusion, ledger, prompt and technical", () => {
     expect(section("money").find(".jd-money__value.is-ok").text()).toBe("+2 pts");
   });
 
+  it("the upstream cost says how it was learnt, and an expected-only cost says expected", async () => {
+    await show(detail({ upstream_cost: 3, cost_unit: "credits", cost_source: "balance_delta" }));
+    expect(money()[2]).toBe("Upstream cost3 creditsbalance before − after · dola video pool");
+    await show(detail({ upstream_cost: 2, cost_unit: "credits", cost_source: "reply" }));
+    expect(money()[2]).toBe("Upstream cost2 creditsstated by upstream · dola video pool");
+    await show(detail({ upstream_cost: 1, cost_unit: "credits", cost_source: "expected" }));
+    expect(money()[2]).toBe("Upstream cost1 creditexpected · dola video pool");
+  });
+
   it("a cost in a unit Settings has no points rule for is named in its unit and leaves the margin a dash", async () => {
     await show(detail({ upstream_cost: 2, cost_unit: "jobs", margin: null }));
     expect(money()[2]).toBe("Upstream cost2 jobsdola video pool");

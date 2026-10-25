@@ -142,10 +142,23 @@ class Warning:
     text: str
 
 
+COST_SOURCES = ("reply", "balance_delta")
+
+
 @dataclass(frozen=True)
 class Facts:
+    """What the upstream said of a taken order. `upstream_price` is the ACTUAL cost in the pool's unit and never comes
+    without `cost_source`, how it was learnt: `reply` (the upstream stated the price) or `balance_delta` (the balance
+    before the send minus the one after it). An upstream that states nothing leaves both None: the job's expected
+    `account_cost` is then all that is known, and the admin labels it "expected"."""
     upstream_price: int | None = None
     upstream_model: str | None = None
+    cost_source: str | None = None
+
+    def __post_init__(self):
+        if (self.upstream_price is None) != (self.cost_source is None) or (
+                self.cost_source is not None and self.cost_source not in COST_SOURCES):
+            raise ValueError("an actual cost needs its source (%s), and a source its cost" % ", ".join(COST_SOURCES))
 
 
 @dataclass(frozen=True)

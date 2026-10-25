@@ -113,7 +113,7 @@ _DETAIL = (
     "j.params, j.completion, j.price_key, j.pool, j.account_cost, j.attempts, j.claims, j.sent_at, j.render_since, "
     "j.upstream_price, j.upstream_model, j.error, j.warnings, j.callback_status, j.callback_attempts, k.key_prefix, "
     "j.callback_last, j.updated_at, j.provider_state, j.frame_id, j.sent_text "
-    ", j.request, a.proxy_host, a.proxy_port "
+    ", j.request, a.proxy_host, a.proxy_port, j.cost_source "
     "FROM jobs j LEFT JOIN api_keys k ON k.id = j.key_id LEFT JOIN accounts a ON a.id = j.account_id WHERE j.id = %s")
 # The request that made the job, as the request log kept it (redacted when written): the job's first write, looked for
 # around its creation only, so the read stays on request_logs_at.
@@ -295,14 +295,16 @@ async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionP
     item = _summary(row[:16])
     (prompt, marker, params, completion, price_key, pool_name, account_cost, attempts, claims, sent_at, render_since,
      upstream_price, upstream_model, error, warnings, callback_status, callback_attempts, key_prefix, callback_last,
-     updated_at, state, frame_id, sent_text, stored_request, proxy_host, proxy_port) = row[16:]
+     updated_at, state, frame_id, sent_text, stored_request, proxy_host, proxy_port, cost_source) = row[16:]
     try:
         answer = await job_status(pool, public_base(request), row[2], item["id"])
     except ApiError:                         # the job went away between the two reads
         answer = None
     spec = registry.spec(item["provider"]) if item["provider"] in registry.names() else None
     conversation, task_id = _upstream_ids(getattr(spec, "ref_is_conversation", False), item["external_ref"], state)
+    # The actual cost and how it was learnt (`Facts.cost_source`); else the expected cost of a done job, said so.
     cost = upstream_price if upstream_price is not None else account_cost if item["status"] == "done" else None
+    source = cost_source if upstream_price is not None else "expected" if cost is not None else None
     unit = _pool_unit(registry, item["provider"], pool_name)
     per = UNIT_POINTS.get(unit) if unit else None
     item.update({
@@ -315,7 +317,7 @@ async def job_detail(job_id: uuid.UUID, request: Request, pool: AsyncConnectionP
         "callback": {"status": callback_status, "attempts": callback_attempts, "last": callback_last},
         "net_charged": net, "no_recheck": state.get("no_recheck") is True,
         "frame_id": frame_id, "sent_text": sent_text,
-        "upstream_cost": cost, "cost_unit": unit,
+        "upstream_cost": cost, "cost_unit": unit, "cost_source": source,
         "margin": None if cost is None or per is None else net - cost * per,
         "proxy": None if not proxy_host else redact_text("%s:%s" % (proxy_host, proxy_port) if proxy_port
                                                          else proxy_host),

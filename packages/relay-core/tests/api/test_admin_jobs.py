@@ -1142,6 +1142,30 @@ def test_the_drawers_raw_request_response_and_diagnostics_never_show_a_secret(db
     assert d["net_charged"] > 0 and priced["margin"] == d["net_charged"] - 4 * 2, "the unit's points rule"
 
 
+COST_SOURCE_RULE = ('    source = cost_source if upstream_price is not None else "expected" if cost is not None '
+                    'else None')
+
+
+@mutation(ROUTES, COST_SOURCE_RULE, "    source = cost_source", expect="labelled expected")
+@mutation(ROUTES, COST_SOURCE_RULE, '    source = "expected" if cost is not None else None', expect="its source")
+def test_the_drawer_names_how_the_cost_was_learnt_and_labels_an_expected_only_cost_expected(db):
+    k, _ = key(db), account(db)
+    measured, expected = done_job(db, k, ref="a"), done_job(db, k, ref="b")
+    db.run("UPDATE jobs SET account_cost = 2 WHERE id IN (%s, %s)", measured, expected)
+    db.run("UPDATE jobs SET upstream_price = 3, cost_source = 'balance_delta', taken_at = sent_at WHERE id = %s",
+           measured)
+    waiting = run(db, lambda p: waiting_job(p, k, "still rendering"))
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        return [(await env.client.get("/admin/jobs/%s" % j, headers=h)).json() for j in (measured, expected, waiting)]
+
+    got = [(d["upstream_cost"], d["cost_source"]) for d in run_app(db, scenario)]
+    assert got[0] == (3, "balance_delta"), "the actual cost with its source: %s" % got
+    assert got[1] == (2, "expected"), "a done job with no actual cost shows its expected cost, labelled expected"
+    assert got[2] == (None, None), "nothing is known of a job still waiting"
+
+
 def test_a_reference_that_is_the_conversation_is_shown_as_the_conversation_never_as_a_task():
     ids = routes_jobs._upstream_ids
     assert ids(True, "c-1", {}) == ("c-1", None), "the spec says the reference is the conversation"

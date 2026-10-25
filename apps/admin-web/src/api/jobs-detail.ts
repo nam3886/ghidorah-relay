@@ -63,6 +63,8 @@ export interface JobDetail extends JobSummary {
   upstream_cost?: number | null;
   // the unit of that cost: its pool's (credits, jobs or uses); null when the job has no pool
   cost_unit?: "credits" | "jobs" | "uses" | null;
+  // how that cost was learnt: stated by the upstream, its balance before minus after, or only the expected cost
+  cost_source?: "reply" | "balance_delta" | "expected" | null;
   margin?: number | null;
   // the account's proxy as host:port, never its credentials
   proxy?: string | null;

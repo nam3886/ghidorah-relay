@@ -135,6 +135,8 @@ ROW_IF = "(outputs.length && !isPhone) || job.can_recheck || (finished && !isPho
           expect=FD + "opening > drops the answer for a job that is no longer the open one")
 @mutation(DRAWER, "newestFirst(job.value?.events ?? [])", "(job.value?.events ?? [])",
           expect=FD + "timeline > lists the events newest first with their clock time, and marks a recovery")
+@mutation(DRAWER, '              COST_SOURCES[j.cost_source ?? ""] ?? "",\n', "",
+          expect=TECH_GROUP + "the upstream cost says how it was learnt, and an expected-only cost says expected")
 @mutation(DRAWER, 'isRefunded(j) ? "refunded"', 'back ? "refunded"',
           expect=TECH_GROUP + "a done job with a net below its price shows what was charged and no refund")
 @mutation(DRAWER, "outputs.value.length > 1", "true",

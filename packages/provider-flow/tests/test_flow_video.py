@@ -41,6 +41,7 @@ from relay_core.providers import (
     Balance,
     CreateRequest,
     Done,
+    Facts,
     Found,
     JobView,
     Pending,
@@ -99,7 +100,9 @@ VIDEO_IF = ("                if video:      # a 7/8 envelope on YhhmEf was never
             "never re-sent\n")
 VIDEO_BRANCH = ("                if video:      # a 7/8 envelope on YhhmEf was never captured: "
                 "no proof nothing was made, never re-sent\n"
-                "                    return video_answer(reply, batch, batches, project, settings, now())\n")
+                "                    return video_answer(reply, batch, batches, project, settings, now(), balance)\n")
+FLOW_COST = '    facts = Facts(before - balance, cost_source="balance_delta") if spent else Facts()'
+FLOW_SPENT = "    spent = balance is not None and before > balance"
 
 
 @mutation(SUBMIT_FILE, WRITE_AHEAD, "", expect="the batch id was not on the job before the send")
@@ -108,6 +111,7 @@ VIDEO_BRANCH = ("                if video:      # a 7/8 envelope on YhhmEf was n
 @mutation(SUBMIT_FILE, VIDEO_BRANCH, "", expect="Accepted")
 @mutation(SUBMIT_FILE, '    left = (Balance("video", balance),) if balance is not None else ()', "    left = ()",
           expect="the new balance")
+@mutation(SUBMIT_FILE, FLOW_COST, "    facts = Facts()", expect="the credits it took")
 def test_a_video_is_written_ahead_marked_sent_right_before_its_one_send_and_accepted_with_its_media_id():
     log = []
     flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": accepted_for}), Ctx(log)
@@ -130,12 +134,31 @@ def test_a_video_is_written_ahead_marked_sent_right_before_its_one_send_and_acce
     assert args[1][:10] == recorded[1][:10] and args[1][10][1] == 1 and args[1][10][0].startswith("tok-")
     assert args[2] == [batch, 1]
     assert isinstance(result.job, Accepted), "Accepted: %s" % (result.job,)
+    assert result.job.facts == Facts(50 - 40, cost_source="balance_delta"), \
+        "the cost is the credits it took: 50 read before the send, 40 in the acceptance: %s" % (result.job.facts,)
     assert result.job == Accepted(batch, {"batch": batch, "batches": [batch], "project": PROJECT,
-                                          "media": VIDEO_MEDIA, "workflow": VIDEO_WORKFLOW}, taken=True)
+                                          "media": VIDEO_MEDIA, "workflow": VIDEO_WORKFLOW},
+                                  Facts(10, cost_source="balance_delta"), taken=True)
     assert Success() in result.account and Balance("video", 40) in result.account, "the new balance: %s" % (
         result.account,)
     assert rested(result) == [Rest(p, NOW + timedelta(seconds=300), "flow pacing between two generates")
                               for p in ("image", "video")]
+
+
+@mutation(SUBMIT_FILE, FLOW_SPENT, "    spent = balance is not None", expect="no credits taken")
+def test_the_flow_cost_is_the_balance_delta_only_when_the_acceptance_reports_a_lower_balance():
+    """flow states no price. The delta is the job's own only while an account runs one job at a time."""
+    assert SPEC.caps.account_slots == 1, "the balance delta is a job's cost only with one job per account"
+    for after, want, why in ((40, Facts(10, cost_source="balance_delta"), "the credits it took"),
+                             (50, Facts(), "no credits taken: no cost"),
+                             (None, Facts(), "no balance in the acceptance: no cost")):
+        def answer(request, after=after):
+            p = json.loads(json.dumps(VIDEO_SENT["payload"]).replace(VIDEO_BATCH, args_of(request)[2][0]))
+            p[1] = after
+            return frame("YhhmEf", p)
+        log = []
+        result = run(Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": answer}), Ctx(log))
+        assert isinstance(result.job, Accepted) and result.job.facts == want, "%s: %s" % (why, result.job)
 
 
 CREDIT_GATE = '                if balance < int(job.params["credits"]):'

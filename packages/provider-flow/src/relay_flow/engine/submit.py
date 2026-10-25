@@ -47,6 +47,7 @@ from relay_core.providers import (
     Balance,
     Completed,
     Cooldown,
+    Facts,
     NotTaken,
     Output,
     ProxyBad,
@@ -187,8 +188,11 @@ def answer(reply: Reply, batch: str, settings, now: datetime) -> SubmitResult:
                              % (reply.status, "there" if reply.found else "missing", reply.code)), *rest)
 
 
-def video_answer(reply: Reply, batch: str, batches: list[str], project: str, settings, now: datetime) -> SubmitResult:
-    """A video reply that is not the immediate refusal: the recorded acceptance, or unknown. Never `NotTaken`."""
+def video_answer(reply: Reply, batch: str, batches: list[str], project: str, settings, now: datetime,
+                 before: int) -> SubmitResult:
+    """A video reply that is not the immediate refusal: the recorded acceptance, or unknown. Never `NotTaken`.
+    flow states no price: the cost is `before` (the credits read right before this send) minus the balance the
+    acceptance reports, which is the job's own only while an account runs one job at a time (`account_slots` 1)."""
     rest = pacing(settings, now, reply.code)
     taken = video_taken(reply.payload, batch, project) if reply.status == 200 and reply.clean else None
     if taken is None:
@@ -199,7 +203,9 @@ def video_answer(reply: Reply, batch: str, batches: list[str], project: str, set
     state = {BATCH_KEY: batch, BATCHES_KEY: list(batches), PROJECT_KEY: project, MEDIA_KEY: media,
              WORKFLOW_KEY: workflow}
     left = (Balance("video", balance),) if balance is not None else ()
-    return _result(Accepted(batch, state, taken=True), Success(), *left, *rest)
+    spent = balance is not None and before > balance
+    facts = Facts(before - balance, cost_source="balance_delta") if spent else Facts()
+    return _result(Accepted(batch, state, facts, taken=True), Success(), *left, *rest)
 
 
 async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., Awaitable[str]], *,
@@ -275,7 +281,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return _result(Ambiguous("the generate got no answer (%s)" % type(e).__name__),
                                    *pacing(settings, now()))
                 if video:      # a 7/8 envelope on YhhmEf was never captured: no proof nothing was made, never re-sent
-                    return video_answer(reply, batch, batches, project, settings, now())
+                    return video_answer(reply, batch, batches, project, settings, now(), balance)
                 if not reply.refused_before_anything:
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s, %s); nothing was made"

@@ -1643,24 +1643,26 @@ class _Run:
 
     # ---- turning what dola said into the result ----
     def _facts(self, reply: str, verdict) -> tuple[Facts, list[Warning]]:
-        """What dola stated about the taken order: its price and model (video only), never from a refused order: a
-        refusal also says "will use N credits" and learning from it invented a price for a level never rendered."""
+        """What dola stated about the taken order: its price (with how it was learnt) and model (video only; an image
+        states no price: its expected cost stands), never from a refused order: a refusal also says "will use N
+        credits" and learning from it invented a price for a level never rendered."""
         if self.spec.kind != "video":
             return Facts(), []
-        price = classify.read_price_stated(reply)
+        price, source = classify.read_price_stated(reply), "reply"
         if price is None:
             # dola does not always state a price (a 5 s clip of 2.0 / 1.0 only reports the balance): infer it from the
             # balance before this send (the claim's fresh snapshot of the account) and the one dola reports after.
             before = self.ctx.account.capacity.get("video")
             after = verdict.credits_left
+            source = None
             if before is not None and after is not None and before > after:
-                price = before - after
+                price, source = before - after, "balance_delta"
         model = classify.named_model(reply)
         warnings = []
         swap = classify.model_substitution(reply, self.spec.model)
         if swap:
             warnings.append(Warning(errors.WARN_MODEL_SUBSTITUTED, swap))
-        return Facts(price, model), warnings
+        return Facts(price, model, source), warnings
 
     def _balance(self, verdict) -> list:
         """The balance dola reported. Only for video: `credits_left` counts VIDEO credits, never image ones."""
