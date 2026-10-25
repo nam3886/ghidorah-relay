@@ -625,7 +625,7 @@ key and provider, checked at the door and again in the creation transaction befo
 account that made the source (`jobs.pin_account_id`), because upstreams refuse another account's media and uploads. The
 claim offers it to that account alone and never lets it hold up or join another account's work. While it is queued the
 reaper (every 30 s) ends it
-ends at once with its refund when that account is dead or disabled (`source.account_unavailable`) or its pool's
+at once, with its refund, when that account is dead or disabled (`source.account_unavailable`) or its pool's
 balance is below the job's cost (`source.account_exhausted`); a cooldown, a rest, a busy slot or the send gap only make
 it wait, up to `unsent_deadline_s`. The status answer carries `source_job_id`; admin Regenerate keeps the pin.
 
