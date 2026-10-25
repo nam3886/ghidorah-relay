@@ -1,0 +1,11 @@
+{
+ "t": 11.69,
+ "elapsed_s": 2.52,
+ "method": "GET",
+ "path": "/api/download/png?id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "headers": {
+  "content-type": "image/png"
+ },
+ "request": null
+}

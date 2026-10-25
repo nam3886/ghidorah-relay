@@ -13,6 +13,7 @@ from relay_core.providers import (
     InputError,
     MediaIn,
     ProviderRegistry,
+    SourceIn,
     _problems,
     check_catalog,
 )
@@ -69,8 +70,9 @@ def test_vibes_stays_drained_by_default_and_declares_the_settings_the_core_reads
     s = SPEC.settings()
     assert s["vibes.claims_enabled"].default is False, "vibes must stay drained until it can submit"
     assert "vibes.browser_slots" not in s, "an http provider has no browser"
-    assert s["vibes.prices"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
-    assert s["vibes.costs"].default == {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1}
+    every = {"vibes-image": 1, "vibes-video@480p": 1, "vibes-video@720p": 1, "vibes-video-extend": 1,
+             "vibes-video-edit": 1, "vibes-image-edit": 1}
+    assert s["vibes.prices"].default == every and s["vibes.costs"].default == every
     # not measured yet: far above any real day
     assert s["vibes.pools"].default == {"video": day_pool({"free": 1000}), "image": day_pool({"free": 1000})}
     assert s["vibes.render_deadline_s"].default >= 600, "a video renders for about 5 min"
@@ -250,6 +252,55 @@ def test_a_count_above_one_is_refused_not_ignored():
     for n in (4, 2):
         assert refusal(n=n) == ("input.invalid", "n"), "n=%d was planned" % n
     assert refusal(n=1) is None
+
+
+# ---- the modes that work on an earlier vibes job (pinned jobs) -------------------------------------------------------
+VIDEO_SRC = SourceIn("11111111-1111-1111-1111-111111111111", "vibes", "vibes-video", "video", "text_to_video")
+IMAGE_SRC = SourceIn("22222222-2222-2222-2222-222222222222", "vibes", "vibes-image", "image", "text_to_image")
+SOURCE_RULE = "        if req.source.media_type != wanted:"
+FAIL_REFUND = "            after_sent=AfterSent.FAIL_REFUND if image_edit else AfterSent.RECONCILE,"
+
+
+@mutation(SPEC_FILE, "            price_key=C.price_key(req.model), pool=kind, submit_timeout_s=_SUBMIT_TIMEOUT[kind], "
+          "uses_source=True)", "            price_key=C.price_key(req.model), pool=kind, "
+          "submit_timeout_s=_SUBMIT_TIMEOUT[kind])", expect="runs on the account that made the source")
+@mutation(SPEC_FILE, FAIL_REFUND, "            after_sent=AfterSent.RECONCILE,", expect="nothing to read back")
+def test_extend_video_edit_and_image_edit_run_on_the_sources_account_and_an_image_edit_cannot_be_reconciled():
+    want = {"vibes-video-extend": ("extend_video", "video", "midjen-extend", Completion.DETACH, AfterSent.RECONCILE),
+            "vibes-video-edit": ("video_to_video", "video", "midjen-video-edit", Completion.DETACH,
+                                 AfterSent.RECONCILE),
+            "vibes-image-edit": ("edit_image", "image", "midjen-base", Completion.HOLD, AfterSent.FAIL_REFUND)}
+    for model, (operation, kind, upstream, completion, after) in want.items():
+        p = plan(model, "make it snow", source=VIDEO_SRC if kind == "video" else IMAGE_SRC)
+        assert p.uses_source, "%s runs on the account that made the source" % model
+        assert (p.operation, p.media_type, p.pool, dict(p.params)) == (
+            operation, kind, kind, {"kind": kind, "model": upstream, "ratio": None}), model
+        assert p.completion == completion and p.price_key == model
+        assert p.after_sent == after, "%s: an image edit has nothing to read back after an unclear answer" % model
+        assert (priced(model, "make it snow", source=VIDEO_SRC if kind == "video" else IMAGE_SRC).price,) == (1,)
+    assert not plan("vibes-video").uses_source and not plan("vibes-image").uses_source
+
+
+@mutation(SPEC_FILE, SOURCE_RULE, "        if False:", expect="the wrong kind of source")
+@mutation(SPEC_FILE, "        if req.source is None:", "        if False:", expect="no source")
+def test_a_source_mode_needs_a_source_of_its_own_kind_and_takes_no_ratio_image_or_resolution():
+    assert refusal("vibes-video-extend", "go on") == ("input.bad_source", "source_job_id"), "no source"
+    assert refusal("vibes-video-edit", "sketch", source=IMAGE_SRC) == ("input.bad_source", "source_job_id"), (
+        "the wrong kind of source was planned")
+    assert refusal("vibes-image-edit", "snow", source=VIDEO_SRC) == ("input.bad_source", "source_job_id"), (
+        "the wrong kind of source was planned")
+    assert refusal("vibes-video-extend", "go on", source=VIDEO_SRC, ratio="9:16") == ("input.bad_ratio", "ratio")
+    assert refusal("vibes-video-edit", "sketch", source=VIDEO_SRC, images=(IMG,)) == (
+        "input.too_many_images", "images")
+    assert refusal("vibes-video-extend", "go on", source=VIDEO_SRC, options={"resolution": "720p"}) == (
+        "input.invalid", "options")
+    assert refusal("vibes-image-edit", "​", source=IMAGE_SRC) == ("input.empty_prompt", "prompt")
+
+
+def test_the_catalog_says_which_kind_of_source_each_mode_works_on():
+    limits = {m.id: m.limits.get("source") for m in SPEC.catalog()}
+    assert limits == {"vibes-image": None, "vibes-video": None, "vibes-video-extend": "video",
+                      "vibes-video-edit": "video", "vibes-image-edit": "image"}
 
 
 # ---- prompt frames ---------------------------------------------------------------------------------------------------

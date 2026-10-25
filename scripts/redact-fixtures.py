@@ -217,8 +217,8 @@ GAPS = [
     "dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. The "
     "SSE bodies in `dola/sse/*.txt` are reconstructed from the event names and error codes of earlier samples (not "
     "live captures); a live 710022004 body replaces them when one is measured.",
-    "vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a "
-    "rejected generate): not captured yet.",
+    "vibes error bodies (401, 403, 429, QUOTA, a rejected generate, a refused image edit) and an extend past its "
+    "~16.7 s ceiling: not captured yet.",
     "meta refusal, rate or limit text, text-only reply and logged-out page: not captured yet.",
 ]
 

@@ -1,0 +1,42 @@
+{
+ "t": 8.01,
+ "elapsed_s": 2.12,
+ "method": "POST",
+ "path": "/api/generation-batches",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": {
+  "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+  "type": "videos",
+  "prompt": "make it look like a pencil sketch, keep the same motion",
+  "timestamp": 1792922226513,
+  "isComplete": false,
+  "config": {
+   "directGeneration": true,
+   "videoModel": "midjen-video-edit",
+   "imageModel": "midjen-base",
+   "editType": "v2v",
+   "generationType": "v2v",
+   "sourceVideoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+   "sourceContentItemIds": [
+    {
+     "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+     "source": "v2v"
+    }
+   ]
+  },
+  "content": [
+   {
+    "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8-content-0",
+    "type": "video",
+    "isLoading": true
+   }
+  ]
+ },
+ "body": {
+  "batch": null,
+  "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8"
+ }
+}

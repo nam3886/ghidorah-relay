@@ -1,0 +1,11 @@
+{
+ "t": 321.78,
+ "elapsed_s": 4.87,
+ "method": "GET",
+ "path": "/api/download/video?id=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+ "status": 200,
+ "headers": {
+  "content-type": "video/mp4"
+ },
+ "request": null
+}

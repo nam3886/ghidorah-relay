@@ -24,6 +24,8 @@ QUOTA_USED_BANNER = "enabled"          # `bannerStatus` (any case) of the banner
 UPLOAD_PATH = "/api/upload-image"      # {image: data URL} -> {mediaEntId, imageUrl}: the start frame of an i2v job
 BATCHES_PATH = "/api/generation-batches"   # POST: the empty batch (its id is ours); GET /<id>: the batch read
 GENERATE_PATH = {"image": "/api/generate/images", "video": "/api/generate/videos"}   # the one paid call of a job
+# the one paid call of an image edit: {sourceImageEntId, editPrompt, projectId} -> {success, contentItem, batchId}
+IMAGE_EDIT_PATH = "/api/generate/image-edit"
 # the result file by its content item id
 DOWNLOAD_PATH = {"image": "/api/download/png?id=%s", "video": "/api/download/video?id=%s"}
 OUTPUT_MIME = {"image": "image/png", "video": "video/mp4"}

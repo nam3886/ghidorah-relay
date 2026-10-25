@@ -1,0 +1,68 @@
+{
+ "t": 16.01,
+ "elapsed_s": 9.28,
+ "method": "POST",
+ "path": "/api/generate/videos",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": {
+  "batchId": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+  "inputs": [
+   {
+    "type": "video",
+    "mediaEntId": "1351458858058180",
+    "videoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "prompt": "make it look like a pencil sketch, keep the same motion",
+    "config": {
+     "directGeneration": true,
+     "videoModel": "midjen-video-edit",
+     "imageModel": "midjen-base",
+     "editType": "v2v",
+     "generationType": "v2v",
+     "sourceVideoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "sourceContentItemIds": [
+      {
+       "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+       "source": "v2v"
+      }
+     ]
+    }
+   }
+  ],
+  "config": {
+   "directGeneration": true,
+   "videoModel": "midjen-video-edit",
+   "imageModel": "midjen-base",
+   "editType": "v2v",
+   "generationType": "v2v",
+   "sourceVideoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+   "sourceContentItemIds": [
+    {
+     "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+     "source": "v2v"
+    }
+   ]
+  },
+  "mg_request_id": "www-6c239df9-ab91-4f3d-82da-d47b937e4e55",
+  "projectId": null
+ },
+ "body": {
+  "success": true,
+  "batchId": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+  "videoGenEntIds": [
+   "1351465491390850"
+  ],
+  "needsPolling": true,
+  "hasPartialErrors": false,
+  "items": [
+   {
+    "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8-content-0-1792922249509",
+    "imageUrl": null,
+    "isLoading": true,
+    "error": null
+   }
+  ]
+ }
+}

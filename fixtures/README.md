@@ -36,7 +36,7 @@ What the captures do not hold.
 
 - dola watermark-only: none of the 38 real done videos (30/09) lacked `main_url`. Tests build it from a done chain by deleting `main_url` from its `video_model` (derived, not captured).
 - dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. The SSE bodies in `dola/sse/*.txt` are reconstructed from the event names and error codes of earlier samples (not live captures); a live 710022004 body replaces them when one is measured.
-- vibes derived operations (extend, v2v, image-edit) and vibes error bodies (401, 403, 429, QUOTA, a rejected generate): not captured yet.
+- vibes error bodies (401, 403, 429, QUOTA, a rejected generate, a refused image edit) and an extend past its ~16.7 s ceiling: not captured yet.
 - meta refusal, rate or limit text, text-only reply and logged-out page: not captured yet.
 
 ## meta.ai live run (23/10/2026)
@@ -239,6 +239,26 @@ it each time. `vibes/s7-live/README.md` describes them.
 - `vibes/s7-live/oref_web_002_generate.json`
 - `vibes/s7-live/oref_web_003_read_batch.json`
 - `vibes/s7-live/oref_web_004_download_png.json`
+
+## vibes.ai pinned modes live smoke (25/10/2026)
+
+One extend, one video edit and one image edit of the account's own earlier results, sent by the relay's engine code;
+`vibes/pinned-261025/README.md` describes them.
+
+- `vibes/pinned-261025/edit_001_read_source.json`
+- `vibes/pinned-261025/edit_002_generate.json`
+- `vibes/pinned-261025/edit_003_download_png.json`
+- `vibes/pinned-261025/extend_001_read_source.json`
+- `vibes/pinned-261025/extend_002_create_batch.json`
+- `vibes/pinned-261025/extend_003_generate.json`
+- `vibes/pinned-261025/extend_004_poll.json`
+- `vibes/pinned-261025/extend_014_poll_done.json`
+- `vibes/pinned-261025/extend_015_download_video.json`
+- `vibes/pinned-261025/v2v_001_read_source.json`
+- `vibes/pinned-261025/v2v_002_create_batch.json`
+- `vibes/pinned-261025/v2v_003_generate.json`
+- `vibes/pinned-261025/v2v_014_poll_done.json`
+- `vibes/pinned-261025/v2v_015_download_video.json`
 
 ## vibes.ai refused image (production job f0176f20, 23/10/2026 09:39 GMT+7)
 

@@ -1,0 +1,34 @@
+{
+ "t": 0.0,
+ "elapsed_s": 11.68,
+ "method": "POST",
+ "path": "/api/generate/image-edit",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": {
+  "sourceImageEntId": "1351219778082088",
+  "editPrompt": "turn it into a snowy winter scene",
+  "projectId": null
+ },
+ "body": {
+  "success": true,
+  "contentItem": {
+   "id": "7f4a3dd5-fa87-4565-b40b-b80c32cf62a7",
+   "type": "images",
+   "isLoading": false,
+   "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t0/f2/m340/AQN9U2DvebBLJ_R6ShXzdlY2Vci4GoeXLqgsA0qymSu-uRVDHLx8EZ7FhussXNjO7uBTd5rZ0YNlZWqpLOvbv_N4d8KeoBK-xfbTvkV54PJ0AAjbfFgXpXf7njl6W53XdsrRnH550WZpfEOXSLM4D1lKolA-ow.jpeg?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=scontent-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+   "imageHandle": null,
+   "mediaEntId": "1351472504723482",
+   "imagePrompt": "turn it into a snowy winter scene",
+   "structuredOutput": {
+    "image": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t0/f2/m340/AQN9U2DvebBLJ_R6ShXzdlY2Vci4GoeXLqgsA0qymSu-uRVDHLx8EZ7FhussXNjO7uBTd5rZ0YNlZWqpLOvbv_N4d8KeoBK-xfbTvkV54PJ0AAjbfFgXpXf7njl6W53XdsrRnH550WZpfEOXSLM4D1lKolA-ow.jpeg?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=scontent-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "editedFrom": "1351219778082088",
+    "requestId": "5ab3592e-ed26-439c-b80a-218ae5f96bb7"
+   }
+  },
+  "batchId": "bd3579f8-7c67-4cb4-bfaa-ba5a103ab011",
+  "requestId": "5ab3592e-ed26-439c-b80a-218ae5f96bb7"
+ }
+}

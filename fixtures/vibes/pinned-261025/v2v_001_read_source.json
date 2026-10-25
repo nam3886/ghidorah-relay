@@ -1,0 +1,102 @@
+{
+ "t": 0.0,
+ "elapsed_s": 2.12,
+ "method": "GET",
+ "path": "/api/generation-batches/8e5cb96e-9a2c-4733-930f-decdf6d07018",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": null,
+ "body": {
+  "batch": {
+   "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018",
+   "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+   "projectId": null,
+   "type": "videos",
+   "prompt": "the scene slowly comes alive, gentle camera push in",
+   "timestamp": "2026-10-25T09:51:19.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "metadata": {
+     "dimensions": {
+      "width": 1280,
+      "height": 720
+     },
+     "aspectRatio": "16:9"
+    },
+    "imageModel": "midjen-base",
+    "resolution": "480p",
+    "videoModel": "midjen-extend",
+    "aspectRatio": "16:9",
+    "audioSourceUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "generationType": "extend",
+    "sourceVideoUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "extendDirective": "the camera keeps moving forward as the birds fly away into the sunset",
+    "directGeneration": true,
+    "sourceContentItemIds": [
+     {
+      "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+      "source": "extend_video"
+     }
+    ]
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": null,
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-25T09:51:27.000Z",
+   "generationEndTime": "2026-10-25T09:56:38.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-25T09:51:27.000Z",
+   "updatedAt": "2026-10-25T09:56:38.000Z",
+   "content": [
+    {
+     "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+     "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+     "batchId": "8e5cb96e-9a2c-4733-930f-decdf6d07018",
+     "originProjectId": null,
+     "type": "videos",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": "{\"videoGenEntId\":\"1351458858058180\",\"requestId\":\"www-extend-597z4o2c-k373-94fe-1213-d3k00x878vt5-d84913bd-bb18-4cd2-b676-93af044e093a\",\"imageEntId\":\"1351464028057663\"}",
+     "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQMhxZ6dz6EbjxCWmqsf2ZUbUVVjfcKuGYHqQXsmsjT2EsfVJPeHhZwDxQSZ3UnXFQvrm1acgInG3qQ7Tr75503VxLxK?_nc_cat=103&_nc_sid=xxxxxx&_nc_ht=scontent-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_zt=xx&_nc_ss=xxxxx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "imageHandle": null,
+     "videoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "videoHandle": null,
+     "mediaEntId": "1351458858058180",
+     "prompt": "the scene slowly comes alive, gentle camera push in",
+     "imagePrompt": "the scene slowly comes alive, gentle camera push in",
+     "videoPrompt": "the camera keeps moving forward as the birds fly away into the sunset",
+     "structuredOutput": {
+      "metadata": {
+       "dimensions": {
+        "width": 1280,
+        "height": 720
+       },
+       "aspectRatio": "16:9"
+      }
+     },
+     "srefValues": null,
+     "sourceContentItemIds": [
+      {
+       "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+       "source": "extend_video"
+      }
+     ],
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-25T09:51:27.000Z",
+     "updatedAt": "2026-10-25T09:56:38.000Z"
+    }
+   ],
+   "needsPolling": false
+  }
+ }
+}

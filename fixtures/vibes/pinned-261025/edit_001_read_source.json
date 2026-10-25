@@ -1,0 +1,81 @@
+{
+ "t": 0,
+ "elapsed_s": null,
+ "method": "GET",
+ "path": "/api/generation-batches/c3f9d392-2f7b-4637-bc4d-67095798c960",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": null,
+ "body": {
+  "batch": {
+   "id": "c3f9d392-2f7b-4637-bc4d-67095798c960",
+   "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+   "projectId": null,
+   "type": "images",
+   "prompt": "a pink plum on a wooden table",
+   "timestamp": "2026-10-25T06:05:02.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "imageModel": "midjen-base"
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": "midjen-base",
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-25T06:05:04.000Z",
+   "generationEndTime": "2026-10-25T06:05:17.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-25T06:05:04.000Z",
+   "updatedAt": "2026-10-25T06:05:17.000Z",
+   "content": [
+    {
+     "id": "c3f9d392-2f7b-4637-bc4d-67095798c960-content-0",
+     "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+     "batchId": "c3f9d392-2f7b-4637-bc4d-67095798c960",
+     "originProjectId": null,
+     "type": "images",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": "{\"requestId\":\"www-6e4197aa-02e7-42a0-9b17-ded864cbb0f5\",\"imageEntId\":\"1351219778082088\"}",
+     "imageUrl": "https://scontent-iad3-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQNA1wUDDmC5hMZfbWLzRHwcHWsWjjss4LVhuFPuJHTumkY5Yk_NtoObBvRhjbOd46miymK2W_ecvHEe1CJWg1JKGoO7MVot2AqtPORDje0szfnyW59DXm4L8LenaORuUnNX134-H-rYrNn4LV1mF74x75bcXQ.jpeg?_nc_cat=105&_nc_sid=xxxxxx&_nc_ht=scontent-iad3-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "imageHandle": null,
+     "videoUrl": null,
+     "videoHandle": null,
+     "mediaEntId": "1351219778082088",
+     "prompt": "a pink plum on a wooden table",
+     "imagePrompt": "a pink plum on a wooden table",
+     "videoPrompt": null,
+     "structuredOutput": {
+      "config": {
+       "imageModel": "midjen-base"
+      },
+      "metadata": {
+       "dimensions": {
+        "width": 720,
+        "height": 1280
+       },
+       "aspectRatio": "9:16"
+      }
+     },
+     "srefValues": "",
+     "sourceContentItemIds": null,
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-25T06:05:04.000Z",
+     "updatedAt": "2026-10-25T06:05:17.000Z",
+     "thumbnailUrl": null,
+     "aspectRatio": 0.5625
+    }
+   ],
+   "needsPolling": false
+  }
+ }
+}

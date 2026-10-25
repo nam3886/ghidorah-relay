@@ -155,6 +155,8 @@ class VibesSpec:
             raise _refuse("input.bad_duration", "vibes sets the length itself: send no duration", "duration")
         if req.n not in (None, 1):
             raise _refuse("input.invalid", "vibes makes one result per request", "n")
+        if req.model in C.SOURCE_MODES:
+            return self._source_plan(req, kind)
         if req.ratio is not None and req.ratio not in C.RATIOS[kind]:
             allowed = ", ".join(C.RATIOS[kind])
             detail = ("vibes video comes out 9:16; send no ratio or 9:16" if kind == "video"
@@ -182,6 +184,35 @@ class VibesSpec:
             operation=operation, media_type=kind, model=req.model, params=params,
             completion=Completion.HOLD if kind == "image" else Completion.DETACH, after_sent=AfterSent.RECONCILE,
             price_key=C.price_key(req.model, resolution), pool=kind, submit_timeout_s=_SUBMIT_TIMEOUT[kind])
+
+    def _source_plan(self, req: CreateRequest, kind: str) -> Plan:
+        """Extend, video edit and image edit: they work on the output of the customer's own earlier vibes job
+        (`req.source`, which the core found: a finished job of the same key and provider), so the job runs on the
+        account that made it (`uses_source`). The source must have made the kind of output the mode works on. The
+        output follows the source: no ratio, resolution or image. An image edit answers with no batch we chose, so an
+        unclear answer cannot be read back: it fails the job with its refund (`FAIL_REFUND`)."""
+        operation, wanted = C.SOURCE_MODES[req.model]
+        if req.source is None:
+            raise _refuse("input.bad_source", "%s works on an earlier vibes job: send its id as source_job_id"
+                          % req.model, "source_job_id")
+        if req.source.media_type != wanted:
+            raise _refuse("input.bad_source", "%s works on a %s an earlier vibes job made" % (req.model, wanted),
+                          "source_job_id")
+        if req.ratio is not None:
+            raise _refuse("input.bad_ratio", "the output keeps the source's shape: send no ratio", "ratio")
+        if req.images:
+            raise _refuse("input.too_many_images", "%s takes no input image" % req.model, "images")
+        if req.options.get("resolution") is not None:
+            raise _refuse("input.invalid", "the output keeps the source's resolution", "options")
+        if C.is_blank_prompt(req.prompt):
+            raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
+        image_edit = req.model == C.IMAGE_EDIT_MODEL
+        return Plan(
+            operation=operation, media_type=kind, model=req.model,
+            params={"kind": kind, "model": C.UPSTREAM[req.model], "ratio": None},
+            completion=Completion.HOLD if image_edit else Completion.DETACH,
+            after_sent=AfterSent.FAIL_REFUND if image_edit else AfterSent.RECONCILE,
+            price_key=C.price_key(req.model), pool=kind, submit_timeout_s=_SUBMIT_TIMEOUT[kind], uses_source=True)
 
 
 SPEC = VibesSpec()

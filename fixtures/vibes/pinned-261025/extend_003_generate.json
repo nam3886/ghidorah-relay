@@ -1,0 +1,89 @@
+{
+ "t": 16.01,
+ "elapsed_s": 3.34,
+ "method": "POST",
+ "path": "/api/generate/videos",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": {
+  "batchId": "8e5cb96e-9a2c-4733-930f-decdf6d07018",
+  "inputs": [
+   {
+    "type": "extend",
+    "mediaEntId": "1347050431832356",
+    "videoUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "prompt": "the scene slowly comes alive, gentle camera push in",
+    "extendDirective": "the camera keeps moving forward as the birds fly away into the sunset",
+    "config": {
+     "metadata": {
+      "dimensions": {
+       "width": 1280,
+       "height": 720
+      },
+      "aspectRatio": "16:9"
+     },
+     "resolution": "480p",
+     "videoModel": "midjen-extend",
+     "aspectRatio": "16:9",
+     "imageModel": "midjen-base",
+     "generationType": "extend",
+     "sourceVideoUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "audioSourceUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "directGeneration": true,
+     "sourceContentItemIds": [
+      {
+       "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+       "source": "extend_video"
+      }
+     ],
+     "extendDirective": "the camera keeps moving forward as the birds fly away into the sunset"
+    }
+   }
+  ],
+  "config": {
+   "metadata": {
+    "dimensions": {
+     "width": 1280,
+     "height": 720
+    },
+    "aspectRatio": "16:9"
+   },
+   "resolution": "480p",
+   "videoModel": "midjen-extend",
+   "aspectRatio": "16:9",
+   "imageModel": "midjen-base",
+   "generationType": "extend",
+   "sourceVideoUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+   "audioSourceUrl": "https://video-iad3-1.xx.fbcdn.net/o1/v/t2/f2/m412/AQMAIaFpeX6dhnUQpsPDXNdy34Yel6Qjv4iJgDwrLRdRkleCQwS7unpSLMBWwjryqKwhs5Y0krW24b2br_GyAg5bJxBa9AOS434RjEw.mp4?_nc_cat=101&_nc_sid=xxxxxx&_nc_ht=video-iad3-1.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+   "directGeneration": true,
+   "sourceContentItemIds": [
+    {
+     "id": "e2b1e259-b043-45ac-8a11-4e7f6b261a23-content-0",
+     "source": "extend_video"
+    }
+   ],
+   "extendDirective": "the camera keeps moving forward as the birds fly away into the sunset"
+  },
+  "mg_request_id": "www-203414be-1476-4af6-89fc-506719a29f03",
+  "projectId": null
+ },
+ "body": {
+  "success": true,
+  "batchId": "8e5cb96e-9a2c-4733-930f-decdf6d07018",
+  "videoGenEntIds": [
+   "1351458858058180"
+  ],
+  "needsPolling": true,
+  "hasPartialErrors": false,
+  "items": [
+   {
+    "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0-1792921896930",
+    "imageUrl": null,
+    "isLoading": true,
+    "error": null
+   }
+  ]
+ }
+}

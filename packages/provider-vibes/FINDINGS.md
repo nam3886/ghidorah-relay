@@ -199,3 +199,28 @@ endpoint. The check reports no tier.
   A small sample: it shows the gap is not too tight, not that it is enough for a whole day.
 - The checkpoint is still never a strike and never fails a job before the send (`pool.account_throttled`, no attempt
   used); after the send it is unknown and reconciled, never re-sent.
+
+## Pinned modes live, 25/10 (extend, video edit, image edit)
+
+Sold as three models that work on an output of the customer's own earlier vibes job (`source_job_id`): the core pins
+the job to the account that made the source (vibes refuses another account's media and any upload). One live job each
+on vibes-acc1, sent by the relay's engine code (`fixtures/vibes/pinned-261025/`, GMT+7):
+- **Extend** (`vibes-video-extend`, `midjen-extend`), 16:51: the source batch is read first (its `videoUrl` is signed
+  and short-lived), then the web app's body: input `{type: "extend", mediaEntId, videoUrl, prompt: <the source's own
+  prompt>, extendDirective: <the customer's words>}`, config = the source's `structuredOutput` and batch config plus
+  `videoModel: midjen-extend`, `generationType: extend`, `sourceVideoUrl`/`audioSourceUrl`, `sourceContentItemIds:
+  [{id, source: "extend_video"}]`. Done at 322 s: **5.21 s became 9.04 s** (+3.83 s), 464x832, same scene continued.
+- **Video edit** (`vibes-video-edit`, `midjen-video-edit`, `generationType: v2v`), 16:57, on the extend's result (an
+  output of a pinned job is itself a source): done at 326 s, 9.04 s, 464x830, a pencil-sketch restyle.
+- **Image edit** (`vibes-image-edit`, `POST /api/generate/image-edit {sourceImageEntId, editPrompt, projectId}`), 17:03,
+  on a production `vibes-image` result: answered in 11.7 s with `{success, contentItem: {id, mediaEntId, imageUrl,
+  structuredOutput.editedFrom}, batchId, requestId}`. The batch id is vibes' own, so a lost answer cannot be looked up:
+  the plan is `fail_refund` (an unclear answer fails the job at once with its refund). **The edited item downloads by
+  its id** like any image (`/api/download/png?id=<contentItem.id>`: 200 `image/png` 810x1440); the CDN `imageUrl` is a
+  smaller JPEG and is not used. Correction of S7: the download 404 seen there was on the `mediaEntId`, not the item id.
+- The source is found from the source job's own state: its batch (video modes) or its output's `upstream_id` (the
+  `mediaEntId`, image edit). A source vibes no longer holds (batch 404, an item with no video, no image id) fails
+  before the send (`vibes.source_missing`, refunded); a failed source read is a retry.
+- Not measured: the extend ceiling (~16.7 s from the web app's text: a 4th round from 5.2 s would pass it; vibes'
+  answer to that is not captured, it fails as any refusal would), whether an extend or an edit uses daily quota, and
+  error bodies of a refused edit.

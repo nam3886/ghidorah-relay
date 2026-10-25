@@ -1,0 +1,84 @@
+{
+ "t": 319.48,
+ "elapsed_s": 6.75,
+ "method": "GET",
+ "path": "/api/generation-batches/75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "request": null,
+ "body": {
+  "batch": {
+   "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+   "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+   "projectId": null,
+   "type": "videos",
+   "prompt": "make it look like a pencil sketch, keep the same motion",
+   "timestamp": "2026-10-25T09:57:07.000Z",
+   "isComplete": true,
+   "hasError": false,
+   "error": null,
+   "canRetry": true,
+   "config": {
+    "editType": "v2v",
+    "imageModel": "midjen-base",
+    "videoModel": "midjen-video-edit",
+    "generationType": "v2v",
+    "sourceVideoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNh5OdgdctBnK9GDMzGLXW7ZLoCfmIYqmAEyltYdoCMrttfcVeKRna3oG3l6KusMsIX-PlmqwWrghDclwNABaecUUppj2dSAx_tmxA.mp4?_nc_cat=110&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+    "directGeneration": true,
+    "sourceContentItemIds": [
+     {
+      "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+      "source": "v2v"
+     }
+    ]
+   },
+   "systemPrompt": null,
+   "promptModel": null,
+   "imageModel": null,
+   "videoModel": null,
+   "bulkGenId": null,
+   "generationStartTime": "2026-10-25T09:57:13.000Z",
+   "generationEndTime": "2026-10-25T10:02:30.000Z",
+   "creationContext": "legacy",
+   "createdAt": "2026-10-25T09:57:13.000Z",
+   "updatedAt": "2026-10-25T10:02:30.000Z",
+   "content": [
+    {
+     "id": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8-content-0",
+     "userId": "597z4o2c-k373-94fe-1213-d3k00x878vt5",
+     "batchId": "75f7dfa9-a7a2-41d0-9363-a9e2bd73cbf8",
+     "originProjectId": null,
+     "type": "videos",
+     "isLoading": false,
+     "isFavorited": false,
+     "data": "{\"videoGenEntId\":\"1351465491390850\",\"requestId\":\"www-v2v-597z4o2c-k373-94fe-1213-d3k00x878vt5-6bf2bb20-adc1-4569-b525-e91018674a9b\",\"imageEntId\":\"1351471331390266\"}",
+     "imageUrl": "https://scontent-ord5-2.xx.fbcdn.net/o1/v/t6/f2/m421/AQMy-cWwQ37q0I3jBoyoATWbOtT1fYeAyNwei66pgQBX5ZBxO0RIySoHmKZmDyVvDt-Jeu5F2X8WXxcRJ-lbSCYN1vSb?_nc_cat=103&_nc_sid=xxxxxx&_nc_ht=scontent-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "imageHandle": null,
+     "videoUrl": "https://video-ord5-2.xx.fbcdn.net/o1/v/t2/f2/m412/AQNznVfR18_nOZDoFoK3BMwcFfBnPNkX8QWqOFSd7J5e9SJll2OJZdjKdEbzVj2tnr6Nmr2dKOWkc06hcZ2X8Ypp-LqsnBkB7F7jN1E.mp4?_nc_cat=100&_nc_sid=xxxxxx&_nc_ht=video-ord5-2.xx.fbcdn.net&_nc_ohc=xxxxxxxxxxxxxxxxxxxxxxx&efg=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&ccb=xxxx&vs=xxxxxxxxxxxxxxxx&_nc_vs=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&_nc_gid=xxxxxxxxxxxxxxxxxxxxxx&_nc_ss=xxxxx&_nc_zt=xx&oh=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&oe=xxxxxxxx",
+     "videoHandle": null,
+     "mediaEntId": "1351465491390850",
+     "prompt": "make it look like a pencil sketch, keep the same motion",
+     "imagePrompt": "make it look like a pencil sketch, keep the same motion",
+     "videoPrompt": "make it look like a pencil sketch, keep the same motion",
+     "structuredOutput": null,
+     "srefValues": null,
+     "sourceContentItemIds": [
+      {
+       "id": "8e5cb96e-9a2c-4733-930f-decdf6d07018-content-0",
+       "source": "v2v"
+      }
+     ],
+     "hasUploadedAncestor": false,
+     "error": null,
+     "canRetry": false,
+     "orderIndex": 0,
+     "createdAt": "2026-10-25T09:57:14.000Z",
+     "updatedAt": "2026-10-25T10:02:29.000Z"
+    }
+   ],
+   "needsPolling": false
+  }
+ }
+}

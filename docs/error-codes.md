@@ -88,6 +88,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.bad_duration` | 400 | invalid_request_error | yes | no | no | 0 | no | the duration is not supported by this model |
 | `input.bad_model` | 400 | invalid_request_error | yes | no | no | 0 | no | the model does not exist or is not available |
 | `input.bad_ratio` | 400 | invalid_request_error | yes | no | no | 0 | no | the aspect ratio is not supported by this model |
+| `input.bad_source` | 400 | invalid_request_error | yes | no | no | 0 | no | the source job is not a finished job of this API key that this model can work on |
 | `input.bad_style` | 400 | invalid_request_error | yes | no | no | 0 | no | the style is not supported |
 | `input.empty_prompt` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is empty |
 | `input.frame_placeholder` | 400 | invalid_request_error | yes | no | no | 0 | no | a prompt frame has a missing, repeated or unknown placeholder |
@@ -97,6 +98,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `input.prompt_duration_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different duration than the request |
 | `input.prompt_ratio_conflict` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt asks for a different aspect ratio than the request |
 | `input.prompt_too_long` | 400 | invalid_request_error | yes | no | no | 0 | no | the prompt is too long |
+| `input.source_unsupported` | 400 | invalid_request_error | yes | no | no | 0 | no | this model does not work on a source job |
 | `input.too_costly` | 400 | invalid_request_error | yes | no | no | 0 | no | no account can ever afford this job |
 | `input.too_many_images` | 400 | invalid_request_error | yes | no | no | 0 | no | too many input images |
 | `input.unsupported` | 400 | invalid_request_error | yes | no | no | 0 | no | this model does not take this kind of input yet |
@@ -179,6 +181,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `render.deadline` | 504 | api_error | yes | yes | no | 0 | yes | the result did not arrive before the deadline |
 | `render.download_failed` | 502 | api_error | no | yes | yes | 0 | yes | the result could not be downloaded |
 | `render.file_unreadable` | 502 | api_error | yes | yes | no | 0 | yes | the result file is unreadable |
+| `render.unclear_send` | 502 | api_error | yes | yes | no | 0 | yes | the provider's answer to the order was unclear and cannot be checked, so the job ended |
 | `render.watermarked_only` | 502 | api_error | yes | yes | no | 0 | yes | only a watermarked result was delivered |
 
 ## `resource.*`
@@ -186,6 +189,13 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|
 | `resource.not_found` | 404 | not_found_error | yes | no | no | 0 | no | the resource does not exist |
+
+## `source.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `source.account_exhausted` | 429 | rate_limit_error | yes | yes | no | 0 | yes | the account that made the source job has no quota left for now |
+| `source.account_unavailable` | 409 | invalid_request_error | yes | yes | no | 0 | yes | the account that made the source job is no longer available |
 
 ## `vibes.*`
 
@@ -196,3 +206,4 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `vibes.http_error` | 502 | api_error | no | yes | yes | 0 | yes | vibes answered with an error before the order was sent |
 | `vibes.output_missing` | 502 | api_error | yes | yes | no | 0 | yes | vibes has no file for this result; the charge is returned |
 | `vibes.render_failed` | 502 | api_error | yes | yes | no | 0 | yes | vibes ended the render with an error and no result; the charge is returned |
+| `vibes.source_missing` | 422 | invalid_request_error | yes | yes | no | 0 | yes | vibes no longer has the source job's result to work on; the charge is returned |

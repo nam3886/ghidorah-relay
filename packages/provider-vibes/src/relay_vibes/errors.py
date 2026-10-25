@@ -15,6 +15,7 @@ GENERATE_REFUSED = "vibes.generate_refused"    # the generate call itself answer
 RENDER_FAILED = "vibes.render_failed"          # vibes finished the batch with a batch-level error
 CONTENT_REFUSED = "vibes.content_refused"      # vibes finished the batch but its item has an error or no media
 OUTPUT_MISSING = "vibes.output_missing"        # the download answered that the finished item's file does not exist
+SOURCE_MISSING = "vibes.source_missing"        # a pinned job's source output is no longer one vibes can work on
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -29,6 +30,9 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "vibes could not make this content; try a different prompt; the charge is returned"),
     Rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True, True,
          "vibes has no file for this result; the charge is returned"),
+    # Found before the send: nothing is sent, the job ends and the charge is returned.
+    Rule(SOURCE_MISSING, 422, "invalid_request_error", True, True, False, True, True,
+         "vibes no longer has the source job's result to work on; the charge is returned"),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.
