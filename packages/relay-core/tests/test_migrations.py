@@ -5,7 +5,7 @@ import uuid
 
 import psycopg
 import pytest
-from conftest import API_PASSWORD
+from conftest import API_PASSWORD, WORKER_PASSWORD
 
 from relay_core.db import migrate, migration_files, open_pool, run_migrations
 from relay_core.testing.mutation import mutation
@@ -367,7 +367,7 @@ def test_key_last_used_adds_two_empty_columns_keeps_every_key_and_lets_the_api_r
         with _owner(dsn) as c:
             c.execute("INSERT INTO api_keys (id, key_hash, key_prefix, label) VALUES (%s, 'h', 'rk-old', 'kept')",
                       (key,))
-        assert run_migrations(dsn) == [LAST_USED]
+        assert run_migrations(dsn)[0] == LAST_USED
         with _owner(dsn) as c:
             row = _rows(c, "api_keys", "id = '%s'" % key)[0]
         assert (row["label"], row["key_prefix"], row["last_used_at"], row["last_used_ip"]) == (
@@ -378,3 +378,33 @@ def test_key_last_used_adds_two_empty_columns_keeps_every_key_and_lets_the_api_r
             c.execute("UPDATE api_keys SET last_used_at = now(), last_used_ip = '203.0.113.8' WHERE id = %s", (key,))
         with _owner(dsn) as c:
             assert _rows(c, "api_keys", "id = '%s'" % key)[0]["last_used_ip"] == "203.0.113.8"
+
+
+REFILL_WINDOW = next(v for v, p in migration_files() if p.name.endswith("_pool_refill_window.sql"))
+
+
+def test_pool_refill_window_adds_an_empty_column_keeps_every_pool_row_and_lets_the_worker_write_it(tmp_path,
+                                                                                                  monkeypatch):
+    with disposable_database() as dsn:
+        real = migrate.MIGRATIONS
+        for version, path in migration_files():
+            if version < REFILL_WINDOW:
+                (tmp_path / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(migrate, "MIGRATIONS", tmp_path)
+        assert run_migrations(dsn)[-1] == REFILL_WINDOW - 1
+        monkeypatch.setattr(migrate, "MIGRATIONS", real)
+        account = uuid.uuid4()
+        with _owner(dsn) as c:
+            c.execute("INSERT INTO accounts (id, provider, credential_enc) VALUES (%s, 'p1', '\\x01')", (account,))
+            c.execute("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) "
+                      "VALUES (%s, 'video', 3, now(), now() + interval '1 hour')", (account,))
+        assert run_migrations(dsn)[0] == REFILL_WINDOW
+        with _owner(dsn) as c:
+            row = _rows(c, "account_pools", "account_id = '%s'" % account)[0]
+        assert (row["reported_left"], row["refill_window"]) == (3, None)
+        login = psycopg.conninfo.make_conninfo(dsn, user="relay_worker", password=WORKER_PASSWORD,
+                                               options="-c search_path=relay")
+        with psycopg.connect(login, autocommit=True) as c:
+            c.execute("UPDATE account_pools SET refill_window = '5h' WHERE account_id = %s", (account,))
+        with _owner(dsn) as c:
+            assert _rows(c, "account_pools", "account_id = '%s'" % account)[0]["refill_window"] == "5h"

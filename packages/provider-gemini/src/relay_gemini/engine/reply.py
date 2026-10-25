@@ -277,8 +277,8 @@ def modes(text: str) -> list[tuple[str, str | None]]:
     return out
 
 
-def usage_of(text: str) -> tuple[int, list[tuple[int, int | None]]] | None:
-    """(plan code, [(units left, reset epoch s) per window]) from a jSf9Qc answer (FINDINGS 5):
+def usage_of(text: str) -> tuple[int, list[tuple[int, int | None, int | None]]] | None:
+    """(plan code, [(units left, reset epoch s, window code) per window]) from a jSf9Qc answer (FINDINGS 5):
     `[plan, [[left, used share, window, [[reset s, ns]]], ...], ...]`. None when it cannot be read."""
     payloads, _, clean, ended = _items(text)
     if not clean or not ended or len(payloads) != 1:
@@ -291,7 +291,8 @@ def usage_of(text: str) -> tuple[int, list[tuple[int, int | None]]] | None:
         if not (isinstance(w, list) and len(w) > 3 and type(w[0]) in (int, float)):
             return None
         reset = w[3][0][0] if isinstance(w[3], list) and w[3] and isinstance(w[3][0], list) and w[3][0] else None
-        windows.append((int(w[0]), reset if type(reset) is int and reset > 0 else None))
+        windows.append((int(w[0]), reset if type(reset) is int and reset > 0 else None,
+                        w[2] if type(w[2]) is int else None))
     return p[0], windows
 
 

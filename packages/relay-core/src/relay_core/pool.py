@@ -50,9 +50,10 @@ log = logging.getLogger(__name__)
 
 DEFAULT_TIER = "free"            # an account with no tier is a free one
 # A window is a calendar `day`, `week` (from Monday) or `month` in its `tz` (a month from the account's cycle start
-# day, else the 1st), or `rolling`: `hours` long. A rolling window's `anchor` says where it starts: `first_use`, the
-# first spend after the previous one ended; `reset`, back-to-back blocks placed by a reset the upstream reported
-# (first use until one is known).
+# day, else the 1st), or `rolling`: `hours` long. A rolling window's `anchor` says where it starts: `first_use` (the
+# first spend after the previous one ended) is counted as a sliding window, the charges of the last `hours`: never less
+# than any first-use window ending now, and no stored anchor; `reset` runs in back-to-back blocks placed by a reset the
+# upstream reported for that window by name (sliding until one is known).
 CALENDAR_KINDS = ("day", "week", "month")
 WINDOW_KINDS = (*CALENDAR_KINDS, "rolling")
 ANCHORS = ("first_use", "reset")
@@ -63,9 +64,6 @@ REFILL_PAST_S = 300              # an upstream refill at most this far in the pa
 REFILL_AHEAD_S = 40 * 86400      # an upstream refill further ahead than this is not (a month's cycle plus margin)
 REPEAT_QUIET_S = 86400           # a checkpoint this long after the last one of the account rests the base again
 MAX_ROLLING_HOURS = REFILL_AHEAD_S // 3600
-# ponytail: a rolling window's chain of first spends is walked from two lengths back (no stored anchor); use with no
-# gap of a whole window for longer than that can place its boundary late until the upstream reports a reset.
-ROLLING_LOOKBACK = 2
 
 
 # ---- the pool's windows: the `<p>.pools` setting ------------------------------------------------------------------
@@ -218,60 +216,50 @@ def _calendar_span(w: Window, at: datetime, cycle_start: date | None) -> Span:
     return _midnight(first, zone), _midnight(after, zone)
 
 
-def rolling_spans(w: Window, times: Sequence[datetime], anchor: datetime | None = None,
-                  until: datetime | None = None) -> list[Span]:
-    """The rolling windows over the spends at `times` (oldest first) and up to `until`. With `anchor`, a reset the
-    upstream reported, a `reset` window is a run of back-to-back blocks, one of them ending at `anchor`. Otherwise a
-    spend outside every window opens one of `w.hours`; `anchor` fixes the window that ends there, an earlier one is cut
-    at its start, and the next opens at the first spend after it."""
+def _block(w: Window, at: datetime, anchor: datetime) -> Span:
+    """The block of a `reset` window `at` is in: blocks of `w.hours` back to back, one of them ending at `anchor`."""
     length = timedelta(hours=w.hours)
-    if anchor is not None and w.anchor == "reset":
-        moments = [*times, *([until] if until is not None else [])]
-        if not moments:
-            return []
-        first, last = (floor((m - anchor) / length) for m in (min(moments), max(moments)))
-        return [(anchor + k * length, anchor + (k + 1) * length) for k in range(first, last + 1)]
-    fixed = (anchor - length, anchor) if anchor is not None else None
-    spans: list[Span] = []
-    for at in times:
-        if (fixed and fixed[0] <= at < fixed[1]) or (spans and at < spans[-1][1]):
-            continue
-        spans.append((at, min(at + length, fixed[0]) if fixed and at < fixed[0] else at + length))
-    return sorted([*spans, fixed]) if fixed else spans
+    k = floor((at - anchor) / length)
+    return anchor + k * length, anchor + (k + 1) * length
 
 
-def window_span(w: Window, at: datetime, cycle_start: date | None = None, spans: Sequence[Span] = ()) -> Span | None:
-    """The window `at` is in: a calendar one always; a rolling one from `spans` (`rolling_spans`), None when no
-    rolling window is open then."""
+def window_span(w: Window, at: datetime, cycle_start: date | None = None, anchor: datetime | None = None
+                ) -> Span | None:
+    """The window `at` is in when it has fixed bounds: a calendar one, or the block of a `reset` window placed by
+    `anchor`. None for a rolling window that slides (a `first_use` one, or a `reset` one with no reset known)."""
     if w.kind != "rolling":
         return _calendar_span(w, at, cycle_start)
-    return next(((s, e) for s, e in spans if s <= at < e), None)
+    return _block(w, at, anchor) if anchor is not None and w.anchor == "reset" else None
 
 
-def _anchor(cfg: PoolConfig, w: Window, reported: "Reported | None") -> datetime | None:
-    """A reset the upstream reported anchors the shortest rolling window long enough to hold it, counted from the
-    report (a 24 h free refill, a 5 h one before a week's): the window that ends there. A reset further ahead than
-    every rolling window (a monthly renewal) anchors none. The stored reset was believed on its way in
-    (`believed_refill`)."""
-    if reported is None or reported.refill_at is None:
+def _anchor(w: Window, reported: "Reported | None") -> datetime | None:
+    """The reset that places a `reset` window's blocks: the refill the upstream reported, only when it named this
+    window (`window_span` places blocks for a `reset` window only). The stored reset was believed on its way in
+    (`believed_refill`). Any other refill anchors nothing."""
+    if reported is None or reported.window != w.name:
         return None
-    ahead = reported.refill_at - reported.at
-    fits = [x for x in cfg.windows if x.kind == "rolling" and timedelta(0) < ahead <= timedelta(hours=x.hours)]
-    return reported.refill_at if fits and min(fits, key=lambda x: x.hours) is w else None
+    return reported.refill_at
 
 
-def _refill(w: Window, at: datetime, cycle_start: date | None, spans: Sequence[Span]) -> datetime:
-    """When the window `at` is in refills; a rolling window not open refills a length after a spend now."""
-    span = window_span(w, at, cycle_start, spans)
-    return span[1] if span is not None else at + timedelta(hours=w.hours)
+def _refill(w: Window, now: datetime, cycle_start: date | None, anchor: datetime | None,
+            charges: Sequence[tuple[datetime, int]]) -> datetime:
+    """When the window `now` is in refills: the end of its fixed bounds; for a sliding window, a length after the
+    oldest charge it still holds (a length after now when it holds none)."""
+    span = window_span(w, now, cycle_start, anchor)
+    if span is not None:
+        return span[1]
+    length = timedelta(hours=w.hours)
+    return min((at for at, _ in charges if now - length < at <= now), default=now) + length
 
 
 @dataclass(frozen=True)
 class Reported:
-    """What the upstream last said the account has left in a pool, when, and the refill it named (None: the pool's)."""
+    """What the upstream last said the account has left in a pool, when, the refill it named (None: the pool's) and
+    the window that refill ends (None: none named)."""
     left: int
     at: datetime
     refill_at: datetime | None = None
+    window: str | None = None
 
 
 def _refill_of_report(cfg: PoolConfig, reported: Reported, charges: Sequence[tuple[datetime, int]],
@@ -285,14 +273,12 @@ def _refill_of_report(cfg: PoolConfig, reported: Reported, charges: Sequence[tup
 
 def next_refill(cfg: PoolConfig, now: datetime, charges: Sequence[tuple[datetime, int]] = (),
                 cycle_start: date | None = None) -> datetime:
-    """When the pool next refills: the earliest window boundary after `now` (a rolling window's from the spends up
-    to `now`); for a pool with no window, the next midnight in `NO_WINDOW_REFILL_TZ` (a reported zero must end some
+    """When the pool next refills: the earliest window boundary after `now` (a sliding window's from the charges it
+    holds); for a pool with no window, the next midnight in `NO_WINDOW_REFILL_TZ` (a reported zero must end some
     day)."""
     if not cfg.windows:
         return _calendar_span(Window("none", "day", NO_WINDOW_REFILL_TZ), now, None)[1]
-    times = sorted(at for at, _ in charges if at <= now)
-    return min(_refill(w, now, cycle_start, rolling_spans(w, times) if w.kind == "rolling" else ())
-               for w in cfg.windows)
+    return min(_refill(w, now, cycle_start, None, charges) for w in cfg.windows)
 
 
 def believed_refill(refill: datetime | None, now: datetime, check_s: float) -> datetime | None:
@@ -343,26 +329,53 @@ class Standing:
     budget: int | None = None
 
 
-def _spent(cfg: PoolConfig, budgets: Sequence[int | None], spans: Sequence[Sequence[Span]],
+def _spent(cfg: PoolConfig, budgets: Sequence[int | None], anchors: Sequence[datetime | None],
            charges: Sequence[tuple[datetime, int]], now: datetime, cycle_start: date | None) -> list[int]:
-    """What each window's open span holds. Under `all` every window counts every charge in it. Under `sum` each charge
-    fills, in its own time, the binding window that refills first (a day's credits before the month's), the next with
-    what is left over, the last one taking any excess; a window that does not bind counts every charge in it."""
-    opened = [window_span(w, now, cycle_start, s) for w, s in zip(cfg.windows, spans, strict=True)]
-    plain = [sum(n for at, n in charges if span is not None and at >= span[0]) for span in opened]
+    """What each window holds at `now`: a window with fixed bounds the charges inside them, a sliding one the charges
+    of the last `hours` up to now (a superset of any first-use window ending now: never less). Under `all` every
+    window counts every charge it holds. Under `sum` each charge fills, in its own time, the binding window that
+    refills first (a day's credits before the month's), the next with what is left over, the last one taking any
+    excess; a window that does not bind counts every charge it holds."""
+    lengths = [timedelta(hours=w.hours) for w in cfg.windows]
+    opened = [window_span(w, now, cycle_start, a) for w, a in zip(cfg.windows, anchors, strict=True)]
+
+    def holds_now(i: int, at: datetime) -> bool:
+        span = opened[i]
+        return now - lengths[i] < at <= now if span is None else span[0] <= at < span[1]
+
+    plain = [sum(n for at, n in charges if holds_now(i, at)) for i in range(len(cfg.windows))]
     if cfg.combine == "all":
         return plain
-    used: dict[tuple[int, Span], int] = {}
+    in_span: dict[tuple[int, Span], int] = {}                  # a window with fixed bounds: units per span
+    slid: list[list[tuple[datetime, int]]] = [[] for _ in cfg.windows]   # a sliding window: (at, units) per charge
     for at, amount in charges:
-        here = sorted((span[1], i, span) for i, w in enumerate(cfg.windows) if budgets[i] is not None
-                      and (span := window_span(w, at, cycle_start, spans[i])) is not None)
-        for k, (_, i, span) in enumerate(here):
-            room = max(0, budgets[i] - used.get((i, span), 0))    # type: ignore[operator]
-            take = amount if k == len(here) - 1 else min(amount, room)
-            used[(i, span)] = used.get((i, span), 0) + take
+        here = []
+        for i, w in enumerate(cfg.windows):
+            if budgets[i] is None:
+                continue
+            span = window_span(w, at, cycle_start, anchors[i])
+            if span is not None:
+                here.append((span[1], i, span, in_span.get((i, span), 0)))
+            else:
+                here.append((at + lengths[i], i, None, sum(n for t, n in slid[i] if at - lengths[i] < t)))
+        here.sort(key=lambda h: (h[0], h[1]))
+        for k, (_, i, span, used) in enumerate(here):
+            take = amount if k == len(here) - 1 else min(amount, max(0, budgets[i] - used))   # type: ignore[operator]
+            if span is not None:
+                in_span[(i, span)] = used + take
+            else:
+                slid[i].append((at, take))
             amount -= take
-    return [plain[i] if budgets[i] is None else used.get((i, opened[i]), 0) if opened[i] else 0
-            for i in range(len(cfg.windows))]
+    out = []
+    for i in range(len(cfg.windows)):
+        span = opened[i]
+        if budgets[i] is None:
+            out.append(plain[i])
+        elif span is None:
+            out.append(sum(n for t, n in slid[i] if now - lengths[i] < t))
+        else:
+            out.append(in_span.get((i, span), 0))
+    return out
 
 
 def standing(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime, int]], now: datetime,
@@ -375,12 +388,10 @@ def standing(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime
     under `sum` the room left in each added up, under `all` the smallest room. No binding window is unknown."""
     tier = tier or DEFAULT_TIER
     past = sorted((at, n) for at, n in charges if at <= now)
-    times = [at for at, _ in past]
-    spans = [rolling_spans(w, times, _anchor(cfg, w, reported), now) if w.kind == "rolling" else []
-             for w in cfg.windows]
+    anchors = [_anchor(w, reported) for w in cfg.windows]
     budgets = _tier_budgets(cfg, tier)
-    spent = _spent(cfg, budgets, spans, past, now, cycle_start)
-    states = tuple(WindowState(w.name, w.kind, budgets[i], spent[i], _refill(w, now, cycle_start, spans[i]))
+    spent = _spent(cfg, budgets, anchors, past, now, cycle_start)
+    states = tuple(WindowState(w.name, w.kind, budgets[i], spent[i], _refill(w, now, cycle_start, anchors[i], past))
                    for i, w in enumerate(cfg.windows))
     budget = _total(cfg, budgets)
     if reported is not None and now < _refill_of_report(cfg, reported, charges, cycle_start):
@@ -399,20 +410,17 @@ def left_of(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime,
 
 
 def _since(cfg: PoolConfig, now: datetime, reported: Reported | None, cycle_start: date | None) -> datetime:
-    """The oldest charge `standing` can read: the start of the earliest calendar window, a rolling window's lookback
-    (and the start of the window a reported reset anchors), or the report, whichever is oldest."""
-    starts = [now]
-    for w in cfg.windows:
-        if w.kind != "rolling":
-            starts.append(_calendar_span(w, now, cycle_start)[0])
-            continue
-        starts.append(now - ROLLING_LOOKBACK * timedelta(hours=w.hours))
-        anchor = _anchor(cfg, w, reported)
-        if anchor is not None:
-            starts.append(anchor - timedelta(hours=w.hours))
-    if reported is not None:
-        starts.append(reported.at)
-    return min(starts)
+    """The oldest charge `standing` needs. What a window holds now starts at the earliest of: a calendar window's
+    start, a rolling window's `hours` back, the report. Under `sum` a charge is placed against what each window held
+    in its own time, so the read reaches back further: to the start of the calendar window that oldest moment falls
+    in, and a rolling window's `hours` before it."""
+    base = min([now, *(_calendar_span(w, now, cycle_start)[0] if w.kind != "rolling"
+                       else now - timedelta(hours=w.hours) for w in cfg.windows),
+                *([reported.at] if reported is not None else [])])
+    if cfg.combine == "all":
+        return base
+    starts = [base, *(_calendar_span(w, base, cycle_start)[0] for w in cfg.windows if w.kind != "rolling")]
+    return min(starts) - timedelta(hours=max((w.hours for w in cfg.windows if w.kind == "rolling"), default=0))
 
 
 # ---- the database side --------------------------------------------------------------------------------------------
@@ -426,7 +434,8 @@ class Capacity:
 
 
 _POOL_ROW = ("SELECT p.reported_left, p.reported_at, p.refill_at, p.rest_until, p.rest_reason, a.tier, "
-             "clock_timestamp(), a.cycle_start FROM account_pools p JOIN accounts a ON a.id = p.account_id "
+             "clock_timestamp(), a.cycle_start, p.refill_window FROM account_pools p JOIN accounts a "
+             "ON a.id = p.account_id "
              "WHERE p.account_id = %s AND p.pool = %s FOR UPDATE OF p")
 _CHARGES = ("SELECT at, amount FROM account_charges WHERE account_id = %s AND pool = %s AND refunded_at IS NULL "
             "AND at >= %s ORDER BY at")
@@ -440,14 +449,15 @@ async def ensure_rows(conn: AsyncConnection, account_id, pools: Mapping[str, Poo
         await conn.execute(_INSERT_ROW, (account_id, name))
 
 
-def _reported(row: tuple) -> Reported | None:
-    left, at, refill_at = row[0], row[1], row[2]
-    return None if left is None or at is None else Reported(left, at, refill_at)
+def _reported(left: int | None, at: datetime | None, refill_at: datetime | None, window: str | None
+              ) -> Reported | None:
+    return None if left is None or at is None else Reported(left, at, refill_at, window)
 
 
 async def _lock(conn: AsyncConnection, account_id, pool: str, *, skip_locked: bool) -> tuple | None:
     """Lock the account row first, then create the pool row when missing and lock it. Returns the pool row (reported
-    balance, rest, the account's tier, the database clock and the account's cycle start) or None when `skip_locked`
+    balance, rest, the account's tier, the database clock, the account's cycle start and the window the reported
+    refill ends) or None when `skip_locked`
     and another transaction holds the account."""
     if not await lock_account(conn, account_id, skip_locked=skip_locked) and skip_locked:
         return None
@@ -467,7 +477,7 @@ async def lock_capacity(conn: AsyncConnection, account_id, cfg: PoolConfig) -> C
     row = await _lock(conn, account_id, cfg.name, skip_locked=True)
     if row is None:
         return None
-    reported, tier, now, cycle = _reported(row), row[5], row[6], row[7]
+    reported, tier, now, cycle = _reported(row[0], row[1], row[2], row[8]), row[5], row[6], row[7]
     charges = await (await conn.execute(_CHARGES, (account_id, cfg.name, _since(cfg, now, reported, cycle)))).fetchall()
     return Capacity(account_id, cfg.name, left_of(cfg, tier, charges, now, reported, cycle), row[3], row[4])
 
@@ -490,10 +500,10 @@ async def left_map(conn: AsyncConnection, account_id, pools: Mapping[str, PoolCo
     row = await (await conn.execute("SELECT tier, cycle_start FROM accounts WHERE id = %s", (account_id,))).fetchone()
     tier, cycle = (None, None) if row is None else row
     rows = {r[0]: r[1:] for r in await (await conn.execute(
-        "SELECT pool, reported_left, reported_at, refill_at FROM account_pools WHERE account_id = %s",
+        "SELECT pool, reported_left, reported_at, refill_at, refill_window FROM account_pools WHERE account_id = %s",
         (account_id,))).fetchall()}
     for name, cfg in pools.items():
-        reported = _reported(rows[name]) if name in rows else None
+        reported = _reported(*rows[name]) if name in rows else None
         charges = await (await conn.execute(_CHARGES, (account_id, name, _since(cfg, now, reported, cycle)))).fetchall()
         out[name] = left_of(cfg, tier, charges, now, reported, cycle)
         until[name] = figure_until(cfg, now, reported, charges, cycle)
@@ -519,9 +529,9 @@ async def pool_states(conn: AsyncConnection, accounts: Mapping[Any, tuple[str | 
     now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]
     ids = list(accounts)
     rows = {(a, p): r for a, p, *r in await (await conn.execute(
-        "SELECT account_id, pool, reported_left, reported_at, refill_at, rest_until, rest_reason FROM account_pools "
-        "WHERE account_id = ANY(%s)", (ids,))).fetchall()}
-    reports = {key: _reported(r) for key, r in rows.items()}
+        "SELECT account_id, pool, reported_left, reported_at, refill_at, rest_until, rest_reason, refill_window "
+        "FROM account_pools WHERE account_id = ANY(%s)", (ids,))).fetchall()}
+    reports = {key: _reported(r[0], r[1], r[2], r[5]) for key, r in rows.items()}
     cycles = dict(await (await conn.execute("SELECT id, cycle_start FROM accounts WHERE id = ANY(%s)",
                                             (ids,))).fetchall())
     since = min((_since(cfg, now, reports.get((a, name)), cycles.get(a)) for a, (_, cfgs) in accounts.items()
@@ -607,8 +617,9 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
       time of the last counted strike. A `Cooldown` writes its reason to `last_error`, except beside a `Suspect` or a
       `ProxyBad`: their reason is kept.
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
-    - `Balance` records the pool's reported balance; a balance above 0 ends that pool's rest, a balance of 0 rests the
-      pool until the refill the upstream named, else the pool's next window boundary.
+    - `Balance` records the pool's reported balance and the refill with the window it names; a balance above 0 ends
+      that pool's rest, a balance of 0 rests the pool until the refill the upstream named, else the pool's next window
+      boundary.
     - `Tier` writes the account's tier, marks it read now, and its cycle start when named (else the stored one stays).
     The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a
     death's reason, else a cooldown's) is kept in the account's errors with `job_id`, the job it came from."""
@@ -627,6 +638,8 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             row = await _lock(conn, account_id, cfg.name, skip_locked=False)
             assert row is not None
             refill = believed_refill(e.refill_at, row[6], caps.check_interval_s)
+            # the window a refill ends anchors that window only when the refill stands as the upstream named it
+            window = e.window if refill is not None and refill == e.refill_at else None
             until = refill
             if e.left_n <= 0 and refill is None:
                 since = _since(cfg, row[6], None, row[7])
@@ -634,11 +647,13 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                 until = next_refill(cfg, row[6], charges, row[7])
             await conn.execute(
                 "UPDATE account_pools SET reported_left = %(n)s, reported_at = clock_timestamp(), refill_at = %(r)s, "
+                "refill_window = %(w)s, "
                 "rest_reason = CASE WHEN %(n)s > 0 THEN NULL WHEN %(u)s > COALESCE(rest_until, '-infinity') "
                 "THEN %(why)s ELSE rest_reason END, "
                 "rest_until = CASE WHEN %(n)s > 0 THEN NULL ELSE GREATEST(rest_until, %(u)s) END "
                 "WHERE account_id = %(a)s AND pool = %(p)s",
-                {"n": e.left_n, "r": refill, "u": until, "why": REST_REASON, "a": account_id, "p": e.pool})
+                {"n": e.left_n, "r": refill, "w": window, "u": until, "why": REST_REASON, "a": account_id,
+                 "p": e.pool})
         elif isinstance(e, Rest):
             cfg = _cfg(pools, e.pool)
             await _lock(conn, account_id, cfg.name, skip_locked=False)

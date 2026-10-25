@@ -37,6 +37,8 @@ USAGE_PATH = "/usage"
 # any other value is not read as a tier, the stored one stays.
 PLAN_TIERS = {1: "free", 2: "pro"}
 POOLS = ("image", "image_pro", "video")
+# jSf9Qc window code -> the `gemini.pools` window its reset ends (FINDINGS 5: 1 = the 5-hour block, 2 = the week)
+WINDOWS = {1: "5h", 2: "week"}
 # The mode menu's "Pro" (AI Pro: `e6fa609c3fa255c0`, kind 3). With the image tool it draws with "Nano Banana 2.1"
 # (25/10; the default Flash-Lite draws "Nano Banana 2 Lite"), so a `gemini-nano-banana-2.1` job is sent with it. Kept
 # with its kind in `provider_state.pro_mode` as `[id, kind]`; None on a plan without it.
@@ -45,7 +47,7 @@ PRO_MODE_NAME = "Pro"
 
 def account_read(text: str) -> tuple[Balance | Tier, ...]:
     """What a jSf9Qc answer says of the account: its tier, and a zero balance in every pool until the latest reset of
-    an exhausted window. Nothing when the answer cannot be read."""
+    an exhausted window, naming that window. Nothing when the answer cannot be read."""
     usage = usage_of(text)
     if usage is None:
         return ()
@@ -53,11 +55,13 @@ def account_read(text: str) -> tuple[Balance | Tier, ...]:
     out: list[Balance | Tier] = []
     if plan in PLAN_TIERS:
         out.append(Tier(PLAN_TIERS[plan]))
-    spent = [reset for left, reset in windows if left <= 0]
+    spent = [(reset, code) for left, reset, code in windows if left <= 0]
     if spent:
-        resets = [r for r in spent if r is not None]
-        refill = epoch_time(max(resets)) if len(resets) == len(spent) else None
-        out.extend(Balance(pool, 0, refill) for pool in POOLS)
+        known = [(r, code) for r, code in spent if r is not None]
+        reset, code = max(known, key=lambda k: k[0]) if len(known) == len(spent) else (None, None)
+        refill = epoch_time(reset) if reset is not None else None
+        window = WINDOWS.get(code) if refill is not None and code is not None else None
+        out.extend(Balance(pool, 0, refill, window) for pool in POOLS)
     return tuple(out)
 
 

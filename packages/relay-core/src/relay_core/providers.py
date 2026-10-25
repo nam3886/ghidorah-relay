@@ -79,10 +79,13 @@ class Revive:
 @dataclass(frozen=True)
 class Balance:
     """What the upstream said the account has left in a pool. It wins until the pool's next refill: `refill_at` when the
-    upstream named one, else the pool's own next window boundary. A `left_n` of 0 also rests the pool until then."""
+    upstream named one, else the pool's own next window boundary. A `left_n` of 0 also rests the pool until then.
+    `window` names the `<p>.pools` window that `refill_at` ends: a rolling window with `anchor: reset` places its
+    blocks on it. A refill that names no window anchors none."""
     pool: str
     left_n: int
     refill_at: datetime | None = None
+    window: str | None = None
 
     def __post_init__(self):
         if self.refill_at is not None:
