@@ -364,8 +364,8 @@ def read_by_check(answer):
 
 
 @mutation(CHECK_FILE, 'PLAN_TIERS = {1: "free", 2: "pro"}', 'PLAN_TIERS = {1: "free"}', expect="AI Pro")
-@mutation(CHECK_FILE, "                          effects=await read_account(site))", "                          )",
-          expect="AI Pro")
+@mutation(CHECK_FILE, "                          effects=await read_account(site, settings))",
+          "                          )", expect="AI Pro")
 def test_an_ai_pro_account_is_read_as_pro_and_a_free_one_as_free_with_units_left_resting_nothing():
     assert read_by_check(PRO_USAGE) == (Tier("pro"),), "the AI Pro account was not read as AI Pro"
     assert read_by_check(USAGE) == (Tier("free"),)
@@ -376,18 +376,19 @@ def test_a_plan_code_not_measured_as_a_tier_keeps_the_stored_tier():
     assert read_by_check(ultra) == ()
 
 
-@mutation(CHECK_FILE, "    spent = [(reset, code) for left, reset, code in windows if left <= 0]",
-          "    spent = []", expect="an exhausted window")
+@mutation(CHECK_FILE, "             if left <= 0 and WINDOWS.get(code) in names]", "             if False]",
+          expect="an exhausted window")
+@mutation(CHECK_FILE, "             if left <= 0 and WINDOWS.get(code) in names]", "             if left <= 0]",
+          expect="image_pro")
 @mutation(CHECK_FILE, 'WINDOWS = {1: "5h", 2: "week"}', 'WINDOWS = {1: "week", 2: "5h"}', expect="names its window")
 def test_an_exhausted_usage_window_rests_both_pools_until_it_resets_and_names_its_window():
     spent = PRO_USAGE.replace("[2400,0,1,", "[0,1,1,")                  # the 5-hour window used up
     reset = datetime.fromtimestamp(1792814865, UTC)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset, "5h"), Balance("image_pro", 0, reset, "5h"),
-                                    Balance("video", 0, reset, "5h")), "an exhausted window names its window"
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset, "5h"), Balance("video", 0, reset, "5h")), \
+        "an exhausted window names its window, emptying the pools that count it; image_pro (a day) stays"
     week = PRO_USAGE.replace("[48384,0,2,", "[0,1,2,")                  # the week used up
     week_reset = datetime.fromtimestamp(1792908465, UTC)
     assert read_by_check(week) == (Tier("pro"), Balance("image", 0, week_reset, "week"),
-                                   Balance("image_pro", 0, week_reset, "week"),
                                    Balance("video", 0, week_reset, "week")), "the week's reset names its window"
     both = week.replace("[2400,0,1,", "[0,1,1,")                        # both: the later reset, the week's
     assert read_by_check(both)[1] == Balance("image", 0, week_reset, "week"), "the latest reset names its window"
@@ -395,10 +396,11 @@ def test_an_exhausted_usage_window_rests_both_pools_until_it_resets_and_names_it
 
 def test_a_garbled_reset_time_never_fails_the_check_and_names_no_refill():
     spent = PRO_USAGE.replace("[2400,0,1,[[1792814865,", "[0,1,1,[[%d," % 10**20)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("image_pro", 0), Balance("video", 0))
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("video", 0))
 
 
-@mutation(CHECK_FILE, "    return account_read(body) if status == 200 else ()", "    return account_read(body)",
+@mutation(CHECK_FILE, "    return account_read(body, settings) if status == 200 else ()",
+          "    return account_read(body, settings)",
           expect="a failed read")
 def test_a_usage_read_that_fails_keeps_the_account_alive_and_changes_neither_tier_nor_pools():
     for answer in (httpx.Response(500, text=PRO_USAGE), ")]}'\n", PRO_USAGE.replace('"[2,[[', '"[2,[["x",'),

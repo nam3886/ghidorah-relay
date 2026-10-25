@@ -636,7 +636,7 @@ POOL_NAMES = '    return tuple(w["name"] for w in settings.get("gemini.pools").g
 
 
 @mutation(CHECK_FILE, OWN_WINDOW, "             if left <= 0]", expect="a window the pool does not have")
-@mutation(SUBMIT_FILE, POOL_NAMES, '    return ("day", "5h", "week")', expect="a window the pool does not have")
+@mutation(CHECK_FILE, POOL_NAMES, '    return ("day", "5h", "week")', expect="a window the pool does not have")
 def test_a_used_up_five_hour_block_never_empties_the_pro_image_pool_that_counts_only_a_day():
     """Codex 25/10: videos use up the 5-hour block, then an unrelated Nano Banana 2.1 job is refused. `image_pro`
     counts only a day (spec `POOL_DEFAULTS`), so the used-up block must not empty it; an `image` job, whose pool counts

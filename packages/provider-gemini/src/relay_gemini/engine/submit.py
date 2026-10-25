@@ -75,6 +75,7 @@ from relay_gemini.engine.check import (
     SHORT_WINDOW,
     WINDOWS,
     doubt_effects,
+    pool_windows,
     read_short_window,
     read_spent,
     signed_out_why,
@@ -262,11 +263,6 @@ def limit_effects(settings, now: datetime, code: str, text: str, video: bool,
             return ()
         return (spent,) if spent is not None and spent.refill_at is not None else (limit_balance(settings, now),)
     return (spent,) if spent is not None else ()
-
-
-def pool_windows(settings, pool: str) -> tuple[str, ...]:
-    """The names of the pool's own windows (`gemini.pools`): the only usage windows that can empty it."""
-    return tuple(w["name"] for w in settings.get("gemini.pools").get(pool, {}).get("windows", []))
 
 
 async def usage_spent(site: Site, pool: str, settings) -> Balance | None:

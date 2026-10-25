@@ -46,33 +46,30 @@ PRO_MODE_NAME = "Pro"
 SHORT_WINDOW = 1           # jSf9Qc's code of the 5-hour window (2 is the week)
 
 
-def account_read(text: str) -> tuple[Balance | Tier, ...]:
-    """What a jSf9Qc answer says of the account: its tier, and a zero balance in every pool until the latest reset of
-    an exhausted window, naming that window. Nothing when the answer cannot be read."""
+def pool_windows(settings, pool: str) -> tuple[str, ...]:
+    """The names of the pool's own windows (`gemini.pools`): the only usage windows that can empty it."""
+    return tuple(w["name"] for w in settings.get("gemini.pools").get(pool, {}).get("windows", []))
+
+
+def account_read(text: str, settings) -> tuple[Balance | Tier, ...]:
+    """What a jSf9Qc answer says of the account: its tier, and for each pool a zero balance when a window of the
+    pool's own is used up (`spent_balance`: a used-up 5-hour block leaves a pool that counts only a day alone).
+    Nothing when the answer cannot be read."""
     usage = usage_of(text)
     if usage is None:
         return ()
-    plan, windows = usage
-    out: list[Balance | Tier] = []
-    if plan in PLAN_TIERS:
-        out.append(Tier(PLAN_TIERS[plan]))
-    spent = [(reset, code) for left, reset, code in windows if left <= 0]
-    if spent:
-        known = [(r, code) for r, code in spent if r is not None]
-        reset, code = max(known, key=lambda k: k[0]) if len(known) == len(spent) else (None, None)
-        refill = epoch_time(reset) if reset is not None else None
-        window = WINDOWS.get(code) if refill is not None and code is not None else None
-        out.extend(Balance(pool, 0, refill, window) for pool in POOLS)
+    out: list[Balance | Tier] = [Tier(PLAN_TIERS[usage[0]])] if usage[0] in PLAN_TIERS else []
+    out.extend(b for pool in POOLS if (b := spent_balance(text, pool, pool_windows(settings, pool))) is not None)
     return tuple(out)
 
 
-async def read_account(site: Site) -> tuple[Balance | Tier, ...]:
+async def read_account(site: Site, settings) -> tuple[Balance | Tier, ...]:
     """The account's plan and usage; nothing when gemini does not answer them (the stored values stay)."""
     try:
         status, body = await site.rpc(USAGE, [], path=USAGE_PATH)
     except httpx.HTTPError:
         return ()
-    return account_read(body) if status == 200 else ()
+    return account_read(body, settings) if status == 200 else ()
 
 
 def spent_balance(text: str, pool: str, windows: Iterable[str]) -> Balance | None:
@@ -156,7 +153,7 @@ async def check_account(ctx, settings, sessions: Sessions, *, transport: httpx.A
                 return Health("unknown", identity=page.email, display_name=page.email, state_patch=patch,
                               effects=(rest,))
             return Health("alive", identity=page.email, display_name=page.email, state_patch=patch,
-                          effects=await read_account(site))
+                          effects=await read_account(site, settings))
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out
         raise RuntimeError("gemini could not be reached (%s)" % type(e).__name__) from None
