@@ -514,6 +514,14 @@ fails when any other page or `/ui/` file carries the looser one.
   becomes `[omitted len=N]`). A traceback is redacted too, without being cut. The uvicorn access line is the exception
   to the trim: each of its arguments is redacted on its own and the line is not cut; it keeps the path and drops the
   query string, so a client that sends `?key=rk-...` leaves no key in it (the API refuses that form anyway).
+- **Container logs across a deploy.** Each service logs to a rotated json-file (20 MB x 5, so at most 100 MB a
+  container; `deploy_violations` holds every service of `deploy/compose.yml` to a rotated driver). A recreated container
+  starts with an empty log, so before each `up -d` of the api or a worker, `deploy.sh` and `rollback.sh` keep the log of
+  the container it replaces as `~/relay-logs/<service>/<UTC time>.log.gz` (directory 0700): kept 7 days, at most the
+  newest 20 per service. A log that cannot be kept is a WARNING, never a stop. They hold what `docker logs` held, the
+  redacted process log and nothing more. Read the lines before the last deploy with
+  `zcat ~/relay-logs/worker-dola/*.log.gz | less`, the current ones with `docker compose -p relay logs worker-dola`.
+  A container recreated by hand, not by the scripts, loses its log.
 - **Request log** (admin "request log", table `request_logs`, kept `log_retention_days`, default 30). One row per
   request that carried a **known** API key, a disabled key included (its 403 is logged under it). Also logged under
   the key: a path or method no route serves (404, 405). **Not logged:** a successful read (GET, HEAD or OPTIONS
@@ -1064,6 +1072,7 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Live-window marker | `~/relay-deploy/live-window` |
 | Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`RELAY_PROFILE_ROOT`) |
 
+| Logs of replaced containers | `~/relay-logs/<service>/<UTC time>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
 ### Deploy and rollback
 
 Run from the Mac, in a checkout where the commit is pushed (`git fetch` first):
@@ -1270,7 +1279,8 @@ directory and any build context (directory 0700, files 0600).
     --key KEY --out HASHES` (key and list 0600, outside every repo; both deleted in the close step).
   - Scan: `secret-scan.py scan --secrets COOKIES.jsonl PROXIES.txt --path ~/relay-deploy --path ~/.bash_history`, and
     streams with a label: `docker logs relay-api-1 2>&1 | secret-scan.py scan --secrets ... --stdin api-logs`,
-    `docker inspect <relay containers> | ... --stdin inspect`, `ps -eo args | ... --stdin process-args`.
+    `docker inspect <relay containers> | ... --stdin inspect`, `ps -eo args | ... --stdin process-args`, and the kept
+    logs: `zcat ~/relay-logs/*/*.log.gz | ... --stdin kept-logs`.
   - After the files are deleted use `--hashes HASHES --key KEY` in place of `--secrets`.
   - A value under 8 characters is not scanned (the count skipped is printed). Every count must be 0; the exit status is 1
     when any value was found, 2 when nothing was found but something could not be read.

@@ -153,11 +153,12 @@ def test_the_entry_script_signals_the_worker_only():
 
 GOOD = {
     "compose.yml": """
+        x-logging: &logging {driver: json-file, options: {max-size: 20m, max-file: "5"}}
         services:
-          api: {image: "relay-api:1", env_file: [api.env]}
-          migrate: {image: "relay-migrate:1", env_file: [migrate.env]}
-          worker-dola: {image: "relay-worker-dola:1", env_file: [worker-dola.env]}
-          postgres: {image: "postgres:16@sha256:aa"}
+          api: {image: "relay-api:1", env_file: [api.env], logging: *logging}
+          migrate: {image: "relay-migrate:1", env_file: [migrate.env], logging: *logging}
+          worker-dola: {image: "relay-worker-dola:1", env_file: [worker-dola.env], logging: *logging}
+          postgres: {image: "postgres:16@sha256:aa", logging: *logging}
         """,
     "compose.check.yml": "services:\n  postgres: {image: 'postgres:16@sha256:aa'}\n",
     "Dockerfile": "FROM python:3@sha256:aa AS base\nCOPY --from=uv:1@sha256:bb /uv /uv\nFROM base AS http\n",
@@ -189,6 +190,27 @@ def test_a_shared_env_file_is_caught(tmp_path):
     assert any("shared.env is shared by api, worker-dola" in v for v in found), found
 
 
+LOG_RULE = 'if logging.get("driver") not in ("json-file", "local") or not {"max-size", "max-file"} <= set('
+
+
+@mutation(G, LOG_RULE, 'if False and set(', expect="an unbounded log was not caught")
+@pytest.mark.parametrize("logging", ["{}", "{driver: journald}", "{driver: json-file}",
+                                     "{driver: json-file, options: {max-size: 20m}}",
+                                     "{driver: syslog, options: {max-size: 20m, max-file: '5'}}"])
+def test_a_service_whose_log_is_not_rotated_is_caught(tmp_path, logging):
+    plant_deploy(tmp_path, **{"compose.yml": GOOD["compose.yml"].replace(
+        "worker-dola: {image: \"relay-worker-dola:1\", env_file: [worker-dola.env], logging: *logging}",
+        "worker-dola: {image: \"relay-worker-dola:1\", env_file: [worker-dola.env], logging: %s}" % logging)})
+    found = guards.deploy_violations(tmp_path)
+    assert any("service worker-dola: its log is not on a rotated" in v for v in found), \
+        "an unbounded log was not caught: %s" % found
+
+
+def test_every_production_service_keeps_a_bounded_log():
+    for name, svc in COMPOSE.items():
+        assert svc["logging"] == {"driver": "json-file", "options": {"max-size": "20m", "max-file": "5"}}, name
+
+
 @mutation(G, 'bad += ["service %s reads', 'bad += [] and ["service %s reads',
            expect="any(\"service api reads api.env, which declares\" in v for v in found), found")
 def test_the_api_reading_an_env_file_with_the_private_key_is_caught(tmp_path):
@@ -204,7 +226,7 @@ def test_the_api_reading_an_env_file_with_the_private_key_is_caught(tmp_path):
 @pytest.mark.parametrize("env", ["{%s: x}" % PRIVATE, "[%s=x]" % PRIVATE, "[%s]" % PRIVATE,
                                  "{%s_OLD: x}" % PRIVATE, "[seal_private_key=x]"])
 def test_the_private_key_in_the_environment_of_api_or_migrate_is_caught(tmp_path, env):
-    compose = GOOD["compose.yml"].replace('env_file: [api.env]}', "env_file: [api.env], environment: %s}" % env)
+    compose = GOOD["compose.yml"].replace("env_file: [api.env],", "env_file: [api.env], environment: %s," % env)
     plant_deploy(tmp_path, **{"compose.yml": compose})
     found = guards.deploy_violations(tmp_path)
     assert any("service api sets" in v for v in found), found

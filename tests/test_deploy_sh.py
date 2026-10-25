@@ -3,6 +3,7 @@ that plays the box user's home and fake docker, curl and sleep on PATH that reco
 box would. The trees, the env files and the rotation are real directories; flock is real (the tests run on the box)."""
 
 import fcntl
+import gzip
 import importlib
 import os
 import shlex
@@ -58,6 +59,9 @@ case "$*" in
     after=0
     for w in "$@"; do [ "$after" = 1 ] && echo "relay-$w:$sha" >> "$S/images"; [ "$w" = build ] && after=1; done ;;
   *"run --rm migrate"*) exit "${STUB_MIGRATE_FAIL:-0}" ;;
+  *" logs --no-color --timestamps "*)
+    [ -z "${STUB_LOGS_FAIL:-}" ] || exit 1
+    [ -n "${STUB_LOGS_EMPTY:-}" ] || echo "2026-10-24T01:00:00Z a line of ${!#}" ;;
   *"relay provider drain "*)                 # $S/claims-<p>: the stored <p>.claims_enabled (none: no row)
     p=${!#}
     if [ -n "${STUB_DRAIN_NO_STORE:-}" ]; then echo "draining $p"
@@ -262,6 +266,61 @@ def test_without_workers_only_the_api_is_built_and_restarted_and_no_worker_is_dr
     assert "--profile app build migrate api" in box.docker()[box.index(" build ")]
     assert box.index("provider") == -1 and box.index("worker-") == -1 and box.index("exec -T postgres") == -1
     assert "restarted: api\n" in run.stdout
+
+
+# ---- the log of each replaced container ---------------------------------------------------------------------------
+def kept_logs(box: Box, service: str) -> list[Path]:
+    d = box.home / "relay-logs" / service
+    return sorted(d.glob("*")) if d.exists() else []
+
+
+@mutation(DEPLOY, "  keep_logs app api\n", "", expect="the api log was not kept")
+@mutation(DEPLOY, '  keep_logs "$p" "worker-$p"\n', "", expect="the worker-dola log was not kept")
+def test_a_deploy_and_a_rollback_keep_the_log_of_each_container_before_replacing_it(tmp_path):
+    box = Box(tmp_path)
+    run = box.deploy(box.b, "--workers", "dola")
+    assert run.returncode == 0, run.stderr
+    for service, profile in (("api", "app"), ("worker-dola", "dola")):
+        logs = box.index("--profile %s logs --no-color --timestamps %s" % (profile, service))
+        assert -1 < logs < box.index("up -d --no-deps " + service), "the %s log was not kept" % service
+        files = kept_logs(box, service)
+        assert len(files) == 1 and files[0].name.endswith("Z.log.gz"), "the %s log was not kept" % service
+        assert gzip.decompress(files[0].read_bytes()).decode() == "2026-10-24T01:00:00Z a line of %s\n" % service
+    assert stat.S_IMODE((box.home / "relay-logs").stat().st_mode) == 0o700
+    time.sleep(1.1)                                      # the next log is named by the next second
+    assert box.rollback("--workers", "dola").returncode == 0
+    assert len(kept_logs(box, "api")) == len(kept_logs(box, "worker-dola")) == 2
+
+
+@mutation(DEPLOY, "-mtime +$LOGS_DAYS -delete", "-mtime +999 -delete", expect="a log older than 7 days was kept")
+@mutation(DEPLOY, "[ ${#old[@]} -le $LOGS_FILES ] ||", "true ||", expect="more than 20 logs were kept")
+def test_kept_logs_last_7_days_and_at_most_20_per_service(tmp_path):
+    box = Box(tmp_path)
+    d = box.home / "relay-logs" / "api"
+    d.mkdir(parents=True)
+    old = ["20260101T%02d0000Z.log.gz" % i for i in range(20)]
+    for name in old:
+        (d / name).write_bytes(b"x")
+    stale = d / time.strftime("%Y%m%dT%H%M%SZ.log.gz", time.gmtime(time.time() - 3600))   # a recent name, an old file
+    stale.write_bytes(b"x")
+    os.utime(stale, (time.time() - 8 * 86400,) * 2)
+    assert box.deploy(box.b).returncode == 0
+    kept = [p.name for p in kept_logs(box, "api")]
+    assert stale.name not in kept, "a log older than 7 days was kept"
+    assert len(kept) == 20 and kept[:19] == old[1:], "more than 20 logs were kept: %s" % kept
+
+
+@mutation(DEPLOY, '    rm -f "$f"\n    echo "box: WARNING', '    exit 1\n    echo "box: WARNING',
+          expect="a log that could not be kept stopped the deploy")
+@mutation(DEPLOY, 'if [ -s "$f" ] && gzip -f "$f"; then', 'if gzip -f "$f"; then', expect="an empty log was kept")
+def test_a_log_that_cannot_be_kept_is_a_warning_and_an_empty_one_leaves_no_file(tmp_path):
+    box = Box(tmp_path / "failing")
+    run = box.deploy(box.b, STUB_LOGS_FAIL="1")
+    assert run.returncode == 0, "a log that could not be kept stopped the deploy: %s" % run.stderr
+    assert "WARNING: the log of api could not be kept" in run.stderr and kept_logs(box, "api") == []
+    box = Box(tmp_path / "empty")
+    assert box.deploy(box.b, STUB_LOGS_EMPTY="1").returncode == 0
+    assert kept_logs(box, "api") == [], "an empty log was kept"
 
 
 @mutation(DEPLOY, 'SSH_OPTS=(-o BatchMode=yes -o "SendEnv=-*"', "SSH_OPTS=(-o BatchMode=yes",

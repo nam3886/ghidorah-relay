@@ -14,6 +14,9 @@
 # through a recorded deploy (docs/operations.md, "Limits and abort thresholds").
 name: relay
 
+# Every service logs to a rotated json-file (at most 100 MB a container; tests/guards.py deploy_violations holds every
+# service to a bounded driver). A recreated container starts with an empty log, so scripts/deploy.sh and rollback.sh
+# keep the old container's log in ~/relay-logs/<service>/ before each `up -d` (docs/operations.md, "Logs").
 x-logging: &logging
   driver: json-file
   options: {max-size: "20m", max-file: "5"}

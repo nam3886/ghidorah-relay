@@ -15,6 +15,10 @@
 #   6. Rotate: ~/relay-deploy -> ~/relay-deploy-<old>, ~/relay-deploy-new -> ~/relay-deploy. Only the newest previous
 #      tree is kept: older relay-deploy-<sha> trees go, with their relay-* images unless a running container uses one.
 #   7. `up -d --no-deps api`, then /healthz 200 on 127.0.0.1:8100 and the admin bundle served.
+#      Before every `up -d` (api and workers, here and in a rollback) the log of the container it replaces is kept as
+#      ~/relay-logs/<service>/<UTC time>.log.gz (a recreated container starts with an empty log): kept 7 days, at most
+#      the newest 20 per service, each at most what the compose log rotation holds (100 MB). A failure to keep it is a
+#      WARNING, never a stop.
 #   8. First the claims state of every --workers provider: on when its stored <p>.claims_enabled (the default of its
 #      spec when none is stored) is true, or when ~/relay-claims-snapshot holds <p>=true (a deploy or rollback that
 #      stopped between draining <p> and resuming it; said with a WARNING). An unreadable state stops the run before
@@ -46,6 +50,9 @@ D=$HOME/relay-deploy
 N=$HOME/relay-deploy-new
 MIG=packages/relay-core/src/relay_core/db/migrations
 IMAGES="relay-api relay-migrate relay-worker-dola relay-worker-meta relay-worker-vibes relay-worker-flow relay-worker-gemini relay-worker-qwen"
+LOGS=$HOME/relay-logs
+LOGS_DAYS=7
+LOGS_FILES=20
 fail() { echo "box: $1" >&2; exit "${2:-1}"; }
 compose() { local t=$1; shift; (cd "$t" && docker compose -p relay -f deploy/compose.yml "$@"); }
 sha_of() { sed -n "s/^GIT_SHA=//p" "$1/deploy/.env" 2>/dev/null | tail -1; }
@@ -135,7 +142,22 @@ rollback_rotate() {   # rollback_rotate CURRENT TARGET
   echo "rotated: ~/relay-deploy is $2, ~/relay-deploy-$1 is kept"
 }
 
+keep_logs() {   # keep_logs PROFILE SERVICE: the log of the SERVICE container, before `up -d` replaces it
+  local dir=$LOGS/$2 f old
+  f=$dir/$(date -u +%Y%m%dT%H%M%SZ).log
+  if mkdir -p -m 700 "$LOGS" "$dir" && compose "$D" --profile "$1" logs --no-color --timestamps "$2" > "$f"; then
+    if [ -s "$f" ] && gzip -f "$f"; then echo "kept the log of $2: ${f#"$HOME"/}.gz"; else rm -f "$f"; fi
+  else
+    rm -f "$f"
+    echo "box: WARNING: the log of $2 could not be kept" >&2
+  fi
+  find "$dir" -name "*.log.gz" -mtime +$LOGS_DAYS -delete 2> /dev/null || true
+  old=("$dir"/*.log.gz)                                # name order is time order
+  [ ${#old[@]} -le $LOGS_FILES ] || rm -f "${old[@]:0:${#old[@]}-LOGS_FILES}"
+}
+
 api() {
+  keep_logs app api
   compose "$D" --profile app up -d --no-deps api
   local i code=""
   for i in $(seq 30); do
@@ -173,6 +195,7 @@ idle() {   # idle P: until no job of P is submitting (15 minutes at most)
 worker() {   # worker P: restart it, then a heartbeat of the new process and Chrome
   local p=$1 t0 i ok=0
   t0=$(sql "SELECT now()")
+  keep_logs "$p" "worker-$p"
   compose "$D" --profile "$p" up -d --no-deps "worker-$p"
   for i in $(seq 24); do
     ok=$(sql "SELECT count(*) FROM worker_heartbeats WHERE provider = '"'"'$p'"'"' AND started_at >= '"'"'$t0'"'"' AND at > now() - interval '"'"'60 seconds'"'"'")

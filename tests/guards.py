@@ -320,6 +320,11 @@ def deploy_violations(root: Path = REPO) -> list[str]:
     services = yaml.safe_load((deploy / "compose.yml").read_text(encoding="utf-8"))["services"]
     bad, users = _image_violations(deploy), {}
     for name, svc in services.items():
+        logging = svc.get("logging") or {}
+        if logging.get("driver") not in ("json-file", "local") or not {"max-size", "max-file"} <= set(
+                logging.get("options") or {}):
+            bad.append("service %s: its log is not on a rotated json-file or local driver (max-size, max-file)" % name)
+    for name, svc in services.items():
         for f in _service_env_files(svc):
             users.setdefault(f, []).append(name)
             if not (deploy / (f + ".example")).exists():
