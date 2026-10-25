@@ -14,6 +14,8 @@
   "warning": { "tone": "warn", "label": "warning" },
   "clamp": { "tone": "bad", "label": "clamp" },
   "drift": { "tone": "warn", "label": "drift" },
+  "cost_mismatch": { "tone": "bad", "label": "cost mismatch" },
+  "pool_drift": { "tone": "warn", "label": "pool drift" },
   "unclear_reply": { "tone": "warn", "label": "unclear reply" },
   "open": { "tone": "warn", "label": "open" },
   "enabled": { "tone": "neutral", "label": "enabled" },

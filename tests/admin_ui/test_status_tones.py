@@ -30,7 +30,7 @@ def backend_statuses() -> dict[str, set[str]]:
         "job status": check_set("0003_jobs.sql", "status"),
         "account state": check_set("0004_accounts.sql", "state"),
         "command status": check_set("0005_operations.sql", "status"),
-        "alert kind": check_set("0011_commands_started_drift_alerts.sql", "alert")
+        "alert kind": check_set("0026_pool_drift_alerts.sql", "alert")
         | set(re.findall(r"'(\w+)' AS kind", alerts)),
         "alert severity": set(re.findall(r"'(\w+)' AS severity", alerts)),
         "setting source": set(re.findall(r'"(\w+)"', source.group(1))),
@@ -55,7 +55,7 @@ def test_the_extractors_find_the_whole_sets():
     assert found["job status"] == {"queued", "submitting", "unknown", "waiting", "fetching", "done", "failed"}
     assert found["account state"] == {"available", "dead", "disabled"}
     assert found["command status"] == {"queued", "running", "done", "failed"}
-    assert found["alert kind"] == {"clamp", "drift", "unclear_reply"}
+    assert found["alert kind"] == {"clamp", "drift", "cost_mismatch", "pool_drift", "unclear_reply"}
     assert found["alert severity"] == {"error", "warning"}
     assert found["setting source"] == {"db", "default"}
 
