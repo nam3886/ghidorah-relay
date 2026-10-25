@@ -57,6 +57,10 @@ RULES = (
     RuleInfo("stored", "clamp", "error", "A refund would have taken a key's wallet counter below 0."),
     RuleInfo("stored", "drift", "error", "A key's wallet counters disagree with its ledger."),
     RuleInfo("stored", "unclear_reply", "warning", "A provider replied with words the relay could not classify."),
+    RuleInfo("stored", "cost_mismatch", "error", "A job's actual upstream cost is not the expected one."),
+    RuleInfo("stored", "pool_drift", "warning",
+             "An upstream reported an account's pool balance far from the one the relay computed.",
+             settings=("alert_pool_drift",)),
     RuleInfo("live", "worker_stale", "error", "A worker stopped reporting.",
              fixed="no report for %d s" % HEARTBEAT_STALE_S),
     RuleInfo("live", "worker_errors", "warning", "A worker failed several times in a row.",
@@ -117,6 +121,10 @@ async def group_detail(kind: str, group: str, limit: int = 100, offset: int = 0,
         if kind == alerts.KIND_UNCLEAR:
             found["items"] = await alerts.unclear_items(conn, group, limit, offset)
             found.update(await alerts.unclear_outcomes(conn, group))
+        elif kind == alerts.KIND_COST:
+            found["items"] = await alerts.cost_items(conn, group, limit, offset)
+        elif kind == alerts.KIND_POOL_DRIFT:
+            found["items"] = await alerts.pool_drift_items(conn, group, limit, offset)
         else:
             found["items"] = await alerts.billing_items(conn, kind, group, limit, offset)
     return found

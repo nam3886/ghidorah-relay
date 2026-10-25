@@ -18,16 +18,21 @@ Money rules that shape this file (each has a test and a mutation):
   Complete with the job's media: `Completed`. A video send complete with the "generating" item and a chat: `Accepted`.
   Complete with a final text and no media: gemini answered for good, the job fails with its refund
   (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
-  videos for you today" with the account's video pool rested `gemini.video_limit_rest_s`, `gemini.refused` otherwise,
-  the text kept in the detail). Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not
-  200, an error item, an empty or media-promising final text with no media, a "generating" answer with no chat) is
-  `Ambiguous`: the job becomes unknown and the reconciler looks for it; it is never sent again.
+  videos for you today", `gemini.refused` otherwise, the text kept in the detail). A video limit answer (that one,
+  or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage read
+  then names (`jSf9Qc`), else `gemini.video_limit_rest_s` from now; an image refusal empties the image pool only when
+  that read shows a used-up window (no image limit wording is measured). Anything else (no answer, a timeout, a cut or
+  unreadable answer, a status that is not 200, an error item, an empty or media-promising final text with no media,
+  a "generating" answer with no chat) is `Ambiguous`: the job becomes unknown and the reconciler looks for it; it is
+  never sent again.
 - After every send the account's pools rest `gemini.account_min_gap_s`.
 
 Before `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a spaced strike,
 a page of another Google account than the credential names (or an account the check has not resolved yet: no mode
 known) `gemini.account_unresolved` with a rest and a recheck, a proxy that cannot reach gemini `pool.proxy_failed`, an
-error answer `gemini.http_error`, an upload not taken `gemini.upload_failed`.
+error answer `gemini.http_error`, an upload not taken `gemini.upload_failed`, and a video whose account's 5-hour usage
+window holds less than one video (`gemini.video_usage_units`) `pool.account_out_of_points` with the video pool at 0
+until that window resets (such a video is taken and never rendered, measured 25/10).
 """
 
 import json
@@ -42,6 +47,7 @@ import httpx
 from relay_core.providers import (
     Accepted,
     Ambiguous,
+    Balance,
     Completed,
     Cooldown,
     Fail,
@@ -64,7 +70,15 @@ from relay_gemini.constants import (
     VIDEO_LIMIT_PHRASES,
     VIDEO_TOOL,
 )
-from relay_gemini.engine.check import POOLS, doubt_effects, signed_out_why
+from relay_gemini.engine.check import (
+    POOLS,
+    SHORT_WINDOW,
+    WINDOWS,
+    doubt_effects,
+    read_account,
+    read_short_window,
+    signed_out_why,
+)
 from relay_gemini.engine.http import Sessions, Site
 from relay_gemini.engine.reply import Answer, Image, Video, read_answer
 
@@ -72,6 +86,7 @@ REQUEST_KEY = "request"      # provider_state: the request id of the send (also 
 CHAT_KEY = "chat"            # provider_state: gemini's conversation id, once known
 LOGGED_OUT = "pool.account_logged_out"
 PROXY_FAILED = "pool.proxy_failed"
+OUT_OF_POINTS = "pool.account_out_of_points"
 IMAGE_PLACEHOLDER = "googleusercontent.com/image_generation_content/"   # the text of an answer that holds an image
 VIDEO_PLACEHOLDER = "googleusercontent.com/generated_video_content/"    # ... and of one that holds a video
 _MODE = re.compile(r"[0-9a-f]{16}")
@@ -101,10 +116,10 @@ def pacing(settings, now: datetime) -> tuple[Rest, ...]:
                  for pool in POOLS) if gap > 0 else ()
 
 
-def limit_rest(settings, now: datetime) -> Rest:
-    """gemini said the account makes no more videos for now: its video pool rests `gemini.video_limit_rest_s`."""
-    until = now + timedelta(seconds=int(settings.get("gemini.video_limit_rest_s")))
-    return Rest("video", until, "gemini answered the account's video limit is reached")
+def limit_balance(settings, now: datetime, refill: datetime | None = None) -> Balance:
+    """gemini said the account makes no more videos for now: the video pool's balance is 0 until the reset the usage
+    read named (`refill`), else `gemini.video_limit_rest_s` from now. The core rests the pool until then."""
+    return Balance("video", 0, refill or now + timedelta(seconds=int(settings.get("gemini.video_limit_rest_s"))))
 
 
 def is_video(job) -> bool:
@@ -214,16 +229,61 @@ def is_video_limit(text: str) -> bool:
     return any(p in t for p in VIDEO_LIMIT_PHRASES)
 
 
-def refusal_rests(settings, now: datetime, code: str, text: str, video: bool) -> tuple[Rest, ...]:
-    """A video refusal that is the limit answer, or reads like a quota (in any of the languages listed), rests the
-    account's video pool: the account is not sent another video until the rest ends."""
-    quota = video and code == errors.REFUSED and any(w in plain(text) for w in QUOTA_WORDS)
-    return (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT or quota else ()
+def is_video_limit_refusal(code: str, text: str) -> bool:
+    """A video refusal that is the limit answer, or reads like a quota (a quota word in any of the languages listed:
+    the video rule from before limits became balances)."""
+    return code == errors.VIDEO_LIMIT or (code == errors.REFUSED and any(w in plain(text) for w in QUOTA_WORDS))
+
+
+def job_pool(job) -> str:
+    """The pool the job spends (as the spec plans it): `video`, `image_pro` for the pro-tier image model, else
+    `image`."""
+    return "video" if is_video(job) else "image_pro" if job.model == C.PRO_IMAGE_MODEL else "image"
+
+
+def limit_read_pool(code: str, text: str, pool: str) -> str | None:
+    """The pool whose usage is read right after a refusal of a job of `pool`, or None: a video's limit refusal (for
+    its reset), and any image refusal (no image limit wording is measured, so only a used-up usage window says the
+    images are out)."""
+    if pool == "video":
+        return pool if is_video_limit_refusal(code, text) else None
+    return pool if code == errors.REFUSED else None
+
+
+def limit_effects(settings, now: datetime, code: str, text: str, video: bool,
+                  spent: Balance | None = None) -> tuple[Balance, ...]:
+    """What a refusal does to the account's pool; the job's own outcome (failed, refunded) does not change.
+    - a video limit refusal: the video pool is 0 until the reset the usage read named (`spent`, with its window),
+      else `gemini.video_limit_rest_s` from now (`limit_balance`);
+    - an image refusal: the job's image pool is 0 only when the usage read then showed a used-up window (`spent`);
+      its words alone never empty the pool (an ordinary refusal would close the account's images for hours)."""
+    if video:
+        if not is_video_limit_refusal(code, text):
+            return ()
+        return (spent,) if spent is not None and spent.refill_at is not None else (limit_balance(settings, now),)
+    return (spent,) if spent is not None else ()
+
+
+async def usage_spent(site: Site, pool: str) -> Balance | None:
+    """The zero balance the usage read gives the pool when a usage window is used up (with its reset when named), read
+    right after a refusal (a read: it spends nothing); None when no window is used up or the read failed."""
+    return next((e for e in await read_account(site) if isinstance(e, Balance) and e.pool == pool), None)
+
+
+def short_balance(room: tuple[int, datetime | None]) -> Balance:
+    """The video pool at 0 until the 5-hour window resets (naming that window when its reset is known)."""
+    return Balance("video", 0, room[1], WINDOWS[SHORT_WINDOW] if room[1] is not None else None)
+
+
+def video_room_short(settings, room: tuple[int, datetime | None] | None) -> bool:
+    """Does the 5-hour usage window hold less than one video (`gemini.video_usage_units`)? Unknown is not short."""
+    return room is not None and room[0] < int(settings.get("gemini.video_usage_units"))
 
 
 def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
-                  rid: str | None = None) -> SubmitResult:
-    """A send's verdict. Never `Retry` or `NotTaken`: the job was sent."""
+                  rid: str | None = None, spent: Balance | None = None) -> SubmitResult:
+    """A send's verdict. Never `Retry` or `NotTaken`: the job was sent. `spent`: what the usage read right after a
+    refusal gave the job's pool (`usage_spent`)."""
     rest = pacing(settings, now)
     verdict, what = judge(status, answer, video=video)
     if verdict == "done":
@@ -235,7 +295,7 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, *
     if verdict == "refused":
         code, text = what
         return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest,
-                       *refusal_rests(settings, now, code, text, video))
+                       *limit_effects(settings, now, code, text, video, spent))
     return _result(Ambiguous(what), *rest)
 
 
@@ -258,6 +318,12 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 why = "gemini's page is not the account's Google account, or the account was not checked yet"
                 return _result(Retry(errors.UNRESOLVED),
                                Cooldown(why, now() + timedelta(seconds=NETWORK_REST_S), recheck=True))
+            if video:
+                # a video sent into a 5-hour window that cannot hold one is taken and never rendered (measured 25/10):
+                # it is not sent, the video pool is empty until the window resets, another account takes the job
+                room = await read_short_window(site)
+                if video_room_short(settings, room):
+                    return _result(Retry(OUT_OF_POINTS), short_balance(room))
             image = None
             if job.operation in ("image_to_image", "image_to_video"):
                 ref = (await job.inputs())[0]
@@ -280,7 +346,10 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
             answer = read_answer(body)          # judged with its status, never instead of it
             if status == 200 and answer.cid:
                 await ctx.report_ref(answer.cid, {REQUEST_KEY: rid, CHAT_KEY: answer.cid})
-            return answer_result(status, answer, settings, now(), video=video, rid=rid)
+            verdict, what = judge(status, answer, video=video)
+            pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
+            spent = await usage_spent(site, pool) if pool else None
+            return answer_result(status, answer, settings, now(), video=video, rid=rid, spent=spent)
     except httpx.HTTPError as e:
         why = "gemini could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL
         if sent:       # never reached: the send's own errors are caught above. Kept as the money guard.

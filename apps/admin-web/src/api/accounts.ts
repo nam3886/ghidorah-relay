@@ -7,7 +7,8 @@ export interface Capacity {
   left_n: number | null;
   left_today: number | null;
   budget: number | null;
-  drift: boolean | null;
+  // the reported balance less the computed one while a report is the balance; null otherwise
+  drift: number | null;
   source: string;
   day_anchor: string | null;
   rest_until_ms: number | null;

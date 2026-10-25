@@ -23,6 +23,7 @@ from urllib.parse import quote
 
 from relay_core.net import stream_download, system_resolver
 from relay_core.providers import (
+    Balance,
     Done,
     Failed,
     Found,
@@ -46,7 +47,7 @@ from relay_qwen.engine.http import (
     task_of,
     text_of,
 )
-from relay_qwen.engine.submit import CHAT_KEY, IMAGE_MIME, TASK_KEY
+from relay_qwen.engine.submit import CHAT_KEY, IMAGE_MIME, TASK_KEY, is_image_quota
 
 VIDEO_MIME = "video/mp4"
 TASK_FAILED = ("failed", "fail", "error", "cancelled", "canceled", "timeout")    # not seen yet: any of these ends it
@@ -149,6 +150,11 @@ def _image_chat(record: dict, chat: str, wait: int, job, settings, now: datetime
     if links:
         return PollResult(Done(tuple(Output(link, IMAGE_MIME, i, None, {CHAT_KEY: chat}) for i, link in
                                      enumerate(links))), effects=(Success(),))
+    if (message or {}).get("done") is True and is_image_quota(text_of(message)):
+        # a lost answer found later cannot go back to the queue: refunded, and the image pool is empty until the day
+        # turns
+        return PollResult(Failed(errors.OUT_OF_CREDITS, "qwen: %s" % text_of(message)[:300], False),
+                          effects=(Balance("image", 0),))
     if (message or {}).get("done") is True:
         return PollResult(Failed(errors.REFUSED, "qwen: %s" % (text_of(message) or "no image")[:300], True))
     lost_after = int(settings.get("qwen.image_lost_after_s"))

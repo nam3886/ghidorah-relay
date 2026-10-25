@@ -9,8 +9,10 @@ Reads only: nothing here sends, so nothing here can spend.
   a send cut before its answer ended left no chat in the spike (FINDINGS 4), but that is not proof, so the render
   deadline ends such a job with its refund and it is never sent again.
 - Poll (a job `Found`, or a video job `Accepted`): the chat read, judged like a send's answer (`submit.judge`): the
-  job's media (an image, or a video) is `Done`; a final text and no media is `Failed` (refunded; the video limit
-  answer also rests the account's video pool); anything else, "generating your video" included, `Pending`.
+  job's media (an image, or a video) is `Done`; a final text and no media is `Failed` (refunded; its pool is emptied as
+  a send's refusal empties it, `submit.limit_effects`); a video still "generating" `gemini.silent_video_after_s`
+  after its send on an account whose 5-hour window cannot hold a video is `Failed` as the limit (measured 25/10: such
+  a video is never rendered), with the video pool empty until the window resets; anything else `Pending`.
 - Fetch: the result link resolved to the file's bytes link with the session (`Site.resolve`: an image's original, a
   video's 720p MP4), then those bytes from lh3 (an image) or googlevideo.com (a video) with no cookie, through the
   account's proxy (never direct when it has one), with the User-Agent the link was resolved with: a googlevideo.com
@@ -25,7 +27,18 @@ from datetime import UTC, datetime
 import httpx
 
 from relay_core.net import stream_download, system_resolver
-from relay_core.providers import Done, Failed, Found, Output, Pending, PollResult, Reconciled, StillUnknown, Success
+from relay_core.providers import (
+    Done,
+    Failed,
+    Found,
+    Output,
+    Pending,
+    PollResult,
+    Reconciled,
+    StillUnknown,
+    Success,
+)
+from relay_gemini import errors
 from relay_gemini.constants import (
     BYTES_HOST,
     FIND_AFTER_S,
@@ -38,9 +51,23 @@ from relay_gemini.constants import (
     VIDEO_BYTES_HOST,
     VIDEO_SIZE,
 )
+from relay_gemini.engine.check import read_short_window
 from relay_gemini.engine.http import Sessions, Site, proxy_url
 from relay_gemini.engine.reply import Turn, chats, same_text, turns
-from relay_gemini.engine.submit import CHAT_KEY, REQUEST_KEY, is_video, judge, outputs_of, refusal_rests, sent_text
+from relay_gemini.engine.submit import (
+    CHAT_KEY,
+    REQUEST_KEY,
+    is_video,
+    job_pool,
+    judge,
+    limit_effects,
+    limit_read_pool,
+    outputs_of,
+    sent_text,
+    short_balance,
+    usage_spent,
+    video_room_short,
+)
 
 LIST_CHATS = "MaZiqc"
 READ_CHAT = "hNvQHb"
@@ -117,18 +144,32 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
                 return PollResult(Pending("gemini's page is signed out or not the account's Google account", wait,
                                           answered=False))
             turn, answered = await read_chat(site, chat)
+            if turn is None:
+                return PollResult(Pending("the chat could not be read", wait, answered=answered))
+            verdict, what = judge(200, turn.answer(chat), video=is_video(job))
+            # the usage reads (they spend nothing) while the site is open: a limit's reset, a silent render's window
+            pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
+            spent = await usage_spent(site, pool) if pool else None
+            room = await read_short_window(site) if verdict == "taken" and silent_due(job, settings, now()) else None
     except httpx.HTTPError as e:
         return PollResult(Pending("gemini could not be read (%s)" % type(e).__name__, wait, answered=False))
-    if turn is None:
-        return PollResult(Pending("the chat could not be read", wait, answered=answered))
-    verdict, what = judge(200, turn.answer(chat), video=is_video(job))
     if verdict == "done":
         return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
     if verdict == "refused":
         code, text = what
         return PollResult(Failed(code, "gemini answered: %s" % text[:300]),
-                          effects=refusal_rests(settings, now(), code, text, is_video(job)))
+                          effects=limit_effects(settings, now(), code, text, is_video(job), spent))
+    if video_room_short(settings, room):
+        # measured 25/10: a video sent into a used-up 5-hour window is taken ("generating") and never rendered
+        return PollResult(Failed(errors.VIDEO_LIMIT, "gemini took the video but rendered nothing while the account's "
+                                 "5-hour usage window could not hold one"), effects=(short_balance(room),))
     return PollResult(Pending("gemini is generating the video" if verdict == "taken" else what, wait))
+
+
+def silent_due(job, settings, now: datetime) -> bool:
+    """Has a taken video shown as generating for `gemini.silent_video_after_s` since its send?"""
+    return job.sent_at is not None and (now - job.sent_at).total_seconds() >= int(
+        settings.get("gemini.silent_video_after_s"))
 
 
 async def fetch(ctx, out: Output, settings, sessions: Sessions, *, transport=None, media_transport=None,

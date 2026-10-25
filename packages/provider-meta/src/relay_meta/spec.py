@@ -97,6 +97,10 @@ _SETTINGS = dict((
              "Vercel's browser challenge; the third load within about 2 minutes met the checkpoint (25/10). "
              "0 = no gap; "
              "never more than half of unsent_deadline_s.", min=0, max=3600),
+    _setting("limit_rest_s", int, 4 * 3600,
+             "Seconds an account's image or video pool reads 0 (and rests) after meta answers with its limit or quota "
+             "words and no media (meta names no reset time). The job still fails and is refunded.",
+             min=600, max=7 * 86400),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 

@@ -83,6 +83,7 @@ class PoolConfig:
     unit: str                    # credits, jobs or uses: what the budget and `account_cost` count
     combine: str = "sum"         # `sum`: the windows' budgets add up; `all`: every window must hold
     windows: tuple[Window, ...] = ()
+    drift_alert: int | None = None   # units a reported balance may stray from the computed one unalerted; None: off
 
 
 def _window_problem(w: Any, where: str) -> str | None:
@@ -174,13 +175,14 @@ def day_pool(budget: Mapping[str, int], tz: str = "UTC") -> dict[str, Any]:
 def pool_configs(provider: str, caps: Caps, get_setting: Callable[[str], Any]) -> dict[str, PoolConfig]:
     """The configs of a provider's pools, with each rule read now from `<provider>.pools`."""
     stored = get_setting(provider + ".pools")
+    drift = get_setting("alert_pool_drift")
     out = {}
     for p in caps.pools:
         cfg = stored.get(p.name, {})
         out[p.name] = PoolConfig(p.name, p.unit, cfg.get("combine", "sum"), tuple(
             Window(w["name"], w["kind"], w.get("tz", "UTC"), dict(w["budget"]), w.get("hours", 0),
                    w.get("anchor", "first_use"))
-            for w in cfg.get("windows", [])))
+            for w in cfg.get("windows", [])), drift)
     return out
 
 
@@ -322,11 +324,18 @@ class WindowState:
 @dataclass(frozen=True)
 class Standing:
     """Where a pool of an account stands: `left` (None = unknown), its `source` (`reported`, `computed` or `unknown`),
-    each window's budget and spend, and `budget`, what the account may spend across them (None = unknown)."""
+    each window's budget and spend, `budget`, what the account may spend across them (None = unknown), and
+    `computed`: what the windows alone leave, whatever was reported (None = unknown)."""
     left: int | None
     source: str
     windows: tuple[WindowState, ...] = ()
     budget: int | None = None
+    computed: int | None = None
+
+    @property
+    def drift(self) -> int | None:
+        """The reported balance less the computed one; None unless a report is the balance and the windows know."""
+        return self.left - self.computed if self.source == "reported" and self.computed is not None else None
 
 
 def _spent(cfg: PoolConfig, budgets: Sequence[int | None], anchors: Sequence[datetime | None],
@@ -394,14 +403,14 @@ def standing(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime
     states = tuple(WindowState(w.name, w.kind, budgets[i], spent[i], _refill(w, now, cycle_start, anchors[i], past))
                    for i, w in enumerate(cfg.windows))
     budget = _total(cfg, budgets)
+    rooms = [s.budget - s.spent for s in states if s.budget is not None]
+    computed = None if not rooms else min(rooms) if cfg.combine == "all" else sum(max(0, room) for room in rooms)
     if reported is not None and now < _refill_of_report(cfg, reported, charges, cycle_start):
         return Standing(reported.left - sum(amount for at, amount in charges if at > reported.at), "reported", states,
-                        budget)
-    rooms = [s.budget - s.spent for s in states if s.budget is not None]
-    if not rooms:
+                        budget, computed)
+    if computed is None:
         return Standing(None, "unknown", states)
-    left = min(rooms) if cfg.combine == "all" else sum(max(0, room) for room in rooms)
-    return Standing(left, "computed", states, budget)
+    return Standing(computed, "computed", states, budget, computed)
 
 
 def left_of(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime, int]], now: datetime,
@@ -640,6 +649,7 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     - `Balance` records the pool's reported balance and the refill with the window it names; a balance above 0 ends
       that pool's rest, a balance of 0 rests the pool until the refill the upstream named, else the pool's next window
       boundary.
+      A reported balance far from the computed one raises a `pool_drift` alert (`_drift_alert`).
     - `Tier` writes the account's tier, marks it read now, and its cycle start when named (else the stored one stays).
     The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a
     death's reason, else a cooldown's) is kept in the account's errors with `job_id`, the job it came from."""
@@ -666,6 +676,7 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                 since = _since(cfg, row[6], None, row[7])
                 charges = await (await conn.execute(_CHARGES, (account_id, cfg.name, since))).fetchall()
                 until = next_refill(cfg, row[6], charges, row[7])
+            await _drift_alert(conn, account_id, cfg, row, e.left_n)
             await conn.execute(
                 "UPDATE account_pools SET reported_left = %(n)s, reported_at = clock_timestamp(), refill_at = %(r)s, "
                 "refill_window = %(w)s, "
@@ -719,6 +730,41 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
                            "last_error = %(r)s", r=_reason(e.reason))
         else:
             raise TypeError("unknown account effect %r" % (e,))
+
+
+# One per account, pool and window: a drift already raised since the pool's first-refilling window began is not
+# raised again.
+_DRIFT_ALERT = (
+    "INSERT INTO billing_alerts (alert, account_id, scope, provider, expected, actual, detail) "
+    "SELECT 'pool_drift', a.id, %(p)s, a.provider, %(c)s, %(n)s, %(d)s FROM accounts a WHERE a.id = %(a)s "
+    "AND NOT EXISTS (SELECT 1 FROM billing_alerts b WHERE b.alert = 'pool_drift' AND b.account_id = %(a)s "
+    "AND b.scope = %(p)s AND b.at >= %(since)s)")
+
+
+async def _drift_alert(conn: AsyncConnection, account_id, cfg: PoolConfig, row: tuple, reported_left: int) -> None:
+    """A reported balance more than `cfg.drift_alert` units from the computed one (the window's budget for the
+    account's tier less its unrefunded charges) raises a `pool_drift` alert. Nothing when the pool cannot be computed
+    (no window, no budget for the tier) or the alert is off. In a savepoint of its own: a failing alert is logged and
+    never costs the result it rides on. The account row is locked, so the once-per-window check cannot race."""
+    if cfg.drift_alert is None or not cfg.windows:
+        return
+    now, cycle_start = row[6], row[7]
+    since = _since(cfg, now, None, cycle_start)
+    # the window that refills first: its current start (a calendar window's, or a rolling one's `hours` back)
+    window_start = max(_calendar_span(w, now, cycle_start)[0] if w.kind != "rolling"
+                       else now - timedelta(hours=w.hours) for w in cfg.windows)
+    try:
+        async with conn.transaction():
+            charges = await (await conn.execute(_CHARGES, (account_id, cfg.name, since))).fetchall()
+            computed = standing(cfg, row[5], charges, now, None, cycle_start).computed
+            if computed is None or abs(reported_left - computed) <= cfg.drift_alert:
+                return
+            await conn.execute(_DRIFT_ALERT, {
+                "a": account_id, "p": cfg.name, "c": computed, "n": reported_left, "since": window_start,
+                "d": "the upstream reported %d %s left, the relay computed %d" % (reported_left, cfg.unit, computed)})
+    except Exception as exc:     # noqa: BLE001 - an alert never costs its result
+        log.error("pool drift alert not stored: account=%s pool=%s error=%s sqlstate=%s", account_id, cfg.name,
+                  type(exc).__name__, getattr(exc, "sqlstate", None) or "unknown")
 
 
 def _cfg(pools: Mapping[str, PoolConfig], name: str) -> PoolConfig:

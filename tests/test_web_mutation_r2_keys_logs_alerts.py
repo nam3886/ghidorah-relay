@@ -842,3 +842,17 @@ JOBS_LINK = f"FAILED {ALERTS_MODEL_SPEC} > jobsLink (Open Jobs filtered) > "
 @pytest.mark.web_unit
 def test_open_jobs_filtered_carries_the_range_the_search_and_the_statuses():
     vitest(ALERTS_MODEL_SPEC)
+
+
+# ---- cost mismatches and pool drifts in the hub ------------------------------------------------------------------
+KEYLESS_LINK = "a cost mismatch names its provider only; a pool drift its provider and its one account"
+
+
+@mutation(ALERTS_MODEL, "  if (KEYLESS.has(g.kind)) return g.title;\n", "",
+          expect=TITLE + "a cost mismatch and a pool drift are the server\x27s titles, whatever a key label says")
+@mutation(ALERTS_MODEL, "  if (d.kind === \"cost_mismatch\") return { provider: d.provider, query };\n", "",
+          expect=JOBS_LINK + KEYLESS_LINK)
+@mutation(ALERTS_MODEL, "    if (label) query.q = label;\n", "", expect=JOBS_LINK + KEYLESS_LINK)
+@pytest.mark.web_unit
+def test_a_cost_mismatch_and_a_pool_drift_are_named_by_the_server_and_link_their_provider_jobs():
+    vitest(ALERTS_MODEL_SPEC)

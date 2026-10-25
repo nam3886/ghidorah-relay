@@ -15,7 +15,9 @@ Money rules that shape this file (each has a test and a mutation):
   of the pair, which never reached qwen's app. That one is `NotTaken` (the job goes back to the queue, the stale pair
   is dropped so the next send mints anew) ONLY when the answer is that block exactly, as measured (`is_waf_block`:
   status, the WAF's own headers and cookie, none of the app's, the exact body); a chat read is no proof and is not
-  used. Anything that only looks like it is `Ambiguous`.
+  used. Anything that only looks like it is `Ambiguous`. A complete image answer that is qwen's daily image quota
+  (`IMAGE_QUOTA_WORDS`: nothing was drawn) is `NotTaken` too (`qwen.image_limit`, no attempt used) with the account's
+  image pool at 0 until its day turns.
 - Any other answer (no answer, a timeout, a cut stream with no image, a 5xx, a shape not seen) is `Ambiguous`: the
   job becomes unknown and the reconciler reads the chat; it is never sent again.
 
@@ -87,6 +89,9 @@ WAF_RET_DETAIL = "RGV587_ERROR::"
 WAF_PUNISH = "/_____tmd_____/punish?"
 WAF_COOKIE = "x5secdata"
 APP_HEADERS = ("x-request-id", "x-actual-status-code")     # qwen's app sets both on every answer it makes
+# qwen's daily image quota answer, lowercased (measured 25/10: "You've used up your daily image generation quota.
+# Upgrade your plan to generate more images.", after 10 images on one account). Nothing was made: not taken.
+IMAGE_QUOTA_WORDS = "daily image generation quota"
 FEATURES = {"thinking_enabled": False, "output_schema": "phase", "research_mode": "normal", "auto_thinking": False,
             "thinking_mode": "Fast", "auto_search": True}
 _store = None
@@ -343,9 +348,17 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
         if verdict == "no_credits":
             return _result(Fail(errors.OUT_OF_CREDITS, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}),
                            Balance(pool, 0), *rest)
+        if verdict == "refused" and kind == "image" and is_image_quota(said):
+            # the account's image pool is empty until its day turns; the job goes to another account, no attempt used
+            return _result(NotTaken(errors.IMAGE_LIMIT, {"limit_chat": chat}), Balance(pool, 0), *rest)
         if verdict == "refused":
             return _result(Fail(errors.REFUSED, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}), *rest)
         return _result(Ambiguous(str(said)), *rest)
+
+
+def is_image_quota(text: Any) -> bool:
+    """Is it qwen's daily image quota answer (whatever its apostrophes and case)?"""
+    return IMAGE_QUOTA_WORDS in str(text).lower()
 
 
 async def _waf(ctx, sessions: Sessions, chat: str, minted_at: float) -> SubmitResult:

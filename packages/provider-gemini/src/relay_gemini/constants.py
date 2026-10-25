@@ -45,7 +45,8 @@ VIDEO_LIMIT_PHRASES = ("can't create more videos", "can't make more videos", "ca
                        "reached your daily video limit", "video generation limit", "as soon as your limit resets",
                        "out of video generation quota")
 # Words of a quota-like answer (English, Vietnamese, Spanish, French, German, Japanese/Chinese): a video refusal that
-# holds one also rests the account's video pool, since it may be the limit answer worded otherwise.
+# holds one also empties the account's video pool, since it may be the limit answer worded otherwise. Never used for
+# images: no image limit wording is measured, and these words are common in an ordinary refusal.
 QUOTA_WORDS = ("limit", "quota", "today", "tomorrow", "try again later", "giới hạn", "hôm nay", "ngày mai", "límite",
                "hoy", "limite", "aujourd'hui", "heute", "上限", "今日", "今天")
 CAPABILITIES = [4, 5, 6, 8, 16, 19, 20, 4, 5, 6, 8, 16, 19, 20]     # the web app's capability list (23/10)

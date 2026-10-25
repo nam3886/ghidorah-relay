@@ -343,10 +343,17 @@ describe("the filters", () => {
     await settle();
   };
 
-  it("the selects offer the canvas words: Status All, Open, Acknowledged; Kind All and the three kinds", async () => {
+  it("the selects offer the canvas words: Status All, Open, Acknowledged; Kind All and the five kinds", async () => {
     const w = await open();
     expect(await optionsOf(w, "Status")).toEqual(["All", "Open", "Acknowledged"]);
-    expect(await optionsOf(w, "Kind")).toEqual(["All", "clamp", "drift", "unclear_reply"]);
+    expect(await optionsOf(w, "Kind")).toEqual([
+      "All",
+      "clamp",
+      "drift",
+      "cost_mismatch",
+      "pool_drift",
+      "unclear_reply",
+    ]);
     expect(shown(w, "Status")).toBe("Open");
     expect(shown(w, "Kind")).toBe("All");
     // no native select: the field variant of the shared FilterSelect

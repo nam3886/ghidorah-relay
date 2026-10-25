@@ -31,7 +31,10 @@ TITLE_LIMIT = 200
 EMPTY_TITLE = "(no reply text read: the provider's API gave no text)"
 GROUP_LEN = 16
 KIND_UNCLEAR = "unclear_reply"
-BILLING_KINDS = ("clamp", "drift")
+BILLING_KINDS = ("clamp", "drift")           # a key's wallet: grouped by key and scope
+KIND_COST = "cost_mismatch"                  # a job's actual upstream cost is not the expected one
+KIND_POOL_DRIFT = "pool_drift"               # an upstream's reported pool balance is far from the computed one
+MONEY_KINDS = (*BILLING_KINDS, KIND_COST)    # never off, muted a day at most
 
 
 # ---- the writer side ---------------------------------------------------------------------------------------------
@@ -243,7 +246,30 @@ UNCLEAR = Source((KIND_UNCLEAR,), """
            NULL::text AS key_label
       FROM unclear_replies u JOIN jobs j ON j.id = u.job_id GROUP BY u.group_id, u.provider""")
 
-SOURCES = (BILLING, UNCLEAR)
+# One group per (provider, price key): every job of one priced option whose actual cost was not the expected one. The
+# title carries the newest row's two figures.
+COST = Source((KIND_COST,), """
+    SELECT 'cost_mismatch' AS kind, b.provider || '.' || b.price_key AS grp, 'error' AS severity,
+           (SELECT b.price_key || ' on ' || b.provider || ': expected ' || t.expected || ', actual ' || t.actual
+              FROM billing_alerts t WHERE t.id = max(b.id)) AS title, b.provider,
+           min(b.at) AS first_at, max(b.at) AS last_at, count(*) AS count,
+           count(*) FILTER (WHERE b.acknowledged_at IS NULL) AS open_count, count(DISTINCT cj.key_id) AS keys,
+           max(b.id) AS newest_id, NULL::text AS reply, NULL::text AS key_label
+      FROM billing_alerts b LEFT JOIN jobs cj ON cj.id = b.job_id
+     WHERE b.alert = 'cost_mismatch' GROUP BY b.provider, b.price_key""")
+
+# One group per (account, pool). The title names the account (its label, else its id) and the newest row's figures.
+POOL_DRIFT = Source((KIND_POOL_DRIFT,), """
+    SELECT 'pool_drift' AS kind, b.account_id::text || '.' || b.scope AS grp, 'warning' AS severity,
+           (SELECT b.scope || ' pool of ' || COALESCE(NULLIF(a.label, ''), b.account_id::text) || ': reported '
+                   || t.actual || ', computed ' || t.expected
+              FROM billing_alerts t LEFT JOIN accounts a ON a.id = t.account_id WHERE t.id = max(b.id)) AS title,
+           max(b.provider) AS provider, min(b.at) AS first_at, max(b.at) AS last_at, count(*) AS count,
+           count(*) FILTER (WHERE b.acknowledged_at IS NULL) AS open_count, 0 AS keys, max(b.id) AS newest_id,
+           NULL::text AS reply, NULL::text AS key_label
+      FROM billing_alerts b WHERE b.alert = 'pool_drift' GROUP BY b.account_id, b.scope""")
+
+SOURCES = (BILLING, UNCLEAR, COST, POOL_DRIFT)
 
 
 def kinds(sources=None) -> tuple[str, ...]:
@@ -254,10 +280,10 @@ def kinds(sources=None) -> tuple[str, ...]:
 MUTED = ("(SELECT r.muted_until FROM alert_rules r WHERE r.source = 'stored' AND r.kind = g.kind "
          "AND r.muted_until > clock_timestamp()) AS muted_until")
 # A stored kind the admin turned off is left out of the list (its rows stay; the detail still reads them).
-# The money-integrity kinds (`BILLING_KINDS`) are never off, whatever a row says: the route refuses it and this filter
+# The money-integrity kinds (`MONEY_KINDS`) are never off, whatever a row says: the route refuses it and this filter
 # ignores a row that holds it anyway.
 NOT_OFF = ("kind NOT IN (SELECT r.kind FROM alert_rules r WHERE r.source = 'stored' AND NOT r.enabled "
-           "AND r.kind NOT IN ('clamp', 'drift'))")
+           "AND r.kind NOT IN ('clamp', 'drift', 'cost_mismatch'))")
 
 
 def _groups_sql(where: str, sources) -> str:
@@ -307,13 +333,29 @@ async def get_group(conn, kind: str, group: str, sources=None) -> dict | None:
 
 _BILLING_GROUP = re.compile(_UUID.pattern + r"\.(?:\*|[a-z][a-z0-9_]*)")
 _UNCLEAR_GROUP = re.compile(r"[0-9a-f]{16}")
+_POOL_GROUP = re.compile(_UUID.pattern + r"\.[a-z][a-z0-9_]*")           # <account>.<pool>
+_COST_GROUP = re.compile(r"[a-z][a-z0-9_]*\.[A-Za-z0-9_.@|:+-]{1,200}")  # <provider>.<price key>
 
 
 def group_form(kind: str, group: str) -> bool:
     """Is `group` written the way a group of this kind is: a malformed one is a 404, never a database error."""
     if kind in BILLING_KINDS:
         return _BILLING_GROUP.fullmatch(group) is not None
+    if kind == KIND_POOL_DRIFT:
+        return _POOL_GROUP.fullmatch(group) is not None
+    if kind == KIND_COST:
+        return _COST_GROUP.fullmatch(group) is not None
     return kind == KIND_UNCLEAR and _UNCLEAR_GROUP.fullmatch(group) is not None
+
+
+def _row_filter(kind: str, group: str, t: str = "") -> tuple[str, tuple]:
+    """The billing_alerts columns (of table alias `t`) a group of this kind is made of, with their values from the
+    group id: a wallet's key and scope, a cost's provider and price key (split at its first dot: a provider name has
+    none) or a pool drift's account and pool."""
+    head, _, tail = group.partition(".")
+    first, second = {KIND_COST: ("provider", "price_key"), KIND_POOL_DRIFT: ("account_id", "scope")}.get(
+        kind, ("key_id", "scope"))
+    return "%s%s = %%s AND %s%s = %%s" % (t, first, t, second), (head, tail)
 
 
 # billing items: the shape `GET /admin/alerts` shows. Defined here so the hub does not import a route module (a test
@@ -360,6 +402,34 @@ async def billing_items(conn, kind: str, group: str, limit: int, offset: int) ->
              "job_title": r[n + 2]} for r in rows]
 
 
+async def cost_items(conn, group: str, limit: int, offset: int) -> list[dict]:
+    """The rows of one cost-mismatch group, newest first: the job (its title and its key's name ride along; a job
+    gone is null), what the cost was expected to be and what it was, and the writer's detail."""
+    where, values = _row_filter(KIND_COST, group, "b.")
+    rows = await (await conn.execute(
+        "SELECT b.id, b.at, b.job_id, b.expected, b.actual, b.detail, b.acknowledged_at, b.acknowledged_by, j.key_id, "
+        + _shown_title() + ", " + KEY_NAME + " FROM billing_alerts b LEFT JOIN jobs j ON j.id = b.job_id "
+        "LEFT JOIN api_keys k ON j.key_id = k.id WHERE b.alert = 'cost_mismatch' AND " + where
+        + " ORDER BY b.id DESC LIMIT %s OFFSET %s", (*values, limit, offset))).fetchall()
+    return [{"id": r[0], "at_ms": _ms(r[1]), "job_id": str(r[2]), "expected": r[3], "actual": r[4], "detail": r[5],
+             "acknowledged_ms": None if r[6] is None else _ms(r[6]), "acknowledged_by": r[7],
+             "key_id": None if r[8] is None else str(r[8]), "job_title": r[9], "key_label": r[10]} for r in rows]
+
+
+async def pool_drift_items(conn, group: str, limit: int, offset: int) -> list[dict]:
+    """The rows of one pool-drift group, newest first: the account (its label; null once deleted), the pool, the
+    computed balance (`expected`) and the reported one (`actual`)."""
+    where, values = _row_filter(KIND_POOL_DRIFT, group, "b.")
+    rows = await (await conn.execute(
+        "SELECT b.id, b.at, b.account_id, a.label, b.scope, b.expected, b.actual, b.detail, b.acknowledged_at, "
+        "b.acknowledged_by FROM billing_alerts b LEFT JOIN accounts a ON a.id = b.account_id "
+        "WHERE b.alert = 'pool_drift' AND " + where + " ORDER BY b.id DESC LIMIT %s OFFSET %s",
+        (*values, limit, offset))).fetchall()
+    return [{"id": r[0], "at_ms": _ms(r[1]), "account_id": str(r[2]), "account_label": r[3], "pool": r[4],
+             "expected": r[5], "actual": r[6], "detail": r[7], "acknowledged_ms": None if r[8] is None else _ms(r[8]),
+             "acknowledged_by": r[9]} for r in rows]
+
+
 async def unclear_items(conn, group: str, limit: int, offset: int) -> list[dict]:
     rows = await (await conn.execute(
         "SELECT u.id, u.at, u.job_id, u.account_id, a.label, j.key_id, u.text, j.status, j.error_code, "
@@ -400,12 +470,11 @@ async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -
     """Stamp the open rows of one group up to `through_id` (for billing, of that alert kind only) with the session user
     and the time. Rows that arrived later stay open; a stamped row is never touched (the filter, and for unclear
     replies the trigger). One INFO line records who, which group and how many: no text."""
-    if kind in BILLING_KINDS:
-        key_id, scope = _billing_key(group)
+    if kind != KIND_UNCLEAR:
+        where, values = _row_filter(kind, group)
         cur = await conn.execute(
             "UPDATE billing_alerts SET acknowledged_at = clock_timestamp(), acknowledged_by = %s WHERE alert = %s "
-            "AND key_id = %s AND scope = %s AND id <= %s AND acknowledged_at IS NULL",
-            (user, kind, key_id, scope, through_id))
+            "AND " + where + " AND id <= %s AND acknowledged_at IS NULL", (user, kind, *values, through_id))
     else:
         cur = await conn.execute(
             "UPDATE unclear_replies SET acknowledged_at = clock_timestamp(), acknowledged_by = %s "
@@ -420,8 +489,11 @@ async def acknowledge(conn, kind: str, group: str, through_id: int, user: str) -
 # record of something resolved. A live condition clears without leaving a row, so it is never counted here.
 _RESOLVED = """
 SELECT kind, grp, max(at), (array_agg(by ORDER BY at DESC))[1], count(*) FROM (
-    SELECT alert AS kind, key_id::text || '.' || scope AS grp, acknowledged_at AS at, acknowledged_by AS by
-      FROM billing_alerts WHERE alert IN ('clamp', 'drift') AND acknowledged_at >= %(start)s
+    SELECT alert AS kind, CASE alert WHEN 'cost_mismatch' THEN provider || '.' || price_key
+                                     WHEN 'pool_drift' THEN account_id::text || '.' || scope
+                                     ELSE key_id::text || '.' || scope END AS grp,
+           acknowledged_at AS at, acknowledged_by AS by
+      FROM billing_alerts WHERE acknowledged_at >= %(start)s
     UNION ALL
     SELECT 'unclear_reply', group_id, acknowledged_at, acknowledged_by
       FROM unclear_replies WHERE acknowledged_at >= %(start)s) r
@@ -449,8 +521,9 @@ MONEY_MUTE_MAX_MIN = 24 * 60
 
 
 def is_money(source: str, kind: str) -> bool:
-    """A money-integrity kind (a clamp or a wallet drift of the ledger): muted for a day at most, never off."""
-    return source == "stored" and kind in BILLING_KINDS
+    """A money-integrity kind (a clamp or a wallet drift of the ledger, a cost mismatch): muted for a day at most,
+    never off."""
+    return source == "stored" and kind in MONEY_KINDS
 
 
 def max_mute(source: str, kind: str) -> int:

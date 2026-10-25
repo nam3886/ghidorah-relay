@@ -99,8 +99,15 @@ _SETTINGS = dict((
         C.PRICE_KEYS, C.DEFAULT_COSTS, unit="uses")),
     (PROVIDER + ".pools", pools_setting(PROVIDER, POOLS, POOL_DEFAULTS)),
     _setting("video_limit_rest_s", int, 18000,
-             "Seconds an account's video pool rests after gemini answers it can make no more videos for now (the "
-             "short usage window is 5 h).", min=600, max=7 * 86400),
+             "Seconds an account's video pool reads 0 (and rests) after gemini answers it can make no more videos for "
+             "now, when the usage read names no reset (the short usage window is 5 h).", min=600, max=7 * 86400),
+    _setting("video_usage_units", int, 470,
+             "Units of the 5-hour usage window one video takes (measured 25/10: about 470 of 2400). A video is not "
+             "sent to an account whose window holds fewer: gemini takes it and never renders it.", min=1, max=100000),
+    _setting("silent_video_after_s", int, 360,
+             "Seconds after the send before a video gemini took but still shows as generating, on an account whose "
+             "5-hour window holds less than one video, is given up as the limit (refunded) instead of waiting for "
+             "the render deadline. Renders took 1-2 min when measured.", min=120, max=3600),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 

@@ -55,8 +55,38 @@ export interface BillingItem {
   acknowledged_by: string | null;
 }
 
+// A cost_mismatch row: one job whose actual upstream cost (`actual`) was not the expected one (`expected`), in the
+// pool's unit; `detail` is what the writer noted (where the actual figure came from).
+export interface CostItem {
+  id: number;
+  at_ms: number | null;
+  job_id: string;
+  job_title: string | null;
+  key_id: string | null;
+  key_label: string | null;
+  expected: number;
+  actual: number;
+  detail: string | null;
+  acknowledged_ms: number | null;
+  acknowledged_by: string | null;
+}
+
+// A pool_drift row: the upstream reported `actual` left in the account's pool, the relay computed `expected`.
+export interface PoolDriftItem {
+  id: number;
+  at_ms: number | null;
+  account_id: string;
+  account_label: string | null;
+  pool: string;
+  expected: number;
+  actual: number;
+  detail: string | null;
+  acknowledged_ms: number | null;
+  acknowledged_by: string | null;
+}
+
 export interface AlertDetail extends AlertGroup {
-  items: (UnclearItem | BillingItem)[];
+  items: (UnclearItem | BillingItem | CostItem | PoolDriftItem)[];
   // unclear_reply groups only
   outcomes?: { done: number; failed: number; open: number };
   failed_codes?: Record<string, number>;
@@ -96,7 +126,7 @@ export interface AlertRule {
   text: string;
   fixed: string | null;
   thresholds: Array<{ setting: string; value: unknown }>;
-  // a money-integrity kind (clamp, wallet drift): never off, muted `max_mute_minutes` (a day) at most
+  // a money-integrity kind (clamp, wallet drift, cost mismatch): never off, muted `max_mute_minutes` (a day) at most
   money: boolean;
   max_mute_minutes: number;
   enabled: boolean;

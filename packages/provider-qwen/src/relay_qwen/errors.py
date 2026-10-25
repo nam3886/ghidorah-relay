@@ -16,6 +16,7 @@ REFUSED = "qwen.refused"                  # qwen answered the order with words a
 OUT_OF_CREDITS = "qwen.out_of_credits"    # qwen answered "Insufficient Credits" to the order
 RENDER_FAILED = "qwen.render_failed"      # the video task ended without a video
 IMAGE_LOST = "qwen.image_lost"            # the image stream died and the chat shows no image long after
+IMAGE_LIMIT = "qwen.image_limit"          # qwen answered the account's daily image quota is used up: nothing made
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -27,6 +28,10 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     # job goes back to the queue. Not the order's fault: the first two such requeues use no attempt.
     Rule(WAF_REFUSED, 503, "api_error", False, False, False, True, True,
          "qwen's firewall refused the request; nothing was made, it is sent again", free_retries=2),
+    # The account's daily image quota is used up (its image pool is set to 0 until the day turns): nothing was made,
+    # the job goes back to the queue for another account and uses no attempt.
+    Rule(IMAGE_LIMIT, 503, "api_error", False, False, False, True, True,
+         "the qwen account used up its daily images; nothing was made, it is sent to another account"),
     # qwen said no for good: the job dies now and the charge is returned (the order is never sent twice).
     Rule(REFUSED, 422, "invalid_request_error", True, True, False, True, True,
          "qwen refused to make this; try a different prompt; the charge is returned"),

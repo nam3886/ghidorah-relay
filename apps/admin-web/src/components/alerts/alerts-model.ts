@@ -6,7 +6,11 @@ import { POINTS, scopeName } from "@/components/keys/key-model";
 export const GROUP_LIMIT = 200;
 export const ROW_LIMIT = 100;
 // ponytail: a kind added to the hub later is listed under "All kinds"; add it here to filter on it.
-export const ALERT_KINDS = ["clamp", "drift", "unclear_reply"] as const;
+export const ALERT_KINDS = ["clamp", "drift", "cost_mismatch", "pool_drift", "unclear_reply"] as const;
+
+// The kinds whose group id is not `<key>.<scope>`: a cost mismatch is `<provider>.<price key>` (the price key may hold
+// dots: split at the first), a pool drift `<account>.<pool>`. Their names are the server's titles.
+const KEYLESS = new Set(["cost_mismatch", "pool_drift"]);
 
 // The title of the unclear-reply group of a reply that held no text at all.
 export const EMPTY_WORDING_TITLE = "(no reply text read: the provider's API gave no text)";
@@ -52,6 +56,7 @@ export function alertTitle(
   g: Pick<AlertGroup, "kind" | "group" | "title" | "provider" | "reply" | "key_label">,
 ): string {
   if (g.kind === "unclear_reply") return isEmptyWording(g) ? groupTitle(g) : replied(g, g.reply);
+  if (KEYLESS.has(g.kind)) return g.title;
   const scope = g.group.split(".")[1];
   return g.key_label && scope
     ? `${scope === POINTS ? "points wallet" : scopeName(scope)} of key ${g.key_label}`
@@ -227,6 +232,8 @@ const onlyOne = (values: Array<string | null | undefined>): string => {
 // What "Open Jobs filtered" asks the Jobs page for: the provider (the shared filter) and the query it reads, `range`
 // (covering the group's first and last row), `status` and either `key_id` or a `q` search.
 //   a billing group (`<key>.<scope>`): its key, a cap's provider; a clamp is a refund, so the refunded jobs (failed)
+//   a cost mismatch (`<provider>.<price key>`): its provider (each row's job opens from the detail)
+//   a pool drift (`<account>.<pool>`): its provider and the account's label as the search
 //   an unclear group: its provider, the one account (or else the one key) its rows share as the search, and failed
 //   when every job of it was refunded
 export function jobsLink(
@@ -234,6 +241,12 @@ export function jobsLink(
   now: number = Date.now(),
 ): { provider: string; query: Record<string, string> } {
   const query: Record<string, string> = { range: rangeFor(d.first_ms, now) };
+  if (d.kind === "cost_mismatch") return { provider: d.provider, query };
+  if (d.kind === "pool_drift") {
+    const label = onlyOne((d.items as Array<{ account_label?: string | null }>).map((r) => r.account_label));
+    if (label) query.q = label;
+    return { provider: d.provider, query };
+  }
   if (d.kind !== "unclear_reply") {
     const [key, scope] = d.group.split(".");
     query.key_id = key ?? "";

@@ -69,7 +69,22 @@ def test_each_pool_lists_its_window_with_the_tiers_budget_and_what_the_unrefunde
     assert (video["pro"]["left_today"], video["pro"]["source"], window["pro"]["budget"]) == (4, "computed", 4), (
         "the fake provider names a budget for the free tier only: a pro account takes it, never unlimited")
     assert (rows["pro"]["tier"], rows["pro"]["tier_read"], rows["pro"]["cycle_start"]) == ("pro", False, "2030-01-15")
-    assert all(c["drift"] is None for r in rows.values() for c in r["capacity"]), "drift is gone"
+    assert all(c["drift"] is None for r in rows.values() for c in r["capacity"]), "no report: no drift"
+
+
+@mutation("packages/relay-core/src/relay_core/admin/routes_common.py", '"drift": st.drift,', '"drift": None,',
+          expect="reported less computed")
+def test_a_reported_pool_shows_its_drift_the_reported_balance_less_the_computed_one(db):
+    reported = new_account(db, label="reported", checked=True)
+    db.run("INSERT INTO account_pools (account_id, pool, reported_left, reported_at, refill_at) VALUES "
+           "(%s, 'video', 1, clock_timestamp(), clock_timestamp() + interval '1 hour')", reported)
+
+    async def scenario(env):
+        return await listed(env)
+
+    video = next(c for c in run_app(db, scenario)["reported"]["capacity"] if c["pool"] == "video")
+    assert (video["source"], video["left_today"], video["drift"]) == ("reported", 1, 1 - video["budget"]), \
+        "reported less computed: %s" % video
 
 
 @mutation(ROUTES, COMPOSER, NO_COMPOSER, expect="composer")

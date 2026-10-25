@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { AlertDetail, BillingItem, UnclearItem } from "@/api/alerts";
+import type { AlertDetail, BillingItem, CostItem, PoolDriftItem, UnclearItem } from "@/api/alerts";
 import { scopeName } from "@/components/keys/key-model";
 import ArrowScroller from "@/components/shared/ArrowScroller.vue";
 import StatusChip from "@/components/shared/StatusChip.vue";
@@ -26,6 +26,8 @@ const emit = defineEmits<{ "open-job": [jobId: string] }>();
 const unclear = computed(() => props.detail.kind === "unclear_reply");
 const unclearRows = computed(() => props.detail.items as UnclearItem[]);
 const billingRows = computed(() => props.detail.items as BillingItem[]);
+const costRows = computed(() => props.detail.items as CostItem[]);
+const poolRows = computed(() => props.detail.items as PoolDriftItem[]);
 const facts = computed(() => groupFacts(props.detail));
 // the newest reply as stored, for the quote; the read failure has none
 const quote = computed(() =>
@@ -36,7 +38,7 @@ const acked = (i: { acknowledged_ms: number | null; acknowledged_by: string | nu
   `${i.acknowledged_by}, ${alertTime(i.acknowledged_ms)}`;
 // the job's title, else its short id; the key's label, else its short id
 const jobName = (r: { job_id: string; job_title: string | null }): string => r.job_title || r.job_id.slice(0, 8);
-const keyName = (r: { key_id?: string; key_label: string | null }): string =>
+const keyName = (r: { key_id?: string | null; key_label: string | null }): string =>
   r.key_label || r.key_id?.slice(0, 8) || "—";
 const account = (r: UnclearItem): string => (r.account_label === null ? "—" : r.account_label);
 </script>
@@ -98,6 +100,77 @@ const account = (r: UnclearItem): string => (r.account_label === null ? "—" : 
               <span class="ad-acct mono">{{ account(r) }}</span>
               <span class="ad-key">{{ keyName(r) }}</span>
               <span v-if="r.acknowledged_ms !== null" class="ad-acked">acknowledged {{ acked(r) }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- the rows of a cost mismatch: each job, what its upstream cost was expected to be and what it was -->
+      <table v-else-if="detail.kind === 'cost_mismatch'" class="ad__table" data-testid="alert-cost-rows">
+        <caption>
+          Jobs whose upstream cost was not the expected one
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="is-first">When</th>
+            <th scope="col">Job</th>
+            <th scope="col">Expected → actual</th>
+            <th scope="col" class="is-last">Acknowledged</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in costRows" :key="r.id">
+            <td class="ad-seen mono num">{{ alertTime(r.at_ms) }}</td>
+            <td class="ad-jobcell">
+              <button
+                type="button"
+                class="ad-job"
+                :title="jobName(r)"
+                :disabled="props.writing"
+                @click="emit('open-job', r.job_id)"
+              >
+                {{ jobName(r) }}
+              </button>
+              <span class="ad-jobid mono">{{ keyName(r) }}</span>
+            </td>
+            <td class="ad-acctkey">
+              <span class="ad-acct mono num" data-testid="alert-cost-figures">{{ r.expected }} → {{ r.actual }}</span>
+              <span v-if="r.detail" class="ad-key">source: {{ r.detail }}</span>
+            </td>
+            <td class="ad-ack">
+              <span v-if="r.acknowledged_ms === null" class="ad-faint">not yet</span>
+              <span v-else class="ad-acked">{{ acked(r) }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- the rows of a pool drift: what the upstream reported against what the relay computed -->
+      <table v-else-if="detail.kind === 'pool_drift'" class="ad__table" data-testid="alert-pool-rows">
+        <caption>
+          Reported balances far from the computed one
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="is-first">When</th>
+            <th scope="col">Account · pool</th>
+            <th scope="col">Reported · computed</th>
+            <th scope="col" class="is-last">Acknowledged</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in poolRows" :key="r.id">
+            <td class="ad-seen mono num">{{ alertTime(r.at_ms) }}</td>
+            <td class="ad-acctkey">
+              <span class="ad-acct mono">{{ r.account_label ?? r.account_id.slice(0, 8) }}</span>
+              <span class="ad-key">{{ r.pool }}</span>
+            </td>
+            <td class="ad-acctkey">
+              <span class="ad-acct mono num">reported {{ r.actual }} · computed {{ r.expected }}</span>
+            </td>
+            <td class="ad-ack">
+              <span v-if="r.acknowledged_ms === null" class="ad-faint">not yet</span>
+              <span v-else class="ad-acked">{{ acked(r) }}</span>
             </td>
           </tr>
         </tbody>

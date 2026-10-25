@@ -408,3 +408,27 @@ def test_pool_refill_window_adds_an_empty_column_keeps_every_pool_row_and_lets_t
             c.execute("UPDATE account_pools SET refill_window = '5h' WHERE account_id = %s", (account,))
         with _owner(dsn) as c:
             assert _rows(c, "account_pools", "account_id = '%s'" % account)[0]["refill_window"] == "5h"
+
+
+# ---- pool_drift alerts: the worker stores them next to the wallet and cost alerts ------------------------------
+POOL_DRIFT_SQL = "packages/relay-core/src/relay_core/db/migrations/0026_pool_drift_alerts.sql"
+
+
+@mutation(POOL_DRIFT_SQL, "    CHECK (alert <> 'pool_drift' OR (account_id IS NOT NULL AND scope IS NOT NULL",
+          "    CHECK (alert <> 'pool_drift' OR (scope IS NOT NULL", expect="DID NOT RAISE")
+@mutation(POOL_DRIFT_SQL, "    CHECK (alert IN ('cost_mismatch', 'pool_drift') OR (key_id IS NOT NULL",
+          "    CHECK (true OR (key_id IS NOT NULL", expect="DID NOT RAISE")
+def test_a_pool_drift_names_its_account_pool_and_figures_and_a_wallet_alert_still_names_its_key(db):
+    account = uuid.uuid4()
+    with psycopg.connect(db.worker_dsn, autocommit=True, options="-c search_path=relay") as c:
+        c.execute("INSERT INTO billing_alerts (alert, account_id, scope, provider, expected, actual) "
+                  "VALUES ('pool_drift', %s, 'video', 'p1', 4, 0)", (account,))
+    with pytest.raises(psycopg.errors.CheckViolation):
+        db.run("INSERT INTO billing_alerts (alert, scope, provider, expected, actual) "
+               "VALUES ('pool_drift', 'video', 'p1', 4, 0)")
+    with pytest.raises(psycopg.errors.CheckViolation):
+        db.run("INSERT INTO billing_alerts (alert, account_id, scope, provider, expected, actual) "
+               "VALUES ('drift', %s, 'video', 'p1', 4, 0)", account)          # a wallet drift names its key
+    db.run("INSERT INTO billing_alerts (alert, job_id, provider, price_key, expected, actual) "
+           "VALUES ('cost_mismatch', %s, 'p1', 'k', 1, 2)", db.job(db.key(("p1", None, None))))
+    assert db.one("SELECT count(*) FROM billing_alerts")[0] == 2

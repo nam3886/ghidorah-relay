@@ -13,7 +13,7 @@ from accountkit import done_job, new_account
 from jobkit import key as new_key
 from page_helpers import click_tab, settle, sideways
 from patchright.sync_api import expect
-from test_admin_alert_groups import group_of, plant_unclear, stamp
+from test_admin_alert_groups import group_of, plant_cost, plant_pool_drift, plant_unclear, stamp
 from test_admin_alerts import plant
 
 pytestmark = pytest.mark.browser
@@ -691,6 +691,27 @@ def test_the_lists_the_live_condition_the_filters_and_the_one_customer_mark(app,
     choose(page, "Kind", "All")
     choose(page, "Status", "Open")
     expect(groups(page)).to_have_count(5)
+
+
+def test_a_cost_mismatch_and_a_pool_drift_show_their_figures_and_open_their_job(app, app_session, db):
+    page = app_session
+    k = new_key(db)
+    plant_cost(db, k, expected=1, actual=3)
+    acc = new_account(db, label="drifty", checked=True)
+    plant_pool_drift(db, acc, expected=4, actual=0)
+    open_tab(page, "Alerts")
+    expect(groups(page)).to_have_count(2)
+    expect(group_row(page, "fake-video on fake: expected 1, actual 3")).to_be_visible()
+    expect(group_row(page, "video pool of drifty: reported 0, computed 4")).to_be_visible()
+    open_group(page, "video pool of drifty")
+    expect(page.get_by_test_id("alert-pool-rows")).to_contain_text("reported 0 · computed 4")
+    close_detail(page)
+    open_group(page, "fake-video on fake")
+    detail = page.get_by_test_id("alert-detail")
+    expect(detail.get_by_test_id("alert-cost-figures")).to_have_text("1 → 3")
+    expect(detail.get_by_test_id("alert-cost-rows")).to_contain_text("source: reply")
+    detail.get_by_test_id("alert-cost-rows").locator("tbody tr").get_by_role("button").click()
+    expect(page.get_by_test_id("job-drawer")).to_be_visible()
 
 
 def test_mute_resolved_today_the_rules_and_open_jobs_filtered_work_against_the_real_routes(app, app_session, db):

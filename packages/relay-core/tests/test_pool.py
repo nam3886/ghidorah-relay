@@ -4,6 +4,7 @@ setting, and the account effects (rest and cooldown by GREATEST, one strike coun
 account, the Balance rules)."""
 
 import asyncio
+import dataclasses
 import uuid
 from contextvars import Context
 from datetime import UTC, date, datetime, time, timedelta
@@ -372,8 +373,8 @@ def test_sum_windows_spend_the_window_that_refills_first_and_add_up_their_rooms(
         "the reported balance leads (over 50 a day): less only what was spent after it"
 
 
-@mutation(P, "    left = min(rooms) if cfg.combine == \"all\" else sum(max(0, room) for room in rooms)\n",
-          "    left = max(rooms) if cfg.combine == \"all\" else sum(max(0, room) for room in rooms)\n",
+@mutation(P, "    computed = None if not rooms else min(rooms) if cfg.combine == \"all\" else sum(",
+          "    computed = None if not rooms else max(rooms) if cfg.combine == \"all\" else sum(",
           expect="the tightest window")
 @mutation(P, "    return None if not known else min(known) if cfg.combine == \"all\" else sum(known)\n",
           "    return None if not known else max(known) if cfg.combine == \"all\" else sum(known)\n",
@@ -1102,6 +1103,52 @@ def test_a_later_report_replaces_an_earlier_one_and_a_zero_never_shortens_a_long
     until, reason = db.one("SELECT rest_until, rest_reason FROM account_pools WHERE account_id = %s AND pool = 'video'",
                            a)
     assert until > FUTURE + timedelta(days=2) and reason == "long"
+
+
+# ---- effects: Balance far from the computed one (pool_drift) -----------------------------------------------------
+DRIFTING = {"video": dataclasses.replace(CFG, drift_alert=2), "image": dataclasses.replace(NO_WINDOW, drift_alert=2)}
+
+
+async def reports(p, account_id, *effs, pools=None):
+    async with tx(p) as conn:
+        await pool.apply_effects(conn, account_id, effs, CAPS, pools or DRIFTING)
+
+
+def drifts(db, account_id):
+    return db.all("SELECT scope, provider, expected, actual, detail FROM billing_alerts WHERE alert = 'pool_drift' "
+                  "AND account_id = %s ORDER BY id", account_id)
+
+
+@mutation(P, "            if computed is None or abs(reported_left - computed) <= cfg.drift_alert:\n",
+          "            if computed is None:\n", expect="within the threshold")
+@mutation(P, "AND b.scope = %(p)s AND b.at >= %(since)s)", "AND b.scope = %(p)s AND false)", expect="once per window")
+@mutation(P, "            await _drift_alert(conn, account_id, cfg, row, e.left_n)\n", "", expect="no drift alert")
+def test_a_reported_balance_far_from_the_computed_one_raises_one_pool_drift_per_account_pool_and_window(db):
+    far, near, no_window, off = account(db), account(db), account(db), account(db)
+
+    async def scenario(p):
+        await reports(p, far, Balance("video", 0))            # free budget 4, nothing spent: 4 away (> 2)
+        await reports(p, far, Balance("video", 9))            # the same window: no second alert
+        await reports(p, near, Balance("video", 2))           # 2 away: within the threshold
+        await reports(p, no_window, Balance("image", 0))      # no window: nothing to compare with
+        await reports(p, off, Balance("video", 0), pools=POOLS)      # the alert is off (no threshold)
+
+    run(db, scenario)
+    assert drifts(db, far) == [("video", "p1", 4, 0, "the upstream reported 0 jobs left, the relay computed 4")], \
+        "no drift alert, or not once per window: %s" % drifts(db, far)
+    assert drifts(db, near) == [], "a report within the threshold raised an alert"
+    assert drifts(db, no_window) == [] and drifts(db, off) == [], "an alert turned off was raised"
+    assert pool_row(db, far)[0] == 9, "the report itself is recorded as before"
+
+
+def test_the_drift_is_the_reported_balance_less_the_computed_one_and_the_threshold_is_the_setting():
+    reported = pool.standing(CFG, "free", [(NOON - HOUR, 1)], NOON, Reported(0, NOON - MINUTE))
+    assert (reported.left, reported.computed, reported.drift) == (0, 3, -3)
+    computed = pool.standing(CFG, "free", [], NOON)
+    assert (computed.source, computed.drift) == ("computed", None), "no report: no drift"
+    assert pool.standing(NO_WINDOW, "free", [], NOON, Reported(2, NOON)).drift is None, "no window: no drift"
+    cfgs = pool.pool_configs("p1", CAPS, {"p1.pools": {"video": day_pool({"free": 4})}, "alert_pool_drift": 7}.get)
+    assert cfgs["video"].drift_alert == 7
 
 
 # ---- effects: Tier ----------------------------------------------------------------------------------------------

@@ -44,11 +44,12 @@ def pool_view(cfg: PoolConfig, state: PoolState) -> dict:
     """One pool of one account as the admin lists it, what the next claim will see: `left_today` is its effective
     balance (None = unknown), `source` says where it comes from (`reported`, `computed` or `unknown`), `left_n` is
     the balance the upstream last reported, `budget` the tier's units in the windows and `windows` each window's
-    budget, spend and refill. `drift` is gone (spend is computed from the charges, so it cannot disagree with them)."""
+    budget, spend and refill. `drift` is the reported balance less the computed one while a report is the balance
+    (null otherwise, or when the windows cannot compute one)."""
     st = state.standing
     return {
         "pool": cfg.name, "unit": cfg.unit, "left_n": None if state.reported is None else state.reported.left,
-        "left_today": st.left, "budget": pool_budget(state), "drift": None, "source": st.source, "day_anchor": None,
+        "left_today": st.left, "budget": pool_budget(state), "drift": st.drift, "source": st.source, "day_anchor": None,
         "rest_until_ms": ms(state.rest_until), "rest_reason": state.rest_reason,
         "windows": [{"name": w.name, "kind": w.kind, "budget": w.budget, "spent": w.spent, "refill_ms": ms(w.refill_at)}
                     for w in st.windows]}

@@ -45,6 +45,10 @@ PREVIEW_MARK = "/t58.90637-"                             # the low-res preview t
 RATIO_TAIL = ", %s"
 RATIOS = {"image": ("16:9", "9:16", "1:1", "4:3", "3:4"), "video": ("16:9", "9:16")}
 RATIO_UNTYPED = (("video", "16:9"),)
+# meta's limit or quota answer (an answer with no media), lowercased, straight apostrophes. NOT measured: no relay
+# capture holds one yet; these are the wordings the earlier meta tool (meta2api `limit_phrases`) watched for.
+LIMIT_PHRASES = ("reached your limit", "reached the limit", "hit your limit", "limit for today", "daily limit",
+                 "out of quota", "too many requests", "come back later", "come back tomorrow")
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 PAGE_LOAD_TIMEOUT_S = 60        # the first load of the app over a proxy

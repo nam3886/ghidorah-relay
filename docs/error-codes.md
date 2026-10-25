@@ -161,6 +161,7 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|
 | `qwen.http_error` | 502 | api_error | no | yes | yes | 0 | yes | qwen answered with an error before the order was sent |
+| `qwen.image_limit` | 503 | api_error | no | no | no | 0 | yes | the qwen account used up its daily images; nothing was made, it is sent to another account |
 | `qwen.image_lost` | 502 | api_error | yes | yes | no | 0 | yes | qwen lost the image while it was drawn; the charge is returned |
 | `qwen.mint_failed` | 502 | api_error | no | yes | yes | 0 | yes | the security headers for qwen could not be made; the order was not sent |
 | `qwen.out_of_credits` | 503 | api_error | yes | yes | no | 0 | yes | the qwen account had too few credits for this; the charge is returned |

@@ -188,6 +188,10 @@ REGISTRY = Registry(
          "Hours between checks of a dead account (a live one follows its provider's interval). A re-import that "
          "merges into it is checked at once.", min=1),
     Spec("alert_accounts_low", int, 3, "Alert when a provider has fewer usable accounts than this.", min=0),
+    Spec("alert_pool_drift", int, 5,
+         "Alert (pool_drift) when an upstream reports an account's pool balance more than this many units away from "
+         "the balance the relay computed from its budget and charges; at most one alert per account and pool per "
+         "window.", min=0),
     Spec("filename_pattern", str, "{prompt}_{duration}", "Download filename template.",
          rule=Rule("not empty", _filename_pattern)),
     Spec("dashboard_tz", str, "Asia/Ho_Chi_Minh",

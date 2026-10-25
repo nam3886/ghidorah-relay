@@ -73,6 +73,7 @@ from relay_core.providers import (
 )
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.mutation import mutation
+from relay_qwen import errors
 from relay_qwen.credential import cred_of
 from relay_qwen.engine import results as R
 from relay_qwen.engine.http import Sessions
@@ -346,6 +347,42 @@ def test_an_image_stream_that_ends_with_words_and_no_image_is_qwen_refusing():
     result = run_submit(Qwen(log, send=answer), Ctx(log))
     assert isinstance(result.job, Fail) and result.job.code == "qwen.refused", result.job
     assert "can't create" in result.job.detail
+
+
+IMAGE_QUOTA = "You’ve used up your daily image generation quota. Upgrade your plan to generate more images."
+QUOTA_BRANCH = '        if verdict == "refused" and kind == "image" and is_image_quota(said):\n'
+
+
+@mutation(SUBMIT_FILE, QUOTA_BRANCH, '        if False:\n', expect="qwen.image_limit")
+@mutation(SUBMIT_FILE, "NotTaken(errors.IMAGE_LIMIT, {\"limit_chat\": chat}), Balance(pool, 0), *rest)",
+          "NotTaken(errors.IMAGE_LIMIT, {\"limit_chat\": chat}), *rest)", expect="the image pool")
+def test_the_daily_image_quota_answer_requeues_the_job_with_no_attempt_and_empties_the_image_pool():
+    """Measured 25/10: the 11th image of the day on one account got this answer and no image."""
+    log = []
+    answer = stream({"role": "assistant", "content": IMAGE_QUOTA, "phase": "answer", "status": "typing"},
+                    {"content": "", "status": "finished", "phase": "answer"})
+    result = run_submit(Qwen(log, send=answer), Ctx(log))
+    assert isinstance(result.job, NotTaken) and result.job.code == "qwen.image_limit", "qwen.image_limit: %s" % (
+        result.job,)
+    assert Balance("image", 0) in result.account, "the image pool was not emptied: %s" % (result.account,)
+    rule = errors.CODES["qwen.image_limit"]
+    assert not rule.counts_attempt and not rule.terminal, "a used-up account is not the job's fault"
+    # the same words on a video job are no image quota: an ordinary refusal
+    video = {"success": True, "data": {"chat_id": CHAT, "messages": [
+        {"role": "assistant", "content": IMAGE_QUOTA, "extra": {}, "status": "finished"}]}}
+    log = []
+    assert run_submit(Qwen(log, send=video), Ctx(log), job(VIDEO)).job.code == "qwen.refused"
+
+
+@mutation(RESULTS_FILE, '    if (message or {}).get("done") is True and is_image_quota(text_of(message)):\n',
+          "    if False:\n", expect="out_of_credits")
+def test_a_lost_image_answer_found_to_be_the_quota_is_refunded_and_empties_the_image_pool():
+    record = {"success": True, "data": {"chat": {"messages": [
+        {"role": "user", "content": "x"}, {"role": "assistant", "content": IMAGE_QUOTA, "done": True}]}}}
+    got = run_poll(Qwen([], chat=record), job(state={"chat": CHAT}))
+    assert isinstance(got.outcome, Failed) and got.outcome.code == "qwen.out_of_credits", "out_of_credits: %s" % (
+        got.outcome,)
+    assert got.effects == (Balance("image", 0),)
 
 
 def test_an_image_link_counts_even_in_a_stream_cut_after_it_and_a_cut_before_it_is_unknown():

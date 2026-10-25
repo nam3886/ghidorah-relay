@@ -43,6 +43,7 @@ WINDOWS = {1: "5h", 2: "week"}
 # (25/10; the default Flash-Lite draws "Nano Banana 2 Lite"), so a `gemini-nano-banana-2.1` job is sent with it. Kept
 # with its kind in `provider_state.pro_mode` as `[id, kind]`; None on a plan without it.
 PRO_MODE_NAME = "Pro"
+SHORT_WINDOW = 1           # jSf9Qc's code of the 5-hour window (2 is the week)
 
 
 def account_read(text: str) -> tuple[Balance | Tier, ...]:
@@ -72,6 +73,22 @@ async def read_account(site: Site) -> tuple[Balance | Tier, ...]:
     except httpx.HTTPError:
         return ()
     return account_read(body) if status == 200 else ()
+
+
+def short_window(text: str) -> tuple[int, datetime | None] | None:
+    """The 5-hour usage window of a jSf9Qc answer: its units left and its reset; None when it cannot be read."""
+    usage = usage_of(text)
+    found = [(left, epoch_time(reset)) for left, reset, w in (usage[1] if usage else ()) if w == SHORT_WINDOW]
+    return found[0] if found else None
+
+
+async def read_short_window(site: Site) -> tuple[int, datetime | None] | None:
+    """The account's 5-hour usage window now (a read: it spends nothing); None when gemini does not answer it."""
+    try:
+        status, body = await site.rpc(USAGE, [], path=USAGE_PATH)
+    except httpx.HTTPError:
+        return None
+    return short_window(body) if status == 200 else None
 
 
 def doubt_effects(why: str, now: datetime) -> tuple[Suspect, Cooldown]:

@@ -22,8 +22,8 @@ MARKER = "PLANTED-MARKER-7f3a"
 
 ACK_UNCLEAR = "WHERE group_id = %s AND id <= %s AND acknowledged_at IS NULL"
 ACK_UNCLEAR_ALL = "WHERE group_id = %s AND %s IS NOT NULL AND acknowledged_at IS NULL"
-ACK_BILLING = "AND key_id = %s AND scope = %s AND id <= %s AND acknowledged_at IS NULL"
-ACK_BILLING_ALL = "AND key_id = %s AND scope = %s AND %s IS NOT NULL AND acknowledged_at IS NULL"
+ACK_BILLING = '"AND " + where + " AND id <= %s AND acknowledged_at IS NULL"'
+ACK_BILLING_ALL = '"AND " + where + " AND %s IS NOT NULL AND acknowledged_at IS NULL"'
 ACK_BY_KIND = "acknowledged_by = %s WHERE alert = %s "
 ACK_ANY_KIND = "acknowledged_by = %s WHERE %s IS NOT NULL "
 OPEN_FILTER = '(">" if status == "open" else "=")'
@@ -81,7 +81,8 @@ def code_of(r) -> str:
 
 
 # ---- the list ---------------------------------------------------------------------------------------------------
-@mutation(ALERTS, "SOURCES = (BILLING, UNCLEAR)", "SOURCES = (UNCLEAR,)", expect="a clamp and a drift are missing")
+@mutation(ALERTS, "SOURCES = (BILLING, UNCLEAR, COST, POOL_DRIFT)", "SOURCES = (UNCLEAR, COST, POOL_DRIFT)",
+          expect="a clamp and a drift are missing")
 def test_one_list_holds_a_clamp_a_drift_and_an_unclear_group_in_the_common_shape(db):
     k, clamp, drift = plant(db)
     plant_unclear(db, k, "Hmm, order [12] is odd.")
@@ -536,3 +537,105 @@ def test_a_key_made_with_a_label_of_spaces_is_named_by_its_prefix_in_the_alerts(
 
     [row] = run_app(db, scenario).json()["items"]
     assert made["prefix"] and row["key_label"] == made["prefix"], "named by its prefix: %r" % row["key_label"]
+
+
+# ---- cost mismatches and pool drifts: planted directly, as the writers will write them ----------------------------
+def plant_cost(db, key_id, price_key="fake-video", expected=1, actual=3, provider="fake") -> tuple[int, uuid.UUID]:
+    """One cost_mismatch row on a new done job of `key_id`, as the money writer stores it; returns (row id, job)."""
+    job_id = plant_job(db, key_id, "done", provider=provider)
+    row = db.one("INSERT INTO billing_alerts (alert, job_id, provider, price_key, expected, actual, detail) "
+                 "VALUES ('cost_mismatch', %s, %s, %s, %s, %s, 'reply') RETURNING id",
+                 job_id, provider, price_key, expected, actual)[0]
+    return row, job_id
+
+
+def plant_pool_drift(db, account_id, pool="video", expected=4, actual=0, provider="fake") -> int:
+    return db.one("INSERT INTO billing_alerts (alert, account_id, scope, provider, expected, actual, detail) "
+                  "VALUES ('pool_drift', %s, %s, %s, %s, %s, 'planted') RETURNING id",
+                  account_id, pool, provider, expected, actual)[0]
+
+
+COST_SOURCE = "SOURCES = (BILLING, UNCLEAR, COST, POOL_DRIFT)"
+COST_GROUP = "b.provider || '.' || b.price_key AS grp"
+COST_ACK = 'KIND_COST: ("provider", "price_key")'
+
+
+@mutation(ALERTS, COST_SOURCE, "SOURCES = (BILLING, UNCLEAR, POOL_DRIFT)",
+          expect="the hub knows no cost_mismatch")
+@mutation(ALERTS, COST_GROUP, "b.provider AS grp", expect="one group per provider and price key")
+@mutation(ALERTS, "WHERE t.id = max(b.id)) AS title, b.provider,", "WHERE t.id = min(b.id)) AS title, b.provider,",
+          expect="the newest figures")
+@mutation(ALERTS, COST_ACK, 'KIND_COST: ("price_key", "provider")', expect="the rows of the group")
+def test_cost_mismatches_group_by_provider_and_price_key_show_expected_and_actual_and_link_their_jobs(db):
+    k = key(db)
+    other = key(db)
+    old, _ = plant_cost(db, k, expected=1, actual=2)
+    new, new_job = plant_cost(db, other, expected=1, actual=3)
+    image, _ = plant_cost(db, k, price_key="fake-image", expected=1, actual=0)
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        listed = await env.client.get(groups_url("?kind=cost_mismatch"), headers=h)
+        detail = await env.client.get(detail_url("cost_mismatch", "fake.fake-video"), headers=h)
+        ack = await env.client.post(detail_url("cost_mismatch", "fake.fake-video") + "/acknowledge",
+                                    json={"through_id": new}, headers=h)
+        image_after = await env.client.get(detail_url("cost_mismatch", "fake.fake-image"), headers=h)
+        return listed, detail, ack, image_after
+
+    listed, detail, ack, image_after = run_app(db, scenario)
+    assert listed.status_code == 200, "the hub knows no cost_mismatch: %s" % listed.text
+    groups = {g["group"]: g for g in listed.json()["items"]}
+    assert set(groups) == {"fake.fake-video", "fake.fake-image"}, "one group per provider and price key: %s" % groups
+    video = groups["fake.fake-video"]
+    assert (video["kind"], video["severity"], video["provider"], video["count"], video["keys"], video["newest_id"]) == (
+        "cost_mismatch", "error", "fake", 2, 2, new), "a cost mismatch is missing: %s" % video
+    assert video["title"] == "fake-video on fake: expected 1, actual 3", "the newest figures: %s" % video["title"]
+    rows = detail.json()["items"]
+    assert [(r["id"], r["expected"], r["actual"], r["detail"]) for r in rows] == [
+        (new, 1, 3, "reply"), (old, 1, 2, "reply")], "the rows of the group: %s" % rows
+    assert rows[0]["job_id"] == str(new_job) and rows[0]["key_id"] == str(other) and rows[0]["job_title"]
+    assert ack.json()["acknowledged"] == 2, "the acknowledge stamped %s" % ack.json()
+    assert image_after.json()["open_count"] == 1 and image_after.json()["items"][0]["id"] == image, \
+        "the acknowledge stamped another price key's row"
+
+
+POOL_SOURCE_GROUP = "b.account_id::text || '.' || b.scope AS grp"
+
+
+@mutation(ALERTS, COST_SOURCE, "SOURCES = (BILLING, UNCLEAR, COST)", expect="the hub knows no pool_drift")
+@mutation(ALERTS, POOL_SOURCE_GROUP, "b.scope AS grp", expect="one group per account and pool")
+@mutation(ALERTS, 'KIND_POOL_DRIFT: ("account_id", "scope")', 'KIND_POOL_DRIFT: ("provider", "scope")',
+          expect="the rows of the group")
+def test_pool_drifts_group_by_account_and_pool_name_the_account_and_resolve_today(db):
+    a = account(db)
+    b = account(db)
+    db.run("UPDATE accounts SET label = 'Acc A' WHERE id = %s", a)
+    first = plant_pool_drift(db, a, expected=4, actual=1)
+    newest = plant_pool_drift(db, a, expected=4, actual=0)
+    plant_pool_drift(db, b, expected=4, actual=9)
+    group = "%s.video" % a
+
+    async def scenario(env):
+        h = await env.admin_headers()
+        listed = await env.client.get(groups_url("?kind=pool_drift"), headers=h)
+        detail = await env.client.get(detail_url("pool_drift", group), headers=h)
+        ack = await env.client.post(detail_url("pool_drift", group) + "/acknowledge", json={"through_id": newest},
+                                    headers=h)
+        resolved = await env.client.get("/admin/alerts/resolved", headers=h)
+        bad = await env.client.get(detail_url("pool_drift", "not-an-account.video"), headers=h)
+        return listed, detail, ack, resolved, bad
+
+    listed, detail, ack, resolved, bad = run_app(db, scenario)
+    assert listed.status_code == 200, "the hub knows no pool_drift: %s" % listed.text
+    groups = {g["group"]: g for g in listed.json()["items"]}
+    assert set(groups) == {group, "%s.video" % b}, "one group per account and pool: %s" % groups
+    mine = groups[group]
+    assert (mine["severity"], mine["provider"], mine["count"], mine["keys"]) == ("warning", "fake", 2, 0), \
+        "a pool drift is missing: %s" % mine
+    assert mine["title"] == "video pool of Acc A: reported 0, computed 4"
+    assert groups["%s.video" % b]["title"].startswith("video pool of %s" % b), "an account with no label: its id"
+    assert [(r["id"], r["pool"], r["expected"], r["actual"], r["account_label"]) for r in detail.json()["items"]] == [
+        (newest, "video", 4, 0, "Acc A"), (first, "video", 4, 1, "Acc A")], "the rows of the group"
+    assert ack.json()["acknowledged"] == 2, "the acknowledge stamped %s" % ack.json()
+    assert [(i["kind"], i["group"]) for i in resolved.json()["items"]] == [("pool_drift", group)]
+    assert bad.status_code == 404

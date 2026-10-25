@@ -128,6 +128,7 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "log_retention_days": 30, "media_orphan_age_h": 6, "media_orphan_sweep": True,
         "unsent_deadline_s": 10_800, "session_ttl_s": 86_400,
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3, "dead_check_interval_h": 24,
+        "alert_pool_drift": 5,
         "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh"}
 
 
@@ -289,7 +290,7 @@ def test_every_core_setting_states_what_it_allows():
         "log_retention_days": "at least 1", "media_orphan_age_h": "at least 1", "media_orphan_sweep": "true or false",
         "unsent_deadline_s": "at least 60", "session_ttl_s": "at least 60", "max_unfinished_default": "at least 0",
         "alert_disk_free_gb": "at least 0", "alert_accounts_low": "at least 0", "filename_pattern": "not empty",
-        "dead_check_interval_h": "at least 1",
+        "dead_check_interval_h": "at least 1", "alert_pool_drift": "at least 0",
         "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh"}
     with pytest.raises(SettingsError, match="must not be empty"):
         REGISTRY.specs["filename_pattern"].validate("  ")

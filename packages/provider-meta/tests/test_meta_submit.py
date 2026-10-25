@@ -20,7 +20,19 @@ from relay_browser.evidence import EvidenceWriter
 from relay_core import errors, frames
 from relay_core.net import FetchFailed, UnsafeUrl
 from relay_core.pool import RepeatRest
-from relay_core.providers import Ambiguous, Completed, Cooldown, Dead, Fail, MediaRef, Proxy, Retry, Success, Suspect
+from relay_core.providers import (
+    Ambiguous,
+    Balance,
+    Completed,
+    Cooldown,
+    Dead,
+    Fail,
+    MediaRef,
+    Proxy,
+    Retry,
+    Success,
+    Suspect,
+)
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
@@ -446,6 +458,23 @@ def test_a_done_answer_without_an_image_fails_refunded_and_previews_only_stay_un
                                              'data-streaming-state="DONE" data-streaming-complete="true"')
     result, _ = run(Page([], cap, answers=[previews]), cap)
     assert isinstance(result.job, Ambiguous), "a preview is never delivered"
+
+
+@mutation(SUBMIT_FILE, "        if is_limit(answer_text(self.answer_html)):\n", "        if False:\n",
+          expect="the pool was not emptied")
+@mutation(SUBMIT_FILE, "    def handle_data(self, data) -> None:\n        self.words.append(data)\n",
+          "    def handle_data(self, data) -> None:\n        pass\n", expect="the pool was not emptied")
+def test_a_limit_answer_with_no_media_fails_refunded_as_before_and_empties_the_kinds_pool():
+    cap = capture("image-1-acc1")
+    limit = ('<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true">'
+             "<p>You’ve reached your limit for creating images today. Please come back later.</p></div>")
+    result, _ = run(Page([], cap, answers=[limit]), cap)
+    assert result.job == Fail("meta.no_image", "meta finished its answer with no image"), "the outcome is unchanged"
+    assert Balance("image", 0, NOW + timedelta(hours=4)) in result.account, \
+        "the pool was not emptied: %s" % (result.account,)
+    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
+    assert not any(isinstance(e, Balance) for e in run(Page([], cap, answers=[bare]), cap)[0].account), \
+        "a plain refusal empties no pool"
 
 
 @mutation(SUBMIT_FILE, "        if answer.previews:\n            # a part delivery",

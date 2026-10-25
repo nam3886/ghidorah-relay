@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 from geminikit import (
     I2V_ACCEPTED,
     I2V_DONE,
@@ -14,6 +15,7 @@ from geminikit import (
     I2V_PROMPT,
     MODE_FLASH_LITE,
     NOT_ENTITLED,
+    PRO_USAGE,
     T2V_ACCEPTED,
     T2V_DONE,
     T2V_PENDING,
@@ -34,6 +36,7 @@ from relay_core.net import FetchFailed
 from relay_core.providers import (
     Accepted,
     Ambiguous,
+    Balance,
     Completed,
     Cooldown,
     Done,
@@ -41,7 +44,6 @@ from relay_core.providers import (
     Failed,
     Output,
     Pending,
-    Rest,
     Retry,
     Success,
 )
@@ -179,12 +181,13 @@ def test_a_generating_answer_that_names_no_chat_is_unknown():
 
 
 LIMIT = "    if video and is_video_limit(final):\n"
-LIMIT_REST = "    return (limit_rest(settings, now),) if code == errors.VIDEO_LIMIT or quota else ()"
+LIMIT_REST = ("        return (spent,) if spent is not None and spent.refill_at is not None else "
+              "(limit_balance(settings, now),)")
 
 
 @mutation(SUBMIT_FILE, LIMIT, "    if False:\n", expect="the video limit")
 @mutation(SUBMIT_FILE, "    if NOT_ENTITLED_LINK in final:\n", "    if False:\n", expect="the upgrade answer")
-@mutation(SUBMIT_FILE, LIMIT_REST, "    return ()", expect="the video pool did not rest")
+@mutation(SUBMIT_FILE, LIMIT_REST, "        return ()", expect="the video pool did not rest")
 def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_video_pool():
     text = "I can't create more videos for you today, but I can still find videos from the web."
     log = []
@@ -192,8 +195,8 @@ def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_vid
     assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
         "the video limit answer became %s" % (result.job,)
     assert errors.CODES[errors.VIDEO_LIMIT].refund and errors.CODES[errors.VIDEO_LIMIT].terminal
-    assert Rest("video", NOW + timedelta(seconds=5 * 3600), "gemini answered the account's video limit is reached") \
-        in result.account, "the video pool did not rest: %s" % (result.account,)
+    assert Balance("video", 0, NOW + timedelta(seconds=5 * 3600)) in result.account, \
+        "the video pool did not rest: %s" % (result.account,)
     # the same words on an image job are an ordinary refusal; the free plan's answer stays not_entitled
     log = []
     assert run(pro_site(log, send=answer(text)), pro_ctx(log), job()).job.code == errors.REFUSED
@@ -257,14 +260,15 @@ def test_poll_reads_the_chat_until_the_video_is_there():
     assert turns(I2V_PENDING)[0][0].images == () and turns(I2V_PENDING)[0][0].videos == ()
 
 
-POLL_LIMIT = "                          effects=refusal_rests(settings, now(), code, text, is_video(job)))"
+POLL_LIMIT = "                          effects=limit_effects(settings, now(), code, text, is_video(job), spent))"
 
 
 @mutation(RESULTS_FILE, POLL_LIMIT, "                          effects=())", expect="the video pool did not rest")
 def test_a_chat_that_answered_the_video_limit_fails_refunded_and_rests_the_video_pool():
     got = poll(pro_site([], rpc={"hNvQHb": VIDEO_LIMIT}), video_job(state={"chat": "c_000000000000a000"}))
     assert isinstance(got.outcome, Failed) and got.outcome.code == errors.VIDEO_LIMIT, got.outcome
-    assert [e.pool for e in got.effects if isinstance(e, Rest)] == ["video"], "the video pool did not rest"
+    assert [e.pool for e in got.effects if isinstance(e, Balance) and e.left_n == 0] == ["video"], \
+        "the video pool did not rest"
 
 
 def test_a_lost_video_send_is_found_by_its_exact_text_like_an_image():
@@ -490,13 +494,14 @@ def test_a_generating_answer_with_any_other_text_is_accepted_never_refunded_and_
 LOWER = '    t = text.lower().replace("\\u2019", "\'")'
 CANNOT = '    t = t.replace("cannot", "can\'t").replace("can not", "can\'t")'
 PUNCT = "    return \" \".join(re.sub(r\"[^\\w']+\", \" \", t).split())"
-QUOTA = "    quota = video and code == errors.REFUSED and any(w in plain(text) for w in QUOTA_WORDS)"
+QUOTA = ("    return code == errors.VIDEO_LIMIT or (code == errors.REFUSED and any(w in plain(text) "
+         "for w in QUOTA_WORDS))")
 
 
 @mutation(SUBMIT_FILE, LOWER, '    t = text.replace("\\u2019", "\'")', expect="a variant of the limit")
 @mutation(SUBMIT_FILE, CANNOT, "    t = t", expect="a variant of the limit")
 @mutation(SUBMIT_FILE, PUNCT, "    return t", expect="a variant of the limit")
-@mutation(SUBMIT_FILE, QUOTA, "    quota = False", expect="a quota-like answer")
+@mutation(SUBMIT_FILE, QUOTA, "    return code == errors.VIDEO_LIMIT", expect="a quota-like answer")
 def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_any_language_rests_the_video_pool():
     for text in ("I CAN'T CREATE MORE VIDEOS FOR YOU TODAY.", "I can’t create more videos for you today",
                  "Sorry, I cannot create more videos right now.", "You've reached your daily video limit!",
@@ -509,13 +514,12 @@ def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_a
         log = []
         result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
         assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED
-        assert [e.pool for e in result.account if isinstance(e, Rest) and e.until > NOW + timedelta(hours=1)] \
-            == ["video"], "a quota-like answer did not rest the video pool: %r" % text
+        assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] \
+            == ["video"], "a quota-like answer did not empty the video pool: %r" % text
     log = []
     result = run(pro_site(log, send=answer("I can't make videos of real people.")), pro_ctx(log), video_job())
     assert result.job.code == errors.REFUSED
-    assert not any(isinstance(e, Rest) and e.until > NOW + timedelta(hours=1) for e in result.account), \
-        "a content refusal rested the video pool"
+    assert not any(isinstance(e, Balance) for e in result.account), "a content refusal emptied the video pool"
 
 
 def test_the_limit_resets_answer_is_the_limit_and_a_hard_time_answer_with_no_task_is_a_plain_refusal():
@@ -527,13 +531,12 @@ def test_the_limit_resets_answer_is_the_limit_and_a_hard_time_answer_with_no_tas
                  video_job())
     assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
         "the limit resets answer became %s" % (result.job,)
-    assert [e.pool for e in result.account if isinstance(e, Rest) and e.until > NOW + timedelta(hours=1)] == ["video"]
+    assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] == ["video"]
     hard = "I'm having a hard time fulfilling your request. Can I help you with something else instead?"
     log = []
     result = run(pro_site(log, send=answer(hard)), pro_ctx(log), video_job())
     assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
-    assert not any(isinstance(e, Rest) and e.until > NOW + timedelta(hours=1) for e in result.account), \
-        "a content refusal rested the video pool"
+    assert not any(isinstance(e, Balance) for e in result.account), "a content refusal emptied the video pool"
     taken = read_answer(answer(hard))
     taken = type(taken)(taken.clean, taken.ended, taken.payloads, taken.cid, taken.texts, taken.images, taken.errors,
                         taken.videos, True)
@@ -584,3 +587,86 @@ def test_a_pro_tier_image_on_an_account_with_no_pro_mode_is_a_retry_with_nothing
         result = run(pro_site(log, send=answer("", image=True)), nb21_ctx(log, state), job(model=NB21))
         assert log.count("SEND") == 0 and "mark_sent" not in log, "sent without the Pro mode: %s" % (state,)
         assert result.job == Retry(errors.UNRESOLVED)
+
+
+
+# ---- limits become a zero balance until the reset ----------------------------------------------------------------
+RESET = datetime.fromtimestamp(1792814865, UTC)              # the 5-hour window's reset in PRO_USAGE
+
+
+def usage(left: int) -> str:
+    """PRO_USAGE with `left` units in its 5-hour window (window code 1)."""
+    return PRO_USAGE.replace("[2400,0,1,", "[%d,0,1," % left)
+
+
+USAGE_SPENT = "            spent = await usage_spent(site, pool) if pool else None\n"
+IMAGE_READ = '    return pool if code == errors.REFUSED else None'
+
+
+@mutation(SUBMIT_FILE, USAGE_SPENT, "            spent = None\n", expect="the usage read's reset")
+@mutation(SUBMIT_FILE, IMAGE_READ, "    return None", expect="a used-up window")
+def test_a_limit_empties_the_pool_until_the_reset_the_usage_read_names_and_an_image_only_on_a_used_up_window():
+    # a video limit on an account whose 5-hour window is used up: the read's reset
+    log = []
+    text = "I can't create more videos for you today, but I can still find videos from the web."
+    result = run(pro_site(log, send=answer(text), rpc={"jSf9Qc": [usage(2400), usage(0)]}), pro_ctx(log),
+                 video_job())
+    assert result.job.code == errors.VIDEO_LIMIT
+    assert Balance("video", 0, RESET, "5h") in result.account, "not the usage read's reset: %s" % (result.account,)
+    # an image refusal, however it is worded, empties nothing while the usage read shows units left
+    for words in ("I can't create more images for you today.", "That is over the limit of what I can draw.",
+                  "I can't help with that."):
+        log = []
+        result = run(pro_site(log, send=answer(words), rpc={"jSf9Qc": usage(2400)}), pro_ctx(log), job())
+        assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, "the job outcome stays a refusal"
+        assert not any(isinstance(e, Balance) for e in result.account), \
+            "an image refusal emptied the image pool on its words: %r" % words
+    # ... and empties the image pool until the reset when the read shows a used-up window
+    log = []
+    result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), pro_ctx(log),
+                 job())
+    assert result.job.code == errors.REFUSED
+    assert Balance("image", 0, RESET, "5h") in result.account, "a used-up window did not empty the image pool: %s" % (
+        result.account,)
+
+
+SHORT = "                if video_room_short(settings, room):\n"
+ROOM = '    return room is not None and room[0] < int(settings.get("gemini.video_usage_units"))'
+
+
+@mutation(SUBMIT_FILE, SHORT, "                if False:\n", expect="sent into a used-up window")
+@mutation(SUBMIT_FILE, ROOM, '    return room is not None and room[0] <= 0', expect="sent into a used-up window")
+def test_a_video_is_not_sent_into_a_five_hour_window_that_cannot_hold_one():
+    """Measured 25/10: about 470 units a video, 2400 per 5 h; the 6th video was taken and never rendered."""
+    log = []
+    result = run(pro_site(log, send=T2V_ACCEPTED, rpc={"jSf9Qc": usage(469)}), pro_ctx(log), video_job())
+    assert log.count("SEND") == 0 and "mark_sent" not in log, "sent into a used-up window: %s" % log
+    assert result.job == Retry("pool.account_out_of_points")
+    assert result.account == (Balance("video", 0, RESET, "5h"),)
+    log = []
+    result = run(pro_site(log, send=T2V_ACCEPTED, rpc={"jSf9Qc": usage(470)}), pro_ctx(log), video_job())
+    assert isinstance(result.job, Accepted) and log.count("SEND") == 1, "one video's room left: it is sent"
+    log = []                                                  # an unreadable usage read never blocks the send
+    result = run(pro_site(log, send=T2V_ACCEPTED, rpc={"jSf9Qc": httpx.Response(500)}), pro_ctx(log), video_job())
+    assert isinstance(result.job, Accepted)
+
+
+SILENT = "    if video_room_short(settings, room):\n"
+DUE = '    return job.sent_at is not None and (now - job.sent_at).total_seconds() >= int(\n'
+
+
+@mutation(RESULTS_FILE, SILENT, "    if False:\n", expect="a silent render on a used-up window")
+@mutation(RESULTS_FILE, DUE, '    return job.sent_at is not None and (now - job.sent_at).total_seconds() >= 0 * int(\n',
+          expect="given up too soon")
+def test_a_video_still_generating_on_a_used_up_window_fails_as_the_limit_after_the_grace():
+    chat = {"chat": "c_000000000000a001"}
+    old = video_job(state=chat)                               # sent hours before NOW
+    got = poll(pro_site([], rpc={"hNvQHb": T2V_PENDING, "jSf9Qc": usage(50)}), old)
+    assert isinstance(got.outcome, Failed) and got.outcome.code == errors.VIDEO_LIMIT, \
+        "a silent render on a used-up window: %s" % (got.outcome,)
+    assert got.effects == (Balance("video", 0, RESET, "5h"),)
+    young = video_job(state=chat, sent_at=NOW - timedelta(seconds=120))
+    got = poll(pro_site([], rpc={"hNvQHb": T2V_PENDING, "jSf9Qc": usage(50)}), young)
+    assert isinstance(got.outcome, Pending), "given up too soon: %s" % (got.outcome,)
+    got = poll(pro_site([], rpc={"hNvQHb": T2V_PENDING, "jSf9Qc": usage(2400)}), old)
+    assert isinstance(got.outcome, Pending), "a window with room: the render is waited for"

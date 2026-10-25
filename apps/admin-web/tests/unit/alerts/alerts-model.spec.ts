@@ -244,6 +244,14 @@ describe("alertTitle (a group's name on the Alerts page)", () => {
     expect(alertTitle({ ...clamp, key_label: undefined })).toBe(clamp.title);
     expect(alertTitle({ ...clamp, group: "no-wallet" })).toBe(clamp.title);
   });
+
+  it("a cost mismatch and a pool drift are the server's titles, whatever a key label says", () => {
+    const cost = { ...clamp, kind: "cost_mismatch", group: "flow.flow-veo-3.1-lite@8s", title: "x: expected 10" };
+    expect(alertTitle(cost)).toBe("x: expected 10");
+    expect(alertTitle({ ...cost, kind: "pool_drift", group: "a1.video", title: "video pool of A" })).toBe(
+      "video pool of A",
+    );
+  });
 });
 
 describe("liveWord (the word before a live condition)", () => {
@@ -315,6 +323,25 @@ describe("jobsLink (Open Jobs filtered)", () => {
   it("an unclear group asks for failed jobs only when every one of them was refunded", () => {
     expect(jobsLink(unclear({ outcomes: { done: 1, failed: 2, open: 0 } }), now).query.status).toBeUndefined();
     expect(jobsLink(unclear({ outcomes: { done: 0, failed: 2, open: 1 } }), now).query.status).toBeUndefined();
+  });
+
+  it("a cost mismatch names its provider only; a pool drift its provider and its one account", () => {
+    const cost = { kind: "cost_mismatch", group: "flow.flow-veo-3.1-lite@8s", provider: "flow", first_ms: at(0) };
+    expect(jobsLink({ ...cost, items: [] } as unknown as Parameters<typeof jobsLink>[0], now)).toEqual({
+      provider: "flow",
+      query: { range: "today" },
+    });
+    const pool = {
+      kind: "pool_drift",
+      group: "a1.video",
+      provider: "gemini",
+      first_ms: at(0),
+      items: [{ account_label: "gem-01" }, { account_label: "gem-01" }],
+    };
+    expect(jobsLink(pool as unknown as Parameters<typeof jobsLink>[0], now)).toEqual({
+      provider: "gemini",
+      query: { range: "today", q: "gem-01" },
+    });
   });
 
   it("a drift of a cap names its key and its provider and no status", () => {

@@ -46,6 +46,7 @@ def test_the_rules_list_every_kind_with_its_threshold_on_and_unmuted_until_chang
     assert len(items) == len(routes_alert_groups.RULES)
     assert by[("live", "accounts_low")]["thresholds"] == [{"setting": "alert_accounts_low", "value": 3}]
     assert by[("live", "disk_low")]["thresholds"] == [{"setting": "alert_disk_free_gb", "value": 10}]
+    assert by[("stored", "pool_drift")]["thresholds"] == [{"setting": "alert_pool_drift", "value": 5}]
     assert by[("live", "worker_stale")]["fixed"] == "no report for 60 s"
     assert by[("live", "worker_stale")]["thresholds"] == [] and by[("stored", "clamp")]["severity"] == "error"
     assert all(i["enabled"] and i["muted_until_ms"] is None and i["updated_by"] is None for i in items)
@@ -167,8 +168,9 @@ MONEY_DAY = "MONEY_MUTE_MAX_MIN if is_money(source, kind) else MAX_MUTE_MIN"
 
 @mutation(ROUTES, MONEY_OFF, "    if False:", expect="a money alert can never be turned off")
 @mutation(ALERTS, MONEY_DAY, "MAX_MUTE_MIN", expect="a money alert is muted a day at most")
-@mutation(ALERTS, "AND r.kind NOT IN ('clamp', 'drift'))", ")", expect="a money row that says off is still listed")
-@mutation(ALERTS, 'return source == "stored" and kind in BILLING_KINDS', "return False",
+@mutation(ALERTS, "AND r.kind NOT IN ('clamp', 'drift', 'cost_mismatch'))", ")",
+          expect="a money row that says off is still listed")
+@mutation(ALERTS, 'return source == "stored" and kind in MONEY_KINDS', "return False",
           expect="a money alert can never be turned off")
 def test_a_money_alert_is_never_off_is_muted_a_day_at_most_and_stays_listed_with_its_mute(db):
     k, clamp, drift = plant(db)
@@ -178,20 +180,24 @@ def test_a_money_alert_is_never_off_is_muted_a_day_at_most_and_stays_listed_with
         post = lambda s, kind, body: env.client.post(rule_url(s, kind), json=body, headers=h)  # noqa: E731
         refused = [await post("stored", "clamp", {"enabled": False}),
                    await post("stored", "drift", {"enabled": False, "mute_minutes": 60}),
-                   await post("stored", "clamp", {"mute_minutes": 24 * 60 + 1})]
+                   await post("stored", "cost_mismatch", {"enabled": False}),
+                   await post("stored", "clamp", {"mute_minutes": 24 * 60 + 1}),
+                   await post("stored", "cost_mismatch", {"mute_minutes": 24 * 60 + 1})]
         day = await post("stored", "clamp", {"mute_minutes": 24 * 60})
         on = await post("stored", "drift", {"enabled": True})
+        pool_off = await post("stored", "pool_drift", {"enabled": False})     # not money: it may be turned off
         listed = (await env.client.get("/admin/alerts/groups", headers=h)).json()
         rules = (await env.client.get("/admin/alerts/rules", headers=h)).json()
         # a row that says off (planted past the route) never takes a money kind off the list
         db.run("UPDATE alert_rules SET enabled = false WHERE kind = 'drift'")
         planted = (await env.client.get("/admin/alerts/groups", headers=h)).json()
-        return refused, day, on, listed, rules, planted
+        return refused, day, on, listed, rules, planted, pool_off
 
-    refused, day, on, listed, rules, planted = run_app(db, scenario)
-    assert [(r.status_code, r.json().get("error", {}).get("param")) for r in refused[:2]] == \
-        [(400, "enabled")] * 2, "a money alert can never be turned off"
-    assert refused[2].status_code == 400, "a money alert is muted a day at most"
+    refused, day, on, listed, rules, planted, pool_off = run_app(db, scenario)
+    assert [(r.status_code, r.json().get("error", {}).get("param")) for r in refused[:3]] == \
+        [(400, "enabled")] * 3, "a money alert can never be turned off"
+    assert [r.status_code for r in refused[3:]] == [400, 400], "a money alert is muted a day at most"
+    assert pool_off.status_code == 200 and pool_off.json()["enabled"] is False
     assert day.status_code == 200 and day.json()["muted_until_ms"] < time.time() * 1000 + 25 * HOUR_MS
     assert on.status_code == 200 and on.json()["enabled"] is True
     by = {i["kind"]: i for i in listed["items"]}
@@ -199,12 +205,14 @@ def test_a_money_alert_is_never_off_is_muted_a_day_at_most_and_stays_listed_with
         "a muted money alert stays listed with its end"
     assert by["drift"]["newest_id"] == drift and by["drift"]["muted_until_ms"] is None
     money = {(i["source"], i["kind"]): (i["money"], i["max_mute_minutes"]) for i in rules["items"]}
-    assert money[("stored", "clamp")] == money[("stored", "drift")] == (True, 24 * 60)
+    assert money[("stored", "clamp")] == money[("stored", "drift")] == money[("stored", "cost_mismatch")] == (
+        True, 24 * 60)
+    assert money[("stored", "pool_drift")] == (False, 7 * 24 * 60)
     assert money[("stored", "unclear_reply")] == (False, 7 * 24 * 60) and money[("live", "drift")][0] is False
     assert kinds_of(planted["items"]) == ["clamp", "drift"], "a money row that says off is still listed"
 
 
-@mutation(ALERTS, "('clamp', 'drift') AND acknowledged_at >= %(start)s", "('clamp', 'drift') AND acknowledged_at "
+@mutation(ALERTS, "FROM billing_alerts WHERE acknowledged_at >= %(start)s", "FROM billing_alerts WHERE acknowledged_at "
           "IS NOT NULL AND %(start)s IS NOT NULL", expect="a row acknowledged before today")
 @mutation(ALERTS, "FROM unclear_replies WHERE acknowledged_at >= %(start)s) r",
           "FROM unclear_replies WHERE acknowledged_at IS NOT NULL) r", expect="a row acknowledged before today")

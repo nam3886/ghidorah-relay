@@ -55,7 +55,18 @@ from urllib.parse import unquote_plus, urlsplit
 from relay_browser.session import BrowserLaunchError, BrowserRefused, open_session
 from relay_browser.ui import inject_cookies
 from relay_core.net import host_allowed
-from relay_core.providers import Ambiguous, Completed, Cooldown, Fail, Output, ProxyBad, Retry, SubmitResult, Success
+from relay_core.providers import (
+    Ambiguous,
+    Balance,
+    Completed,
+    Cooldown,
+    Fail,
+    Output,
+    ProxyBad,
+    Retry,
+    SubmitResult,
+    Success,
+)
 from relay_core.redact import redact_text
 from relay_meta import errors
 from relay_meta.constants import (
@@ -63,6 +74,7 @@ from relay_meta.constants import (
     CHECK_SIGNAL_TIMEOUT_S,
     COMPARE_LABEL,
     GRAPHQL_PATH,
+    LIMIT_PHRASES,
     MEDIA_HOSTS,
     PAGE_LOAD_TIMEOUT_S,
     PREVIEW_MARK,
@@ -178,6 +190,18 @@ class Answer(NamedTuple):
     other: int = 0             # results of the other kind (an image in a video job's answer, a video in an image's)
 
 
+def is_limit(text: str) -> bool:
+    """Does an answer with no media read like meta's limit or quota refusal (`LIMIT_PHRASES`, not measured)?"""
+    t = " ".join(text.lower().replace("’", "'").split())
+    return any(p in t for p in LIMIT_PHRASES)
+
+
+def limit_balance(settings, now: datetime, kind: str) -> Balance:
+    """meta said the account makes no more of this kind for now: the pool's balance is 0 for `meta.limit_rest_s`
+    (meta names no reset time). The core rests the pool until then."""
+    return Balance(kind, 0, now + timedelta(seconds=int(settings.get("meta.limit_rest_s"))))
+
+
 _VOID = frozenset(("area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
                    "wbr"))
 
@@ -196,6 +220,10 @@ class _AnswerParser(HTMLParser):
         self.videos: list[str] = []
         self.unclear = 0
         self.open: list[tuple[str, bool, bool]] = []     # the open elements: (tag, inside aria-hidden, inside slider)
+        self.words: list[str] = []
+
+    def handle_data(self, data) -> None:
+        self.words.append(data)
 
     def handle_starttag(self, tag, attrs) -> None:
         a = dict(attrs)
@@ -249,6 +277,13 @@ def read_answer(html: str, kind: str = "image") -> Answer:
         found, final, unclear, other = parser.videos, is_final_video, 0, len(parser.tiles) + parser.unclear
     finals = [u for u in found if final(u)]
     return Answer(parser.state == ("DONE", "true"), tuple(finals), len(found) - len(finals) + unclear, other)
+
+
+def answer_text(html: str) -> str:
+    """The words of the newest assistant message (its outerHTML), white space folded."""
+    parser = _AnswerParser()
+    parser.feed(html or "")
+    return " ".join(" ".join(parser.words).split())
 
 
 def media_outputs(urls, conversation: str, kind: str = "image") -> tuple[Output, ...]:
@@ -329,6 +364,7 @@ class _Run:
         self.signed_in = False      # the sign-in read said signed in: the strike count is cleared
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
         self.conversation: str | None = None
+        self.answer_html = ""       # the newest read of meta's answer
         self.session = None
         self.page = None
 
@@ -551,7 +587,11 @@ class _Run:
         why = "meta finished its answer with no %s" % self.kind
         await self._say(why, "submit")
         self._evidence("no-media")
-        return _result(Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why))
+        fail = Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why)
+        if is_limit(answer_text(self.answer_html)):
+            # the same failure and refund; the account is not sent another job of this kind until the rest ends
+            return _result(fail, limit_balance(self.settings, self.deps.now(), self.kind))
+        return _result(fail)
 
     async def _receipt(self) -> str | None:
         waited = 0.0
@@ -576,7 +616,8 @@ class _Run:
             html = await self.page.evaluate(ANSWER_JS, SEL_ASSISTANT)
         except Exception:      # noqa: BLE001 - the page is busy: read again
             html = ""
-        return read_answer(html if isinstance(html, str) else "", self.kind)
+        self.answer_html = html if isinstance(html, str) else ""
+        return read_answer(self.answer_html, self.kind)
 
     # ---- results ----
     async def _unsent(self, code: str, why: str, *effects) -> SubmitResult:
