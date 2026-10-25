@@ -125,8 +125,8 @@ _SETTINGS = dict((
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),
     (PROVIDER + ".prices", table_setting(
-        PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@8s'. An option "
-        "missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
+        PROVIDER + ".prices", "Points charged per job: an image by its model, a video as '<model>@<seconds>s'. An "
+        "option missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES,
         unit="points", basic=True, renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)})),
     (PROVIDER + ".costs", table_setting(
         PROVIDER + ".costs", "What one job costs the flow account: an image counts one job of the image budget, a "
@@ -183,19 +183,16 @@ class FlowSpec:
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise; the plan names its price key and the core prices it (`flow.prices`,
         `flow.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result per
-        job. An input image (image to image, image to video) is
-        refused with `input.unsupported`: flow's upload was never captured, so it is not guessed."""
+        job. Input images are uploaded by the submit; a video reads them by `options.mode` ("frames", the default: one
+        start frame, or a first and a last frame; "references")."""
         image, video = C.MODELS.get(req.model), C.VIDEO_MODELS.get(req.model)
         if image is None and video is None:
             raise _refuse("input.bad_model", "flow's models are %s" % ", ".join((*C.MODELS, *C.VIDEO_MODELS)),
                           "model")
-        if req.images:
-            raise _refuse("input.unsupported", "flow takes no input image yet: its image upload is not proven",
-                          "images")
         if req.n not in (None, 1):
             raise _refuse("input.invalid", "flow makes one result per request", "n")
         ratio = C.DEFAULT_RATIO if req.ratio is None else req.ratio
-        aspects = video[0] if video else C.ASPECTS
+        aspects = C.VIDEO_ASPECTS if video else C.IMAGE_RATIOS[req.model]
         if ratio not in aspects:
             raise _refuse("input.bad_ratio", "%s takes the ratios %s (or none)" % (req.model, ", ".join(aspects)),
                           "ratio")
@@ -204,21 +201,48 @@ class FlowSpec:
         if video is None:
             if req.duration is not None:
                 raise _refuse("input.bad_duration", "an image has no duration", "duration")
+            if len(req.images) > C.MAX_IMAGE_REFS:
+                raise _refuse("input.too_many_images", "%s takes up to %d reference images"
+                              % (req.model, C.MAX_IMAGE_REFS), "images")
             return Plan(
-                operation="text_to_image", media_type="image", model=req.model,
+                operation="image_to_image" if req.images else "text_to_image", media_type="image", model=req.model,
                 params={"model": image[0], "aspect": C.ASPECTS[ratio], "ratio": ratio},
                 completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
                 pool="image", submit_timeout_s=SUBMIT_TIMEOUT_S)
-        if req.duration not in (None, C.VIDEO_DURATION):
-            raise _refuse("input.bad_duration", "%s makes %d s clips" % (req.model, C.VIDEO_DURATION), "duration")
+        duration = C.DEFAULT_DURATION if req.duration is None else req.duration
+        if duration not in C.durations(req.model):
+            raise _refuse("input.bad_duration", "%s makes clips of %s s" % (
+                req.model, ", ".join(map(str, C.durations(req.model)))), "duration")
+        mode = req.options.get("mode", "frames")
+        if mode not in ("frames", "references"):
+            raise _refuse("input.invalid", "options.mode is \"frames\" (a start frame, or a first and a last frame) "
+                          "or \"references\"", "options")
+        if not req.images:
+            mode = "text"
+        elif mode == "frames":
+            if len(req.images) > 2:
+                raise _refuse("input.too_many_images", "frames are one start frame, or a first and a last frame; "
+                              "more images are references (options.mode \"references\")", "images")
+            mode = "start" if len(req.images) == 1 else "frames"
+        keys = C.VIDEO_KEYS.get((req.model, mode, duration))
+        if keys is None:
+            raise _refuse("input.unsupported", "%s takes no %s at %d s" % (
+                req.model, C.OPERATIONS[mode].replace("_", " "), duration), "options")
+        if mode == "references" and len(req.images) > C.MAX_VIDEO_REFS[req.model]:
+            raise _refuse("input.too_many_images", "%s takes up to %d reference images"
+                          % (req.model, C.MAX_VIDEO_REFS[req.model]), "images")
         # the credits the submit checks the account's balance against: the option's cost (`flow.costs`); a missing
         # one is refused by the core's pricing, so this job never reaches a submit without it
-        credits = settings.get("flow.costs").get(C.price_key(req.model))
+        credits = settings.get("flow.costs").get(C.price_key(req.model, duration))
+        params = {"model": keys[0] if ratio == "16:9" else keys[1], "aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,
+                  "duration": duration, "credits": credits}
+        if (req.model, duration) in C.TIERS:
+            params["tiers"] = list(C.TIERS[req.model, duration])
+        if req.model.endswith("360p"):
+            params["resolution"] = C.OMNI_360P
         return Plan(
-            operation="text_to_video", media_type="video", model=req.model,
-            params={"model": video[0][ratio][0], "aspect": video[0][ratio][1], "ratio": ratio,
-                    "duration": C.VIDEO_DURATION, "credits": credits},
-            completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
+            operation=C.OPERATIONS[mode], media_type="video", model=req.model, params=params,
+            completion=Completion.DETACH, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model, duration),
             pool="video", submit_timeout_s=SUBMIT_TIMEOUT_S)
 
 

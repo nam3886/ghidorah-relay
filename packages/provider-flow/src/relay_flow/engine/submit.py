@@ -1,8 +1,12 @@
 """Submit: one job to flow, and what flow said as a `SubmitResult`. An image is `ogiZ0b` (BatchGenerateImages, HOLD);
-a video is `YhhmEf` (Veo text to video, DETACH: answered at once, then polled).
+a video is the VideoFx send of its operation (`VIDEO_RPCS`: `YhhmEf` from text, `eb1hJf` from a start frame, `nprQif`
+from a first and a last frame, `MZZa6b` from references; DETACH: answered at once, then polled).
 
 The steps: load the project page (session rotated first when due); for a video, the account's Flow credits (`nzlxg`,
-free) must cover it; then, per try: a reCAPTCHA token for the job's page action (IMAGE_GENERATION, VIDEO_GENERATION);
+free) must cover it and its plan (the tier the same read names) must have the option (`params.tiers`: Veo's 4 s and
+6 s are Ultra's only, `flow.tier_required`); each input image is uploaded into the project (`maseQ`, free, no token;
+one flow does not take is `flow.upload_failed`) and named by its media id; then, per try: a reCAPTCHA token for the
+job's page action (IMAGE_GENERATION, VIDEO_GENERATION);
 a new batch id written to the job (`ctx.report_ref`, with every batch id tried and the project); `ctx.mark_sent()`; the
 ONE generate POST of that try. flow holds an image's reply until it is drawn (13-17 s), so a good image reply is
 `Completed` with the signed `flow-content.google` link of the JPEG. A video's reply comes in about 3 s with the new
@@ -35,6 +39,7 @@ spaced strike, too few Flow credits for a video `pool.account_out_of_points`, a 
 """
 
 import asyncio
+import base64
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -56,6 +61,7 @@ from relay_core.providers import (
     Retry,
     SubmitResult,
     Success,
+    Tier,
 )
 from relay_flow import errors
 from relay_flow.constants import (
@@ -79,10 +85,14 @@ from relay_flow.engine.check import (
     doubt_effects,
     signed_out_why,
 )
-from relay_flow.engine.http import Reply, Sessions, Site, request_context
+from relay_flow.engine.http import CLIENT_TOOL, Reply, Sessions, Site, request_context
 
 GENERATE = "ogiZ0b"
 GENERATE_VIDEO = "YhhmEf"
+UPLOAD = "maseQ"             # FlowService.UploadImage: free, and taken without a reCAPTCHA token (25/10)
+# the VideoFxService RPC of each video operation (flow's web app; each proven by one live job, 25/10)
+VIDEO_RPCS = {"text_to_video": GENERATE_VIDEO, "image_to_video": "eb1hJf", "frames_to_video": "nprQif",
+              "references_to_video": "MZZa6b"}
 BATCH_KEY = "batch"          # provider_state: the batch id of the last try (also the job's external_ref)
 BATCHES_KEY = "batches"      # provider_state: every batch id this job sent; the reconciler looks for any of them
 MEDIA_KEY = "media"          # provider_state: flow's media id of the job's result, once known
@@ -102,12 +112,25 @@ TOO_MUCH_TRAFFIC = 8         # RESOURCE_EXHAUSTED, PUBLIC_ERROR_UNUSUAL_ACTIVITY
 MEDIA_PREFIX = "https://%s/image/" % MEDIA_HOSTS[0]
 
 
+_store = None
+
+
+async def read_input_media(ref) -> bytes:
+    """One job input image from the object store, the store created on first use (a text job needs none). The one
+    place the engine reaches past `RunCtx` for a file: the protocol hands out only a `MediaRef`."""
+    global _store
+    if _store is None:
+        from relay_core.storage import ObjectStore
+        _store = ObjectStore.from_env()
+    return await _store.read(ref.object_key)
+
+
 def _result(job, *effects) -> SubmitResult:
     return SubmitResult(job, account=tuple(effects))
 
 
 def is_video(job) -> bool:
-    return job.operation == "text_to_video"
+    return job.operation in VIDEO_RPCS
 
 
 def pacing(settings, now: datetime, code: int | None = None) -> tuple[Rest, ...]:
@@ -169,20 +192,56 @@ def _text(job) -> str:
     return job.prompt if job.frame_id is None else job.sent_text
 
 
-def generate_args(params, prompt: str, project: str, token: str, batch: str, seed: int) -> list:
-    """`ogiZ0b` args (FINDINGS 4). The media and workflow ids we send are ignored by flow; the batch id is echoed."""
+def generate_args(params, prompt: str, project: str, token: str, batch: str, seed: int,
+                  refs: tuple[str, ...] = ()) -> list:
+    """`ogiZ0b` args (FINDINGS 4). The media and workflow ids we send are ignored by flow; the batch id is echoed. Each
+    input image is a reference `[media id, null, null, null, 1]` in the entry's third slot (1: a reference, the web
+    app's own; live 25/10)."""
     ctx = request_context(project, token)
-    entry = [None, None, None, seed, params["aspect"], params["model"], None, ctx, [[[prompt]]], None, None, None,
-             str(uuid.uuid4()), str(uuid.uuid4())]
+    entry = [None, None, [[m, None, None, None, 1] for m in refs] or None, seed, params["aspect"], params["model"],
+             None, ctx, [[[prompt]]], None, None, None, str(uuid.uuid4()), str(uuid.uuid4())]
     return [None, [entry], 1, ctx, [batch]]
 
 
-def video_args(params, prompt: str, project: str, token: str, batch: str) -> list:
-    """`YhhmEf` args exactly as recorded (FINDINGS 5, fixture video_submit_try1): the prompt, the model key, the field
-    after it (2: 16:9), the media and workflow ids (ours, ignored), the context, and the batch id with 1."""
-    entry = [[None, None, [[[prompt]]]], params["model"], params["aspect"], None,
-             [None, None, None, None, str(uuid.uuid4()), str(uuid.uuid4())]]
+def video_args(params, prompt: str, project: str, token: str, batch: str, operation: str = "text_to_video",
+               media: tuple[str, ...] = ()) -> list:
+    """The args of the operation's RPC (`VIDEO_RPCS`). Text (`YhhmEf`) exactly as recorded (FINDINGS 5, fixture
+    video_submit_try1): the prompt, the model key, the field after it (2: 16:9), the media and workflow ids (ours,
+    ignored), the context, and the batch id with 1. The other operations are the same request with the images placed
+    where flow's web app puts them (live 25/10): a frame is `[null, <media id>]`; the start frame at field 5 and the
+    request's own ids at 6 (`eb1hJf`), the first and the last frame at 5 and 6 and the ids at 7 (`nprQif`), the
+    references a list at field 2 with the model at 3 (`MZZa6b`). Omni's 360p sends its resolution `[4]` where the web
+    app does (text 8, start frame 10, references 12); the first-and-last request has no such field."""
+    text, ids = [None, None, [[[prompt]]]], [None, None, None, None, str(uuid.uuid4()), str(uuid.uuid4())]
+    res = [params["resolution"]] if params.get("resolution") else None
+    frames = [[None, m] for m in media]
+    if operation == "image_to_video":
+        entry = [text, params["model"], params["aspect"], None, frames[0], ids, None, None, None, res]
+    elif operation == "frames_to_video":
+        entry = [text, params["model"], params["aspect"], None, frames[0], frames[1], ids]
+    elif operation == "references_to_video":
+        entry = [text, frames, params["model"], params["aspect"], None, ids, None, None, None, None, None, res]
+    else:
+        entry = [text, params["model"], params["aspect"], None, ids, None, None, res]
+    while entry[-1] is None:
+        entry.pop()
     return [[entry], request_context(project, token), [batch, 1]]
+
+
+def upload_args(project: str, data: bytes, mime: str) -> list:
+    """`maseQ` args (flow's web app, live 25/10): the context with the project and no token, the image as base64, its
+    type, then the web app's own flags (shown, not hidden)."""
+    return [[None, CLIENT_TOOL, None, None, None, project], base64.b64encode(data).decode(), mime, True, None, None,
+            None, False]
+
+
+def uploaded(payload, project: str) -> str | None:
+    """The media id of an upload's answer `[[<media id>, <project>, <workflow id>, ...], <workflow record>]`; None for
+    anything else."""
+    record = payload[0] if isinstance(payload, list) and payload and isinstance(payload[0], list) else []
+    if len(record) > 1 and isinstance(record[0], str) and record[0] and record[1] == project:
+        return record[0]
+    return None
 
 
 def answer(reply: Reply, batch: str, settings, now: datetime) -> SubmitResult:
@@ -219,7 +278,8 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                  transport=None, now: Callable[[], datetime] = lambda: datetime.now(UTC),
                  clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time,
                  sleep: Callable[[float], Awaitable] = asyncio.sleep,
-                 seed: Callable[[], int] = lambda: uuid.uuid4().int % 2147483646 + 1) -> SubmitResult:
+                 seed: Callable[[], int] = lambda: uuid.uuid4().int % 2147483646 + 1,
+                 read_media: Callable[..., Awaitable[bytes]] = read_input_media) -> SubmitResult:
     """Send the job. Exceptions of `ctx.report_ref` and of the first `ctx.mark_sent` (a lost lease, a stopping worker)
     reach the core unchanged. The keyword arguments are seams for tests."""
     start = clock()
@@ -248,8 +308,25 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 if balance is None:
                     return _result(Retry(errors.HTTP_ERROR))
                 read = account_read(credits.payload, now())
+                tier = next((e.tier for e in read if isinstance(e, Tier)), None)
+                if job.params.get("tiers") and tier not in job.params["tiers"]:
+                    await ctx.event("the account's plan (%s) has no %s at %s s: the job goes to another account"
+                                    % (tier, job.model, job.params.get("duration")), "submit", "engine")
+                    return _result(Retry(errors.TIER_REQUIRED), *read)
                 if balance < int(job.params["credits"]):
                     return _result(Retry(OUT_OF_POINTS), *read)
+            # the input images, uploaded into the project (free, nothing generated): one not taken is a retry
+            media: list[str] = []
+            if job.operation not in ("text_to_image", "text_to_video"):
+                for ref in await job.inputs():
+                    up = await site.rpc(UPLOAD, upload_args(project, await read_media(ref), ref.mime), path,
+                                        GENERATE_TIMEOUT_S)
+                    mid = uploaded(up.payload, project) if up.status == 200 else None
+                    if mid is None:
+                        await ctx.event("flow did not take input image %d (answer %d, code %s)"
+                                        % (ref.idx, up.status, up.code), "submit", "upstream")
+                        return _result(Retry(errors.UPLOAD_FAILED), *read)
+                    media.append(mid)
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
             captcha_s = int(settings.get("flow.captcha_timeout_s"))
             batches: list[str] = []
@@ -279,9 +356,11 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                         return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches[:-1]}),
                                        *read, *pacing(settings, now()))
                 if video:
-                    rpcid, args = GENERATE_VIDEO, video_args(job.params, _text(job), project, token, batch)
+                    rpcid = VIDEO_RPCS[job.operation]
+                    args = video_args(job.params, _text(job), project, token, batch, job.operation, tuple(media))
                 else:
-                    rpcid, args = GENERATE, generate_args(job.params, _text(job), project, token, batch, seed())
+                    rpcid = GENERATE
+                    args = generate_args(job.params, _text(job), project, token, batch, seed(), tuple(media))
                 try:
                     reply = await site.rpc(rpcid, args, path, GENERATE_TIMEOUT_S)
                 except httpx.HTTPError as e:

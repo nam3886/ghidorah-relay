@@ -419,10 +419,11 @@ def test_a_video_found_by_the_reconciler_is_polled_by_its_media_id():
 
 
 # ---- the options added from GetModels 25/10, proven live -----------------------------------------------------------
-@mutation("packages/provider-flow/src/relay_flow/catalog.py", '"9:16": ("veo_3_1_t2v_lite", 1)',
-          '"9:16": ("veo_3_1_t2v_lite", 2)', expect="as sent live")
-@mutation("packages/provider-flow/src/relay_flow/catalog.py", '{"16:9": ("veo_3_1_t2v_fast", 2),',
-          '{"16:9": ("veo_3_1_t2v_fast_portrait", 2),', expect="as sent live")
+@mutation("packages/provider-flow/src/relay_flow/catalog.py", 'VIDEO_ASPECTS = {"16:9": 2, "9:16": 1}',
+          'VIDEO_ASPECTS = {"16:9": 2, "9:16": 2}', expect="as sent live")
+@mutation("packages/provider-flow/src/relay_flow/catalog.py",
+          '(fast, "text", 8): ("veo_3_1_t2v_fast", "veo_3_1_t2v_fast_portrait"),',
+          '(fast, "text", 8): ("veo_3_1_t2v_fast_portrait", "veo_3_1_t2v_fast_portrait"),', expect="as sent live")
 def test_lite_portrait_and_fast_are_sent_as_the_live_jobs_of_25_10_that_flow_accepted():
     """fixtures/flow/live-261025/video_jobs.json: Lite 9:16 (one key, aspect 1) gave 720x1280, Fast 16:9 1280x720 and
     Fast 9:16 (its portrait key) 720x1280, each 8 s for its credits (10, 20, 20)."""

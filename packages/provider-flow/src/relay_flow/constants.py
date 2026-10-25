@@ -55,7 +55,8 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one page load, read or cookie rotation over a proxy (reads took 0.3-1.5 s)
-GENERATE_TIMEOUT_S = 90         # the image generate holds its reply until drawn (13-17 s); a video's answers in 2.6 s
+GENERATE_TIMEOUT_S = 150        # the image generate holds its reply until drawn (13-17 s, a 1:8 one 89 s); a video's
+                                # answers in 2.6 s; an upload took 6-7 s
 CAPTCHA_MIN_LEFT_S = 5          # a fallback token source is not started with less of the token's time left
 SUBMIT_TIMEOUT_S = 900         # one submit (image or video), its spaced reCAPTCHA retries included
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool

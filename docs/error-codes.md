@@ -65,7 +65,9 @@ Body: `{"error": {"code", "message", "type", "param"}}`. A job's refund state is
 | `flow.captcha_timeout` | 504 | api_error | no | yes | yes | 0 | yes | the security token for flow did not come in time; the order was not sent |
 | `flow.http_error` | 502 | api_error | no | yes | yes | 0 | yes | flow answered with an error before the order was sent |
 | `flow.model_access_denied` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the model for the account; nothing was made |
+| `flow.tier_required` | 503 | api_error | no | yes | yes | 0 | yes | no flow account of a plan that offers this option took the order; it was not sent |
 | `flow.too_much_traffic` | 503 | api_error | no | yes | yes | 0 | yes | flow said it had too much traffic from the account; nothing was made |
+| `flow.upload_failed` | 502 | api_error | no | yes | yes | 0 | yes | flow did not take an input image; the order was not sent |
 
 ## `gemini.*`
 

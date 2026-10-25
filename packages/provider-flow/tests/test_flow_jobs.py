@@ -136,8 +136,8 @@ MARK_FIRST = ("                    await ctx.mark_sent()          # then marked 
 
 @mutation(SUBMIT_FILE, WRITE_AHEAD, "", expect="the batch id was not on the job before the generate")
 @mutation(SUBMIT_FILE, MARK_FIRST, "                    sent = True\n", expect="not marked sent before the POST")
-@mutation(SUBMIT_FILE, "    entry = [None, None, None, seed, params[\"aspect\"], params[\"model\"],",
-          "    entry = [None, None, None, seed, 1, params[\"model\"],", expect="the ratio")
+@mutation(SUBMIT_FILE, "for m in refs] or None, seed, params[\"aspect\"], params[\"model\"],",
+          "for m in refs] or None, seed, 1, params[\"model\"],", expect="the ratio")
 def test_the_batch_is_written_ahead_and_marked_sent_right_before_the_one_generate_post():
     log = []
     flow, ctx = Flow(log, rpc={"ogiZ0b": GOOD}), Ctx(log)

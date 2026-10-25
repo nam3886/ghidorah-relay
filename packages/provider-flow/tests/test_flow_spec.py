@@ -1,10 +1,9 @@
 """The flow spec (caps, settings, catalog, error rules, `plan()`) and the credential import."""
 
-import dataclasses
 import json
 
 import pytest
-from flowkit import PSID, PSIDTS, export
+from flowkit import FIX, PSID, PSIDTS, export
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
@@ -29,11 +28,16 @@ from relay_meta.spec import SPEC as META
 from relay_vibes.spec import SPEC as VIBES
 
 SPEC_FILE = "packages/provider-flow/src/relay_flow/spec.py"
+CATALOG_FILE = "packages/provider-flow/src/relay_flow/catalog.py"
+FC_FIX = FIX / "live-261025b"
 CREDENTIAL_FILE = "packages/provider-flow/src/relay_flow/credential.py"
 IMG = MediaIn(sha256="0" * 64, mime="image/png", size=10)
 MODELS = ("flow-nano-banana-2.1", "flow-nano-banana-pro", "flow-nano-banana-2-lite")
 VIDEO = "flow-veo-3.1-lite"
 FAST = "flow-veo-3.1-fast"
+QUALITY = "flow-veo-3.1-quality"
+OMNI = "flow-omni-flash-720p"
+OMNI_360 = "flow-omni-flash-360p"
 
 
 def plan(model="flow-nano-banana-2.1", prompt="a lighthouse at dawn", *, cfg=None, **kw):
@@ -74,10 +78,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == "yescaptcha"
     assert (s["flow.traffic_rest_s"].default, s["flow.traffic_rest_s"].min) == (1800, 0)
-    assert s["flow.prices"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
-                                        **FC.TABLE_ONLY_COSTS}
-    assert s["flow.costs"].default == {**dict.fromkeys(MODELS, 1), VIDEO + "@8s": 10, FAST + "@8s": 20,
-                                       **FC.TABLE_ONLY_COSTS}
+    assert s["flow.prices"].default == FC.DEFAULT_PRICES and s["flow.costs"].default == FC.DEFAULT_COSTS
+    assert set(s["flow.prices"].default) == set(s["flow.costs"].default) == set(FC.PRICE_KEYS)
     pools = s["flow.pools"]
     assert pools.validate(pools.default) == pools.default, "the shipped pools pass their own rule"
     assert all(s[k].description for k in s) and _problems(SPEC) == []
@@ -118,24 +120,30 @@ def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
         reg.register(spec)
     for name in MODELS:
         spec, model = reg.resolve(name)
-        assert spec is SPEC and model.operations == ("text_to_image",) and model.media_type == "image"
-    for name in (VIDEO, FAST):
+        assert spec is SPEC and model.operations == ("text_to_image", "image_to_image") and model.media_type == "image"
+        assert model.limits["max_images"] == 10 and len(model.limits["ratios"]) == (14 if name == MODELS[0] else 5)
+    ops = ("text_to_video", "image_to_video", "frames_to_video", "references_to_video")
+    for name, durations, refs in ((VIDEO, [4, 6, 8], 3), (FAST, [4, 6, 8], 3), (QUALITY, [4, 6, 8], 2),
+                                  (OMNI, [4, 6, 8, 10], 7), (OMNI_360, [4, 6, 8, 10], 7)):
         spec, model = reg.resolve(name)
-        assert spec is SPEC and model.operations == ("text_to_video",) and model.media_type == "video"
+        assert spec is SPEC and model.media_type == "video"
+        assert model.operations == (ops[:3] if name == QUALITY else ops), name
         assert dict(model.limits) | {"description": ""} == {
-            "max_images": 0, "ratios": ["16:9", "9:16"], "default_ratio": "16:9", "durations": [8],
-            "default_duration": 8, "description": ""}, name
-        assert dict(model.price_keys) == {"8s": name + "@8s"}
-    assert {m.id for m in SPEC.catalog()} == {*MODELS, VIDEO, FAST}
-    assert [m.display_name for m in SPEC.catalog()] == ["Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite",
-                                                        "Veo 3.1 Lite", "Veo 3.1 Fast"]
+            "max_images": refs, "ratios": ["16:9", "9:16"], "default_ratio": "16:9", "durations": durations,
+            "default_duration": 8, "modes": ["frames"] if name == QUALITY else ["frames", "references"],
+            "description": ""}, name
+        assert dict(model.price_keys) == {"%ds" % d: "%s@%ds" % (name, d) for d in durations}
+    assert [m.display_name for m in SPEC.catalog()] == [
+        "Nano Banana 2.1", "Nano Banana Pro", "Nano Banana 2 Lite", "Veo 3.1 Lite", "Veo 3.1 Fast", "Veo 3.1 Quality",
+        "Omni 1.1 Flash 720p", "Omni 1.1 Flash 360p"]
+    assert "4/6 s on an AI Ultra account only" in reg.resolve(VIDEO)[1].limits["description"]
     # the pause list takes every model, the video too
     assert SPEC.settings()["flow.disabled_models"].validate([VIDEO]) == [VIDEO]
 
 
 def test_flow_registers_its_codes_on_load():
     codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused", "flow.too_much_traffic",
-             "flow.model_access_denied", "flow.captcha_timeout"}
+             "flow.model_access_denied", "flow.captcha_timeout", "flow.upload_failed", "flow.tier_required"}
     ours = {"flow.captcha_key_invalid", "flow.captcha_no_balance"}       # the solver's key or balance: ours to fix
     assert set(SPEC.codes()) == codes | ours and codes | ours <= set(errors.RULES)
     for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
@@ -162,41 +170,67 @@ def test_each_model_and_ratio_maps_to_flows_own_keys_and_the_image_is_held():
     assert (p.price, p.account_cost) == (1, 1), "an image costs no Flow credit, counts one job and sells at 1"
 
 
-@mutation(SPEC_FILE, "        if req.images:", "        if False:", expect="an input image")
-@mutation(SPEC_FILE, '            raise _refuse("input.unsupported",',
-          '            raise _refuse("input.too_many_images",', expect="an input image")
+
+
+@mutation(CATALOG_FILE, '"21:9": 10,', '"21:9": 11,', expect="21:9")
+@mutation(CATALOG_FILE, 'IMAGE_RATIOS = {"flow-nano-banana-2.1": tuple(ASPECTS),',
+          'IMAGE_RATIOS = {"flow-nano-banana-2.1": tuple(ASPECTS)[:5],',
+          expect="Nano Banana 2.1's own ratios")
+@mutation(SPEC_FILE, '                operation="image_to_image" if req.images else "text_to_image",',
+          '                operation="text_to_image",', expect="image_to_image")
+@mutation(SPEC_FILE, "            if len(req.images) > C.MAX_IMAGE_REFS:", "            if False:", expect="11 images")
+def test_nano_banana_takes_up_to_ten_reference_images_and_2_1_its_fourteen_ratios():
+    """GetModels 25/10: each image model takes up to 10 references (`[9]`); BELUGA lists aspect codes 1-14, the other
+    two 1-5. The codes 6-14 were measured by the size of an image drawn at each (live-261025b/image_ratios.json)."""
+    measured = json.loads((FC_FIX / "image_ratios.json").read_text(encoding="utf-8"))
+    for ratio, code in FC.ASPECTS.items():
+        assert plan(MODELS[0], ratio=ratio).params["aspect"] == code, "Nano Banana 2.1's own ratios: %s" % ratio
+        if code > 5:
+            w, h = map(int, ratio.split(":"))
+            (mw, mh), = [map(int, d) for d in measured[str(code)]["dims"]]
+            assert abs(mw / mh / (w / h) - 1) < 0.06, "%s: flow drew %sx%s for code %d" % (ratio, mw, mh, code)
+            for other in MODELS[1:]:
+                assert refusal(other, ratio=ratio) == ("input.bad_ratio", "ratio"), (other, ratio)
+    for name in MODELS:
+        p = plan(name, images=(IMG,) * 10)
+        assert (p.operation, p.pool, p.price_key, p.completion) == ("image_to_image", "image", name, Completion.HOLD)
+        assert refusal(name, images=(IMG,) * 11) == ("input.too_many_images", "images"), "11 images"
+    assert plan(images=(IMG,)).operation == "image_to_image"
+
+
 @mutation(SPEC_FILE, "        if req.n not in (None, 1):", "        if False:", expect="more than one image")
 @mutation(SPEC_FILE, "        if C.is_blank_prompt(req.prompt):", "        if False:", expect="a blank prompt")
-def test_what_flow_cannot_do_yet_is_refused_rather_than_ignored():
-    for model in (*MODELS, VIDEO):       # image to image, image to video: the upload is not proven yet
-        assert refusal(model, images=(IMG,)) == ("input.unsupported", "images"), "an input image was ignored"
+def test_what_flow_cannot_do_is_refused_rather_than_ignored():
     assert refusal(n=2) == ("input.invalid", "n"), "more than one image was planned"
     assert refusal(prompt=" ​ ") == ("input.empty_prompt", "prompt"), "a blank prompt was planned"
+    assert refusal(prompt=" ​ ", images=(IMG,)) == ("input.empty_prompt", "prompt"), "a blank prompt was planned"
     assert refusal(duration=8) == ("input.bad_duration", "duration")
-    for ratio in ("21:9", "16x9", "2:3"):
+    for ratio in ("16x9", "2:1", "9:21"):
         assert refusal(ratio=ratio) == ("input.bad_ratio", "ratio"), ratio
-    for name in ("flow-veo-3.1", "BELUGA", "nano-banana-pro", "flow"):
+    for name in ("flow-veo-3.1", "BELUGA", "nano-banana-pro", "flow", "flow-omni-flash"):
         assert refusal(name) == ("input.bad_model", "model"), name
     assert plan(n=1).params["aspect"] == 3
 
 
-TABLE_ONLY = "+ tuple(TABLE_ONLY_COSTS)"
-CATALOG_FILE = "packages/provider-flow/src/relay_flow/catalog.py"
 
 
-@mutation(CATALOG_FILE, TABLE_ONLY, "+ ()", expect="not an option")
-def test_the_table_only_options_are_costed_and_priced_at_their_cost_ahead():
-    """Veo 3.1 Fast and Quality and Gemini Omni Flash (720p and 360p by length) are not sold yet: their Flow credits
-    are known (the official table), their default price is that cost, and the owner may price them ahead."""
-    costs = SPEC.settings()["flow.costs"].default
-    assert (costs["flow-veo-3.1-fast@8s"], costs["flow-veo-3.1-quality@8s"]) == (20, 100)
-    assert [costs["flow-omni-flash-720p@%ds" % d] for d in (4, 6, 8, 10)] == [7, 10, 12, 15]
-    assert [costs["flow-omni-flash-360p@%ds" % d] for d in (4, 6, 8, 10)] == [4, 5, 6, 7]
-    prices = SPEC.settings()["flow.prices"]
-    assert {k: prices.default[k] for k in FC.TABLE_ONLY_COSTS} == FC.TABLE_ONLY_COSTS, "priced at cost"
-    assert prices.validate({"flow-veo-3.1-quality@8s": 5}) == {"flow-veo-3.1-quality@8s": 5}, "not an option"
-    quality = dataclasses.replace(plan(VIDEO), price_key="flow-veo-3.1-quality@8s")
-    assert pricing.price_plan(SPEC, quality, FakeSettings(SPEC)).price == 100
+@mutation(CATALOG_FILE, "-(-c // 5) for m", "c // 5 for m", expect="rounded up")
+@mutation(CATALOG_FILE, '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 100},',
+          '    "flow-veo-3.1-quality": {4: 100, 6: 100, 8: 10},', expect="GetModels")
+def test_every_option_has_its_getmodels_credits_and_a_proposed_price_of_a_point_per_five_credits():
+    """GetModels 25/10 `[4]`: Veo 8 s on free and Pro, Veo 4/6 s at Ultra's (the only plan with them), Omni alike on
+    every plan. Prices: Lite 8 s 2 and Fast 8 s 4 (owner); the rest proposed at that rate, rounded up."""
+    costs, prices = SPEC.settings()["flow.costs"].default, SPEC.settings()["flow.prices"].default
+    want = {VIDEO: {4: 5, 6: 5, 8: 10}, FAST: {4: 10, 6: 10, 8: 20}, QUALITY: {4: 100, 6: 100, 8: 100},
+            OMNI: {4: 7, 6: 10, 8: 12, 10: 15}, OMNI_360: {4: 4, 6: 5, 8: 6, 10: 7}}
+    for model, by in want.items():
+        for d, credits in by.items():
+            key = "%s@%ds" % (model, d)
+            assert costs[key] == credits, "GetModels: %s costs %s" % (key, credits)
+            assert prices[key] == -(-credits // 5) >= 1, "rounded up: %s" % key
+    assert (prices[VIDEO + "@8s"], prices[FAST + "@8s"], prices[QUALITY + "@8s"]) == (2, 4, 20)
+    assert all(costs[m] == prices[m] == 1 for m in MODELS)
+    assert priced(QUALITY).account_cost == 100 and priced(OMNI, duration=10).price == 3
 
 
 @mutation(SPEC_FILE, 'renamed={"flow-veo-3.1-lite": ("flow-veo-3.1-lite@8s",)}', "renamed={}",
@@ -205,8 +239,7 @@ def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
     """The earlier build keyed the video by its model alone (`flow-veo-3.1-lite`): the stored price moves to its key
     with the length, and every option the stored table does not name keeps its default."""
     loaded = SPEC.settings()["flow.prices"].on_load({"flow-veo-3.1-lite": 7, "flow-nano-banana-pro": 4})
-    assert loaded == {**dict.fromkeys(MODELS, 1), **FC.TABLE_ONLY_COSTS, "flow-nano-banana-pro": 4, VIDEO + "@8s": 7,
-                      FAST + "@8s": 20}, (
+    assert loaded == {**FC.DEFAULT_PRICES, "flow-nano-banana-pro": 4, VIDEO + "@8s": 7}, (
         "the stored video price was lost: %s" % loaded)
 
 
@@ -302,24 +335,20 @@ def test_the_shipped_frames_send_the_customers_words_byte_for_byte_as_before_fra
         assert len(longest) <= SPEC.frames.max_sent_chars, "the longest prompt flow takes is refused for length"
 
 
+
 # ---- the video -----------------------------------------------------------------------------------------------------
-VIDEO_CREDITS = '                    "duration": C.VIDEO_DURATION, "credits": credits},'
-VIDEO_ASPECT = '            params={"model": video[0][ratio][0], "aspect": video[0][ratio][1], "ratio": ratio,'
+VIDEO_CREDITS = '        credits = settings.get("flow.costs").get(C.price_key(req.model, duration))'
 
 
-@mutation(SPEC_FILE, VIDEO_CREDITS, '                    "duration": C.VIDEO_DURATION, "credits": 0},',
-          expect="credits")
-@mutation(SPEC_FILE, VIDEO_ASPECT, '            params={"model": video[0][ratio][0], "aspect": 2, "ratio": ratio,',
+@mutation(SPEC_FILE, VIDEO_CREDITS, "        credits = 1", expect="credits")
+@mutation(SPEC_FILE, '"aspect": C.VIDEO_ASPECTS[ratio], "ratio": ratio,', '"aspect": 2, "ratio": ratio,',
           expect="portrait")
-@mutation(SPEC_FILE, VIDEO_ASPECT,
-          '            params={"model": video[0]["16:9"][0], "aspect": video[0][ratio][1], "ratio": ratio,',
+@mutation(SPEC_FILE, '{"model": keys[0] if ratio == "16:9" else keys[1],', '{"model": keys[0],',
           expect="portrait")
-@mutation(CATALOG_FILE, '"9:16": ("veo_3_1_t2v_fast_portrait", 1)', '"9:16": ("veo_3_1_t2v_fast", 1)',
-          expect="portrait")
-@mutation(CATALOG_FILE, 'price_key("flow-veo-3.1-fast"): 20,', 'price_key("flow-veo-3.1-fast"): 10,',
-          expect="portrait or credits")
-@mutation(SPEC_FILE, '        credits = settings.get("flow.costs").get(C.price_key(req.model))',
-          '        credits = 1', expect="credits")
+@mutation(CATALOG_FILE, '(fast, "text", 8): ("veo_3_1_t2v_fast", "veo_3_1_t2v_fast_portrait"),',
+          '(fast, "text", 8): ("veo_3_1_t2v_fast", "veo_3_1_t2v_fast"),', expect="portrait")
+@mutation(CATALOG_FILE, '    "flow-veo-3.1-fast": {4: 10, 6: 10, 8: 20},',
+          '    "flow-veo-3.1-fast": {4: 10, 6: 10, 8: 10},', expect="portrait or credits")
 @mutation(SPEC_FILE, "            completion=Completion.DETACH,", "            completion=Completion.HOLD,",
           expect="a video is polled")
 def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_the_video_pool():
@@ -329,7 +358,7 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
     assert priced(VIDEO).account_cost == 10, "the account cost of a video is its Flow credits"
     assert p.completion == Completion.DETACH, "a video is polled"
     assert (p.operation, p.media_type, p.after_sent, p.pool, priced(VIDEO).price, p.price_key,
-            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 10, VIDEO + "@8s", 900)
+            p.submit_timeout_s) == ("text_to_video", "video", AfterSent.RECONCILE, "video", 2, VIDEO + "@8s", 900)
     assert dict(plan(VIDEO).params) == dict(p.params)
     assert priced(VIDEO, cfg=FakeSettings(SPEC, flow__prices={VIDEO + "@8s": 7})).price == 7
     cheap = FakeSettings(SPEC, flow__costs={**SPEC.settings()["flow.costs"].default, VIDEO + "@8s": 5})
@@ -343,19 +372,93 @@ def test_a_veo_video_is_planned_as_recorded_and_costs_its_flow_credits_against_t
                                   "credits": credits}, "portrait or credits: %s %s: %s" % (model, ratio, dict(p.params))
         assert (p.pool, p.price_key, p.completion) == ("video", model + "@8s", Completion.DETACH)
     assert plan(FAST).params["aspect"] == 2 and priced(FAST).account_cost == 20, "Fast takes 20 Flow credits"
-    assert priced(FAST).price == 20
+    assert priced(FAST).price == 4
 
 
-@mutation(SPEC_FILE, "        aspects = video[0] if video else C.ASPECTS", "        aspects = C.ASPECTS",
-          expect="an unrecorded video ratio")
-@mutation(SPEC_FILE, "        if req.duration not in (None, C.VIDEO_DURATION):", "        if False:",
-          expect="an unrecorded duration")
-def test_what_the_video_capture_did_not_prove_is_refused():
-    for model in (VIDEO, FAST):
+# (model, images, mode, seconds, ratio) -> (operation, GetModels key, extra params): every option flow sells
+PLANS = {
+    (VIDEO, 1, None, 8, "16:9"): ("image_to_video", "veo_3_1_i2v_lite", {}),
+    (VIDEO, 2, "frames", 8, "9:16"): ("frames_to_video", "veo_3_1_interpolation_lite", {}),
+    (VIDEO, 3, "references", 8, "16:9"): ("references_to_video", "veo_3_1_r2v_lite", {}),
+    (VIDEO, 0, None, 4, "16:9"): ("text_to_video", "veo_3_1_t2v_lite_4s", {"tiers": ["ultra"]}),
+    (VIDEO, 1, None, 6, "9:16"): ("image_to_video", "veo_3_1_i2v_s_lite_6s", {"tiers": ["ultra"]}),
+    (VIDEO, 2, None, 4, "16:9"): ("frames_to_video", "veo_3_1_i2v_s_lite_4s_fl", {"tiers": ["ultra"]}),
+    (FAST, 1, None, 8, "9:16"): ("image_to_video", "veo_3_1_i2v_s_fast_portrait", {}),
+    (FAST, 2, None, 8, "16:9"): ("frames_to_video", "veo_3_1_i2v_s_fast_fl", {}),
+    (FAST, 2, None, 8, "9:16"): ("frames_to_video", "veo_3_1_i2v_s_fast_portrait_fl", {}),
+    (FAST, 3, "references", 8, "16:9"): ("references_to_video", "veo_3_1_r2v_fast_landscape", {}),
+    (FAST, 1, "references", 8, "9:16"): ("references_to_video", "veo_3_1_r2v_fast_portrait", {}),
+    (FAST, 0, None, 6, "9:16"): ("text_to_video", "veo_3_1_t2v_fast_6s", {"tiers": ["ultra"]}),
+    (QUALITY, 0, None, 8, "16:9"): ("text_to_video", "veo_3_1_t2v", {"tiers": ["pro", "ultra"]}),
+    (QUALITY, 0, None, 8, "9:16"): ("text_to_video", "veo_3_1_t2v_portrait", {"tiers": ["pro", "ultra"]}),
+    (QUALITY, 1, None, 8, "16:9"): ("image_to_video", "veo_3_1_i2v_s", {"tiers": ["pro", "ultra"]}),
+    (QUALITY, 2, None, 8, "9:16"): ("frames_to_video", "veo_3_1_i2v_s_portrait_fl", {"tiers": ["pro", "ultra"]}),
+    (QUALITY, 1, None, 4, "16:9"): ("image_to_video", "veo_3_1_i2v_s_quality_4s", {"tiers": ["ultra"]}),
+    (OMNI, 0, None, 10, "9:16"): ("text_to_video", "abra_t2v_10s", {}),
+    (OMNI, 1, None, 4, "16:9"): ("image_to_video", "abra_i2v_4s", {}),
+    (OMNI, 2, None, 6, "16:9"): ("frames_to_video", "omni_flash_i2v_6s_first_last", {}),
+    (OMNI, 7, "references", 8, "16:9"): ("references_to_video", "abra_r2v_8s", {}),
+    (OMNI_360, 0, None, 4, "16:9"): ("text_to_video", "abra_t2v_4s_360p", {"resolution": 4}),
+    (OMNI_360, 2, None, 10, "9:16"): ("frames_to_video", "omni_flash_i2v_10s_first_last_360p", {"resolution": 4}),
+    (OMNI_360, 1, "references", 6, "16:9"): ("references_to_video", "abra_r2v_6s_360p", {"resolution": 4}),
+}
+
+
+@mutation(SPEC_FILE, '            mode = "start" if len(req.images) == 1 else "frames"', '            mode = "frames"',
+          expect="image_to_video")
+@mutation(SPEC_FILE, "            params[\"tiers\"] = list(C.TIERS[req.model, duration])", "            pass",
+          expect="tiers")
+@mutation(SPEC_FILE, "            params[\"resolution\"] = C.OMNI_360P", "            pass", expect="resolution")
+@mutation(CATALOG_FILE, '         ("flow-veo-3.1-quality", 8): ("pro", "ultra")}', "}", expect="tiers")
+@mutation(CATALOG_FILE, '        (lite, "frames", 8): ("veo_3_1_interpolation_lite",) * 2,',
+          '        (lite, "frames", 8): ("veo_3_1_i2v_lite",) * 2,', expect="GetModels key")
+def test_each_video_mode_length_and_ratio_names_its_getmodels_key_and_the_plans_that_have_it():
+    """One start frame is image to video, two frames are a first and a last frame, `options.mode` "references" takes
+    reference images. Veo's 4 s and 6 s run on Ultra only, Quality on Pro and Ultra; Omni 360p names its resolution."""
+    for (model, n, mode, seconds, ratio), (op, key, extra) in PLANS.items():
+        p = plan(model, images=(IMG,) * n, duration=seconds, ratio=ratio, options={"mode": mode} if mode else {})
+        why = "%s %d images %s %ds %s" % (model, n, mode, seconds, ratio)
+        assert p.operation == op, "image_to_video, frames or references: %s -> %s" % (why, p.operation)
+        assert p.params["model"] == key, "GetModels key: %s -> %s" % (why, p.params["model"])
+        assert p.params["aspect"] == (2 if ratio == "16:9" else 1) and p.params["duration"] == seconds
+        assert {k: p.params[k] for k in ("tiers", "resolution") if k in p.params} == extra, \
+            "tiers or resolution: %s -> %s" % (why, dict(p.params))
+        assert p.price_key == "%s@%ds" % (model, seconds) and p.params["credits"] == FC.VIDEO_CREDITS[model][seconds]
+        assert (p.pool, p.completion) == ("video", Completion.DETACH)
+    assert all(key in GETMODELS for _o, key, _e in PLANS.values()), "a key GetModels does not list"
+    assert set(GETMODELS) >= {k for keys in FC.VIDEO_KEYS.values() for k in keys}, "a key GetModels does not list"
+
+
+GETMODELS = {e[0] for fam in json.loads((FC_FIX / "models_HTrJv.json").read_text(encoding="utf-8"))["payload"][0][4]
+             for e in fam[1]}
+
+
+@mutation(SPEC_FILE, "        if keys is None:", "        if False:", expect="not subscriptable")
+@mutation(SPEC_FILE, "            if len(req.images) > 2:", "            if False:", expect="three frames")
+@mutation(SPEC_FILE, "        if mode == \"references\" and len(req.images) > C.MAX_VIDEO_REFS[req.model]:",
+          "        if False:", expect="too many references")
+@mutation(SPEC_FILE, '        if mode not in ("frames", "references"):', "        if False:", expect="an unknown mode")
+@mutation(SPEC_FILE, "        if duration not in C.durations(req.model):", "        if False:",
+          expect="an unoffered length")
+@mutation(SPEC_FILE, "        aspects = C.VIDEO_ASPECTS if video else C.IMAGE_RATIOS[req.model]",
+          "        aspects = C.ASPECTS", expect="an unoffered video ratio")
+def test_what_flow_does_not_offer_for_a_video_is_refused():
+    for model in (VIDEO, FAST, QUALITY, OMNI):
         for ratio in ("1:1", "4:3", "3:4"):
-            assert refusal(model, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unrecorded video ratio %s" % ratio
-        for duration in (4, 6, 10):
-            assert refusal(model, duration=duration) == ("input.bad_duration", "duration"), "an unrecorded duration"
+            assert refusal(model, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unoffered video ratio %s" % ratio
+    for model, duration in ((VIDEO, 10), (FAST, 5), (QUALITY, 10), (OMNI, 12), (OMNI_360, 8.5)):
+        assert refusal(model, duration=duration) == ("input.bad_duration", "duration"), "an unoffered length"
+    no_such = ((QUALITY, 1, "references", 8), (VIDEO, 1, "references", 4), (FAST, 2, "references", 6))
+    for model, n, mode, seconds in no_such:
+        assert refusal(model, images=(IMG,) * n, duration=seconds, options={"mode": mode}) == (
+            "input.unsupported", "options"), "no such mode: %s %s %ds" % (model, mode, seconds)
+    assert refusal(VIDEO, images=(IMG,) * 3) == ("input.too_many_images", "images"), "three frames"
+    for model, most in ((VIDEO, 3), (FAST, 3), (OMNI, 7), (OMNI_360, 7)):
+        assert plan(model, images=(IMG,) * most, options={"mode": "references"}).operation == "references_to_video"
+        assert refusal(model, images=(IMG,) * (most + 1), options={"mode": "references"}) == (
+            "input.too_many_images", "images"), "too many references: %s" % model
+    assert refusal(VIDEO, images=(IMG,), options={"mode": "start"}) == ("input.invalid", "options"), "an unknown mode"
+    assert plan(VIDEO, options={"mode": "references"}).operation == "text_to_video", "no image: text to video"
     assert refusal(VIDEO, n=2) == ("input.invalid", "n")
     with pytest.raises(pricing.TooCostly):           # more credits than a day's budget: no account could take it
         priced(VIDEO, cfg=FakeSettings(SPEC, flow__pools={"video": day_pool({"free": 9})}))

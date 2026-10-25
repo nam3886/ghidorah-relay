@@ -624,7 +624,7 @@ Registered by `spec.py`; read and written on the admin Settings page, live.
 |---|---|---|
 | `dola.claims_enabled` | drain mode off; false = no new job is claimed (see "Drain mode") | true |
 | `dola.render_deadline_s` | seconds to wait for dola to render one submission before giving up (at least 60), then one final read, see "What an operator must know" | 9000 |
-| `dola.prices` | points charged per job, keyed `<model>@<N>s` for video and `<model>` for image; an option missing here is refused (`model.unpriced`), never charged a guess | the default cost, one point per credit or image unit (every provider's default price is `max(1, cost)`, `pricing.prices_at_cost`, owner 24/10) |
+| `dola.prices` | points charged per job, keyed `<model>@<N>s` for video and `<model>` for image; an option missing here is refused (`model.unpriced`), never charged a guess | table in `catalog.DEFAULT_PRICES` |
 | `dola.costs` | what one job costs the account: video in dola credits, an image in image units (Seedream 4.5 1, 5.0 Pro 4); a missing option is refused (`model.uncosted`) | table in `catalog.DEFAULT_COSTS` |
 | `dola.video_budget` | video credits per account per day (dola's own reported number wins) | 4 |
 | `dola.image_budget` | image units per account per day (owner 24/10: 40 Seedream 4.x jobs or 10 of 5.0 Pro; dola's own "reached today's image limit" rests the account whatever this says) | 40 |
@@ -881,15 +881,18 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 
 ## The flow provider (`relay worker --provider flow`)
 
-Google Flow (flow.google.com) over plain HTTP: no browser. Text to image (`flow-nano-banana-2.1`,
-`flow-nano-banana-pro`, `flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3; one image per job) and
-Veo 3.1 Lite text to video (`flow-veo-3.1-lite`: 8 s, 16:9 or 9:16, 10 Flow credits) and Veo 3.1 Fast
-(`flow-veo-3.1-fast`: 8 s, 16:9 or 9:16, 20 Flow credits), all proven live 25/10. Images count against a day budget of
-40 jobs per account (`flow.pools`); flow's code 8 (too much traffic) rests the account `flow.traffic_rest_s`.
-An input image (image to image, image to video) is refused with `input.unsupported`: the upload was
-never captured. A request whose input image cannot be read is refused earlier, at the door, with
-`input.image_unreadable` (nothing charged either way; Codex review 24/10, accepted). The protocol and what is still
-unproven are in `fixtures/flow/FINDINGS.md`.
+Google Flow (flow.google.com) over plain HTTP: no browser. Images (`flow-nano-banana-2.1`, `flow-nano-banana-pro`,
+`flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3, and on 2.1 also 2:3, 3:2, 4:5, 5:4, 21:9, 1:4,
+4:1, 1:8, 8:1; one image per job) from text and up to 10 reference images. Videos, 16:9 or 9:16, from text, one start
+frame, a first and a last frame (two images), or reference images (`options.mode` "references"): Veo 3.1 Lite
+(`flow-veo-3.1-lite`, 8 s, 10 Flow credits, 3 refs), Fast (`flow-veo-3.1-fast`, 8 s, 20, 3 refs), Quality
+(`flow-veo-3.1-quality`, 8 s, 100, no references, Pro and Ultra accounts only), and Omni 1.1 Flash
+(`flow-omni-flash-720p` 4/6/8/10 s for 7/10/12/15 credits, `flow-omni-flash-360p` for 4/5/6/7; 7 refs). Veo's 4 s and
+6 s exist on an AI Ultra account only (`flow.tier_required` on any other). Proven live 25/10. Images count against a day
+budget of 40 jobs per account (`flow.pools`); flow's code 8 (too much traffic) rests the account `flow.traffic_rest_s`.
+Input images are uploaded into the account's project first (free; one flow does not take is `flow.upload_failed`, a
+retry). Extending a video and upscaling are not sold: both name an output already in the account's project. The
+protocol and what is still unproven are in `fixtures/flow/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables plus
 the key of each reCAPTCHA solver `flow.captcha_provider` names: `FLOW_YESCAPTCHA_KEY` (YesCaptcha),
@@ -936,8 +939,10 @@ false, the default), so an imported account is kept signed in before flow takes 
   fast rate and accepted after a 12-min pause, so measure the accept rate per account and per IP before raising load.
 
 **A video job.** Load the project page; read the account's Flow credits (`nzlxg`, free): fewer than the video costs
-and the job goes to another account (`pool.account_out_of_points`), nothing sent. Then ONE try: a token for
-`VIDEO_GENERATION`, a batch id written to the job, marked sent, one `YhhmEf` POST. The recorded acceptance (our batch
+and the job goes to another account (`pool.account_out_of_points`), nothing sent; the plan the same read names must
+have the option (`flow.tier_required`). The input images are uploaded. Then ONE try: a token for `VIDEO_GENERATION`, a
+batch id written to the job, marked sent, one POST of the operation's send (`YhhmEf` text, `eb1hJf` start frame,
+`nprQif` first and last frame, `MZZa6b` references). The recorded acceptance (our batch
 echoed, the media record of our project) is accepted with the new credit balance; the job is then polled (`jwpduf`
 status 6 queued, 2 rendering, 3 done; `as29s` gives the mp4 link). Anything else, the 7/8 envelope included (proven
 on images only, so on a video it is no proof nothing was made), is `unknown`: reconciled by the batch, never re-sent,
@@ -958,7 +963,7 @@ deadline with its refund. Both pools rest after any generate.
 | `flow.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `flow.poll_interval_s` | 30 | between two reads of a found job |
 | `flow.prices`, `flow.costs`, `flow.image_budget` | 1, 1, 1000 | points per image; one job of the image budget (no Flow credit); images per account per day (not measured) |
-| `flow.prices` (video `<model>@8s`), `flow.costs`, `flow.video_budget` | Lite 10, 10; Fast 20, 20; 50 | points per 8 s video (its cost; the not-yet-sold table options are priced at their cost too); its Flow credits; Flow credits per account per day (a cost above it is refused, `input.too_costly`) |
+| `flow.prices` (video `<model>@<seconds>s`), `flow.costs` | Lite 8 s 2, 10; Fast 8 s 4, 20; others 1 point per 5 credits | points per video; its Flow credits (GetModels) |
 | `flow.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The gemini provider (`relay worker --provider gemini`)
@@ -1041,7 +1046,7 @@ none). An image answer streams until the image is drawn, a song's until the song
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.costs` | 1 point and 1 use each (Nano Banana 2, Nano Banana 2.1, video, song) | points per job (its cost); one use of its pool |
+| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10), 2 (song, proposed 25/10); 1 use each | points per job; one use of its pool |
 | `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15; music free 0, pro 39 per 5 h block | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week, a song 51-61). The free 0 of image_pro and music is what keeps Nano Banana 2.1 and songs off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
@@ -1099,7 +1104,7 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |
 | `qwen.refusal_grace_s` | 300 | a lost video answer whose chat shows words and no task is refused after this |
 | `qwen.render_deadline_s` | 2700 | an unfinished job is given up then, refunded |
-| `qwen.prices` | the cost: 1 per image (pro 1), a video's qwen credits (see `qwen.costs`) | points, keyed `model`, `model@<s>s` or `model@1080p@<s>s`; a missing option is refused |
+| `qwen.prices` | 1 per image (pro 2), 1/2/3 per 5/10/15 s 720p video, twice that at 1080p | points, keyed `model`, `model@<s>s` or `model@1080p@<s>s`; a missing option is refused |
 | `qwen.costs` | 1 per image, the qwen price list per video (720p: HappyHorse 1.1 30/60/90, 1.0 40/80/120, Wan 2.7 20/40/60; 1080p: 40/80/120, 70/140/210, 30/60/90) | one job of the image budget, or qwen credits |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
