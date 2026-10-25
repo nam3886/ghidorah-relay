@@ -1211,6 +1211,9 @@ class _Run:
             return await self._refused_by_code(refused, conversation)
         if conversation is None:
             return await self._no_conversation()
+        throttle = self._throttle()
+        if throttle is not None:        # a throttle after the conversation appeared: the job ends, conversation kept
+            return await self._throttled(throttle, conversation)
         self.conversation = conversation
         await ctx.report_ref(conversation, {})
         return await self._answer(conversation, images)
@@ -1468,6 +1471,13 @@ class _Run:
         await self._evidence([Evidence("refused-%d-stream.txt" % REFUSED_CODE, stream.encode("utf-8"), TEXT_MIME)])
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
         rest = (Cooldown("dola refused a prompt (%d)" % REFUSED_CODE, until, recheck=True),)
+        patch = await self._keep_refused_conversation(conversation)
+        return await self._refusal_outcome(errors.REFUSED_710022002, errors.REFUSED_710022002, detail, rest, patch,
+                                           conversation)
+
+    async def _keep_refused_conversation(self, conversation: str | None) -> dict:
+        """A refusal that came after dola made `conversation` ends the job; the conversation is KEPT first as its
+        reference (a late delivery there is found by a Re-check). Returns the Fail's state patch."""
         patch = {}
         if conversation is not None:
             self.conversation = conversation
@@ -1481,15 +1491,26 @@ class _Run:
                 await self._say("conversation %s could not be stored as the job's reference (%s); it is named in "
                                 "provider_state.refused_conversation" % (conversation, type(exc).__name__),
                                 "submit", "engine")
-        return await self._refusal_outcome(errors.REFUSED_710022002, errors.REFUSED_710022002, detail, rest, patch,
-                                           conversation)
+        return patch
 
-    async def _throttled(self, code: int) -> SubmitResult:
-        """dola's throttle code: a refusal (`_refused_on_account`). The account rests; the job goes to another one, or
-        ends with `dola.refused_on_accounts` on the last."""
+    async def _throttled(self, code: int, conversation: str | None = None) -> SubmitResult:
+        """dola's throttle code: a refusal (`_refusal_outcome`). The account rests; with no conversation the job goes
+        to another one, or ends with `dola.refused_on_accounts` on the last. A throttle after dola made a conversation
+        ends the job at once with that code, the conversation kept as its reference (Codex 25/10), as a 710022002
+        there does."""
         until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)
+        patch = {}
+        if conversation is not None:
+            await self._flush_steps()
+            await self._say("dola throttled the order (%d) after it made conversation %s" % (code, conversation),
+                            "submit", "upstream")
+            patch = await self._keep_refused_conversation(conversation)
         return await self._refusal_outcome(POOL_THROTTLED, errors.REFUSED_ON_ACCOUNTS, "dola throttled (%d)" % code,
-                                           (Cooldown("dola throttled (%d)" % code, until),))
+                                           (Cooldown("dola throttled (%d)" % code, until),), patch, conversation)
+
+    def _throttle(self) -> int | None:
+        """dola's throttle code in a stream of this job's sends (the first send's or a re-send's); None when none."""
+        return next((error.code for error, _ in self._stream_errors() if error.code in THROTTLE_CODES), None)
 
     # ---- the answer ----
     async def _answer(self, conversation: str, images) -> SubmitResult:
@@ -1593,6 +1614,9 @@ class _Run:
                 if refused is not None:       # the re-send's own stream refused it, as the first send's could
                     await self._flush_steps()
                     return judged, await self._refused_by_code(refused, conversation)
+                throttle = self._throttle()
+                if throttle is not None:      # or throttled it: the conversation exists, so the job ends
+                    return judged, await self._throttled(throttle, conversation)
                 latest = await self._judged(conversation)
                 if not latest.usable:
                     continue              # a failed or stale read says nothing: keep waiting, keep what was read

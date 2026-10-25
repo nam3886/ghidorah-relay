@@ -461,6 +461,8 @@ class HttpRun(_Run):
         error = stream_error(text)
         if error is not None and error.code == REFUSED_CODE:     # acknowledged, then refused: as the browser path
             return await self._refused_by_code(text, conversation)
+        if error is not None and error.code in THROTTLE_CODES:   # acknowledged, then throttled: the job ends too
+            return await self._throttled(error.code, conversation)
         return await self._answer(conversation, [])
 
     async def _refused_before_ack(self, stream: SendStream, text: str, accounts: int, window: int):

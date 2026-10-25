@@ -544,6 +544,26 @@ async def test_a_refusal_after_the_ack_ends_the_job_and_keeps_the_conversation_f
     assert log.count("POST") == 1
 
 
+THROTTLED_AFTER_ACK = [line.replace("710022002", "710022004") for line in REFUSED_AFTER_ACK]
+THROTTLE_AFTER_ACK = ("        if error is not None and error.code in THROTTLE_CODES:   "
+                      "# acknowledged, then throttled: the job ends too\n")
+
+
+@mutation(SEND, THROTTLE_AFTER_ACK, "        if False:\n", expect="a throttle after the ack")
+@sync
+async def test_a_throttle_after_the_ack_ends_the_job_refunded_and_keeps_the_conversation():
+    """Codex 25/10: a 710022004 after dola acknowledged waited for the render deadline. It ends the job at once
+    (`dola.refused_on_accounts`, refunded), the conversation kept, one POST."""
+    log: list = []
+    ctx, result = await run(Dola(log, stream=THROTTLED_AFTER_ACK))
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED_ON_ACCOUNTS, \
+        "a throttle after the ack did not end the job: %r" % (result.job,)
+    assert result.job.state_patch == {"refused_conversation": IMAGE_CONV, REFUSED_BY: ["acct-1"]}
+    assert (IMAGE_CONV, {"refused_conversation": IMAGE_CONV}) in ctx.refs
+    assert any(isinstance(e, Cooldown) for e in result.account)
+    assert log.count("POST") == 1
+
+
 @mutation(SEND, "        if status is not None and not 200 <= status < 300:", "        if False:",
           expect="an error page is unknown")
 @sync

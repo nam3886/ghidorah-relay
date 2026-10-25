@@ -424,8 +424,10 @@ async def sse_on_send(name):
 
 
 @mutation(SUB, "        until = self.deps.now() + timedelta(seconds=constants.THROTTLE_COOLDOWN_S)\n"
-               "        return await self._refusal_outcome(POOL_THROTTLED",
-          "        until = self.deps.now()\n        return await self._refusal_outcome(POOL_THROTTLED", expect="1800")
+               "        patch = {}\n        if conversation is not None:\n            await self._flush_steps()\n",
+          "        until = self.deps.now()\n"
+          "        patch = {}\n        if conversation is not None:\n            await self._flush_steps()\n",
+          expect="1800")
 @STREAMS
 @sync
 async def test_a_throttle_code_in_the_stream_cools_the_account_down_for_30_minutes(name, code):
@@ -588,6 +590,32 @@ async def test_a_710022002_refusal_on_the_last_account_ends_the_job_refunded_and
 
 
 CREATED_ENDS = "        if conversation is not None:\n            return _outcome(Fail(final,"
+THROTTLE_AFTER = ("        if throttle is not None:        # a throttle after the conversation appeared: the job ends, "
+                  "conversation kept\n")
+THROTTLE_AFTER_RESEND = "                if throttle is not None:      # or throttled it: the conversation exists"
+
+
+@mutation(SUB, THROTTLE_AFTER, "        if False:\n", expect="a throttle after dola made a conversation")
+@mutation(SUB, THROTTLE_AFTER_RESEND, "                if False:      # or throttled it: the conversation exists",
+          expect="a throttle after dola made a conversation")
+@pytest.mark.parametrize("on", ["first-send", "gated-re-send"])
+@sync
+async def test_a_throttle_after_dola_made_a_conversation_ends_the_job_refunded_and_keeps_it(on):
+    """Codex 25/10: a 710022004 after the conversation appeared was not seen, and the job waited for its render
+    deadline. Like a 710022002 there, it ends the job at once (`dola.refused_on_accounts`, refunded), the conversation
+    kept as the job's reference; no re-send, no other account."""
+    async def throttle_resend(world, n):
+        if n == 2:
+            await world.feeder.sse(stream_text("throttle-710022004.txt"))
+    scene = (Scene(on_send=refusal_on_send(stream_text("throttle-710022004.txt"))) if on == "first-send" else
+             Scene(replies={1: [GATE]}, on_send=throttle_resend))
+    res = await scene.run()
+    assert isinstance(res.job, Fail) and res.job.code == errors.REFUSED_ON_ACCOUNTS, \
+        "a throttle after dola made a conversation did not end the job: %r" % (res.job,)
+    assert res.job.state_patch == {"refused_conversation": CONV, REFUSED_BY: ["acct-1"]}
+    assert (CONV, {"refused_conversation": CONV}) in scene.ctx.refs, "the conversation is the job's reference"
+    assert effects_of(res) == (Cooldown("dola throttled (710022004)", COOLDOWN),)
+    assert scene.log.count("send") == (1 if on == "first-send" else 2), "sent again after the throttle"
 
 
 @mutation(SUB, CREATED_ENDS, "        if False:\n            return _outcome(Fail(final,",
