@@ -52,6 +52,8 @@ WINDOW_KINDS = ("day",)
 COMBINES = ("sum", "all")
 NO_WINDOW_REFILL_TZ = "UTC"      # a reported balance of a pool with no window (no refill named) ends at its midnight
 REST_REASON = "no balance left: rests until the pool refills"
+REFILL_PAST_S = 300              # an upstream refill at most this far in the past is believed (skew, a late reset)
+REFILL_AHEAD_S = 40 * 86400      # an upstream refill further ahead than this is not (a month's cycle plus margin)
 
 
 # ---- the pool's windows: the `<p>.pools` setting ------------------------------------------------------------------
@@ -192,6 +194,17 @@ def next_refill(cfg: PoolConfig, now: datetime) -> datetime:
     return min(ends) if ends else window_end(Window("none", "day", NO_WINDOW_REFILL_TZ, {}), now)
 
 
+def believed_refill(refill: datetime | None, now: datetime, check_s: float) -> datetime | None:
+    """The refill an upstream named, if it is believable: from `REFILL_PAST_S` ago to `REFILL_AHEAD_S` ahead. One a
+    little in the past (a window that should have reset but still reads empty) holds until the next check reads the
+    account again; one outside the range is dropped (None: the pool's own window decides)."""
+    if refill is None:
+        return None
+    if not now - timedelta(seconds=REFILL_PAST_S) <= refill <= now + timedelta(seconds=REFILL_AHEAD_S):
+        return None
+    return refill if refill > now else now + timedelta(seconds=check_s)
+
+
 def ceiling(cfg: PoolConfig) -> int | None:
     """The most an account can ever hold in this pool: the largest budget of any tier; None when no tier has one."""
     budgets = [n for w in cfg.windows for n in w.budget.values()]
@@ -222,10 +235,11 @@ def standing(cfg: PoolConfig, tier: str | None, charges: Sequence[tuple[datetime
 
     A reported balance wins while its refill has not come (`now` is before it): it is `reported.left` less the
     unrefunded charges made after the report. Otherwise the pool is computed: the window's budget for the tier less
-    what was spent in the window (charges since its start); no window, or no budget for the tier, is unknown."""
+    what was spent in the window (charges since its start). A tier the window has no budget for takes the free
+    budget (never unlimited); no window, or a window with no budget for the tier nor for free, is unknown."""
     tier = tier or DEFAULT_TIER
     states = tuple(WindowState(
-        w.name, w.kind, w.budget.get(tier),
+        w.name, w.kind, w.budget.get(tier, w.budget.get(DEFAULT_TIER)),
         sum(amount for at, amount in charges if at >= window_start(w, now)), window_end(w, now)) for w in cfg.windows)
     if reported is not None and now < _refill_of_report(cfg, reported):
         return Standing(reported.left - sum(amount for at, amount in charges if at > reported.at), "reported", states)
@@ -445,16 +459,17 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             cfg = _cfg(pools, e.pool)
             row = await _lock(conn, account_id, cfg.name, skip_locked=False)
             assert row is not None
+            refill = believed_refill(e.refill_at, row[6], caps.check_interval_s)
             until = None
             if e.left_n <= 0:
-                until = e.refill_at or next_refill(cfg, row[6])
+                until = refill or next_refill(cfg, row[6])
             await conn.execute(
                 "UPDATE account_pools SET reported_left = %(n)s, reported_at = clock_timestamp(), refill_at = %(r)s, "
                 "rest_reason = CASE WHEN %(n)s > 0 THEN NULL WHEN %(u)s > COALESCE(rest_until, '-infinity') "
                 "THEN %(why)s ELSE rest_reason END, "
                 "rest_until = CASE WHEN %(n)s > 0 THEN NULL ELSE GREATEST(rest_until, %(u)s) END "
                 "WHERE account_id = %(a)s AND pool = %(p)s",
-                {"n": e.left_n, "r": e.refill_at, "u": until, "why": REST_REASON, "a": account_id, "p": e.pool})
+                {"n": e.left_n, "r": refill, "u": until, "why": REST_REASON, "a": account_id, "p": e.pool})
         elif isinstance(e, Rest):
             cfg = _cfg(pools, e.pool)
             await _lock(conn, account_id, cfg.name, skip_locked=False)

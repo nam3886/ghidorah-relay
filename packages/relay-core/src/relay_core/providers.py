@@ -13,7 +13,7 @@ import math
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any, Literal, Protocol
 
@@ -117,6 +117,17 @@ class ProxyBad:
 
 AccountEffect = Rest | Cooldown | Suspect | Dead | Revive | Balance | Tier | Success | ProxyBad
 StrikeEffect = Dead   # the strike threshold's terminal effect; the cooldown form arrives with the later providers
+
+
+def epoch_time(seconds: Any) -> datetime | None:
+    """An upstream's epoch seconds as a UTC time; None for anything that is not a positive whole number a datetime can
+    hold (a garbled value must never fail the read that carries it). Whether the time is believable is the core's."""
+    if type(seconds) is not int or seconds <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(seconds, UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _aware(moment: datetime) -> None:

@@ -382,6 +382,11 @@ def test_an_exhausted_usage_window_rests_both_pools_until_it_resets():
         "an exhausted window did not rest the pools"
 
 
+def test_a_garbled_reset_time_never_fails_the_check_and_names_no_refill():
+    spent = PRO_USAGE.replace("[2400,0,1,[[1792814865,", "[0,1,1,[[%d," % 10**20)
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("video", 0))
+
+
 @mutation(CHECK_FILE, "    return account_read(body) if status == 200 else ()", "    return account_read(body)",
           expect="a failed read")
 def test_a_usage_read_that_fails_keeps_the_account_alive_and_changes_neither_tier_nor_pools():

@@ -788,8 +788,8 @@ async def pool_stats(env, query: str = ""):
 def plant_pool(db):
     """`fake.pools`: video is 4 a day for a free account, images have no window. Six available accounts count, a dead
     and a disabled one do not. Video left: a report 3, a charge of 1 today (yesterday's does not count) 3, a refunded
-    charge 4, nothing yet 4, a report whose refill passed 4 = 18 of 20; a pro account has no budget: 1 unknown. Every
-    image pool is unknown (no window)."""
+    charge 4, nothing yet 4, a report whose refill passed 4, a pro account (no pro budget: the free 4) 4 = 22 of 24.
+    Every image pool is unknown (no window)."""
     k = key(db)
     ok, charged_ok, refunded, fresh, stale, pro = [account(db) for _ in range(6)]
     dead, disabled = account(db, state="dead"), account(db, state="disabled")
@@ -835,9 +835,9 @@ def test_the_pool_panel_counts_points_unknowns_proxy_failures_and_the_last_full_
     video, image = body["pools"]
     assert (video["provider"], video["pool"], image["pool"]) == ("fake", "video", "image"), (
         "pool figures: one entry per pool, spec order")
-    assert (video["left"], video["budget"]) == (18, 20), (
+    assert (video["left"], video["budget"]) == (22, 24), (
         "left and budget exclude dead and disabled accounts: reports, today's unrefunded charges and the budget")
-    assert video["unknown"] == 1, "unknown points: a tier with no budget, dead and disabled accounts add none"
+    assert video["unknown"] == 0, "unknown points: a tier with no budget takes the free one, dead and disabled add none"
     assert video["unit"] == "jobs"
     assert image == {"provider": "fake", "pool": "image", "unit": "jobs", "left": 0, "budget": 0, "unknown": 6}, (
         "no window: every available account is unknown")

@@ -21,7 +21,8 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx
 
-from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier
+from relay_core.pool import believed_refill
+from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier, epoch_time
 from relay_flow.constants import SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_flow.engine.http import CLIENT_TOOL, Sessions, Site
 
@@ -59,7 +60,7 @@ def month_before(day: date) -> date:
     return date(y, m, min(day.day, calendar.monthrange(y, m)[1]))
 
 
-def account_read(payload) -> tuple[Balance | Tier, ...]:
+def account_read(payload, now: datetime) -> tuple[Balance | Tier, ...]:
     """What a `nzlxg` answer says of the account: the video pool's balance with its refill and, for a plan flow names,
     the tier. A paid plan's refill is its monthly renewal (measured: ~2 weeks ahead on AI Pro, ~24 h on free), so its
     cycle started a month before it. Nothing when the balance cannot be read."""
@@ -67,22 +68,22 @@ def account_read(payload) -> tuple[Balance | Tier, ...]:
     if credits is None:
         return ()
     stamp = payload[6] if len(payload) > 6 else None
-    refill = (datetime.fromtimestamp(stamp[0], UTC) if isinstance(stamp, list) and stamp and type(stamp[0]) is int
-              and stamp[0] > 0 else None)
+    refill = epoch_time(stamp[0]) if isinstance(stamp, list) and stamp else None
     out: list[Balance | Tier] = [Balance("video", credits, refill)]
     tier = PAYGATE_TIERS.get(payload[1]) if len(payload) > 1 and type(payload[1]) is int else None
     if tier is not None:
-        out.append(Tier(tier, month_before(refill.date()) if refill is not None and tier != "free" else None))
+        renewal = believed_refill(refill, now, 0) if tier != "free" else None     # a garbled stamp names no cycle
+        out.append(Tier(tier, month_before(renewal.date()) if renewal is not None else None))
     return tuple(out)
 
 
-async def read_account(site: Site) -> tuple[Balance | Tier, ...]:
+async def read_account(site: Site, now: datetime) -> tuple[Balance | Tier, ...]:
     """The account's credits and plan; nothing when flow does not answer them (the stored values stay)."""
     try:
         reply = await site.rpc(CREDITS, [])
     except httpx.HTTPError:
         return ()
-    return account_read(reply.payload) if reply.status == 200 else ()
+    return account_read(reply.payload, now) if reply.status == 200 else ()
 
 
 async def create_project(site: Site) -> str | None:
@@ -111,7 +112,7 @@ async def check_account(ctx, settings, sessions: Sessions, *, transport: httpx.A
                 if project:
                     patch[PROJECT_KEY] = project
             return Health("alive", identity=page.email, display_name=page.email, state_patch=patch,
-                          effects=await read_account(site))
+                          effects=await read_account(site, now()))
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out
         raise RuntimeError("flow could not be reached (%s)" % type(e).__name__) from None

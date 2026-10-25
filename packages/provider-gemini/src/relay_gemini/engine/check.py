@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier
+from relay_core.providers import Balance, Cooldown, Health, Suspect, Tier, epoch_time
 from relay_gemini.constants import NETWORK_REST_S, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_gemini.engine.http import Sessions, Site
 from relay_gemini.engine.reply import usage_of
@@ -50,7 +50,7 @@ def account_read(text: str) -> tuple[Balance | Tier, ...]:
     spent = [reset for left, reset in windows if left <= 0]
     if spent:
         resets = [r for r in spent if r is not None]
-        refill = datetime.fromtimestamp(max(resets), UTC) if len(resets) == len(spent) else None
+        refill = epoch_time(max(resets)) if len(resets) == len(spent) else None
         out.extend(Balance(pool, 0, refill) for pool in POOLS)
     return tuple(out)
 

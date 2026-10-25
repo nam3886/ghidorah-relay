@@ -66,8 +66,8 @@ def test_each_pool_lists_its_window_with_the_tiers_budget_and_what_the_unrefunde
     assert window["refunded"]["spent"] == 0, "a refunded charge does not count as spent"
     assert video["refunded"]["left_today"] == 4
     assert isinstance(window["spent"]["refill_ms"], int)
-    assert (video["pro"]["left_today"], video["pro"]["source"], window["pro"]["budget"]) == (None, "unknown", None), (
-        "the fake provider names a budget for the free tier only: a pro account is unknown, which allows")
+    assert (video["pro"]["left_today"], video["pro"]["source"], window["pro"]["budget"]) == (4, "computed", 4), (
+        "the fake provider names a budget for the free tier only: a pro account takes it, never unlimited")
     assert (rows["pro"]["tier"], rows["pro"]["tier_read"], rows["pro"]["cycle_start"]) == ("pro", False, "2030-01-15")
     assert all(c["drift"] is None for r in rows.values() for c in r["capacity"]), "drift is gone"
 

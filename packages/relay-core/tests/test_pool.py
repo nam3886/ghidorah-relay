@@ -143,9 +143,14 @@ def test_left_is_the_budget_of_the_tier_less_what_was_spent_in_the_window():
     assert pool.left_of(CFG, "free", [], NOON) == 4
 
 
-def test_a_tier_with_no_budget_and_a_pool_with_no_window_are_unknown_and_unknown_allows():
-    assert pool.standing(CFG, "ultra", [(NOON, 3)], NOON).source == "unknown"
-    assert pool.left_of(CFG, "ultra", [], NOON) is None
+@mutation(P, "        w.name, w.kind, w.budget.get(tier, w.budget.get(DEFAULT_TIER)),",
+          "        w.name, w.kind, w.budget.get(tier),", expect="unlimited")
+def test_a_tier_with_no_budget_takes_the_free_budget_and_only_a_pool_with_no_budget_at_all_is_unknown():
+    ultra = pool.standing(CFG, "ultra", [(NOON, 3)], NOON)              # CFG budgets free 4 and pro 10 only
+    assert (ultra.left, ultra.source) == (1, "computed"), "a tier with no budget became unlimited: %s" % (ultra,)
+    assert not pool.can_afford(ultra.left, 0, 2)
+    pro_only = PoolConfig("video", "jobs", "sum", (Window("day", "day", "UTC", {"pro": 10}),))
+    assert pool.left_of(pro_only, "free", [], NOON) is None             # no budget for the tier nor for free
     assert pool.left_of(NO_WINDOW, "free", [(NOON, 3)], NOON) is None
     assert pool.can_afford(None, 0, 99)
 
@@ -265,7 +270,7 @@ def test_left_is_the_day_budget_minus_unrefunded_charges_of_the_day(db):
 
     assert run(db, scenario) == 3, "a refunded charge is no longer spent"
     assert left(db, account(db, tier="pro")) == 10, "a pro account has the pro budget"
-    assert left(db, account(db, tier="ultra")) is None, "no budget for a tier is unknown"
+    assert left(db, account(db, tier="ultra")) == 4, "no budget for a tier is the free budget, never unknown"
 
 
 def test_a_reported_balance_wins_over_the_budget_until_its_refill_and_a_charge_after_it_is_taken_off(db):
@@ -661,7 +666,7 @@ def test_a_bad_proxy_is_recorded(db):
 
 
 # ---- effects: Balance -------------------------------------------------------------------------------------------
-@mutation(P, "                until = e.refill_at or next_refill(cfg, row[6])\n",
+@mutation(P, "                until = refill or next_refill(cfg, row[6])\n",
           "                until = next_refill(cfg, row[6])\n", expect="assert until == named")
 def test_a_zero_balance_rests_the_pool_until_the_next_refill(db):
     a, b, c = account(db), account(db), account(db)
@@ -680,6 +685,44 @@ def test_a_zero_balance_rests_the_pool_until_the_next_refill(db):
     assert until == named and got_b.left_n == 0
     assert abs((got_c.rest_until - midnight).total_seconds()) < 5 and got_c.left_n == 0
     assert pool_row(db, a)[0] == 0 and "no balance left" in pool_row(db, a)[2]
+
+
+BELIEVED = "    if not now - timedelta(seconds=REFILL_PAST_S) <= refill <= now + timedelta(seconds=REFILL_AHEAD_S):\n"
+
+
+@mutation(P, BELIEVED, "    if False:\n", expect="not believed")
+@mutation(P, "    return refill if refill > now else now + timedelta(seconds=check_s)\n", "    return refill\n",
+          expect="until the next check")
+def test_a_named_refill_is_believed_only_inside_the_plausible_range():
+    check_s = 300
+    assert pool.believed_refill(NOON + HOUR, NOON, check_s) == NOON + HOUR
+    assert pool.believed_refill(NOON + timedelta(days=39), NOON, check_s) == NOON + timedelta(days=39)
+    assert pool.believed_refill(NOON + timedelta(days=41), NOON, check_s) is None, "a far refill was not believed"
+    assert pool.believed_refill(NOON - HOUR, NOON, check_s) is None, "a refill long past was not believed"
+    assert pool.believed_refill(NOON - MINUTE, NOON, check_s) == NOON + timedelta(seconds=check_s), \
+        "a reset just past must hold until the next check"
+    assert pool.believed_refill(None, NOON, check_s) is None
+
+
+def test_a_zero_balance_with_an_unbelievable_refill_rests_until_the_pools_window_and_one_just_past_until_the_next_check(
+        db):
+    far, past, recent = account(db), account(db), account(db)
+    now = datetime.now(UTC)
+
+    async def scenario(p):
+        await effects(p, far, Balance("video", 0, now + timedelta(days=400)))
+        await effects(p, past, Balance("video", 0, now - timedelta(days=2)))
+        await effects(p, recent, Balance("video", 0, now - MINUTE))
+        return [await locked(p, a) for a in (far, past, recent)]
+
+    got_far, got_past, got_recent = run(db, scenario)
+    midnight = pool.next_refill(CFG, datetime.now(UTC))
+    for got in (got_far, got_past):
+        assert abs((got.rest_until - midnight).total_seconds()) < 5 and got.left_n == 0, got
+    assert db.one("SELECT refill_at FROM account_pools WHERE account_id = %s", far)[0] is None
+    next_check = datetime.now(UTC) + timedelta(seconds=CAPS.check_interval_s)
+    assert abs((got_recent.rest_until - next_check).total_seconds()) < 5 and got_recent.left_n == 0, \
+        "a reset just past reopened the pool"
 
 
 @mutation(P, "rest_until = CASE WHEN %(n)s > 0 THEN NULL ELSE GREATEST(rest_until, %(u)s) END ",
@@ -738,7 +781,7 @@ def test_a_pro_account_gets_the_pro_budgets_once_its_tier_is_read(db):
     run(db, lambda p: effects(p, a, Tier("pro")))
     assert left(db, a) == 10
     run(db, lambda p: effects(p, a, Tier("ultra")))
-    assert left(db, a) is None                                          # no ultra budget: unknown, allows
+    assert left(db, a) == 4                                             # no ultra budget: the free one, never unlimited
 
 
 def test_effects_are_applied_pool_first_and_an_unknown_pool_or_effect_is_refused(db):

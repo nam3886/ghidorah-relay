@@ -376,7 +376,8 @@ def read_by_check(answer):
 
 @mutation(CHECK_FILE, 'PAYGATE_TIERS = {1: "pro", 2: "ultra", 3: "free"}', 'PAYGATE_TIERS = {2: "ultra", 3: "free"}',
           expect="AI Pro")
-@mutation(CHECK_FILE, "                          effects=await read_account(site))", "                          )",
+@mutation(CHECK_FILE, "                          effects=await read_account(site, now()))",
+          "                          )",
           expect="did not read the credits")
 def test_an_ai_pro_account_reports_its_credits_its_monthly_refill_and_the_pro_tier():
     effects = read_by_check(frame("nzlxg", PRO_CREDITS))
@@ -396,14 +397,25 @@ def test_an_ultra_account_is_read_as_ultra_from_flows_tier_enum():
     assert read_by_check(frame("nzlxg", ultra)) == (Balance("video", 12500, refill), Tier("ultra", date(2026, 10, 18)))
 
 
-@mutation(CHECK_FILE, "    return account_read(reply.payload) if reply.status == 200 else ()",
-          "    return account_read(reply.payload)", expect="a failed read")
+@mutation(CHECK_FILE, "    return account_read(reply.payload, now) if reply.status == 200 else ()",
+          "    return account_read(reply.payload, now)", expect="a failed read")
 def test_a_credit_read_that_fails_keeps_the_account_alive_and_changes_neither_tier_nor_balance():
     for answer in (httpx.Response(500, text=frame("nzlxg", PRO_CREDITS)), frame("nzlxg", None),
                    frame("nzlxg", ["x"]), httpx.ReadTimeout("slow"), BAD_ARG):
         assert read_by_check(answer) == (), "a failed read changed the account: %r" % (answer,)
     # a plan code that flow's enum does not name as free, pro or ultra: the balance counts, the stored tier stays
     assert read_by_check(frame("nzlxg", [80, 4, 8, 1, None, 80, None])) == (Balance("video", 80),)
+
+
+@mutation(CHECK_FILE, '        renewal = believed_refill(refill, now, 0) if tier != "free" else None',
+          '        renewal = refill if tier != "free" else None', expect="a garbled stamp named a cycle")
+def test_a_garbled_refill_stamp_never_fails_the_check_nor_names_a_cycle():
+    for stamp, refill in (([10**20, 0], None), ([-5, 0], None), (["soon"], None),
+                          ([1893456000, 0], datetime(2030, 1, 1, tzinfo=UTC)),       # years ahead: the core drops it
+                          ([1792000000, 0], datetime.fromtimestamp(1792000000, UTC))):  # days in the past
+        effects = read_by_check(frame("nzlxg", [1050, 1, 2, 2, None, 1050, stamp]))
+        assert effects == (Balance("video", 1050, refill), Tier("pro")), "a garbled stamp named a cycle: %s" % (
+            effects,)
 
 
 def test_a_cycle_start_is_a_month_before_the_refill_clamped_to_the_months_length():

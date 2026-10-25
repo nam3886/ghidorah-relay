@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from types import ModuleType
 from typing import Any
 
-from relay_core import budget, frames, keys, leases
+from relay_core import budget, frames, keys, leases, pool
 from relay_core.admin import auth, router, routes_accounts, routes_jobs, routes_stats, users
 from relay_core.api import doors, facade_common, progress, runners
 from relay_core.jobs import (
@@ -65,6 +65,9 @@ CORE: tuple[FixedLimit, ...] = (
        "s"),
     _c(routes_stats, "HEARTBEAT_STALE_S", "a worker silent for %g beats of %g s shows stale"
        % (routes_stats.HEARTBEAT_STALE_S / engine.BEAT_S, engine.BEAT_S), "s"),
+    _c(pool, "REFILL_PAST_S", "an upstream refill this far in the past is still believed: the pool waits for the "
+       "next check", "s"),
+    _c(pool, "REFILL_AHEAD_S", "an upstream refill further ahead is not believed: the pool's own window decides", "s"),
     # ---- job timing -------------------------------------------------------------------------------------------
     _c(apply, "FIRST_POLL_S", "an accepted job is first polled this long after", "s"),
     _c(apply, "UNKNOWN_FIRST_S", "the first reconcile of an unknown job; it doubles up to the next limit", "s"),

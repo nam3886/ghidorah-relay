@@ -228,7 +228,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 balance = credits_of(credits.payload) if credits.status == 200 else None
                 if balance is None:
                     return _result(Retry(errors.HTTP_ERROR))
-                read = account_read(credits.payload)
+                read = account_read(credits.payload, now())
                 if balance < int(job.params["credits"]):
                     return _result(Retry(OUT_OF_POINTS), *read)
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
