@@ -883,8 +883,10 @@ The local gates use recorded and fake dola behaviour. These wait for the live ru
 
 Google Flow (flow.google.com) over plain HTTP: no browser. Text to image (`flow-nano-banana-2.1`,
 `flow-nano-banana-pro`, `flow-nano-banana-2-lite`; ratios 1:1, 9:16, 16:9 default, 3:4, 4:3; one image per job) and
-Veo 3.1 Lite text to video (`flow-veo-3.1-lite`: 8 s, 16:9 only, 10 Flow credits; built from the 23/10 capture, live
-proof pending). An input image (image to image, image to video) is refused with `input.unsupported`: the upload was
+Veo 3.1 Lite text to video (`flow-veo-3.1-lite`: 8 s, 16:9 or 9:16, 10 Flow credits) and Veo 3.1 Fast
+(`flow-veo-3.1-fast`: 8 s, 16:9 or 9:16, 20 Flow credits), all proven live 25/10. Images count against a day budget of
+40 jobs per account (`flow.pools`); flow's code 8 (too much traffic) rests the account `flow.traffic_rest_s`.
+An input image (image to image, image to video) is refused with `input.unsupported`: the upload was
 never captured. A request whose input image cannot be read is refused earlier, at the door, with
 `input.image_unreadable` (nothing charged either way; Codex review 24/10, accepted). The protocol and what is still
 unproven are in `fixtures/flow/FINDINGS.md`.

@@ -12,3 +12,6 @@ ns]]`; flow's JS names the tier enum `{0 UNSPECIFIED, 1 TIER_ONE, 2 TIER_TWO, 3 
 
 No Ultra account exists: its code (2, TIER_TWO) comes from the JS enum only. Nothing in these files is a secret (no
 cookie, token, project id, email or proxy).
+
+`video_jobs.json`: the live Lite 9:16, Fast 16:9 and Fast 9:16 jobs of 25/10 (13:11-13:30 GMT+7) and the five refused
+video sends of that day, with the credits before and after (FINDINGS "Catalog 25/10").

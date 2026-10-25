@@ -1,0 +1,23 @@
+{
+ "note": "Live jobs of 25/10 (GMT+7 13:11-13:30) through the relay's own code (5f1e51d, 14d3307) in a scratch api and flow worker against production, the production flow worker stopped meanwhile. `sent` is the YhhmEf entry's head as video_args builds it from the job's params (the job row): [prompt slot, model key, aspect code, null]. Raw replies were not kept: each accepted one passed video_taken (our batch echoed, our project on both records), the 23/10 acceptance shape. No cookie, token, project id, proxy or email.",
+ "jobs": [
+  {"model": "flow-veo-3.1-lite", "ratio": "9:16", "account_tier": "pro",
+   "sent": [[null, null, [[["a tall lighthouse on a rocky cliff at sunset, slow vertical tilt, cinematic"]]]], "veo_3_1_t2v_lite", 1, null],
+   "outcome": "accepted 19 s after queueing, done in 101 s", "file": {"codec": "h264", "width": 720, "height": 1280, "duration_s": 8.0, "audio": "aac"},
+   "credits": {"before": 1030, "after": 1020}},
+  {"model": "flow-veo-3.1-fast", "ratio": "16:9", "account_tier": "pro",
+   "sent": [[null, null, [[["a red kite flying over a wide green meadow on a windy day, cinematic"]]]], "veo_3_1_t2v_fast", 2, null],
+   "outcome": "accepted, done in 82 s after acceptance", "file": {"codec": "h264", "width": 1280, "height": 720, "duration_s": 8.0, "audio": "aac", "bytes": 10777287},
+   "credits": {"before": 1050, "after": 1030}},
+  {"model": "flow-veo-3.1-fast", "ratio": "9:16", "account_tier": "pro",
+   "sent": [[null, null, [[["a hot air balloon rising past tall red rock pillars at dawn, slow vertical tilt, cinematic"]]]], "veo_3_1_t2v_fast_portrait", 1, null],
+   "outcome": "accepted 27 s after queueing, done in 111 s", "file": {"codec": "h264", "width": 720, "height": 1280, "duration_s": 8.0, "audio": "aac"},
+   "credits": {"before": 1020, "after": 1000}}
+ ],
+ "refused_video_sends": {
+  "count": 5,
+  "answer": "HTTP 200, the refusal item [7, null, [[ErrorInfo, [PUBLIC_ERROR_UNUSUAL_ACTIVITY]]]] (the reason read on the last one; the four before were logged as code 7 only)",
+  "by_account": {"pro": 2, "free": 3},
+  "credits": "none spent: pro 1050 at 10:12 to 1030 after one Fast with two refused Lite sends before it; free 50 before and after its three refused sends (read 13:14 and 13:29)"
+ }
+}

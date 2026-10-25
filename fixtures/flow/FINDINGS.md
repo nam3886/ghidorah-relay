@@ -117,7 +117,7 @@ to image, image to video) is refused at the door with `input.unsupported` (nothi
 | a refused video (policy / likeness / safety) at the send or in `jwpduf` | — | **unproven**: an unseen send answer is Ambiguous (reconcile, deadline refund); an unseen status waits, is named once in an event (`odd_status`), and `render.deadline` ends it with its refund |
 | out of credits at the send (balance read was enough, then not) | — | **unproven**: Ambiguous → reconcile → deadline refund; whether Flow charges or lists it is unknown |
 | the credit refresh | `nzlxg` `[…,[refresh_s,ns]]` | **unproven**: the stamp was ~24 h after the read (rolling?), the pool day is UTC; the pre-send read is the real guard |
-| other video ratios (field after the model key), 4/6 s, Veo Fast (20) / Quality (100), the `_portrait` keys | HTrJv only | **unproven**, not offered |
+| 9:16 (aspect 1), Veo 3.1 Fast 8 s (20, `_portrait` key for 9:16) | HTrJv + live 25/10 | **proven** and offered (Catalog 25/10); 4/6 s and Quality (100) still unproven, not offered |
 | image upload `maseQ` (UPLOAD_IMAGE token), the image-to-image entry's refs slot, the start-image video RPC (MZZa6b/eb1hJf/nprQif, `veo_3_1_i2v_lite` 10 credits) | the JS names only | **not built**: `input.unsupported` |
 
 ### The morning proof (with the owner, one account, ~20-30 credits of the day's 50)
@@ -136,3 +136,41 @@ is used by one client at a time.
    image to video with Veo 3.1 Lite (**10 credits**). This captures `maseQ`, the image entry's refs slot and the i2v
    RPC. Then re-export the cookies and re-import the account (the browser use makes a new session generation).
 5. Out of credits is proven only when an account is drained: not run on purpose.
+
+## Catalog 25/10 (GetModels audit and live jobs)
+GetModels (`HTrJv`) read on the free and the Pro account (credit tiers in that list: 1 free, 2 Pro, 3 Ultra; not the
+`nzlxg` PaygateTier numbers). Each model entry carries `[4]` its credits per tier, `[12]` the aspect codes it takes
+and `[16]` its length in seconds. Aspect code 2 is landscape (16:9), 1 portrait (9:16).
+- `veo_3_1_t2v_lite`: `[[2, 1]]`, both orientations in one key; 10 credits on free and Pro (5 on Ultra).
+- `veo_3_1_t2v_fast` `[[2]]` and `veo_3_1_t2v_fast_portrait` `[[1]]`: 8 s, 20 credits on free and Pro (none on
+  Ultra, which has `_ultra` keys at 10). The 4 s/6 s Fast and Lite keys (and the `_relaxed` ones) are Ultra only:
+  not offered (flow2api, 16/10: the `_relaxed` Fast keys answer code 5 on Pro).
+- Images (BELUGA, GEM_PIX_2, HARBOR_SEAL): 0 credits on every tier.
+
+Built: `flow-veo-3.1-lite` takes 9:16; `flow-veo-3.1-fast` text to video (8 s, 16:9 and 9:16), cost 20, default price 4
+points (Lite's 2 for 10 credits, doubled; owner to confirm). Live through the relay's own code (a scratch api and flow
+worker on production's database, production's flow worker stopped meanwhile; `live-261025/video_jobs.json`), all on
+the Pro account:
+| Option | Sent (key, aspect) | File | Credits |
+|---|---|---|---|
+| Lite 9:16 | `veo_3_1_t2v_lite`, 1 | H.264 720x1280, 8.000 s, AAC | 1030 → 1020 |
+| Fast 16:9 | `veo_3_1_t2v_fast`, 2 | H.264 1280x720, 8.000 s, AAC, 10.8 MB | 1050 → 1030 |
+| Fast 9:16 | `veo_3_1_t2v_fast_portrait`, 1 | H.264 720x1280, 8.000 s, AAC | 1020 → 1000 |
+Accepted 19-27 s after queueing, done 80-110 s after acceptance.
+
+Five more video sends got the immediate code 7 refusal (`PUBLIC_ERROR_UNUSUAL_ACTIVITY`, 3 on the free account, every
+video it was sent, and 2 on Pro). None spent a credit: Pro went 1050 → 1030 over two refused Lite sends and one
+accepted Fast; the free account read 50 before and after its three. Video code 7 stays Ambiguous (owner's ruling
+24/10) until the batch-not-listed half of the proof is also seen; this is the credit half.
+
+**Image budget.** No daily image cap of Flow is measured, and an image takes no credit. The image pool gets a day
+window of 40 jobs per account (every tier takes the free budget) so the admin shows and can tune a budget; raise it
+when a measured cap says so.
+
+**Code 8** (`RESOURCE_EXHAUSTED`, `PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC`). Seen once, on 23/10, among ~20
+rapid back-to-back image tries (`live-261023/img6`); never in production (24-25/10: only code 7). Its name says rate,
+so it is treated as a traffic cap: an image refused so goes back to the queue at once (`flow.too_much_traffic`,
+nothing made) and the account's pools rest `flow.traffic_rest_s` (1800 s; after the 23/10 burst a 12-min pause was
+accepted). On a video it stays Ambiguous with the same rest. Code 7 is unchanged (retried with a new token); its
+reason is now read: `PUBLIC_ERROR_MODEL_ACCESS_DENIED` as the last refusal fails the tries as
+`flow.model_access_denied` instead of `flow.captcha_refused`.

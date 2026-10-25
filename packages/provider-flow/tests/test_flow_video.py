@@ -12,6 +12,7 @@ import pytest
 from flowkit import (
     BAD_ARG,
     CREDITS_50,
+    FIX,
     GENERATED,
     PROJECT,
     REFUSED_7,
@@ -54,7 +55,7 @@ from relay_flow import errors
 from relay_flow.engine import results as R
 from relay_flow.engine.captcha import CaptchaError
 from relay_flow.engine.http import Sessions
-from relay_flow.engine.submit import submit
+from relay_flow.engine.submit import submit, video_args
 from relay_flow.spec import SPEC
 
 SUBMIT_FILE = "packages/provider-flow/src/relay_flow/engine/submit.py"
@@ -390,3 +391,24 @@ def test_a_video_found_by_the_reconciler_is_polled_by_its_media_id():
     assert got.outcome == Pending("rendering", 30, {"media": VIDEO_MEDIA})
     assert args_of(flow.calls("jwpduf")[0]) == [None, None, [[VIDEO_WORKFLOW], [VIDEO_MEDIA], [VIDEO_BATCH]]], \
         "the listed workflow and batch go in the status read as recorded"
+
+
+# ---- the options added from GetModels 25/10, proven live -----------------------------------------------------------
+@mutation("packages/provider-flow/src/relay_flow/catalog.py", '"9:16": ("veo_3_1_t2v_lite", 1)',
+          '"9:16": ("veo_3_1_t2v_lite", 2)', expect="as sent live")
+@mutation("packages/provider-flow/src/relay_flow/catalog.py", '{"16:9": ("veo_3_1_t2v_fast", 2),',
+          '{"16:9": ("veo_3_1_t2v_fast_portrait", 2),', expect="as sent live")
+def test_lite_portrait_and_fast_are_sent_as_the_live_jobs_of_25_10_that_flow_accepted():
+    """fixtures/flow/live-261025/video_jobs.json: Lite 9:16 (one key, aspect 1) gave 720x1280, Fast 16:9 1280x720 and
+    Fast 9:16 (its portrait key) 720x1280, each 8 s for its credits (10, 20, 20)."""
+    recorded = json.loads((FIX / "live-261025" / "video_jobs.json").read_text(encoding="utf-8"))["jobs"]
+    assert {(j["model"], j["ratio"]) for j in recorded} == {
+        ("flow-veo-3.1-lite", "9:16"), ("flow-veo-3.1-fast", "16:9"), ("flow-veo-3.1-fast", "9:16")}
+    for j in recorded:
+        prompt = j["sent"][0][2][0][0][0]
+        plan = SPEC.plan(CreateRequest(model=j["model"], prompt=prompt, ratio=j["ratio"], duration=8), settings(), {})
+        args = video_args(plan.params, prompt, PROJECT, "tok", "batch-1")
+        assert args[0][0][:4] == j["sent"], "%s %s not as sent live: %s" % (j["model"], j["ratio"], args[0][0][:4])
+        assert plan.params["credits"] == j["credits"]["before"] - j["credits"]["after"], j["model"]
+        portrait = j["ratio"] == "9:16"
+        assert (j["file"]["width"], j["file"]["height"]) == ((720, 1280) if portrait else (1280, 720))
