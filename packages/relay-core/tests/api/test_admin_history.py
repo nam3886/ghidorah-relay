@@ -160,9 +160,13 @@ def test_the_history_masks_a_key_that_is_secret_now_or_no_longer_known(db):
 
     before, after = run_app(db, scenario)
     shown = {r["key"]: (r["old"], r["new"], r["secret"]) for r in before}
-    assert shown == {"log_retention_days": (7, 9, False), "a_retired_key": (None, None, True)}
     masked = {r["key"]: (r["old"], r["new"], r["secret"]) for r in after}
+    # the made-secret check first: the mutation breaks both rules, and the retired key's check would hide this one
     assert masked["log_retention_days"] == (None, None, True), "a value of a setting made secret later was shown"
+    assert shown["log_retention_days"] == (7, 9, False), "a plain setting's values were hidden"
+    assert shown["a_retired_key"] == masked["a_retired_key"] == (None, None, True), \
+        "a value of a key no longer known was shown"
+    assert shown.keys() == masked.keys() == {"log_retention_days", "a_retired_key"}
 
 
 # without the code's rule the table's own check refuses the row: two guards, the mutation meets the second

@@ -442,6 +442,7 @@ def test_status_chips_list_a_family_count_under_the_other_filters_and_a_key_keep
     a3, a4 = log(db, a, status=404), log(db, a, status=499)
     a5 = log(db, a, status=502, job=job)
     b1, b2 = log(db, b, status=200), log(db, b, status=503)
+    log(db, b, status=304)                          # a 3xx is no 2xx: only All counts it
 
     async def scenario(env):
         return [await get(env, q) for q in (
@@ -450,12 +451,12 @@ def test_status_chips_list_a_family_count_under_the_other_filters_and_a_key_keep
 
     every, client, ok, server, of_a, a_server, junk, plain = run_app(db, scenario)
     check = Soft()
-    check(every.json()["status_counts"] == {"all": 7, "2xx": 3, "4xx": 2, "5xx": 2, "pre_job": 3},
+    check(every.json()["status_counts"] == {"all": 8, "2xx": 3, "4xx": 2, "5xx": 2, "pre_job": 3},
           "the chips count under every filter but the status")
     check(client.json()["status_counts"] == every.json()["status_counts"],
           "the chips count under every filter but the status: a chosen status changes no count")
     check(sorted(ids(client)) == sorted([a3, a4]) and client.json()["total"] == 2, "a 4xx chip: 404 and 499 only")
-    check(sorted(ids(ok)) == sorted([a1, a2, b1]), "a 2xx chip")
+    check(sorted(ids(ok)) == sorted([a1, a2, b1]), "a 2xx chip: 200 and 201, no 304")
     check(sorted(ids(server)) == sorted([a5, b2]), "a 5xx chip")
     check(sorted(ids(of_a)) == sorted([a1, a2, a3, a4, a5]), "the key filter keeps one key's rows")
     check(of_a.json()["status_counts"] == {"all": 5, "2xx": 2, "4xx": 2, "5xx": 1, "pre_job": 2},

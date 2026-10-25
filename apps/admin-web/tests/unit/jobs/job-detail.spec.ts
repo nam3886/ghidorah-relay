@@ -1121,12 +1121,19 @@ describe("results and references", () => {
       "Scroll all results right",
     ]);
     expect(button("Previous result")!.attributes("disabled")).toBeDefined();
+    // the arrow keys step too, and stop at either end
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    await flushPromises();
+    expect(body().find(".rl-viewer .mv__facts").text()).toContain("Result 1 of 2");
     await button("Zoom in · +")!.trigger("click");
     expect(wrap.find(".mv__zoom").text()).toBe("125%");
     await button("Next result")!.trigger("click");
     expect(body().find(".rl-viewer .mv__facts").text()).toContain("Result 2 of 2");
     expect(body().find(".rl-viewer .mv__zoom").text()).toBe("100%");
     expect(button("Next result")!.attributes("disabled")).toBeDefined();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    await flushPromises();
+    expect(body().find(".rl-viewer .mv__facts").text()).toContain("Result 2 of 2");
     vi.mocked(api.fetchDownload).mockResolvedValue(new Blob(["x"]));
     await button("Download · D")!.trigger("click");
     await flushPromises();

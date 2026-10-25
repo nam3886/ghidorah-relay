@@ -48,8 +48,8 @@ FD = "FAILED " + DETAIL_SPEC + " > "
           expect=FT + "timeline > a refund is ok and an accepted job is info, whatever their source says")
 @mutation(TEXT, "return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;",
           "return `${d.getHours()}:${two(d.getMinutes())}:${two(d.getSeconds())}`;",
-          expect=FT + "drawer formats > a clock is hh:mm:ss in local time, a day clock adds dd/mm, a missing time is "
-                      "a dash")
+          expect=FT + "drawer formats > a clock is hh:mm:ss in local time, a day clock adds the day and month (the "
+                      "milliseconds when exact), a missing time is a dash")
 @mutation(TEXT, "const m = Math.floor((total % 3600) / 60);", "const m = Math.floor(total / 60);",
           expect=FT + "drawer formats > how long a job took reads in seconds, minutes or hours")
 @mutation(TEXT, "(n / 1_000_000).toFixed(1)", "(n / 1_000_000).toFixed(0)",
