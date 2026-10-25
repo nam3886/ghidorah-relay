@@ -153,7 +153,7 @@ def test_a_job_queued_before_frames_sends_its_bare_words():
     assert sent_body(q)["messages"][0]["content"] == "bare words"
 
 
-QWEN_COST = '    if quota.get("state") == "deducted" and type(amount) is int and amount >= 0:'
+QWEN_COST = '    if quota.get("state") == "deducted" and type(amount) is int and amount > 0:'
 
 
 @mutation(SUBMIT_FILE, QWEN_COST, "    if False:", expect="the credits qwen says it took")
@@ -178,12 +178,16 @@ def test_a_video_checks_its_credits_first_and_is_accepted_with_its_task():
         "params": {"resolution": "720P", "size": "16:9", "duration": 5, "audio": True}}}
 
 
-@mutation(SUBMIT_FILE, QWEN_COST, '    if type(amount) is int and amount >= 0:', expect="not deducted")
+@mutation(SUBMIT_FILE, QWEN_COST, '    if type(amount) is int and amount > 0:', expect="not deducted")
+@mutation(SUBMIT_FILE, QWEN_COST, '    if quota.get("state") == "deducted" and type(amount) is int:',
+          expect="an actual cost is a whole number above 0")
 def test_qwen_states_a_cost_only_when_the_quota_says_it_was_deducted():
     from relay_qwen.engine.submit import stated_cost
     assert stated_cost(json.loads(VIDEO_TASK)) == stated_cost(json.loads(I2V_TASK)) == Facts(30, cost_source="reply")
     for change, why in ((lambda q: q.update(state="pending"), "not deducted"),
                         (lambda q: q.update(consume_amount="30"), "not a number"),
+                        (lambda q: q.update(consume_amount=True), "a boolean"),
+                        (lambda q: q.update(consume_amount=0), "zero: nothing taken"),
                         (lambda q: q.pop("consume_amount"), "no amount")):
         body = json.loads(VIDEO_TASK)
         change(body["data"]["messages"][0]["extra"]["quota"])

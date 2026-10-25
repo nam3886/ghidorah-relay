@@ -155,13 +155,13 @@ def test_completed_outputs_are_all_kept_in_one_transaction_with_the_status_move(
 
 
 # ---- the actual cost and the mismatch alert (money v2 section 5) ---------------------------------------------------
-COST_DIFFERS = "        if facts.upstream_price != job.account_cost:\n"
+COST_DIFFERS = "        if price != job.account_cost:\n"
 COST_ONCE = "AND NOT EXISTS (SELECT 1 FROM billing_alerts b WHERE b.alert = 'cost_mismatch' AND b.job_id = j.id)"
-COST_SOURCE = "cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)"
-COST_KEPT = ("    if facts.upstream_price is not None:\n"
-             "        cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)\n")
-COST_OVERWRITTEN = ("    cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)\n"
-                    "    if facts.upstream_price is not None:\n")
+COST_SOURCE = "cols.update(upstream_price=price, cost_source=facts.cost_source)"
+COST_KEPT = ("    if price is not None:\n"
+             "        cols.update(upstream_price=price, cost_source=facts.cost_source)\n")
+COST_OVERWRITTEN = ("    cols.update(upstream_price=price, cost_source=facts.cost_source)\n"
+                    "    if price is not None:\n")
 
 
 def mismatches(db):
@@ -178,7 +178,7 @@ async def poll_done(p, db, job_id, facts):
 
 @mutation(A, COST_DIFFERS, "        if False:\n", expect="one cost_mismatch alert")
 @mutation(A, COST_ONCE, "", expect="once per job")
-@mutation(A, COST_SOURCE, "cols.update(upstream_price=facts.upstream_price)", expect="with its source")
+@mutation(A, COST_SOURCE, "cols.update(upstream_price=price)", expect="with its source")
 def test_a_taken_job_whose_actual_cost_differs_raises_one_cost_mismatch_alert(db):
     k, _ = key(db), account(db)
 
@@ -244,16 +244,55 @@ def test_the_mismatch_alert_and_the_stored_cost_roll_back_with_the_result(db):
 
 
 FACTS_PAIR = "        if (self.upstream_price is None) != (self.cost_source is None) or ("
+FACTS_WHOLE = ("        if self.upstream_price is not None and (type(self.upstream_price) is not int or "
+               "self.upstream_price <= 0):")
+PROVIDERS = "packages/relay-core/src/relay_core/providers.py"
 
 
-@mutation("packages/relay-core/src/relay_core/providers.py", FACTS_PAIR, "        if False or (",
-          expect="a cost without its source")
-def test_an_actual_cost_never_comes_without_its_source():
+@mutation(PROVIDERS, FACTS_PAIR, "        if False or (", expect="a cost without its source")
+@mutation(PROVIDERS, FACTS_WHOLE, "        if False:", expect="not a whole number above 0")
+def test_an_actual_cost_never_comes_without_its_source_and_is_a_whole_number_above_0():
     for bad in (dict(upstream_price=3), dict(cost_source="reply"), dict(upstream_price=3, cost_source="guess")):
         with pytest.raises(ValueError):
             Facts(**bad)
             pytest.fail("a cost without its source, or a source without its cost: %s" % bad)
+    for bad in (0, -2, 2.5, True, "3"):
+        with pytest.raises(ValueError):
+            Facts(bad, cost_source="balance_delta")
+            pytest.fail("a cost that is not a whole number above 0 was taken: %r" % (bad,))
     assert Facts(3, cost_source="balance_delta").cost_source == "balance_delta"
+
+
+DELTA_BOUND = ('    if price is not None and facts.cost_source == "balance_delta" and '
+               'price > DELTA_MAX_FACTOR * job.account_cost:')
+DELTA_BOUND_INCLUSIVE = ('    if price is not None and facts.cost_source == "balance_delta" and '
+                         'price >= DELTA_MAX_FACTOR * job.account_cost:')
+
+
+@mutation(A, DELTA_BOUND, "    if False:", expect="other spend")
+@mutation(A, DELTA_BOUND, DELTA_BOUND_INCLUSIVE, expect="twice the expected cost is plausible")
+def test_a_balance_delta_inflated_by_other_spend_is_not_recorded_but_a_plausible_one_is_and_alerts(db):
+    k, _ = key(db), account(db, left=100)
+
+    async def scenario(p):
+        jobs = []
+        for i, facts in enumerate((Facts(5, None, "balance_delta"), Facts(5, None, "reply"),
+                                   Facts(4, None, "balance_delta"))):
+            got = await start(p, k, account_cost=2)
+            accepted = Accepted("r%d" % i, facts=facts)
+            assert await submit(p, got, engine_with(sent(SubmitResult(accepted)))) == "waiting"
+            jobs.append(got.job_id)
+        return jobs
+
+    inflated, stated, twice = run(db, scenario)
+    assert cols(db, inflated, "upstream_price, cost_source") == (None, None), \
+        "a balance delta above twice the expected cost holds other spend: not recorded"
+    assert db.one("SELECT count(*) FROM job_events WHERE job_id = %s AND stage = 'cost'", inflated) == (1,)
+    assert cols(db, stated, "upstream_price, cost_source") == (5, "reply"), "a stated price is never bounded"
+    assert cols(db, twice, "upstream_price, cost_source") == (4, "balance_delta"), \
+        "twice the expected cost is plausible: recorded"
+    assert [(j, e, a) for j, _, _, e, a, _, _ in mismatches(db)] == [(stated, 2, 5), (twice, 2, 4)], \
+        "no alert for the dropped delta (other spend), one for each recorded cost that differs"
 
 
 # ---- taken or not (I7) -----------------------------------------------------------------------------------------

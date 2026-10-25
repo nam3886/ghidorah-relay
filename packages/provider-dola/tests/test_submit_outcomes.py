@@ -19,6 +19,7 @@ from kit_c import (
     GOOD_PROBE,
     LIKENESS,
     MARKER,
+    NEXT_MIDNIGHT,
     NOT_ENOUGH,
     NOW,
     PROMPT,
@@ -211,6 +212,23 @@ async def test_a_price_not_stated_is_inferred_from_the_balance_dola_just_reporte
         res = await scene.run()
         assert res.job.facts.upstream_price == before - after, "the price was inferred from an old balance"
         assert res.job.facts.cost_source == "balance_delta", "an inferred price is a balance delta"
+
+
+WINDOW = "            same_window = until is not None and self.deps.now() < until"
+
+
+@mutation(SUB, WINDOW, "            same_window = True", expect="across a refill")
+@sync
+async def test_a_balance_delta_is_never_taken_across_a_refill_or_from_a_rising_balance():
+    said = ("The video will be generated using the Dreamina Seedance 2.5 model. "
+            "You still have %d video credits left today.")
+    for after, until, why in ((2, NOW, "the snapshot's window ended at the send: across a refill"),
+                              (2, NOW - timedelta(hours=1), "a refill passed since the snapshot: across a refill"),
+                              (2, None, "no end known for the snapshot: across a refill"),
+                              (8, NEXT_MIDNIGHT, "the balance rose (a refill): no cost")):
+        res = await Scene(replies={1: [said % after]}, acct=account(video=6, video_until=until)).run()
+        assert isinstance(res.job, Accepted) and res.job.facts.upstream_price is None, "%s: %s" % (why, res.job)
+        assert res.job.facts.cost_source is None
 
 
 @sync

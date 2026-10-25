@@ -80,6 +80,8 @@ CORE: tuple[FixedLimit, ...] = (
     _c(apply, "FINAL_RECONCILE_RETRY_S", "a final reconcile that did not answer is tried again this soon", "s"),
     _c(apply, "RECONCILE_CLAIM_STOP_S", "no final reconcile is claimed in the last minute before the backstop", "s"),
     _c(apply, "STARTUP_GRACE_S", "after a worker starts, the backstop and the fetch window fail nothing", "s"),
+    _c(apply, "DELTA_MAX_FACTOR", "a balance delta above this many times the expected cost is not recorded as the "
+       "job's actual cost", "times"),
     _c(poller, "POLL_VISIBILITY_S", "a claimed poll is hidden from other workers this long", "s"),
     _c(poller, "POLL_BOUND_S", "hard bound of one poll", "s"),
     _c(poller, "ERROR_RETRY_S", "a poll that failed is tried again after this long", "s"),

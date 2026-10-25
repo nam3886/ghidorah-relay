@@ -320,9 +320,19 @@ async def lock_capacity(conn: AsyncConnection, account_id, cfg: PoolConfig) -> C
     return Capacity(account_id, cfg.name, left_of(cfg, tier, charges, now, reported), row[3], row[4])
 
 
-async def left_map(conn: AsyncConnection, account_id, pools: Mapping[str, PoolConfig]) -> dict[str, int | None]:
-    """Each pool's effective balance as an engine is told it (`AccountView.capacity`): a plain read, no lock."""
+def figure_until(cfg: PoolConfig, now: datetime, reported: Reported | None) -> datetime:
+    """When the balance `standing` gives at `now` stops holding: the refill of the report it came from, else the pool's
+    next window boundary. A balance read before this moment and one read after it are not of the same window."""
+    report_ends = None if reported is None else _refill_of_report(cfg, reported)
+    return report_ends if report_ends is not None and now < report_ends else next_refill(cfg, now)
+
+
+async def left_map(conn: AsyncConnection, account_id, pools: Mapping[str, PoolConfig]
+                   ) -> tuple[dict[str, int | None], dict[str, datetime]]:
+    """Each pool's effective balance as an engine is told it (`AccountView.capacity`), and when each stops holding
+    (`AccountView.capacity_until`): a plain read, no lock."""
     out: dict[str, int | None] = {}
+    until: dict[str, datetime] = {}
     now = (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]
     row = await (await conn.execute("SELECT tier FROM accounts WHERE id = %s", (account_id,))).fetchone()
     tier = None if row is None else row[0]
@@ -333,7 +343,8 @@ async def left_map(conn: AsyncConnection, account_id, pools: Mapping[str, PoolCo
         reported = _reported(rows[name]) if name in rows else None
         charges = await (await conn.execute(_CHARGES, (account_id, name, _since(cfg, now, reported)))).fetchall()
         out[name] = left_of(cfg, tier, charges, now, reported)
-    return out
+        until[name] = figure_until(cfg, now, reported)
+    return out, until
 
 
 @dataclass(frozen=True)

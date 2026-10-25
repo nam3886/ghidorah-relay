@@ -67,6 +67,10 @@ FETCH_WINDOW_S = 1800        # a video found at or after the deadline keeps its 
 FINAL_RECONCILE_RETRY_S = 300  # a reconcile of a job past its deadline that did not answer is tried again this soon
 RECONCILE_CLAIM_STOP_S = 60  # no final reconcile is claimed in the last minute before the backstop (no race with it)
 STARTUP_GRACE_S = 300        # after a worker starts, the backstop and the fetch window fail nothing: reads come first
+# A balance delta (the balance before the send minus the one after) above this many times the expected cost holds
+# spend that is not this job's (the account used elsewhere): never recorded as its cost. A delta is not a stated price,
+# so a real model swap that costs more than twice is still caught by the reply price where the upstream states one.
+DELTA_MAX_FACTOR = 2
 
 
 class StartupGrace:
@@ -213,15 +217,22 @@ _COST_MISMATCH = (
 
 async def _facts(conn: AsyncConnection, job: _Job, facts: Facts) -> dict:
     """The columns a taken order's facts write. A fact the result does not carry keeps the stored one (a poll's Done
-    after a send that stated its price). An actual cost that differs from the expected `account_cost` raises one
-    `cost_mismatch` alert per job in this transaction: recorded only, nothing charged or refunded changes."""
+    after a send that stated its price). A balance delta above DELTA_MAX_FACTOR times the expected cost is not taken
+    as the cost (only a timeline line says so). An actual cost that differs from the expected `account_cost` raises
+    one `cost_mismatch` alert per job in this transaction: recorded only, nothing charged or refunded changes."""
     cols: dict[str, Any] = {}
     if facts.upstream_model is not None:
         cols["upstream_model"] = redact_log(facts.upstream_model)
-    if facts.upstream_price is not None:
-        cols.update(upstream_price=facts.upstream_price, cost_source=facts.cost_source)
-        if facts.upstream_price != job.account_cost:
-            await conn.execute(_COST_MISMATCH, (facts.upstream_price, facts.cost_source, job.id))
+    price = facts.upstream_price
+    if price is not None and facts.cost_source == "balance_delta" and price > DELTA_MAX_FACTOR * job.account_cost:
+        await add_event(conn, job.id, "system", "cost", "a balance change of %d is not taken as the cost: more than "
+                        "%d times the expected %d (other spend on the account)" % (price, DELTA_MAX_FACTOR,
+                                                                                  job.account_cost))
+        price = None
+    if price is not None:
+        cols.update(upstream_price=price, cost_source=facts.cost_source)
+        if price != job.account_cost:
+            await conn.execute(_COST_MISMATCH, (price, facts.cost_source, job.id))
             await failpoints.hit("apply.cost_mismatch")
     return cols
 

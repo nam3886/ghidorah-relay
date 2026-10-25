@@ -83,7 +83,7 @@ async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: I
             "FROM accounts WHERE id = %s", (account_id,))).fetchone()
         if row is None:
             raise LookupError("no account %s" % account_id)
-        capacity = await pool.left_map(conn, account_id, pools)
+        capacity, capacity_until = await pool.left_map(conn, account_id, pools)
     keys = list(private_keys)
     label, credential, gen, host, port, auth, state = row
     proxy = None
@@ -92,7 +92,8 @@ async def load_account_view(db: AsyncConnectionPool, account_id, private_keys: I
     sealed = bytes(credential)
     return AccountView(str(account_id), label, crypto.open_blob(sealed, keys), gen, proxy, state,
                        capacity, crypto.sealing_key(sealed, keys), sealed,
-                       functools.partial(load_account_view, db, account_id, keys, pools))
+                       functools.partial(load_account_view, db, account_id, keys, pools),
+                       capacity_until=capacity_until)
 
 
 class Renewal:

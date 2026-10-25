@@ -204,12 +204,13 @@ def json_verdict(status: int, body: dict | None) -> tuple[str, Any]:
 
 def stated_cost(body: dict | None) -> Facts:
     """What qwen says a taken video cost: `extra.quota.consume_amount` once `quota.state` is "deducted" (FINDINGS 6:
-    the same figure as the words "consuming 30 Credits", in structured form). Anything else states nothing."""
+    the same figure as the words "consuming 30 Credits", in structured form). Anything else, 0 included, states
+    nothing."""
     msg = _first_message(body or {})
     extra = msg.get("extra") if isinstance(msg.get("extra"), dict) else {}
     quota = extra.get("quota") if isinstance(extra.get("quota"), dict) else {}
     amount = quota.get("consume_amount")
-    if quota.get("state") == "deducted" and type(amount) is int and amount >= 0:
+    if quota.get("state") == "deducted" and type(amount) is int and amount > 0:
         return Facts(amount, cost_source="reply")
     return Facts()
 

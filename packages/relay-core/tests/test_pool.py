@@ -36,6 +36,7 @@ ACCOUNTS = "packages/relay-core/src/relay_core/db/accounts.py"
 WEAK_ACCOUNT_LOCK = '    mode = "FOR UPDATE" if delete else "FOR NO KEY UPDATE"\n'
 KEY_SHARE_ONLY = '    mode = "FOR UPDATE" if delete else "FOR KEY SHARE"\n'
 UTC_DAY = Window("day", "day", "UTC", {"free": 4, "pro": 10})
+FIGURE_UNTIL = "    return report_ends if report_ends is not None and now < report_ends else next_refill(cfg, now)"
 SAIGON_DAY = Window("day", "day", "Asia/Ho_Chi_Minh", {"free": 10})       # its midnight is 17:00 UTC
 CFG = PoolConfig("video", "jobs", "sum", (UTC_DAY,))
 SAIGON = PoolConfig("video", "jobs", "sum", (SAIGON_DAY,))
@@ -794,3 +795,18 @@ def test_effects_are_applied_pool_first_and_an_unknown_pool_or_effect_is_refused
             await effects(p, a, object())
 
     run(db, scenario)
+
+
+@mutation(P, FIGURE_UNTIL, "    return next_refill(cfg, now)", expect="the refill the upstream named")
+@mutation(P, FIGURE_UNTIL, "    return report_ends if report_ends is not None else next_refill(cfg, now)",
+          expect="an old report")
+def test_a_capacity_figure_holds_until_its_reports_refill_else_the_pools_next_window_boundary():
+    midnight = datetime(2030, 3, 6, tzinfo=UTC)
+    named = NOON + timedelta(hours=3)
+    assert pool.figure_until(CFG, NOON, None) == midnight, "no report: the pool's next window boundary"
+    assert pool.figure_until(CFG, NOON, Reported(3, NOON - timedelta(hours=1), named)) == named, \
+        "the refill the upstream named ends the reported figure"
+    assert pool.figure_until(CFG, NOON, Reported(3, NOON - timedelta(hours=1))) == midnight
+    assert pool.figure_until(CFG, NOON, Reported(3, NOON - timedelta(days=1))) == midnight, \
+        "an old report no longer holds: the computed figure ends at the next boundary"
+    assert pool.figure_until(SAIGON, NOON, None) == datetime(2030, 3, 5, 17, 0, tzinfo=UTC)

@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import UTC, datetime
 
 import pytest
 from enginekit import in_status, job_status, lease_count, make_loop, running, until, within
@@ -616,6 +617,13 @@ def test_the_ctx_reports_the_ref_and_events_through_the_lease_and_redacts_what_i
     assert len(texts) == 1 and SECRET not in texts[0]
 
 
+VIEW_UNTIL = ("                       functools.partial(load_account_view, db, account_id, keys, pools),\n"
+              "                       capacity_until=capacity_until)")
+VIEW_NO_UNTIL = "                       functools.partial(load_account_view, db, account_id, keys, pools))"
+
+
+@mutation("packages/relay-core/src/relay_core/jobs/runctx.py", VIEW_UNTIL, VIEW_NO_UNTIL,
+          expect="when each capacity figure stops holding")
 def test_the_account_view_opens_the_sealed_credential_and_proxy_with_the_workers_key(db):
     pair = crypto.generate_keypair()
     other = crypto.generate_keypair()
@@ -635,6 +643,10 @@ def test_the_account_view_opens_the_sealed_credential_and_proxy_with_the_workers
     assert (view.label, view.credential, view.credential_gen) == ("main", b"cookie=1", 1)
     assert (view.proxy.host, view.proxy.port, view.proxy.auth) == ("h", 8080, "user:pw")
     assert view.provider_state == {"composer": 1} and view.capacity == {"video": 3, "image": None}
+    now = datetime.now(UTC)
+    assert set(view.capacity_until) == {"video", "image"} and all(
+        t > now for t in view.capacity_until.values()), \
+        "the view says when each capacity figure stops holding: %s" % (view.capacity_until,)
 
 
 RUNCTX = "packages/relay-core/src/relay_core/jobs/runctx.py"

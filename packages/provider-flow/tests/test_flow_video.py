@@ -151,6 +151,7 @@ def test_the_flow_cost_is_the_balance_delta_only_when_the_acceptance_reports_a_l
     assert SPEC.caps.account_slots == 1, "the balance delta is a job's cost only with one job per account"
     for after, want, why in ((40, Facts(10, cost_source="balance_delta"), "the credits it took"),
                              (50, Facts(), "no credits taken: no cost"),
+                             (60, Facts(), "a refill between the reads: no cost, never a negative one"),
                              (None, Facts(), "no balance in the acceptance: no cost")):
         def answer(request, after=after):
             p = json.loads(json.dumps(VIDEO_SENT["payload"]).replace(VIDEO_BATCH, args_of(request)[2][0]))

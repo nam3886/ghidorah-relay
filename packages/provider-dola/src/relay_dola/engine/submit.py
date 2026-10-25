@@ -1651,11 +1651,15 @@ class _Run:
         price, source = classify.read_price_stated(reply), "reply"
         if price is None:
             # dola does not always state a price (a 5 s clip of 2.0 / 1.0 only reports the balance): infer it from the
-            # balance before this send (the claim's fresh snapshot of the account) and the one dola reports after.
+            # balance before this send (the claim's fresh snapshot of the account) and the one dola reports after, only
+            # when both are of one window: no refill or window boundary (`capacity_until`) has passed since the
+            # snapshot. A delta far above the expected cost is the core's to drop.
             before = self.ctx.account.capacity.get("video")
+            until = self.ctx.account.capacity_until.get("video")
             after = verdict.credits_left
             source = None
-            if before is not None and after is not None and before > after:
+            same_window = until is not None and self.deps.now() < until
+            if before is not None and after is not None and before > after and same_window:
                 price, source = before - after, "balance_delta"
         model = classify.named_model(reply)
         warnings = []

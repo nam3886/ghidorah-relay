@@ -159,6 +159,8 @@ class Facts:
         if (self.upstream_price is None) != (self.cost_source is None) or (
                 self.cost_source is not None and self.cost_source not in COST_SOURCES):
             raise ValueError("an actual cost needs its source (%s), and a source its cost" % ", ".join(COST_SOURCES))
+        if self.upstream_price is not None and (type(self.upstream_price) is not int or self.upstream_price <= 0):
+            raise ValueError("an actual cost is a whole number above 0: %r" % (self.upstream_price,))
 
 
 @dataclass(frozen=True)
@@ -533,6 +535,9 @@ class AccountView:
     seal_key: str | None = None          # the public key that sealed the credential (not a secret); None: no renewal
     sealed: bytes | None = field(default=None, repr=False)        # the ciphertext read: a renewal swaps exactly it
     reload: "Callable[[], Awaitable[AccountView]] | None" = field(default=None, repr=False, compare=False)
+    # pool -> when its `capacity` figure stops holding (its report's refill, else the pool's next window boundary): a
+    # balance the upstream reports after it is of another window, so the two never make a balance delta
+    capacity_until: Mapping[str, datetime] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

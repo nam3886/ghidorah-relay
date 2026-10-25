@@ -67,9 +67,15 @@ def credential_blob() -> bytes:
     return json.dumps({"cookies": cookies}).encode()
 
 
-def account(*, composer: str | None = None, video: int | None = None) -> AccountView:
+NEXT_MIDNIGHT = datetime(2026, 10, 6, tzinfo=UTC)     # the end of NOW's UTC day: the video pool's window
+
+
+def account(*, composer: str | None = None, video: int | None = None,
+            video_until: datetime | None = NEXT_MIDNIGHT) -> AccountView:
+    """`video_until`: when the `video` figure stops holding (the core's `capacity_until`); None: not given."""
     state = {"composer": composer} if composer else {}
-    return AccountView("acct-1", "acct", credential_blob(), 1, None, state, {"video": video, "image": None})
+    return AccountView("acct-1", "acct", credential_blob(), 1, None, state, {"video": video, "image": None},
+                       capacity_until={} if video_until is None else {"video": video_until})
 
 
 class FakeCtx:
