@@ -433,7 +433,7 @@ GETMODELS = {e[0] for fam in json.loads((FC_FIX / "models_HTrJv.json").read_text
              for e in fam[1]}
 
 
-@mutation(SPEC_FILE, "        if keys is None:", "        if False:", expect="not subscriptable")
+@mutation(SPEC_FILE, "        if keys is None:", "        if False:", expect="no such mode")
 @mutation(SPEC_FILE, "            if len(req.images) > 2:", "            if False:", expect="three frames")
 @mutation(SPEC_FILE, "        if mode == \"references\" and len(req.images) > C.MAX_VIDEO_REFS[req.model]:",
           "        if False:", expect="too many references")
@@ -445,13 +445,20 @@ GETMODELS = {e[0] for fam in json.loads((FC_FIX / "models_HTrJv.json").read_text
 def test_what_flow_does_not_offer_for_a_video_is_refused():
     for model in (VIDEO, FAST, QUALITY, OMNI):
         for ratio in ("1:1", "4:3", "3:4"):
-            assert refusal(model, ratio=ratio) == ("input.bad_ratio", "ratio"), "an unoffered video ratio %s" % ratio
+            try:
+                got = refusal(model, ratio=ratio)
+            except KeyError as e:       # planned on a ratio with no aspect code
+                got = e
+            assert got == ("input.bad_ratio", "ratio"), "an unoffered video ratio %s: %r" % (ratio, got)
     for model, duration in ((VIDEO, 10), (FAST, 5), (QUALITY, 10), (OMNI, 12), (OMNI_360, 8.5)):
         assert refusal(model, duration=duration) == ("input.bad_duration", "duration"), "an unoffered length"
     no_such = ((QUALITY, 1, "references", 8), (VIDEO, 1, "references", 4), (FAST, 2, "references", 6))
     for model, n, mode, seconds in no_such:
-        assert refusal(model, images=(IMG,) * n, duration=seconds, options={"mode": mode}) == (
-            "input.unsupported", "options"), "no such mode: %s %s %ds" % (model, mode, seconds)
+        try:
+            got = refusal(model, images=(IMG,) * n, duration=seconds, options={"mode": mode})
+        except (TypeError, KeyError) as e:      # planned on a key that does not exist
+            got = e
+        assert got == ("input.unsupported", "options"), "no such mode: %s %s %ds: %r" % (model, mode, seconds, got)
     assert refusal(VIDEO, images=(IMG,) * 3) == ("input.too_many_images", "images"), "three frames"
     for model, most in ((VIDEO, 3), (FAST, 3), (OMNI, 7), (OMNI_360, 7)):
         assert plan(model, images=(IMG,) * most, options={"mode": "references"}).operation == "references_to_video"
