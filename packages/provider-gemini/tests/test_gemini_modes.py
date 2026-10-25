@@ -320,3 +320,16 @@ def test_every_template_entry_is_a_gallery_card_the_send_can_name():
     assert entry[0] == C.VIDEO_TEMPLATES["Noir"][0]
     assert all(a[0].startswith("https://www.gstatic.com/") for a in entry[2])
     assert json.dumps(inner)        # the request is plain JSON
+
+
+UNKNOWN_OPTIONS = "    if unknown:\n"
+
+
+@mutation(SPEC_FILE, UNKNOWN_OPTIONS, "    if False:\n", expect="an option gemini never gets")
+def test_an_option_the_model_does_not_read_is_refused_rather_than_charged_and_dropped():
+    for model, options in ((VIDEO, {"genre": "rock"}), (VIDEO, {"template": "Noir", "length": "short"}),
+                           (MUSIC, {"ratio": "16:9"}), (MUSIC, {"style": "anime"})):
+        assert refusal(model, options=options) == ("input.invalid", "options"), \
+            "an option gemini never gets was planned: %s %s" % (model, options)
+    assert plan(VIDEO, options={"template": "Noir"}).params["template"] == "Noir"
+    assert dict(plan(options={"length": "short", "vocals": "on", "genre": "pop"}).params)["genre"] == "pop"

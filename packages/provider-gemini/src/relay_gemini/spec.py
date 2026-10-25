@@ -200,6 +200,7 @@ class GeminiSpec:
         if ratio not in C.VIDEO_RATIO_IDS:
             raise _refuse("input.bad_ratio", "%s takes the ratio %s (or none)"
                           % (req.model, ", ".join(C.VIDEO_RATIO_IDS)), "ratio")
+        _only(req, VIDEO_OPTIONS)
         params = {"ratio": ratio, "duration": C.VIDEO_DURATION, **_template(req, C.VIDEO_TEMPLATES)}
         return Plan(
             operation="image_to_video" if req.images else "text_to_video", media_type="video", model=req.model,
@@ -216,6 +217,7 @@ class GeminiSpec:
         if req.ratio is not None or req.duration is not None:
             raise _refuse("input.invalid", "a song takes `options.length` (%s), not a ratio or a duration"
                           % ", ".join(C.MUSIC_LENGTHS), "duration" if req.duration is not None else "ratio")
+        _only(req, MUSIC_OPTIONS)
         params = _template(req, C.MUSIC_TEMPLATES)
         for key, allowed in (("length", C.MUSIC_LENGTHS), ("vocals", C.MUSIC_VOCALS), ("genre", C.MUSIC_GENRES)):
             value = req.options.get(key)
@@ -232,6 +234,19 @@ class GeminiSpec:
             operation="text_to_music", media_type="video", model=req.model, params=params,
             completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
             pool="music", submit_timeout_s=SUBMIT_TIMEOUT_S)
+
+
+# The options a video or a song reads; any other key is refused, never charged and dropped (the core puts no option of
+# its own in a video request: only the image route adds `style`).
+VIDEO_OPTIONS = frozenset({"template"})
+MUSIC_OPTIONS = frozenset({"template", "length", "vocals", "genre"})
+
+
+def _only(req: CreateRequest, allowed: frozenset) -> None:
+    unknown = sorted(set(req.options) - allowed)
+    if unknown:
+        raise _refuse("input.invalid", "%s takes no option %s (it reads %s)"
+                      % (req.model, ", ".join(map(str, unknown)), ", ".join(sorted(allowed))), "options")
 
 
 def _template(req: CreateRequest, templates: dict) -> dict:
