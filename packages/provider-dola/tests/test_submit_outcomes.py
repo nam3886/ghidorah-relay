@@ -1113,6 +1113,34 @@ async def test_a_guest_page_after_the_send_is_a_logout_and_the_order_follows_the
         "the browser's lost cookies were struck against the account: %r" % (lost,)
 
 
+LIVE_REFUSAL = "refused-710022002-live-261025.txt"
+REFUSAL_GUEST = ("        guest = await self._guest_after_send()\n        if guest is not None:\n"
+                 "            await self._say(\"after dola's refusal")
+
+
+@mutation(SUB, 'QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK", "SSE_REPLY_END"})',
+          'QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})', expect="the live 710022002 stream")
+@mutation(SUB, REFUSAL_GUEST, "        guest = None\n        if guest is not None:\n"
+          "            await self._say(\"after dola's refusal", expect="the guest page after the refusal")
+@sync
+async def test_a_live_710022002_then_a_guest_page_is_a_refusal_and_the_logout_still_strikes():
+    """25/10 live: the stream was 710022002 then SSE_REPLY_END, and the page read as a guest. The end event was read
+    as a delivery, so the refusal was missed and the logout read left the job unknown. The refusal decides the job
+    (account 2, or refunded at the cap); the guest page adds its spaced strike to the account's rest."""
+    assert stream_error(stream_text(LIVE_REFUSAL)) == (
+        710022002, "We are experiencing high demand right now. Please try again later."), "the live 710022002 stream"
+    res = await Scene(polls=False, on_send=refusal_on_send(stream_text(LIVE_REFUSAL)),
+                      probe_after_send=GUEST_AFTER_SEND).run()
+    assert res.job == NotTaken(errors.REFUSED_710022002, {REFUSED_BY: ["acct-1"]}), \
+        "the live 710022002 stream did not decide the job: %r" % (res.job,)
+    assert types(res) == ["Cooldown", "Suspect", "Cooldown"], \
+        "the guest page after the refusal gave no strike: %r" % (res.account,)
+    last = await Scene(job=second_try(), polls=False, on_send=refusal_on_send(stream_text(LIVE_REFUSAL)),
+                       probe_after_send=GUEST_AFTER_SEND).run()
+    assert isinstance(last.job, Fail) and last.job.code == errors.REFUSED_710022002, \
+        "the live 710022002 stream did not end the job at the cap: %r" % (last.job,)
+
+
 @sync
 async def test_a_network_failure_after_the_send_is_unknown_and_still_marks_the_proxy():
     res = await Scene(send_error=NET_ERROR).run()

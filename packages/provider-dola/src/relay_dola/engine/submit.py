@@ -92,7 +92,10 @@ REFUSED_CODE = 710022002
 REFUSAL_MAX_ACCOUNTS = "dola.refusal_max_accounts"
 SSE_MESSAGE_CHARS = 200
 # Events of a `/chat/completion` stream that deliver nothing: a heartbeat and the acknowledgement of the send.
-QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})
+# Events that carry no delivery. dola closes every stream with SSE_REPLY_END (`{"end_type": 3}`), a refused one too:
+# read as a delivery it hid each real 710022002 (25/10 live, and the 23/10 captures in fixtures/dola/api-spike-261023),
+# and the job fell to the logout read and stayed unknown instead of going through the refusal path.
+QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK", "SSE_REPLY_END"})
 _CONV_ID = re.compile(r'"conversation_id"\s*:\s*"(\d+)"')
 _ANCHOR = re.compile(r'"anchor_index"\s*:\s*(\d+)')
 # The anchor of a FULL read of a conversation (the newest messages, whole): the one `CHAIN_FETCH_JS` asks for. The
@@ -1386,6 +1389,25 @@ class _Run:
         a rest, or no strike when the browser itself lost the cookies), and this run clears no strike. The order
         follows the money rule: a request that may carry it left the page, so it stays unknown; none did, so it was
         not sent and goes back to the queue. None when the read says logged in or says nothing."""
+        guest = await self._guest_after_send()
+        if guest is None:
+            return None
+        why, code, effects = guest
+        if not await self._proven_not_sent():
+            await self._flush_steps()
+            await self._say("after the send the page read %s; the order may have reached dola" % why,
+                            "submit_error", "engine")
+            return _outcome(Ambiguous(("after the send: %s" % why)[:500]), *effects)
+        return await self._not_sent("after the send the page read %s, and it sent no request that could carry the "
+                                    "order: not sent" % why, code, effects)
+
+    async def _guest_after_send(self) -> tuple[str, str, tuple] | None:
+        """The login read of the page after the send, when it reads as a guest: (why, code, the account's effects) and
+        the screenshot kept. A guest page gets one spaced strike and a rest; a browser that lost the cookies itself gets
+        the rest and no strike. This run then clears no strike. None when the read says logged in, says nothing, or
+        there is no page (the HTTP send)."""
+        if self.page is None:
+            return None
         try:
             state = login_state(await self.driver.probe(self.page))
         except Exception as exc:      # noqa: BLE001 - a page that cannot be read proves nothing
@@ -1397,19 +1419,13 @@ class _Run:
         present = await self.driver.identity_cookie_names(self.session)
         lost = lost_identity_cookies(present, self.injected)
         if present is None or lost:         # the browser's fault, not dola's verdict: no strike
-            why, code, effects = ("the browser lost the account's cookies: %s" % (", ".join(lost) or "not readable"),
-                                  errors.BROWSER_COOKIES_LOST, cookies_lost_effects(self.deps.now()))
+            guest = ("the browser lost the account's cookies: %s" % (", ".join(lost) or "not readable"),
+                     errors.BROWSER_COOKIES_LOST, cookies_lost_effects(self.deps.now()))
         else:
-            why, code, effects = ("logged out: %s" % state.reason, POOL_LOGGED_OUT,
-                                  login_doubt_effects(self.deps.now(), "after the send: %s" % state.reason))
+            guest = ("logged out: %s" % state.reason, POOL_LOGGED_OUT,
+                     login_doubt_effects(self.deps.now(), "after the send: %s" % state.reason))
         await self._ui_error_evidence("logged-out-after-send")
-        if not await self._proven_not_sent():
-            await self._flush_steps()
-            await self._say("after the send the page read %s; the order may have reached dola" % why,
-                            "submit_error", "engine")
-            return _outcome(Ambiguous(("after the send: %s" % why)[:500]), *effects)
-        return await self._not_sent("after the send the page read %s, and it sent no request that could carry the "
-                                    "order: not sent" % why, code, effects)
+        return guest
 
     async def _not_sent(self, why: str, code: str = errors.UI_SEND_FAILED, effects=()) -> SubmitResult:
         """After `mark_sent`, PROVEN not sent (`_order_may_have_left` is False): the order goes back to the queue as a
@@ -1438,7 +1454,13 @@ class _Run:
         `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded). A refusal that
         came after dola made a `conversation` always ends the job: dola may still deliver there (refuse-then-deliver,
         ~25 min), and an order sent to another account would be a second upstream order (no re-send once dola may
-        have taken it). The account `effects` (its rest) are the same either way."""
+        have taken it). The account `effects` (its rest) are the same either way. A page that reads as a guest after
+        the refusal (25/10: 710022002, then "Log in to unlock more features") adds the logout's own effects (a spaced
+        strike) to the account; the job's outcome stays the refusal's."""
+        guest = await self._guest_after_send()
+        if guest is not None:
+            await self._say("after dola's refusal the page read %s" % guest[0], "submit", "engine")
+            effects = (*effects, *guest[2])
         refused, last = self._refused_on_account()
         if conversation is not None:
             return _outcome(Fail(final, "%s (after dola made conversation %s: not sent to another account)"

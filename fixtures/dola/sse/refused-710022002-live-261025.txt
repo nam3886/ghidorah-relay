@@ -1,0 +1,15 @@
+: dola /chat/completion stream of a live browser send, 25/10 06:20Z (seedream-4.5, 16:9), copied from the job's
+: network debug file: refused with 710022002 and no acknowledgement, closed by SSE_REPLY_END like every stream.
+: HTTP 200. The page read as a guest right after it. No ids in the body.
+id: 0
+event: SSE_HEARTBEAT
+data: {}
+
+id: 0
+event: STREAM_ERROR
+data: {"error_code":710022002,"error_msg":"We are experiencing high demand right now. Please try again later.","extra":{"ack":"1"}}
+
+id: 1
+event: SSE_REPLY_END
+data: {"end_type":3}
+

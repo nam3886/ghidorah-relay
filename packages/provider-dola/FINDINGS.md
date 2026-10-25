@@ -21,6 +21,15 @@ row did not appear after clicking Create Videos" (`dola.ui_mode_not_ready`). No 
   `Model Seedream 4.5` and `Style` chips are unchanged; the image Model menu still offers Seedream 5.0 Pro and 4.5.
 - On a fresh profile (no HTTP cache) the action row shows up only about 50 s after the load, behind skeleton
   placeholders. The worker's warm profiles are faster; `COLD_MODE_WAIT_S` covers the first run.
+- **One live image after the fix** (n11-00, seedream-4.5 16:9, 06:20Z): mode, model and ratio were all set and read
+  back. Then dola answered the send with `STREAM_ERROR` 710022002 "high demand" (`extra.ack "1"`, no conversation;
+  `fixtures/dola/sse/refused-710022002-live-261025.txt`), and the page read as a guest at once ("Log in to unlock more
+  features"). Live tests stopped there.
+- **Every real dola stream ends with `SSE_REPLY_END` (`{"end_type":3}`), a refused one too** (also the 23/10 captures
+  in `fixtures/dola/api-spike-261023/*_sse.json`). `stream_error` read that event as a delivery, so a browser send never
+  saw a 710022002 or 710022004 (the hand-built fixtures in `fixtures/dola/sse/` lacked it). The live job fell to the
+  logout read and stayed unknown. `SSE_REPLY_END` is now a quiet event: the refusal decides the job (account 2, or
+  refunded at `dola.refusal_max_accounts`), and a guest page after it still adds its spaced strike to the account.
 
 ## HTTP send spike 23/10
 
