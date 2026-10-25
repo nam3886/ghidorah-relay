@@ -53,9 +53,12 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 
 # Image: 100 a day (not measured yet). Video: 15 a day; measured on AI Pro (24/10): one 10 s video uses 453 of 2400
-# units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week.
-POOLS = (PoolSpec("image", "uses"), PoolSpec("video", "uses"))
-POOL_DEFAULTS = {"image": day_pool({"free": 100}), "video": day_pool({"free": 15})}
+# units per 5 h and of 48384 per week, so about 5 per 5 h and 106 per week. Nano Banana 2.1 (`image_pro`): none on a
+# free account, which is what keeps its jobs off free accounts (a tier with no budget of its own takes the free one);
+# 100 a day on AI Pro and 1000 on Ultra (not measured: Google's own figures for its pro image model).
+POOLS = (PoolSpec("image", "uses"), PoolSpec("image_pro", "uses"), PoolSpec("video", "uses"))
+POOL_DEFAULTS = {"image": day_pool({"free": 100}), "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
+                 "video": day_pool({"free": 15})}
 
 _SETTINGS = dict((
     _setting("claims_enabled", bool, False,
@@ -136,10 +139,11 @@ class GeminiSpec:
         """Validate and normalise; the plan names its price key and the core prices it (`gemini.prices`,
         `gemini.costs`). Timeouts come from the constants, NEVER from `req.options`. Raises `InputError`. One result
         per job. An image: with one input image it is edited (its shape kept, so no ratio), without one it is drawn
-        from the text (a ratio of `RATIO_IDS`, or none: gemini picks). A video: 10 s, 16:9, from the text or from one
-        input image and the text."""
-        if req.model not in (C.IMAGE_MODEL, C.VIDEO_MODEL):
-            raise _refuse("input.bad_model", "gemini's models are %s, %s" % (C.IMAGE_MODEL, C.VIDEO_MODEL), "model")
+        from the text (a ratio of `RATIO_IDS`, or none: gemini picks); Nano Banana 2.1 takes the `image_pro` pool. A
+        video: 10 s, 16:9, from the text or from one input image and the text."""
+        if req.model not in (*C.IMAGE_MODELS, C.VIDEO_MODEL):
+            raise _refuse("input.bad_model", "gemini's models are %s" % ", ".join((*C.IMAGE_MODELS, C.VIDEO_MODEL)),
+                          "model")
         if len(req.images) > 1:
             raise _refuse("input.too_many_images", "%s takes at most one input image" % req.model, "images")
         if req.n not in (None, 1):
@@ -156,7 +160,8 @@ class GeminiSpec:
         return Plan(
             operation="image_to_image" if req.images else "text_to_image", media_type="image", model=req.model,
             params={"ratio": req.ratio} if req.ratio else {}, completion=Completion.HOLD,
-            after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model), pool="image",
+            after_sent=AfterSent.RECONCILE, price_key=C.price_key(req.model),
+            pool="image_pro" if req.model == C.PRO_IMAGE_MODEL else "image",
             submit_timeout_s=SUBMIT_TIMEOUT_S)
 
     def _video(self, req: CreateRequest, settings: Any) -> Plan:

@@ -1,13 +1,14 @@
 """The gemini spec (caps, settings, catalog, error rules, `plan()`), the credential import and the frames."""
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 from geminikit import PSID, PSIDTS, export
 
 from relay_core import errors, frames, pricing
 from relay_core.api.doors import checked_prompt
-from relay_core.pool import day_pool
+from relay_core.pool import can_afford, day_pool, left_of, pool_configs
 from relay_core.providers import (
     AfterSent,
     Completion,
@@ -32,6 +33,7 @@ CREDENTIAL_FILE = "packages/provider-gemini/src/relay_gemini/credential.py"
 IMG = MediaIn(sha256="0" * 64, mime="image/png", size=10)
 MODEL = "gemini-nano-banana-2"
 VIDEO = "gemini-omni-video"
+PRO = "gemini-nano-banana-2.1"          # the pro-tier image model: the "Pro" mode of an AI Pro account
 
 
 def plan(model=MODEL, prompt="a lighthouse at dawn", *, cfg=None, **kw):
@@ -56,7 +58,7 @@ def refusal(model=MODEL, prompt="a lighthouse at dawn", **kw):
 def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_every_five_minutes():
     c = SPEC.caps
     assert SPEC.name == "gemini" and c.execution == "http"
-    assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("video", "uses")]
+    assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("image_pro", "uses"), ("video", "uses")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
     assert (c.has_poll, c.has_reconcile, c.has_probe_proxy, c.titles) == (True, True, False, False)
     # the check rotates the session, which ages out in ~20 min: it must come at least twice per rotation interval
@@ -70,9 +72,12 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     assert s["gemini.claims_enabled"].default is False, "gemini must stay drained until the owner turns it on"
     assert (s["gemini.rotate_interval_s"].default, s["gemini.rotate_interval_s"].max) == (600, 900)
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
-    assert s["gemini.render_deadline_s"].default == 900 and s["gemini.prices"].default == {MODEL: 1, VIDEO + "@10s": 2}
-    assert s["gemini.costs"].default == {MODEL: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
-    assert s["gemini.pools"].default == {"image": day_pool({"free": 100}), "video": day_pool({"free": 15})}
+    assert s["gemini.render_deadline_s"].default == 900
+    assert s["gemini.prices"].default == {MODEL: 1, PRO: 2, VIDEO + "@10s": 2}
+    assert s["gemini.costs"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1}, "one use of its budget per job"
+    assert s["gemini.pools"].default == {"image": day_pool({"free": 100}),
+                                         "image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),
+                                         "video": day_pool({"free": 15})}
     assert s["gemini.video_limit_rest_s"].default == 5 * 3600
     assert all(s[k].description for k in s) and _problems(SPEC) == []
 
@@ -84,7 +89,7 @@ def test_the_registry_takes_gemini_beside_the_others_and_no_model_name_clashes()
     spec, model = reg.resolve(MODEL)
     assert spec is SPEC and model.operations == ("text_to_image", "image_to_image") and model.media_type == "image"
     assert model.limits["max_images"] == 1 and model.limits["ratios"] == ["1:1", "9:16", "3:4", "4:3", "16:9"]
-    assert [m.id for m in SPEC.catalog()] == [MODEL, VIDEO]
+    assert [m.id for m in SPEC.catalog()] == [MODEL, PRO, VIDEO]
     spec, video = reg.resolve(VIDEO)
     assert spec is SPEC and video.media_type == "video" and video.operations == ("text_to_video", "image_to_video")
     assert {k: video.limits[k] for k in ("max_images", "ratios", "default_ratio", "durations", "default_duration")} \
@@ -164,7 +169,7 @@ def test_a_price_table_stored_by_the_earlier_build_keeps_the_videos_price():
     """The earlier build keyed the video by its model alone: the stored price moves to `gemini-omni-video@10s`, and
     the image keeps its default."""
     loaded = SPEC.settings()["gemini.prices"].on_load({"gemini-omni-video": 3})
-    assert loaded == {MODEL: 1, VIDEO + "@10s": 3}, "the stored video price was lost: %s" % loaded
+    assert loaded == {MODEL: 1, PRO: 2, VIDEO + "@10s": 3}, "the stored video price was lost: %s" % loaded
 
 
 def test_the_price_comes_from_the_settings_and_a_missing_one_is_refused():
@@ -245,3 +250,46 @@ def test_the_shipped_frame_sends_the_customers_words_with_no_tracking_code():
         assert got == words.strip()
     longest = frames.render(SPEC.frames.defaults["image"], "x" * SPEC.max_prompt_chars, "7908", SPEC.frames.verbatim)
     assert len(longest) <= SPEC.frames.max_sent_chars
+
+
+# ---- the pro-tier image model (Nano Banana 2.1) and the tier gate ---------------------------------------------------
+PRO_POOL = '            pool="image_pro" if req.model == C.PRO_IMAGE_MODEL else "image",'
+
+
+@mutation(SPEC_FILE, PRO_POOL, '            pool="image",', expect="the image_pro pool")
+def test_the_pro_tier_image_model_is_an_image_model_of_its_own_pool_and_price():
+    p = priced(PRO, ratio="9:16")
+    assert (p.operation, p.media_type, p.model, p.params) == ("text_to_image", "image", PRO, {"ratio": "9:16"})
+    assert p.pool == "image_pro", "a pro-tier image planned outside the image_pro pool: %s" % p.pool
+    assert (p.price_key, p.price, p.account_cost) == (PRO, 2, 1)
+    edit = plan(PRO, images=(IMG,))
+    assert (edit.operation, edit.pool) == ("image_to_image", "image_pro")
+    assert refusal(PRO, images=(IMG,), ratio="1:1") == ("input.bad_ratio", "ratio")
+    assert plan(MODEL).pool == "image"
+    model = {m.id: m for m in SPEC.catalog()}[PRO]
+    assert model.display_name == "Gemini Nano Banana 2.1" and model.limits["ratios"] == ["1:1", "9:16", "3:4", "4:3",
+                                                                                         "16:9"]
+
+
+FREE_NONE = '"image_pro": day_pool({"free": 0, "pro": 100, "ultra": 1000}),'
+
+
+@mutation(SPEC_FILE, FREE_NONE, '"image_pro": day_pool({"pro": 100, "ultra": 1000}),', expect="a free account")
+@mutation(SPEC_FILE, FREE_NONE, '"image_pro": day_pool({"free": 0, "ultra": 1000}),', expect="a pro account")
+def test_only_a_pro_or_ultra_account_can_ever_afford_a_pro_tier_image():
+    """The tier gate is the pool's budget: 0 for a free account (and one whose tier was never read), so the claim
+    never picks it (`can_afford`); a pro or ultra account has its own budget."""
+    cfg = pool_configs("gemini", SPEC.caps, FakeSettings(SPEC).get)["image_pro"]
+    now = datetime(2026, 10, 25, 6, 0, tzinfo=UTC)
+    for tier in ("free", None):
+        left = left_of(cfg, tier, [], now)
+        assert left == 0 and not can_afford(left, 0, 1), "a free account could take a pro-tier image: %s" % left
+    assert left_of(cfg, "pro", [], now) == 100, "a pro account had no budget of its own"
+    assert left_of(cfg, "ultra", [], now) == 1000
+    assert left_of(pool_configs("gemini", SPEC.caps, FakeSettings(SPEC).get)["image"], "free", [], now) == 100
+
+
+def test_portrait_video_is_not_sold_until_it_is_measured():
+    """25/10: two text to video sends with the portrait option (17) both came back 1280x720 landscape."""
+    assert refusal(VIDEO, ratio="9:16") == ("input.bad_ratio", "ratio")
+    assert {m.id: m for m in SPEC.catalog()}[VIDEO].limits["ratios"] == ["16:9"]

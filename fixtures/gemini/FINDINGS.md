@@ -97,7 +97,7 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   submit whose page is not that email (or an account not checked yet) is a retry before anything is sent.
 
 ## 7. Video (Gemini Omni, AI Pro)
-- The send: inner[49] = 11 (video tool), inner[55] = [[16]] (Landscape; 17 = Portrait, not measured), the message's
+- The send: inner[49] = 11 (video tool), inner[55] = [[16]] (Landscape; 17 = Portrait, see below), the message's
   `[9][6]` = `[null, [null, "16:9"]]` for text, `[[null, null, null, 1]]` with an image (web app capture
   `web_request_i2v.json`); an image to video names the file `[[[path, 1, null, mime, uuid], name]]` (shorter than the
   image tool's entry). The anti-bot token at inner[3] was again not needed.
@@ -124,9 +124,29 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   account's video pool rests `gemini.video_limit_rest_s`, 5 h).
 - An error answer with no chat (`[13, …, BardErrorInfo [1100]]`) left nothing in two tries; still treated as unknown
   (reconciled, refunded at the deadline), never as not taken.
+- Another quota answer (zexadev/gemini-web2api-go, 24/10, not seen here): "I can create more videos as soon as your
+  limit resets" with an internal "out of video generation quota" status: both in `VIDEO_LIMIT_PHRASES`. Its "I'm having
+  a hard time fulfilling your request" with no video task is a content refusal (`gemini.refused`, nothing rested).
+- Portrait, 25/10 06:21Z and 06:26Z (live-261025, `portrait_and_image_modes.json`): two text to video sends with
+  inner[55] = [[17]] and the message's ratio `[null, [null, "9:16"]]` were taken and delivered, both 1280×720
+  landscape (10.01 s, the clip landscape in its frame). The option id 17 is right (otAQ7b, and the reference repo); the
+  reference sends it with NO ratio string in the message, the shape not tried yet (the 2-video budget was spent: the
+  second send repeated the first by mistake). Portrait is not sold.
+
+## 8. The image model follows the mode's kind (AI Pro, 25/10)
+- Each mode row of otAQ7b payload[15] carries a number at [17], its kind: Auto 6, Flash-Lite 6, Flash 1, Pro 3, Argon
+  8. A send names the mode id in `x-goog-ext-525001261-jspb`[4] and the kind at [14] (the provider sent 6 always).
+- The answer's turn names the image model (`… "Nano Banana 2", null, null, 6, 1 …` in the 23/10 reads). Six t2i sends
+  on `/u/4` through the relay (a scratch worker, 06:05-06:21Z), one image each, 1024×1024 or 768×1376 PNG:
+  Flash-Lite id + kind 6 → "Nano Banana 2 Lite"; the Pro id + kind 6 → "Nano Banana 2 Lite"; Flash + 1, Argon + 8,
+  Pro + 3 → "Nano Banana 2.1". The free plan's Auto + 6 drew "Nano Banana 2" (23/10). No mode gave "Nano Banana Pro".
+- So the kind, not the id alone, picks the model, and `gemini-nano-banana-2` on the AI Pro account (its default
+  Flash-Lite) is drawn by "Nano Banana 2 Lite". The provider sells `gemini-nano-banana-2.1` (the "Pro" mode and its
+  kind, `provider_state.pro_mode = [id, kind]`) to pro and ultra accounts only: its `image_pro` pool has no free budget.
 
 ## Open questions
-- Portrait (9:16) video, and image jobs on the AI Pro account (`/u/4`, mode Flash-Lite): not sent yet.
+- Portrait (9:16) video: the reference shape (option 17, no ratio string in the message) not sent yet.
+- Which mode makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".
 - The free plan's daily image limit and its refusal text; rate limits per account; the exact video quota (453 units
   of 2400 per 5 h suggests 5 per 5 h).
 - Whether a cut stream can ever still produce an image (two cuts produced none).

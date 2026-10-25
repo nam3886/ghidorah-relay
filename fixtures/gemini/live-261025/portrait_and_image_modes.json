@@ -1,0 +1,22 @@
+{
+  "account": "the AI Pro account at /u/4 (jSf9Qc plan 2)",
+  "mode_rows_otAQ7b": [
+    {"id": "8c46e95b1a07cecc", "name": "Flash-Lite", "kind": 6, "default": true},
+    {"id": "56fdd199312815e2", "name": "Flash", "kind": 1},
+    {"id": "e6fa609c3fa255c0", "name": "Pro", "kind": 3},
+    {"id": "95a4c0abcba24364", "name": "Argon", "kind": 8}
+  ],
+  "t2i_sends": [
+    {"at": "06:05:25Z", "mode": "e6fa609c3fa255c0", "kind": 6, "ratio": "1:1", "status": 200, "label": "Nano Banana 2 Lite", "image": [1024, 1024, 1326060]},
+    {"at": "06:06:28Z", "mode": "e6fa609c3fa255c0", "kind": 3, "ratio": "1:1", "status": 200, "label": "Nano Banana 2.1", "image": [1024, 1024, 1201936]},
+    {"at": "06:07:5xZ", "mode": "8c46e95b1a07cecc", "kind": 6, "ratio": "1:1", "status": 200, "label": "Nano Banana 2 Lite", "image": [1024, 1024, 1320306]},
+    {"at": "06:08:4xZ", "mode": "56fdd199312815e2", "kind": 1, "ratio": "1:1", "status": 200, "label": "Nano Banana 2.1", "image": [1024, 1024, 1206362]},
+    {"at": "06:09:22Z", "mode": "95a4c0abcba24364", "kind": 8, "ratio": "1:1", "status": 200, "label": "Nano Banana 2.1", "image": [1024, 1024, 1124024]},
+    {"at": "06:20:56Z", "mode": "e6fa609c3fa255c0", "kind": 3, "ratio": "9:16", "status": 200, "label": "Nano Banana 2.1", "image": [768, 1376, 1193039], "note": "the committed code path: model gemini-nano-banana-2.1, provider_state.pro_mode [id, 3]"}
+  ],
+  "t2v_portrait_sends": [
+    {"at": "06:21:15Z", "inner55": [[17]], "message_9_6": [null, [null, "9:16"]], "result": "done in 2 min 51 s", "ffprobe": {"video": "h264 1280x720 24 fps", "audio": "aac", "duration_s": 10.0078, "bytes": 2374639}, "frame": "landscape composition"},
+    {"at": "06:26:0xZ", "inner55": [[17]], "message_9_6": [null, [null, "9:16"]], "result": "done", "job_media": {"width": 1280, "height": 720, "duration_s": 10.0078}, "note": "meant to drop the message ratio; the patch missed the text to video branch, so it repeated the first send"}
+  ],
+  "usage_5h_window": {"before_videos_06:04Z": 2400, "after_five_images_06:10Z": 2299}
+}

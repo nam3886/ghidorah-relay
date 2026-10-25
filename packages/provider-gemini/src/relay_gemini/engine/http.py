@@ -47,7 +47,7 @@ from relay_gemini.constants import (
     VIDEO_BYTES_HOST,
 )
 from relay_gemini.credential import dump, email_of, jar_of
-from relay_gemini.engine.reply import first_mode
+from relay_gemini.engine.reply import modes as read_modes
 
 log = logging.getLogger(__name__)
 _AT = re.compile(r'"SNlM0e":"([^"]+)"')
@@ -281,10 +281,11 @@ class Site:
             page = self.page
         return page
 
-    async def mode(self) -> str | None:
-        """The account's default mode id (otAQ7b), sent with every order: the modes differ by plan (FINDINGS 6)."""
+    async def modes(self) -> list[tuple[str, str | None, int | None]]:
+        """The account's modes `(id, name, kind)`, the default first (otAQ7b); one is sent with every order: the modes
+        differ by plan (FINDINGS 6). Empty when they cannot be read."""
         status, body = await self.rpc("otAQ7b", [])
-        return first_mode(body) if status == 200 else None
+        return read_modes(body) if status == 200 else []
 
     def _query(self, **extra) -> str:
         page = self.page

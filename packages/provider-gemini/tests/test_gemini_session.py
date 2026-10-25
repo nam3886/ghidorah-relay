@@ -14,6 +14,7 @@ from geminikit import (
     BLOB,
     EMAIL,
     MODE_FLASH_LITE,
+    MODES,
     NEW_PSIDTS,
     PRO_MODES,
     PRO_USAGE,
@@ -33,6 +34,7 @@ from relay_gemini.engine import GeminiEngine, build_engine
 from relay_gemini.engine import http as H
 from relay_gemini.engine.check import check_account
 from relay_gemini.engine.http import Sessions, Site
+from relay_gemini.engine.reply import modes
 
 HTTP_FILE = "packages/provider-gemini/src/relay_gemini/engine/http.py"
 CHECK_FILE = "packages/provider-gemini/src/relay_gemini/engine/check.py"
@@ -205,7 +207,7 @@ def test_a_signed_in_page_is_alive_with_the_email_and_the_check_sends_nothing():
     health = check(Gemini(log), Ctx(log))
     assert health.identity == EMAIL, "the identity is the email"
     assert (health.state, health.display_name) == ("alive", EMAIL)
-    assert health.state_patch == {"authuser": 0, "mode": "cf41b0e0dd7d53e5"}     # no email named: /u/0, its mode
+    assert health.state_patch == {"authuser": 0, "mode": "cf41b0e0dd7d53e5", "pro_mode": None}    # /u/0, its mode
     assert "SEND" not in log and not any(s.startswith("upload") for s in log)
 
 
@@ -247,7 +249,8 @@ def test_a_mode_list_that_cannot_be_read_clears_the_kept_mode_and_is_a_rest_with
         log = []
         health = check(Gemini(log, rpc={"otAQ7b": answer}), Ctx(log, state={"authuser": 0, "mode": "0" * 16}))
         assert health.state == "unknown", "reported ready with no mode: %s" % (health,)
-        assert health.state_patch == {"authuser": 0, "mode": None}, "the stale mode was kept: %s" % (health,)
+        assert health.state_patch == {"authuser": 0, "mode": None, "pro_mode": None}, \
+            "the stale mode was kept: %s" % (health,)
         (rest,) = health.effects
         assert isinstance(rest, Cooldown) and rest.recheck and rest.until == NOW + timedelta(seconds=300)
         assert health.identity == EMAIL
@@ -378,13 +381,14 @@ def test_a_plan_code_not_measured_as_a_tier_keeps_the_stored_tier():
 def test_an_exhausted_usage_window_rests_both_pools_until_it_resets():
     spent = PRO_USAGE.replace("[2400,0,1,", "[0,1,1,")                  # the 5-hour window used up
     reset = datetime.fromtimestamp(1792814865, UTC)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset), Balance("video", 0, reset)), \
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset), Balance("image_pro", 0, reset),
+                                  Balance("video", 0, reset)), \
         "an exhausted window did not rest the pools"
 
 
 def test_a_garbled_reset_time_never_fails_the_check_and_names_no_refill():
     spent = PRO_USAGE.replace("[2400,0,1,[[1792814865,", "[0,1,1,[[%d," % 10**20)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("video", 0))
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("image_pro", 0), Balance("video", 0))
 
 
 @mutation(CHECK_FILE, "    return account_read(body) if status == 200 else ()", "    return account_read(body)",
@@ -395,3 +399,31 @@ def test_a_usage_read_that_fails_keeps_the_account_alive_and_changes_neither_tie
         assert read_by_check(answer) == (), "a failed read changed the account: %r" % (answer,)
 
 
+
+
+# ---- the mode list: the default mode, and the "Pro" mode with its kind ----------------------------------------------
+REPLY_FILE = "packages/provider-gemini/src/relay_gemini/engine/reply.py"
+
+
+@mutation(REPLY_FILE, "        kind = r[17] if len(r) > 17 and type(r[17]) is int else None",
+          "        kind = 6", expect="the kinds")
+def test_the_mode_list_reads_each_modes_id_name_and_kind_as_recorded():
+    assert modes(PRO_MODES) == [(MODE_FLASH_LITE, "Flash-Lite", 6), ("56fdd199312815e2", "Flash", 1),
+                                ("e6fa609c3fa255c0", "Pro", 3), ("95a4c0abcba24364", "Argon", 8)], "the kinds"
+    assert modes(MODES) == [("cf41b0e0dd7d53e5", "Auto", 6)]
+    assert modes(")]}'\n") == [] and modes(PRO_MODES.replace("8c46e95b1a07cecc", "not-a-mode", 1)) == []
+
+
+@mutation(CHECK_FILE, "pro = next(([m, kind] for m, name, kind in menu", "pro = next(([m, 6] for m, name, kind in menu",
+          expect="the Pro mode's kind")
+@mutation(CHECK_FILE, "in menu if name == PRO_MODE_NAME and kind", "in menu if name is not None and kind",
+          expect="the Pro mode")
+def test_the_check_keeps_the_accounts_pro_mode_with_its_kind_and_none_on_a_plan_without_it():
+    log = []
+    fake = Gemini(log, accounts=["a@example.com", "owner.pro@example.com"], rpc={"otAQ7b": PRO_MODES})
+    health = check(fake, Ctx(log, blob=blob_for("owner.pro@example.com")))
+    assert health.state_patch["pro_mode"] == ["e6fa609c3fa255c0", 3], \
+        "the Pro mode or the Pro mode's kind was not kept: %s" % (health.state_patch,)
+    assert health.state_patch["mode"] == MODE_FLASH_LITE
+    log = []
+    assert check(Gemini(log), Ctx(log)).state_patch["pro_mode"] is None      # the free plan: "Auto" only

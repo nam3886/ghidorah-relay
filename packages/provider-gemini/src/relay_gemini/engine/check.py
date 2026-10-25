@@ -10,8 +10,10 @@ A session can be signed in to several Google accounts (`/u/0`, `/u/1`, ...; FIND
 email and the page at the account's index is another account, the check looks through the indexes for it and keeps
 the one found in `provider_state.authuser`; none found is an unknown read and a rest with a recheck (no strike: the
 session is alive, it holds no such account). The account's default mode (the modes differ by plan) is kept in
-`provider_state.mode`. Every order of the account goes to that index with that mode. A mode list that cannot be read
-clears the kept mode (no send without it: `gemini.account_unresolved`) and is an unknown read with a rest and a recheck.
+`provider_state.mode`, its "Pro" mode with that mode's kind in `provider_state.pro_mode` (None on a plan without one;
+the pro-tier image model is sent with it). Every order of the account goes to that index with its mode. A mode list
+that cannot be read clears the kept mode (no send without it: `gemini.account_unresolved`) and is an unknown read with
+a rest and a recheck.
 
 An alive check also reads the account's usage (`jSf9Qc`, FINDINGS 5): the plan it names becomes the account's tier, and
 a usage window with nothing left rests both pools until that window resets (the windows are shared: a video took 453
@@ -34,7 +36,11 @@ USAGE_PATH = "/usage"
 # jSf9Qc payload[0]: 1 on free accounts, 2 on the AI Pro one (measured 24/10 and 25/10). Ultra's code is not measured:
 # any other value is not read as a tier, the stored one stays.
 PLAN_TIERS = {1: "free", 2: "pro"}
-POOLS = ("image", "video")
+POOLS = ("image", "image_pro", "video")
+# The mode menu's "Pro" (AI Pro: `e6fa609c3fa255c0`, kind 3). With the image tool it draws with "Nano Banana 2.1"
+# (25/10; the default Flash-Lite draws "Nano Banana 2 Lite"), so a `gemini-nano-banana-2.1` job is sent with it. Kept
+# with its kind in `provider_state.pro_mode` as `[id, kind]`; None on a plan without it.
+PRO_MODE_NAME = "Pro"
 
 
 def account_read(text: str) -> tuple[Balance | Tier, ...]:
@@ -92,8 +98,10 @@ async def check_account(ctx, settings, sessions: Sessions, *, transport: httpx.A
                     return Health("unknown", effects=(
                         Cooldown(why, now() + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True),))
                 page = site.page
-            mode = await site.mode()
-            patch = {"authuser": site.authuser, "mode": mode}
+            menu = await site.modes()
+            mode = menu[0][0] if menu else None
+            pro = next(([m, kind] for m, name, kind in menu if name == PRO_MODE_NAME and kind is not None), None)
+            patch = {"authuser": site.authuser, "mode": mode, "pro_mode": pro}
             if mode is None:        # no send without the account's own mode: the stale one is cleared, rest, recheck
                 rest = Cooldown("gemini's mode list could not be read", now() + timedelta(seconds=NETWORK_REST_S),
                                 recheck=True)

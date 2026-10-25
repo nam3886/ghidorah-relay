@@ -254,16 +254,27 @@ def turns(text: str) -> tuple[list[Turn], bool]:
     return out, True
 
 
-def first_mode(text: str) -> str | None:
-    """The account's first mode id (the mode menu's default: "Auto" on a free plan, "Flash-Lite" on AI Pro, measured
-    24/10) from an otAQ7b answer: payload[15] lists the modes `[id, name, ...]`. None when it cannot be read."""
+def modes(text: str) -> list[tuple[str, str | None]]:
+    """The account's modes `(id, name, kind)` in the menu's order from an otAQ7b answer: payload[15] lists them `[id,
+    name, ..., [17]: kind]`; the first is the default ("Auto" on a free plan, "Flash-Lite" on AI Pro, measured 24/10).
+    The kind is the number a send names beside the mode id (header `x-goog-ext-525001261-jspb`[14]: Auto and
+    Flash-Lite 6, Flash 1, Pro 3, Argon 8); None when the row has none. Empty when the list cannot be read or its first
+    entry is not a mode."""
     payloads, _, clean, ended = _items(text)
     if not clean or not ended or len(payloads) != 1:
-        return None
+        return []
     p = payloads[0]
-    modes = p[15] if isinstance(p, list) and len(p) > 15 else None
-    mode = modes[0][0] if isinstance(modes, list) and modes and isinstance(modes[0], list) and modes[0] else None
-    return mode if isinstance(mode, str) and _MODE.fullmatch(mode) else None
+    rows = p[15] if isinstance(p, list) and len(p) > 15 and isinstance(p[15], list) else []
+    out = []
+    for r in rows:
+        if not (isinstance(r, list) and r and isinstance(r[0], str) and _MODE.fullmatch(r[0])):
+            if not out:
+                return []                   # no default mode
+            continue
+        name = r[1] if len(r) > 1 and isinstance(r[1], str) else None
+        kind = r[17] if len(r) > 17 and type(r[17]) is int else None
+        out.append((r[0], name, kind))
+    return out
 
 
 def usage_of(text: str) -> tuple[int, list[tuple[int, int | None]]] | None:

@@ -952,13 +952,17 @@ deadline with its refund. Both pools rest after any generate.
 
 ## The gemini provider (`relay worker --provider gemini`)
 
-Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. Two models. `gemini-nano-banana-2`
+Gemini web (gemini.google.com) over plain HTTP: no browser, no token service. Three models. `gemini-nano-banana-2`
 (Nano Banana 2): an image from text (ratios 1:1, 9:16, 3:4, 4:3, 16:9, or none: gemini picks), or one input image edited
 as the text asks (its shape kept, no ratio); one image per job, about 30 s, a 1408x768 PNG for 16:9 with Gemini's
-visible watermark. `gemini-omni-video` (Gemini Omni, the web app's "Create video"): a 10 s 1280x720 MP4 with sound from
-text, or from one image and text; 16:9 only (portrait is not measured); about 1-2 min. Video needs an account whose plan
-includes it (AI Pro measured; a free account answers `gemini.not_entitled`, refunded). The protocol is in
-`fixtures/gemini/FINDINGS.md`.
+visible watermark. It is sent with the account's default mode: on a free account Google draws it with "Nano Banana 2",
+on the AI Pro account (default Flash-Lite) with "Nano Banana 2 Lite" (25/10). `gemini-nano-banana-2.1`: the same
+requests sent with the account's "Pro" mode and its kind, drawn by "Nano Banana 2.1"; it takes the `image_pro` pool,
+whose budget is 0 for a free account (and one whose tier was never read), so only a pro or ultra account claims it.
+`gemini-omni-video` (Gemini Omni, the web app's "Create video"): a 10 s 1280x720 MP4 with sound from
+text, or from one image and text; 16:9 only (two portrait sends came back landscape, 25/10); about 1-2 min. Video needs
+an account whose plan includes it (AI Pro measured; a free account answers `gemini.not_entitled`, refunded). The
+protocol is in `fixtures/gemini/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-gemini.env` (from the `.example`): the usual worker variables, no secret of its
 own. Each account should have a proxy: every call to Google and every result download goes through it (owner, 23/10;
@@ -999,8 +1003,8 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
   `gemini.poll_interval_s` until the video record is there (done), and the fetch resolves its link with `=m22` to the
   720p MP4 on a googlevideo.com host, downloaded through the proxy with no cookie.
 - A complete answer with a final text and no result fails the job with its refund: `gemini.not_entitled` for the
-  "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today" and its
-  rewordings (case and punctuation ignored; the account's video pool also rests `gemini.video_limit_rest_s`),
+  "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more videos for you today", "I can create more
+  videos as soon as your limit resets" and their rewordings (case and punctuation ignored; the account's video pool also rests `gemini.video_limit_rest_s`),
   `gemini.refused` for any other, the text kept. A video refusal that reads like a quota (limit, quota, today,
   tomorrow, or the same in Vietnamese, Spanish, French, German, Japanese or Chinese) also rests the video pool.
 - Anything else (no answer, a timeout, a cut or unreadable answer, a status that is not 200, an error item, an answer
@@ -1009,7 +1013,7 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
   exact text is the job's (found: the poll reads it, an image is done, a plain answer fails refunded). Not found stays
   unknown until `gemini.render_deadline_s` (900) fails the job with its refund (a cut send left no chat in the spike).
   It is never sent again.
-- After any send the account's image and video pools rest `gemini.account_min_gap_s` (30).
+- After any send the account's image, image_pro and video pools rest `gemini.account_min_gap_s` (30).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1018,8 +1022,8 @@ answer streams until the image is drawn; a video answer says in 10-33 s that the
 | `gemini.account_min_gap_s` | 30 | the pool rest after a send (gemini's own rate limit not measured) |
 | `gemini.render_deadline_s` | 900 | an unknown job not found by then fails, refunded |
 | `gemini.poll_interval_s` | 30 | between two reads of a found job |
-| `gemini.prices`, `gemini.costs`, `gemini.image_budget` | 1 (image), 2 (video); 1 use each; 100 | points per image or video; one use of the image or the video budget; images per account per day (not measured) |
-| `gemini.video_budget` | 15 | videos per account per day (AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week) |
+| `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 2 (video); 1 use each | points per job; one use of its pool |
+| `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15 | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week). The free 0 of image_pro is what keeps Nano Banana 2.1 off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 

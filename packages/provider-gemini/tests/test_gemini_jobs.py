@@ -247,7 +247,7 @@ def test_after_any_send_the_accounts_pool_rests_for_the_pacing_gap():
         result = run(Gemini(log, send=text), Ctx(log))
         rests = [e for e in result.account if isinstance(e, Rest)]
         assert rests == [Rest(pool, NOW + timedelta(seconds=30), "gemini pacing between two sends")
-                         for pool in ("image", "video")]
+                         for pool in ("image", "image_pro", "video")]
     log = []
     result = run(Gemini(log, send=T2I), Ctx(log), cfg=settings(gemini__account_min_gap_s=0))
     assert not any(isinstance(e, Rest) for e in result.account)

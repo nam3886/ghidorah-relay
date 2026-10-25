@@ -34,6 +34,7 @@ from relay_core.net import FetchFailed
 from relay_core.providers import (
     Accepted,
     Ambiguous,
+    Completed,
     Cooldown,
     Done,
     Fail,
@@ -218,8 +219,12 @@ def test_a_page_of_another_account_or_an_unchecked_account_is_a_retry_with_nothi
     (rest,) = result.account
     assert isinstance(rest, Cooldown) and rest.recheck
     log = []
-    result = run(pro_site(log, send=T2V_ACCEPTED), Ctx(log, blob=blob_for(EMAIL), state={"authuser": 4}), video_job())
-    assert log.count("SEND") == 0 and result.job == Retry(errors.UNRESOLVED), "sent with no mode: %s" % log
+    try:
+        got = run(pro_site(log, send=T2V_ACCEPTED), Ctx(log, blob=blob_for(EMAIL), state={"authuser": 4}),
+                  video_job()).job
+    except TypeError as e:          # no mode to send: the request cannot be built
+        got = e
+    assert log.count("SEND") == 0 and got == Retry(errors.UNRESOLVED), "sent with no mode: %s %r" % (log, got)
 
 
 # ---- poll, reconcile and fetch -----------------------------------------------------------------------------------
@@ -511,3 +516,71 @@ def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_a
     assert result.job.code == errors.REFUSED
     assert not any(isinstance(e, Rest) and e.until > NOW + timedelta(hours=1) for e in result.account), \
         "a content refusal rested the video pool"
+
+
+def test_the_limit_resets_answer_is_the_limit_and_a_hard_time_answer_with_no_task_is_a_plain_refusal():
+    """"I can create more videos as soon as your limit resets" is the quota answer (zexadev/gemini-web2api-go, 24/10):
+    refunded, the video pool rested. "I'm having a hard time fulfilling your request" with no video task is a content
+    refusal (rephrasing helps): refunded, nothing rested; with the generating item it is a taken video."""
+    log = []
+    result = run(pro_site(log, send=answer("I can create more videos as soon as your limit resets.")), pro_ctx(log),
+                 video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
+        "the limit resets answer became %s" % (result.job,)
+    assert [e.pool for e in result.account if isinstance(e, Rest) and e.until > NOW + timedelta(hours=1)] == ["video"]
+    hard = "I'm having a hard time fulfilling your request. Can I help you with something else instead?"
+    log = []
+    result = run(pro_site(log, send=answer(hard)), pro_ctx(log), video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
+    assert not any(isinstance(e, Rest) and e.until > NOW + timedelta(hours=1) for e in result.account), \
+        "a content refusal rested the video pool"
+    taken = read_answer(answer(hard))
+    taken = type(taken)(taken.clean, taken.ended, taken.payloads, taken.cid, taken.texts, taken.images, taken.errors,
+                        taken.videos, True)
+    assert judge(200, taken, video=True) == ("taken", None)
+
+
+# ---- the pro-tier image model (Nano Banana 2.1): the account's "Pro" mode and its kind ---------------------------
+NB21 = "gemini-nano-banana-2.1"
+PRO_MODE = ["e6fa609c3fa255c0", 3]                   # what the check keeps from the AI Pro account's mode list
+
+
+def nb21_ctx(log, state=None):
+    return Ctx(log, blob=blob_for(EMAIL), state={**PRO, "pro_mode": PRO_MODE} if state is None else state)
+
+
+@mutation(SUBMIT_FILE, "None, 1, None, None, kind, 1, rid]),", "None, 1, None, None, 6, 1, rid]),",
+          expect="the mode's kind")
+@mutation(SUBMIT_FILE, "    if model == C.PRO_IMAGE_MODEL:\n", "    if False:\n", expect="the Pro mode")
+@mutation(SUBMIT_FILE, "request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1])",
+          "request(sent_text(job), ratio, image, rid, mode[0], video=video)",
+          expect="the mode's kind")
+def test_the_pro_tier_image_is_sent_with_the_accounts_pro_mode_and_its_kind_and_nano_banana_2_with_the_default():
+    """25/10 live: the kind, not the mode id alone, picks the image model ("Pro" id with kind 6: "Nano Banana 2 Lite",
+    with kind 3: "Nano Banana 2.1")."""
+    log = []
+    g = pro_site(log, send=answer("", image=True))
+    result = run(g, nb21_ctx(log), job(model=NB21, ratio="9:16"))
+    assert g.sends(), "nothing sent: %s" % (result.job,)
+    head = json.loads(g.sends()[0].headers["x-goog-ext-525001261-jspb"])
+    assert head[4] == PRO_MODE[0], "not sent with the Pro mode: %s" % head[4]
+    assert head[14] == 3, "the mode's kind was not sent: %s" % head[14]
+    inner = inner_of(g.sends()[0])
+    assert inner[49] == 14 and inner[55] == [[59]] and inner[0][9][6] == [None, [None, "9:16"]]
+    assert isinstance(result.job, Completed)
+    log = []
+    g = pro_site(log, send=answer("", image=True))
+    run(g, nb21_ctx(log), job())
+    head = json.loads(g.sends()[0].headers["x-goog-ext-525001261-jspb"])
+    assert (head[4], head[14]) == (MODE_FLASH_LITE, 6), "Nano Banana 2 was not sent with the default mode: %s" % head
+
+
+@mutation(SUBMIT_FILE, '        pro = state.get("pro_mode")\n', '        pro = [state.get("mode"), 6]\n',
+          expect="sent without the Pro mode")
+def test_a_pro_tier_image_on_an_account_with_no_pro_mode_is_a_retry_with_nothing_sent():
+    for state in (dict(PRO), {**PRO, "pro_mode": None}, {**PRO, "pro_mode": "e6fa609c3fa255c0"},
+                  {**PRO, "pro_mode": ["e6fa609c3fa255c0", "3"]}):
+        log = []
+        result = run(pro_site(log, send=answer("", image=True)), nb21_ctx(log, state), job(model=NB21))
+        assert log.count("SEND") == 0 and "mark_sent" not in log, "sent without the Pro mode: %s" % (state,)
+        assert result.job == Retry(errors.UNRESOLVED)

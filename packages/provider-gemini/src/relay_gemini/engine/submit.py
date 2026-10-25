@@ -64,7 +64,7 @@ from relay_gemini.constants import (
     VIDEO_LIMIT_PHRASES,
     VIDEO_TOOL,
 )
-from relay_gemini.engine.check import doubt_effects, signed_out_why
+from relay_gemini.engine.check import POOLS, doubt_effects, signed_out_why
 from relay_gemini.engine.http import Sessions, Site
 from relay_gemini.engine.reply import Answer, Image, Video, read_answer
 
@@ -72,10 +72,10 @@ REQUEST_KEY = "request"      # provider_state: the request id of the send (also 
 CHAT_KEY = "chat"            # provider_state: gemini's conversation id, once known
 LOGGED_OUT = "pool.account_logged_out"
 PROXY_FAILED = "pool.proxy_failed"
-POOLS = ("image", "video")
 IMAGE_PLACEHOLDER = "googleusercontent.com/image_generation_content/"   # the text of an answer that holds an image
 VIDEO_PLACEHOLDER = "googleusercontent.com/generated_video_content/"    # ... and of one that holds a video
 _MODE = re.compile(r"[0-9a-f]{16}")
+DEFAULT_MODE_KIND = 6        # the header's [14] for the default mode (Auto and Flash-Lite: 6, otAQ7b and the captures)
 
 _store = None
 
@@ -111,10 +111,19 @@ def is_video(job) -> bool:
     return job.operation in ("text_to_video", "image_to_video")
 
 
-def mode_of(account) -> str | None:
-    """The account's mode id the check read (otAQ7b); None until a check has."""
-    mode = (account.provider_state or {}).get("mode")
-    return mode if isinstance(mode, str) and _MODE.fullmatch(mode) else None
+def mode_of(account, model: str | None = None) -> tuple[str, int] | None:
+    """The mode the job is sent with, `(id, kind)`, as the check read it (otAQ7b): the account's "Pro" mode for the
+    pro-tier image model (it draws "Nano Banana 2.1"; the default Flash-Lite draws "Nano Banana 2 Lite", 25/10), its
+    default mode otherwise (kind 6: Auto and Flash-Lite both, measured). None until a check has read it, or for the
+    pro-tier model on a plan with no "Pro"."""
+    state = account.provider_state or {}
+    if model == C.PRO_IMAGE_MODEL:
+        pro = state.get("pro_mode")
+        ok = isinstance(pro, list) and len(pro) == 2 and isinstance(pro[0], str) and _MODE.fullmatch(pro[0]) \
+            and type(pro[1]) is int
+        return (pro[0], pro[1]) if ok else None
+    mode = state.get("mode")
+    return (mode, DEFAULT_MODE_KIND) if isinstance(mode, str) and _MODE.fullmatch(mode) else None
 
 
 def sent_text(job) -> str:
@@ -123,13 +132,15 @@ def sent_text(job) -> str:
 
 
 def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, rid: str, mode: str, *,
-            video: bool = False) -> tuple[list, dict]:
+            video: bool = False, kind: int = DEFAULT_MODE_KIND) -> tuple[list, dict]:
     """The send's `inner` and headers, as the web app builds them with the image tool chosen (captured 23/10,
     fixtures/gemini/live-261023/web_request_*.json) or the video tool (24/10, live-261024/web_request_i2v.json). The
     anti-bot token the page puts at inner[3] is not needed. An image ratio goes in the message (`[9][6]`) and as its
     option id (`[55]`); an edit names the uploaded file at `[3]`. A video always names its ratio option (`[55]`); a text
     to video carries the ratio in the message too, an image to video the web app's `[[null, null, null, 1]]` there and
-    the file at `[3]` in the shorter entry the video tool sends."""
+    the file at `[3]` in the shorter entry the video tool sends. The mode goes in the first header with its `kind` at
+    [14]: the kind, not the id alone, picks the image model (25/10: the "Pro" id with kind 6 drew "Nano Banana 2 Lite",
+    with its own kind 3 "Nano Banana 2.1")."""
     content: list = [text, 0, None, None, None, None, 0]
     if image is not None:
         path, mime, name = image
@@ -149,7 +160,7 @@ def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, ri
         inner[i] = v
     headers = {
         "x-goog-ext-525001261-jspb": json.dumps([1, None, None, None, mode, None, None, 0, CAPABILITIES, None,
-                                                 None, 1, None, None, 6, 1, rid]),
+                                                 None, 1, None, None, kind, 1, rid]),
         "x-goog-ext-525005358-jspb": json.dumps([rid, 1]),
         "x-goog-ext-73010989-jspb": "[0]",
         "x-goog-ext-73010990-jspb": "[0,0,0]",
@@ -242,7 +253,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 return _result(Retry(errors.HTTP_ERROR))
             if not page.signed_in:
                 return _result(Retry(LOGGED_OUT), *doubt_effects(signed_out_why(site), now()))
-            mode = mode_of(ctx.account)
+            mode = mode_of(ctx.account, job.model)
             if mode is None or (site.email and (page.email or "").lower() != site.email):
                 why = "gemini's page is not the account's Google account, or the account was not checked yet"
                 return _result(Retry(errors.UNRESOLVED),
@@ -257,7 +268,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
                 image = (path, ref.mime, name)
             rid = str(uuid.uuid4()).upper()
             ratio = job.params.get("ratio") or (C.VIDEO_RATIO if video else None)
-            inner, headers = request(sent_text(job), ratio, image, rid, mode, video=video)
+            inner, headers = request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1])
             await ctx.report_ref(rid, {REQUEST_KEY: rid})
             await ctx.mark_sent()
             sent = True

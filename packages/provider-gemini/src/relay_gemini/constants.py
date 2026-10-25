@@ -37,10 +37,13 @@ VIDEO_TOOL = 11                       # inner[49] of a send with the video tool 
 MAX_ACCOUNTS = 10                     # a Google session holds at most 10 signed-in accounts: /u/0../u/9
 GENERATING_MARK = "video_generation"  # the "I'm generating your video" item of a video send that was taken
 # The video limit answer, in `submit.plain` form (lowercase, straight apostrophes, "cannot" as "can't", no other
-# punctuation). Measured 23/10: "I can't create more videos for you today, ..."; the others are its likely rewordings.
+# punctuation). Measured 23/10: "I can't create more videos for you today, ..."; "I can create more videos as soon as
+# your limit resets" with its "out of video generation quota" status (zexadev/gemini-web2api-go, 24/10); the others
+# are likely rewordings.
 VIDEO_LIMIT_PHRASES = ("can't create more videos", "can't make more videos", "can't generate more videos",
                        "no more videos today", "reached your video limit", "reached the video limit",
-                       "reached your daily video limit", "video generation limit")
+                       "reached your daily video limit", "video generation limit", "as soon as your limit resets",
+                       "out of video generation quota")
 # Words of a quota-like answer (English, Vietnamese, Spanish, French, German, Japanese/Chinese): a video refusal that
 # holds one also rests the account's video pool, since it may be the limit answer worded otherwise.
 QUOTA_WORDS = ("limit", "quota", "today", "tomorrow", "try again later", "giới hạn", "hôm nay", "ngày mai", "límite",
