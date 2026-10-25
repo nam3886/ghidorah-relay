@@ -635,7 +635,9 @@ A provider declares a mode needs a source by returning `Plan(uses_source=True)` 
 for: the provider takes its own upstream id from that output, e.g. its `upstream_id`). A mode whose send leaves
 nothing to read back after an unclear answer (vibes image edit: its batch id is upstream's) plans
 `after_sent=fail_refund`: an `Ambiguous` submit, or a lease that expires after `mark_sent`, fails the job at once with
-its refund (`render.unclear_send`) instead of reconciling it.
+its refund (`render.unclear_send`) instead of reconciling it. For a vibes image edit this means (owner's choice): on an
+unclear answer (a timeout, a 5xx, the checkpoint after the send) the customer is refunded, and the vibes account's
+quota may still have been spent upstream; the cost is a quota unit, not money.
 
 ## The dola provider (`relay worker --provider dola`)
 
@@ -1212,6 +1214,32 @@ The env files come back as they were in that tree. Exit codes of both: 0 done, 1
 migrations, 75 box busy, 77 live window. `tests/test_deploy_sh.py` runs both against a fake box.
 
 The manual steps stay below as the reference for what the scripts do.
+
+### Deploying 0027 (pinned jobs), once
+
+The release that adds migration `0027_pinned_jobs.sql` must not let an old worker claim anything while the new api can
+make pinned jobs: an old worker knows no pin (it could send an extend as a plain generation on the right account, or
+meet the `jobs_pinned_account` check on another one and stop its claim loop). So, from `~/relay-deploy`, before the
+deploy drain every provider (each command twice: the second must print "(no change)"):
+
+```bash
+for p in dola vibes meta flow gemini qwen; do
+  docker compose -p relay --profile app exec -T api relay provider drain "$p"
+  docker compose -p relay --profile app exec -T api relay provider drain "$p"
+done
+```
+
+Note which providers were claiming before (the admin Settings page, or `SELECT key, value FROM settings_kv WHERE key
+LIKE '%.claims_enabled'`): `scripts/deploy.sh` resumes only what it drained itself, so these stay drained after it.
+Deploy as usual; once every new `worker-<provider>` has written a fresh heartbeat (the Containers card), resume each
+provider that was claiming before, and only those:
+
+```bash
+docker compose -p relay --profile app exec -T api relay provider resume dola    # and each of the others noted
+```
+
+The migration takes short table locks on `jobs` (columns, two checks, one index); with every provider drained, few
+writes compete. Later deploys need none of this.
 
 ### Ordered deploy, with a stored drain
 
