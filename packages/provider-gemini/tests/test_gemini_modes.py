@@ -123,7 +123,7 @@ def test_portrait_video_is_sold_beside_landscape():
 TEMPLATE_GUARD = "    if found is None:\n"
 
 
-@mutation(SUBMIT_FILE, "            message += gallery_entry(VIDEO_TEMPLATES, template)\n", "",
+@mutation(SUBMIT_FILE, "            message += [None, None, *gallery_entry(VIDEO_TEMPLATES, template)]\n", "",
           expect="the template was not sent")
 @mutation(SPEC_FILE, TEMPLATE_GUARD, "    if False:\n", expect="an unknown template")
 def test_a_video_template_rides_in_the_message_as_the_web_app_sends_it():

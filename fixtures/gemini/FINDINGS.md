@@ -181,6 +181,15 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   the place left null: an "8-bit adventure" video (09:53Z, 1280×720, 10.005 s) and a Ringtone song (180 s) were made.
   "Doodle effects" restyles an uploaded video and is not offered; cards that ask for a photo may answer a question
   when none comes (refused, refunded).
+- A template sent without the two nulls between the orientation and the id was answered 400 (an `er` item, no chat;
+  unknown, never re-sent): the provider sends the web app's shape.
+- The smokes through the provider's own engine (10:08-10:45Z, a copy of the session that never rotated, no database):
+  t2v 9:16 (720×1280, 10.0 s, done 55 s after the send), i2v 9:16 from the 1408×768 PNG (720×1280), the "Plush world"
+  template t2v (1280×720, the felt look applied), songs short + vocals + rock (75.5 s MP4), the Brand jingle template
+  (73.3 s), short + acoustic (63.7 s). A finished video's `/gg/` link resolved only 20-60 s after the chat showed it,
+  a song's MP4 3-4 min after its answer (seven tries 20 s apart): the core's fetcher retries until the render deadline
+  (900 s from the send). One song send was answered "Something went wrong while creating your track. Please try
+  again!" (`gemini.refused`, refunded).
 
 ## Open questions
 - Whether any send makes "Nano Banana 2" (not "2 Lite") on the AI Pro account; the daily limit of "Nano Banana 2.1".

@@ -202,7 +202,7 @@ def request(text: str, ratio: str | None, image: tuple[str, str, str] | None, ri
     if video:
         message = [[None, None, None, C.VIDEO_ORIENTATION[ratio]]]
         if template:
-            message += gallery_entry(VIDEO_TEMPLATES, template)
+            message += [None, None, *gallery_entry(VIDEO_TEMPLATES, template)]
         option = [[C.VIDEO_RATIO_IDS[ratio]]]
     elif music is not None:
         message, option = music_message(music)
