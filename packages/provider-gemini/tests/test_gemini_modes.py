@@ -22,7 +22,7 @@ from geminikit import (
     settings,
 )
 
-from relay_core.providers import Accepted, Completed, CreateRequest, Fail, InputError, MediaIn, Output, Success
+from relay_core.providers import Accepted, Balance, Completed, CreateRequest, Fail, InputError, MediaIn, Output, Success
 from relay_core.testing.fake_media import MediaSite, public_resolver
 from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
@@ -121,11 +121,12 @@ def test_portrait_video_is_sold_beside_landscape():
 
 # ---- the gallery templates -----------------------------------------------------------------------------------------
 TEMPLATE_GUARD = "    if found is None:\n"
+VIDEO_TEMPLATE_LINE = "            message += [None, None, *gallery_entry(VIDEO_TEMPLATES, template)]\n"
 
 
-@mutation(SUBMIT_FILE, "            message += [None, None, *gallery_entry(VIDEO_TEMPLATES, template)]\n", "",
+@mutation(SUBMIT_FILE, VIDEO_TEMPLATE_LINE, "            pass\n",
           expect="the template was not sent")
-@mutation(SPEC_FILE, TEMPLATE_GUARD, "    if False:\n", expect="an unknown template")
+@mutation(SPEC_FILE, TEMPLATE_GUARD, "    if False:\n", expect="was planned")
 def test_a_video_template_rides_in_the_message_as_the_web_app_sends_it():
     """The captured Anime send: the template's id and gallery entry after the orientation, the gallery tab "all"; the
     card's place (19 there) is left out: a template video sent without it was made (25/10, "8-bit adventure")."""
@@ -175,10 +176,11 @@ def test_a_song_is_held_on_the_music_pool_with_the_options_asked_for():
 
 CODES_TRIM = "    while codes and codes[-1] is None:\n        codes.pop()\n"
 GENRE_ONLY = "    return ([], [ids]) if ids else (None, [])"
+GENRE_DROPPED = "    return (None, [ids]) if ids else (None, [])"
 
 
 @mutation(SUBMIT_FILE, CODES_TRIM, "", expect="not the web app's song request")
-@mutation(SUBMIT_FILE, GENRE_ONLY, GENRE_ONLY.replace("([], [ids])", "(None, [ids])"),
+@mutation(SUBMIT_FILE, GENRE_ONLY, GENRE_DROPPED,
           expect="not the web app's song request")
 @mutation(SUBMIT_FILE, '    tool = VIDEO_TOOL if video else MUSIC_TOOL if music is not None else IMAGE_TOOL',
           '    tool = VIDEO_TOOL if video else IMAGE_TOOL', expect="the music tool")
@@ -212,9 +214,10 @@ def test_a_song_answer_is_completed_with_its_mp4_never_its_mp3():
 
 
 PLACEHOLDERS = "    if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):"
+NO_SONG_MARK = "    if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER)):"
 
 
-@mutation(SUBMIT_FILE, PLACEHOLDERS, PLACEHOLDERS.replace(", MUSIC_PLACEHOLDER", ""), expect="a promised song")
+@mutation(SUBMIT_FILE, PLACEHOLDERS, NO_SONG_MARK, expect="a promised song")
 @mutation(SUBMIT_FILE, "    media = answer.videos if video or music else answer.images",
           "    media = answer.videos if video else answer.images", expect="the song's MP4")
 def test_a_song_promised_without_its_record_is_unknown_and_a_plain_text_answer_is_refused():
@@ -225,8 +228,8 @@ def test_a_song_promised_without_its_record_is_unknown_and_a_plain_text_answer_i
     assert (verdict, code) == ("refused", errors.REFUSED)
     log = []
     result = run(pro_site(log, send=answer("I can't make songs about that.")), pro_ctx(log), job("x", model=MUSIC))
-    assert isinstance(result.job, Fail) and not any(getattr(e, "pool", None) == "video" for e in result.account), \
-        "a song's refusal touched the video pool"
+    assert isinstance(result.job, Fail) and not any(isinstance(e, Balance) and e.pool == "video"
+                                                    for e in result.account), "a song's refusal emptied the video pool"
 
 
 SONG_LINK = '        if video and "/gg-dl/" in ref:'

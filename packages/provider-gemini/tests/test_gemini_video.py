@@ -237,14 +237,14 @@ def poll(g, j):
                               now=lambda: NOW))
 
 
-VIDEO_MEDIA = "    media = answer.videos if video else answer.images\n"
+VIDEO_MEDIA = "    media = answer.videos if video or music else answer.images\n"
 
 
 @mutation(SUBMIT_FILE, VIDEO_MEDIA, "    media = answer.images\n", expect="the video was not read")
 @mutation(REPLY_FILE, "                        videos_in(row[3]), generating(row[3])))",
           "                        (), generating(row[3])))", expect="the video was not read")
-@mutation(RESULTS_FILE, "    verdict, what = judge(200, turn.answer(chat), video=is_video(job))",
-          "    verdict, what = judge(200, turn.answer(chat))", expect="the video was not read")
+@mutation(RESULTS_FILE, "judge(200, turn.answer(chat), video=is_video(job), music=is_music(job))",
+          "judge(200, turn.answer(chat), music=is_music(job))", expect="the video was not read")
 def test_poll_reads_the_chat_until_the_video_is_there():
     for pending, done, chat, size in ((T2V_PENDING, T2V_DONE, T2V_CHAT, 3748734), (I2V_PENDING, I2V_DONE, I2V_CHAT,
                                                                                   2132282)):
@@ -282,13 +282,13 @@ def test_a_lost_video_send_is_found_by_its_exact_text_like_an_image():
 
 
 FIRST_LINK = '        current = re.sub(r"=[A-Za-z0-9-]+$", "", link) + size + "?alr=yes"'
-SIZE = "        link = await site.resolve(out.ref, VIDEO_SIZE if video else FULL_SIZE)"
+SIZE = "        link = await site.resolve(ref, VIDEO_SIZE if video else FULL_SIZE)"
 LINK_AU = ('            current = text + ("&" if "?" in text else "?") + au[1:] \\\n'
            '                if au and urlsplit(text).hostname in SESSION_LINK_HOSTS else text')
 CDN_AU = "                if au and urlsplit(text).hostname in SESSION_LINK_HOSTS else text"
 
 
-@mutation(RESULTS_FILE, SIZE, "        link = await site.resolve(out.ref)", expect="the video's MP4")
+@mutation(RESULTS_FILE, SIZE, "        link = await site.resolve(ref)", expect="the video's MP4")
 @mutation(HTTP_FILE, LINK_AU, "            current = text", expect="did not name the account")
 @mutation(HTTP_FILE, CDN_AU, "                if au and urlsplit(text).hostname != BYTES_HOST else text",
           expect="the CDN request carried")
@@ -556,8 +556,8 @@ def nb21_ctx(log, state=None):
 @mutation(SUBMIT_FILE, "None, 1, None, None, kind, 1, rid]),", "None, 1, None, None, 6, 1, rid]),",
           expect="the mode's kind")
 @mutation(SUBMIT_FILE, "    if model == C.PRO_IMAGE_MODEL:\n", "    if False:\n", expect="the Pro mode")
-@mutation(SUBMIT_FILE, "request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1])",
-          "request(sent_text(job), ratio, image, rid, mode[0], video=video)",
+@mutation(SUBMIT_FILE, "request(sent_text(job), ratio, image, rid, mode[0], video=video, kind=mode[1],",
+          "request(sent_text(job), ratio, image, rid, mode[0], video=video,",
           expect="the mode's kind")
 def test_the_pro_tier_image_is_sent_with_the_accounts_pro_mode_and_its_kind_and_nano_banana_2_with_the_default():
     """25/10 live: the kind, not the mode id alone, picks the image model ("Pro" id with kind 6: "Nano Banana 2 Lite",

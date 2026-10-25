@@ -384,19 +384,21 @@ def test_a_plan_code_not_measured_as_a_tier_keeps_the_stored_tier():
 def test_an_exhausted_usage_window_rests_both_pools_until_it_resets_and_names_its_window():
     spent = PRO_USAGE.replace("[2400,0,1,", "[0,1,1,")                  # the 5-hour window used up
     reset = datetime.fromtimestamp(1792814865, UTC)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset, "5h"), Balance("video", 0, reset, "5h")), \
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0, reset, "5h"), Balance("video", 0, reset, "5h"),
+                                    Balance("music", 0, reset, "5h")), \
         "an exhausted window names its window, emptying the pools that count it; image_pro (a day) stays"
     week = PRO_USAGE.replace("[48384,0,2,", "[0,1,2,")                  # the week used up
     week_reset = datetime.fromtimestamp(1792908465, UTC)
     assert read_by_check(week) == (Tier("pro"), Balance("image", 0, week_reset, "week"),
-                                   Balance("video", 0, week_reset, "week")), "the week's reset names its window"
+                                   Balance("video", 0, week_reset, "week"), Balance("music", 0, week_reset, "week")), \
+        "the week's reset names its window"
     both = week.replace("[2400,0,1,", "[0,1,1,")                        # both: the later reset, the week's
     assert read_by_check(both)[1] == Balance("image", 0, week_reset, "week"), "the latest reset names its window"
 
 
 def test_a_garbled_reset_time_never_fails_the_check_and_names_no_refill():
     spent = PRO_USAGE.replace("[2400,0,1,[[1792814865,", "[0,1,1,[[%d," % 10**20)
-    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("video", 0))
+    assert read_by_check(spent) == (Tier("pro"), Balance("image", 0), Balance("video", 0), Balance("music", 0))
 
 
 @mutation(CHECK_FILE, "    return account_read(body, settings) if status == 200 else ()",

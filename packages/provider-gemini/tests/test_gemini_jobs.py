@@ -196,16 +196,16 @@ def test_no_answer_a_timeout_or_a_status_that_is_not_200_is_unknown_and_never_se
         assert any(isinstance(e, Rest) for e in result.account), "no pacing after a send"
 
 
-PLACEHOLDER = "    if not final or IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:\n"
-MEDIA = '    media = answer.videos if video else answer.images\n    if media:\n        return "done", media\n'
+PLACEHOLDER = "    if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):\n"  # noqa: E501
+NO_EMPTY = "    if any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):\n"
+MEDIA = '    media = answer.videos if video or music else answer.images\n    if media:\n        return "done", media\n'
 ERRORS = '    if answer.errors:\n        return "unknown", "the answer carried an error item"\n'
 ERROR_FIRST = ERRORS + MEDIA
 ERR = '[["er",null,null,null,null,500]]\n33\n[["e"'     # an error item in its own frame: the answer still ends
 
 
 @mutation(SUBMIT_FILE, PLACEHOLDER, "    if not final:\n", expect="an image promised")
-@mutation(SUBMIT_FILE, PLACEHOLDER, "    if IMAGE_PLACEHOLDER in final or VIDEO_PLACEHOLDER in final:\n",
-          expect="an empty answer")
+@mutation(SUBMIT_FILE, PLACEHOLDER, NO_EMPTY, expect="an empty answer")
 @mutation(SUBMIT_FILE, ERROR_FIRST, MEDIA, expect="an error item")
 @mutation(SUBMIT_FILE, ERROR_FIRST, MEDIA + ERRORS,
           expect="an error item beside an image")
@@ -247,7 +247,7 @@ def test_after_any_send_the_accounts_pool_rests_for_the_pacing_gap():
         result = run(Gemini(log, send=text), Ctx(log))
         rests = [e for e in result.account if isinstance(e, Rest)]
         assert rests == [Rest(pool, NOW + timedelta(seconds=30), "gemini pacing between two sends")
-                         for pool in ("image", "image_pro", "video")]
+                         for pool in ("image", "image_pro", "video", "music")]
     log = []
     result = run(Gemini(log, send=T2I), Ctx(log), cfg=settings(gemini__account_min_gap_s=0))
     assert not any(isinstance(e, Rest) for e in result.account)
