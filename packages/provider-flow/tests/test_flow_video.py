@@ -196,8 +196,8 @@ def test_too_few_flow_credits_or_an_unread_balance_is_a_retry_before_anything_is
     assert Balance("video", 9, refill) in result.account, "rests until the refill flow named"
 
 
-@mutation(SUBMIT_FILE, "return _result(Retry(errors.CAPTCHA_FAILED), *read)",
-          "return _result(Retry(errors.CAPTCHA_FAILED))", expect="the pre-send read was not reported")
+@mutation(SUBMIT_FILE, "return _result(Retry(e.code), *read)",
+          "return _result(Retry(e.code))", expect="the pre-send read was not reported")
 def test_the_pre_send_read_is_reported_on_a_result_that_spent_nothing_and_not_on_an_unknown_one():
     refill = datetime.fromtimestamp(CREDITS_50["payload"][6][0], UTC)
     log = []

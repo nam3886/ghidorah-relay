@@ -25,6 +25,7 @@ from relay_core.settings import Rule, Spec, disabled_models
 from relay_flow import catalog as C
 from relay_flow import errors as codes
 from relay_flow.constants import (
+    ANTICAPTCHA_SCORES,
     CAPTCHA_PROVIDERS,
     CHECK_INTERVAL_S,
     LIMITS,
@@ -35,6 +36,7 @@ from relay_flow.constants import (
     STRIKE_DEAD_REASON,
     SUBMIT_TIMEOUT_S,
     SUSPECT_THRESHOLD,
+    captcha_sources,
 )
 from relay_flow.credential import MAX_COOKIES
 from relay_flow.credential import parse_credential as _parse_credential
@@ -48,12 +50,14 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     return err
 
 
-def _captcha_provider(v: str) -> None:
-    if v not in CAPTCHA_PROVIDERS:
-        raise ValueError("the token source is one of %s" % ", ".join(CAPTCHA_PROVIDERS))
+def _anticaptcha_score(v: float) -> None:
+    if v not in ANTICAPTCHA_SCORES:
+        raise ValueError("Anti-Captcha's score queues are %s" % ", ".join(map(str, ANTICAPTCHA_SCORES)))
 
 
-CAPTCHA_RULE = Rule("one of: %s" % ", ".join(CAPTCHA_PROVIDERS), _captcha_provider)
+CAPTCHA_RULE = Rule("one of: %s; or several, comma-separated, tried in that order" % ", ".join(CAPTCHA_PROVIDERS),
+                    captcha_sources)
+SCORE_RULE = Rule("one of: %s" % ", ".join(map(str, ANTICAPTCHA_SCORES)), _anticaptcha_score)
 
 
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
@@ -89,8 +93,23 @@ _SETTINGS = dict((
              "about 20 min without one. The account check (every 5 min) and each job rotate when this is due.",
              min=120, max=900),
     _setting("captcha_provider", str, "yescaptcha",
-             "Where the reCAPTCHA token of a generate comes from. Its key is the worker's FLOW_YESCAPTCHA_KEY.",
-             rule=CAPTCHA_RULE, basic=True),
+             "Where the reCAPTCHA token of a generate comes from: yescaptcha, capsolver or anticaptcha, or several "
+             "comma-separated (e.g. 'capsolver,yescaptcha': the next is tried when one gives no token). Their keys "
+             "are the worker's FLOW_YESCAPTCHA_KEY, FLOW_CAPSOLVER_KEY and FLOW_ANTICAPTCHA_KEY. Every call to a "
+             "solver goes through the account's proxy.", rule=CAPTCHA_RULE, basic=True),
+    _setting("captcha_timeout_s", int, 120,
+             "Seconds one reCAPTCHA token may take, all sources of the order together (10-17 s measured); none in "
+             "time is a failed try.", min=30, max=300),
+    _setting("captcha_poll_s", int, 3,
+             "Seconds between two reads of the solver's task.", min=1, max=30),
+    _setting("capsolver_proxy_task", bool, True,
+             "CapSolver solves through the account's own proxy, so the token is minted from the IP that sends the "
+             "generate (the proxy's address and login are given to CapSolver). Off, or an account with no proxy: "
+             "CapSolver's proxyless task."),
+    _setting("anticaptcha_min_score", float, 0.9,
+             "The reCAPTCHA score queue Anti-Captcha solves in (0.3 has the most workers, 0.9 the fewest). "
+             "Anti-Captcha has no proxy task for this captcha: its tokens come from its own network.",
+             rule=SCORE_RULE),
     _setting("captcha_max_tries", int, 5,
              "Tries of one job against flow's reCAPTCHA check, each with a new token. A refused try made nothing; "
              "after the last the job goes back to the queue.", min=1, max=10),

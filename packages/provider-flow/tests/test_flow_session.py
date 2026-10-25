@@ -3,6 +3,7 @@ when due, written back sealed at once, merged per account in the process, never 
 every call goes through the account's proxy."""
 
 import asyncio
+import itertools
 import json
 import logging
 from datetime import UTC, date, datetime, timedelta
@@ -29,6 +30,7 @@ from flowkit import (
 
 from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
+from relay_flow.constants import CAPTCHA_KEY_VARS
 from relay_flow.credential import dump, jar_of
 from relay_flow.engine import FlowEngine, build_engine
 from relay_flow.engine import http as H
@@ -261,18 +263,29 @@ def test_the_session_and_the_page_token_never_reach_a_log(caplog):
 
 
 # ---- the token source ----------------------------------------------------------------------------------------------
+CAPTCHA_FILE = "packages/provider-flow/src/relay_flow/engine/captcha.py"
 YES_KEY = "yes-PLANTED-client-key-0123"
+CAP_KEY = "CAP-PLANTED-client-key-4567"
+ANTI_KEY = "anti-PLANTED-client-key-89ab"
+KEYS = {"yescaptcha": YES_KEY, "capsolver": CAP_KEY, "anticaptcha": ANTI_KEY}
+PAGE = "https://flow.google.com/project/" + PROJECT
+SITE_KEY = "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV"
+ACCOUNT_PROXY = Proxy("10.0.0.1", 8080, "us er:p@ss")
+READY = {"errorId": 0, "status": "ready", "solution": {"gRecaptchaResponse": "tok-abc"}}
+CREATED = {"errorId": 0, "taskId": "t"}
+WORKING = {"errorId": 0, "status": "processing"}
 
 
-def yescaptcha(answers):
+def solver(answers):
+    """A fake solver API: each answer is a JSON body, an `httpx.Response` or an exception, taken in order."""
     seen = []
 
     def handle(request):
-        seen.append(json.loads(request.content))
+        seen.append((request.url.host, request.url.path, json.loads(request.content)))
         out = answers.pop(0)
         if isinstance(out, Exception):
             raise out
-        return httpx.Response(200, json=out)
+        return out if isinstance(out, httpx.Response) else httpx.Response(200, json=out)
     transport = httpx.MockTransport(handle)
     transport.seen = seen
     return transport
@@ -282,52 +295,169 @@ async def no_sleep(s):
     pass
 
 
-def tokens(transport, key=YES_KEY, cfg=None):
-    t = Tokens(cfg or settings(), key, transport=transport, sleep=no_sleep)
-    return asyncio.run(t("IMAGE_GENERATION", "https://flow.google.com/project/" + PROJECT))
+def tokens(transport, keys=None, cfg=None, proxy=None, clock=None, source="yescaptcha"):
+    cfg = cfg or settings(flow__captcha_provider=source)
+    t = Tokens(cfg, KEYS if keys is None else keys, transport=transport, sleep=no_sleep,
+               **({"clock": clock} if clock else {}))
+    return asyncio.run(t("IMAGE_GENERATION", PAGE, proxy))
 
 
-@mutation("packages/provider-flow/src/relay_flow/engine/captcha.py", '"pageAction": action, "isEnterprise": True}',
-          '"pageAction": action}', expect="enterprise")
+def task_of(transport) -> dict:
+    host, path, body = transport.seen[0]
+    assert path == "/createTask"
+    return body["task"]
+
+
+def slow_clock():
+    """The token's 120 s are spent by the third read of the task."""
+    ticks = itertools.count(0, 50)
+    return lambda: next(ticks)
+
+
+@mutation(CAPTCHA_FILE, '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True}',
+          '"type": YESCAPTCHA_TASK, **base}', expect="enterprise")
 def test_yescaptcha_mints_an_enterprise_token_for_the_generate_action():
-    transport = yescaptcha([{"errorId": 0, "taskId": "t-1"}, {"errorId": 0, "status": "processing"},
-                            {"errorId": 0, "status": "ready", "solution": {"gRecaptchaResponse": "tok-abc"}}])
-    assert tokens(transport) == "tok-abc"
-    created = transport.seen[0]
-    assert created["task"] == {"type": "RecaptchaV3TaskProxylessM1", "isEnterprise": True,
-                               "websiteURL": "https://flow.google.com/project/" + PROJECT,
-                               "websiteKey": "6LdsFiUsAAAAAIjVDZcuLhaHiDn5nnHVXVRQGeMV",
-                               "pageAction": "IMAGE_GENERATION"}, "enterprise"
-    assert created["clientKey"] == YES_KEY and transport.seen[2] == {"clientKey": YES_KEY, "taskId": "t-1"}
+    transport = solver([{"errorId": 0, "taskId": "t-1"}, WORKING, READY])
+    assert tokens(transport, proxy=ACCOUNT_PROXY) == "tok-abc"
+    assert task_of(transport) == {"type": "RecaptchaV3TaskProxylessM1", "isEnterprise": True, "websiteURL": PAGE,
+                                  "websiteKey": SITE_KEY, "pageAction": "IMAGE_GENERATION"}, "enterprise"
+    assert [h for h, _, _ in transport.seen] == ["api.yescaptcha.com"] * 3
+    assert transport.seen[0][2]["clientKey"] == YES_KEY
+    assert transport.seen[2][1:] == ("/getTaskResult", {"clientKey": YES_KEY, "taskId": "t-1"})
 
 
-def test_the_token_source_fails_with_a_reason_that_never_holds_the_key():
-    cases = [
-        ([{"errorId": 1, "errorCode": "ERROR_KEY_DOES_NOT_EXIST"}], "refused the task (ERROR_KEY_DOES_NOT_EXIST)"),
-        ([{"errorId": 0, "taskId": "t"}, {"errorId": 1, "errorCode": "ERROR_CAPTCHA_UNSOLVABLE"}], "failed the task"),
-        ([{"errorId": 0, "taskId": "t"}, {"errorId": 0, "status": "ready", "solution": {}}], "no token"),
-        ([httpx.ConnectError("connect https://api.yescaptcha.com %s" % YES_KEY)], "could not be reached"),
-    ]
-    for answers, reason in cases:
+@mutation(CAPTCHA_FILE, 'if proxy is not None and self.settings.get("flow.capsolver_proxy_task"):',
+          "if False:", expect="the proxy task")
+def test_capsolver_solves_the_enterprise_task_through_the_accounts_proxy_and_proxyless_only_by_choice():
+    """docs.capsolver.com ReCaptchaV3: `ReCaptchaV3EnterpriseTask` with `proxy` "http:ip:port:user:pass"."""
+    transport = solver([{"errorId": 0, "taskId": "c-1"}, READY])
+    assert tokens(transport, proxy=ACCOUNT_PROXY, source="capsolver") == "tok-abc"
+    assert task_of(transport) == {"type": "ReCaptchaV3EnterpriseTask", "websiteURL": PAGE, "websiteKey": SITE_KEY,
+                                  "pageAction": "IMAGE_GENERATION", "proxy": "http:10.0.0.1:8080:us er:p@ss"}, \
+        "the proxy task was not used: %s" % task_of(transport)["type"]
+    assert [h for h, _, _ in transport.seen] == ["api.capsolver.com"] * 2
+    assert transport.seen[0][2]["clientKey"] == CAP_KEY
+    assert transport.seen[1][1:] == ("/getTaskResult", {"clientKey": CAP_KEY, "taskId": "c-1"})
+    transport = solver([CREATED, READY])
+    tokens(transport, proxy=Proxy("10.0.0.2", 3128), source="capsolver")
+    assert task_of(transport)["proxy"] == "http:10.0.0.2:3128", "a proxy with no login is host and port only"
+    proxyless = {"type": "ReCaptchaV3EnterpriseTaskProxyLess", "websiteURL": PAGE, "websiteKey": SITE_KEY,
+                 "pageAction": "IMAGE_GENERATION"}
+    off = settings(flow__captcha_provider="capsolver", flow__capsolver_proxy_task=False)
+    for proxy, cfg in ((ACCOUNT_PROXY, off), (None, None)):
+        transport = solver([CREATED, READY])
+        assert tokens(transport, proxy=proxy, cfg=cfg, source="capsolver") == "tok-abc"
+        assert task_of(transport) == proxyless
+
+
+@mutation(CAPTCHA_FILE, '"minScore": self.settings.get("flow.anticaptcha_min_score")}', "}", expect="minScore")
+def test_anticaptcha_solves_the_v3_task_with_the_enterprise_flag_and_the_score_queue():
+    """anti-captcha.com/apidoc RecaptchaV3Enterprise: `RecaptchaV3TaskProxyless` + isEnterprise, minScore required."""
+    transport = solver([{"errorId": 0, "taskId": 77}, WORKING, READY])
+    assert tokens(transport, proxy=ACCOUNT_PROXY, source="anticaptcha") == "tok-abc"
+    assert task_of(transport) == {"type": "RecaptchaV3TaskProxyless", "isEnterprise": True, "minScore": 0.9,
+                                  "websiteURL": PAGE, "websiteKey": SITE_KEY, "pageAction": "IMAGE_GENERATION"}, \
+        "minScore: %s" % task_of(transport)
+    assert [h for h, _, _ in transport.seen] == ["api.anti-captcha.com"] * 3
+    assert transport.seen[2][1:] == ("/getTaskResult", {"clientKey": ANTI_KEY, "taskId": 77})
+    transport = solver([CREATED, READY])
+    tokens(transport, cfg=settings(flow__captcha_provider="anticaptcha", flow__anticaptcha_min_score=0.3))
+    assert task_of(transport)["minScore"] == 0.3
+
+
+SOLVER_FAULTS = [   # (source, answers, our code, a part of the reason, the clock)
+    ("yescaptcha", [{"errorId": 1, "errorCode": "ERROR_KEY_DOES_NOT_EXIST"}], "flow.captcha_key_invalid",
+     "refused the task (ERROR_KEY_DOES_NOT_EXIST)", None),
+    ("anticaptcha", [{"errorId": 1, "errorCode": "ERROR_KEY_DOES_NOT_EXIST"}], "flow.captcha_key_invalid",
+     "ERROR_KEY_DOES_NOT_EXIST", None),
+    ("capsolver", [{"errorId": 1, "errorCode": "ERROR_KEY_DENIED_ACCESS"}], "flow.captcha_key_invalid",
+     "ERROR_KEY_DENIED_ACCESS", None),
+    ("capsolver", [httpx.Response(401, text="Unauthorized")], "flow.captcha_key_invalid", "HTTP 401", None),
+    ("yescaptcha", [{"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}], "flow.captcha_no_balance",
+     "ERROR_ZERO_BALANCE", None),
+    ("anticaptcha", [{"errorId": 10, "errorCode": "ERROR_ZERO_BALANCE"}], "flow.captcha_no_balance",
+     "ERROR_ZERO_BALANCE", None),
+    ("capsolver", [httpx.Response(400, json={"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"})],
+     "flow.captcha_no_balance", "ERROR_ZERO_BALANCE", None),
+    ("capsolver", [CREATED, {"errorId": 1, "errorCode": "ERROR_TASK_TIMEOUT"}], "flow.captcha_timeout",
+     "ERROR_TASK_TIMEOUT", None),
+    ("anticaptcha", [CREATED, {"errorId": 30, "errorCode": "ERROR_RECAPTCHA_TIMEOUT"}], "flow.captcha_timeout",
+     "ERROR_RECAPTCHA_TIMEOUT", None),
+    ("capsolver", [CREATED, WORKING, WORKING], "flow.captcha_timeout", "no token in 120 s", slow_clock),
+    ("yescaptcha", [CREATED, {"errorId": 1, "errorCode": "ERROR_CAPTCHA_UNSOLVABLE"}], "flow.captcha_failed",
+     "failed the task (ERROR_CAPTCHA_UNSOLVABLE)", None),
+    ("capsolver", [CREATED, {"errorId": 0, "status": "failed"}], "flow.captcha_failed", "failed the task", None),
+    ("capsolver", [CREATED, {"errorId": 1, "errorCode": "ERROR_PROXY_BANNED"}], "flow.captcha_failed",
+     "ERROR_PROXY_BANNED", None),
+    ("yescaptcha", [CREATED, {"errorId": 0, "status": "ready", "solution": {}}], "flow.captcha_failed",
+     "ready with no token", None),
+    ("anticaptcha", [httpx.Response(502, text="<html>bad gateway</html>")], "flow.captcha_failed",
+     "not a JSON object (HTTP 502)", None),
+    ("capsolver", [httpx.ConnectError("connect http://us er:p@ss@10.0.0.1 %s %s" % (CAP_KEY, YES_KEY))],
+     "flow.captcha_failed", "could not be reached (ConnectError)", None),
+]
+
+
+@mutation(CAPTCHA_FILE, '    "ERROR_ZERO_BALANCE": errors.CAPTCHA_NO_BALANCE,\n', "", expect="ERROR_ZERO_BALANCE")
+@mutation(CAPTCHA_FILE, '    "ERROR_KEY_DENIED_ACCESS": errors.CAPTCHA_KEY_INVALID,\n', "",
+          expect="ERROR_KEY_DENIED_ACCESS")
+@mutation(CAPTCHA_FILE, 'raise CaptchaError("no token in %d s" % timeout, errors.CAPTCHA_TIMEOUT)',
+          'raise CaptchaError("no token in %d s" % timeout)', expect="no token in 120 s")
+@mutation(CAPTCHA_FILE, 'raise CaptchaError("the solver refused its key (HTTP 401)", errors.CAPTCHA_KEY_INVALID)',
+          'raise CaptchaError("the solver refused its key (HTTP 401)")', expect="HTTP 401")
+def test_each_solver_fault_has_its_own_code_and_its_reason_never_holds_a_secret(caplog):
+    """A bad key, no balance and no token in time each have a code; none of them blames the flow account (the submit
+    turns every `CaptchaError` into a Retry of its code)."""
+    caplog.set_level(logging.DEBUG)
+    for source, answers, code, reason, clock in SOLVER_FAULTS:
         with pytest.raises(CaptchaError) as caught:
-            tokens(yescaptcha(answers))
-        assert reason in str(caught.value) and YES_KEY not in str(caught.value), caught.value
-    with pytest.raises(CaptchaError, match="FLOW_YESCAPTCHA_KEY is not set"):
-        tokens(yescaptcha([]), key=None)
+            tokens(solver(answers), source=source, proxy=ACCOUNT_PROXY, clock=clock and clock())
+        text = str(caught.value)
+        assert caught.value.code == code, "%s: %s, not %s (%s)" % (source, caught.value.code, code, reason)
+        assert reason in text, text
+        for secret in (YES_KEY, CAP_KEY, ANTI_KEY, "p@ss", "tok-abc"):
+            assert secret not in text, text
+    with pytest.raises(CaptchaError, match="FLOW_CAPSOLVER_KEY is not set") as caught:
+        tokens(solver([]), keys={"yescaptcha": YES_KEY}, source="capsolver")
+    assert caught.value.code == "flow.captcha_key_invalid"
     with pytest.raises(CaptchaError, match="no token source"):
-        tokens(yescaptcha([]), cfg=settings(flow__captcha_provider="other"))
-    assert YES_KEY not in repr(Tokens(settings(), YES_KEY))
+        tokens(solver([]), source="other")
+    assert repr(Tokens(settings(), KEYS)) == "Tokens(keys set: anticaptcha, capsolver, yescaptcha)"
+    for secret in (YES_KEY, CAP_KEY, ANTI_KEY, "p@ss"):
+        assert secret not in caplog.text
+
+
+@mutation(CAPTCHA_FILE, "        for source in order:\n", "        for source in order[:1]:\n", expect="no fallback")
+def test_an_order_of_sources_falls_back_to_the_next_and_names_every_reason_when_all_fail():
+    cfg = settings(flow__captcha_provider="capsolver,yescaptcha")
+    transport = solver([{"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}, CREATED, READY])
+    try:
+        assert tokens(transport, cfg=cfg) == "tok-abc"
+    except CaptchaError as e:
+        pytest.fail("no fallback: %s" % e)
+    assert [h for h, _, _ in transport.seen] == ["api.capsolver.com", "api.yescaptcha.com", "api.yescaptcha.com"]
+    with pytest.raises(CaptchaError) as caught:
+        tokens(solver([{"errorId": 1, "errorCode": "ERROR_KEY_DOES_NOT_EXIST"}]), cfg=cfg,
+               keys={"yescaptcha": YES_KEY})
+    assert str(caught.value) == ("capsolver: FLOW_CAPSOLVER_KEY is not set on the flow worker; "
+                                 "yescaptcha: the solver refused the task (ERROR_KEY_DOES_NOT_EXIST)")
+    assert caught.value.code == "flow.captcha_key_invalid"
+    # the token's time is shared by the order: once spent, the next source is not started
+    transport = solver([CREATED, WORKING, WORKING])
+    with pytest.raises(CaptchaError) as caught:
+        tokens(transport, cfg=cfg, clock=slow_clock())
+    assert caught.value.code == "flow.captcha_timeout" and len(transport.seen) == 3
 
 
 CAPTCHA_PROXY = ("        transport = self.transport or httpx.AsyncHTTPTransport(proxy=proxy_url(proxy), "
                  "trust_env=False)")
 
 
-@mutation("packages/provider-flow/src/relay_flow/engine/captcha.py", CAPTCHA_PROXY,
+@mutation(CAPTCHA_FILE, CAPTCHA_PROXY,
           "        transport = self.transport or httpx.AsyncHTTPTransport(trust_env=False)",
           expect="the solver was called without the account proxy")
-def test_the_solver_is_called_through_the_accounts_proxy_and_direct_only_without_one(monkeypatch):
-    """The owner's ruling (23/10): YesCaptcha's API too goes through the account proxy."""
+def test_every_solver_is_called_through_the_accounts_proxy_and_direct_only_without_one(monkeypatch):
+    """The owner's ruling (23/10): every solver's API too goes through the account proxy, never direct beside it."""
     made, seen = [], []
 
     class Spy(httpx.AsyncBaseTransport):
@@ -336,30 +466,50 @@ def test_the_solver_is_called_through_the_accounts_proxy_and_direct_only_without
 
         async def handle_async_request(self, request):
             seen.append(request.url.host)
-            body = {"errorId": 0, "taskId": "t"} if request.url.path == "/createTask" else {
-                "errorId": 0, "status": "ready", "solution": {"gRecaptchaResponse": "tok"}}
-            return httpx.Response(200, json=body)
+            return httpx.Response(200, json=CREATED if request.url.path == "/createTask" else READY)
 
     monkeypatch.setattr("relay_flow.engine.captcha.httpx.AsyncHTTPTransport", Spy)
-    t = Tokens(settings(), YES_KEY, sleep=no_sleep)
-    page = "https://flow.google.com/project/" + PROJECT
-    assert asyncio.run(t("IMAGE_GENERATION", page, Proxy("10.0.0.1", 8080, "us er:p@ss"))) == "tok"
-    assert made == [{"proxy": "http://us%20er:p%40ss@10.0.0.1:8080", "trust_env": False}], \
-        "the solver was called without the account proxy: %s" % made
-    assert seen == ["api.yescaptcha.com", "api.yescaptcha.com"]
+    hosts = {"yescaptcha": "api.yescaptcha.com", "capsolver": "api.capsolver.com",
+             "anticaptcha": "api.anti-captcha.com"}
+    for source, host in hosts.items():
+        made.clear()
+        seen.clear()
+        t = Tokens(settings(flow__captcha_provider=source), KEYS, sleep=no_sleep)
+        assert asyncio.run(t("IMAGE_GENERATION", PAGE, ACCOUNT_PROXY)) == "tok-abc"
+        assert made == [{"proxy": "http://us%20er:p%40ss@10.0.0.1:8080", "trust_env": False}], \
+            "the solver was called without the account proxy: %s %s" % (source, made)
+        assert seen == [host, host]
+        made.clear()
+        assert asyncio.run(t("IMAGE_GENERATION", PAGE, None)) == "tok-abc"
+        assert made == [{"proxy": None, "trust_env": False}]
     made.clear()
-    assert asyncio.run(t("IMAGE_GENERATION", page, None)) == "tok"
-    assert made == [{"proxy": None, "trust_env": False}]
+    t = Tokens(settings(flow__captcha_provider="capsolver,anticaptcha"), {"anticaptcha": ANTI_KEY}, sleep=no_sleep)
+    assert asyncio.run(t("IMAGE_GENERATION", PAGE, ACCOUNT_PROXY)) == "tok-abc"
+    assert made and all(m["proxy"] for m in made), "the solver was called without the account proxy: %s" % made
 
 
-@mutation(ENGINE_FILE, "(env.pop(YESCAPTCHA_KEY_VAR, None)", "(env.get(YESCAPTCHA_KEY_VAR, None)",
-          expect="the key stayed in the environment")
-def test_the_engine_takes_the_key_out_of_the_environment():
-    env = {"FLOW_YESCAPTCHA_KEY": " %s \n" % YES_KEY, "OTHER": "1"}
+@mutation(ENGINE_FILE, "{source: (env.pop(var, None)", "{source: (env.get(var, None)",
+          expect="the keys stayed in the environment")
+def test_the_engine_takes_every_solver_key_out_of_the_environment():
+    env = {"FLOW_YESCAPTCHA_KEY": " %s \n" % YES_KEY, "FLOW_CAPSOLVER_KEY": CAP_KEY, "FLOW_ANTICAPTCHA_KEY": " ",
+           "OTHER": "1"}
     engine = build_engine(None, settings(), env)
-    assert isinstance(engine, FlowEngine) and engine.tokens._key == YES_KEY
-    assert env == {"OTHER": "1"}, "the key stayed in the environment"
-    assert build_engine(None, settings(), {}).tokens._key is None
+    assert isinstance(engine, FlowEngine)
+    assert engine.tokens._keys == {"yescaptcha": YES_KEY, "capsolver": CAP_KEY, "anticaptcha": None}
+    assert env == {"OTHER": "1"}, "the keys stayed in the environment"
+    assert build_engine(None, settings(), {}).tokens._keys == dict.fromkeys(KEYS)
+
+
+def test_only_the_flow_worker_env_template_names_the_solver_keys():
+    deploy = FIX.parents[1] / "deploy"
+
+    def names(path):
+        return {line.split("=", 1)[0].strip() for line in path.read_text(encoding="utf-8").splitlines()
+                if "=" in line and not line.lstrip().startswith("#")}
+    assert set(CAPTCHA_KEY_VARS.values()) <= names(deploy / "worker-flow.env.example")
+    for other in deploy.glob("*.env.example"):
+        if other.name != "worker-flow.env.example":
+            assert not set(CAPTCHA_KEY_VARS.values()) & names(other), other.name
 
 
 # ---- the account's credits and plan ---------------------------------------------------------------------------------

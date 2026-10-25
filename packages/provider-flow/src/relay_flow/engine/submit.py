@@ -30,7 +30,8 @@ Money rules that shape this file (each has a test and a mutation):
 
 Before the first `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a
 spaced strike, too few Flow credits for a video `pool.account_out_of_points`, a proxy that cannot reach flow
-`pool.proxy_failed`, an error answer `flow.http_error`, no token `flow.captcha_failed`.
+`pool.proxy_failed`, an error answer `flow.http_error`, no token `flow.captcha_failed` (or the solver's own fault:
+`flow.captcha_key_invalid`, `flow.captcha_no_balance`, `flow.captcha_timeout`; the account is never blamed).
 """
 
 import asyncio
@@ -60,7 +61,6 @@ from relay_flow import errors
 from relay_flow.constants import (
     API_TIMEOUT_S,
     BASE_URL,
-    CAPTCHA_TIMEOUT_S,
     GENERATE_TIMEOUT_S,
     IMAGE_ACTION,
     MEDIA_HOSTS,
@@ -244,12 +244,12 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 if balance < int(job.params["credits"]):
                     return _result(Retry(OUT_OF_POINTS), *read)
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
+            captcha_s = int(settings.get("flow.captcha_timeout_s"))
             batches: list[str] = []
             refused = errors.CAPTCHA_REFUSED      # the code of the last refusal's reason (`errors.REASONS`)
             for attempt in range(tries):
                 if attempt:
-                    if clock() - start + gap + CAPTCHA_TIMEOUT_S + GENERATE_TIMEOUT_S + API_TIMEOUT_S \
-                            > SUBMIT_TIMEOUT_S:
+                    if clock() - start + gap + captcha_s + GENERATE_TIMEOUT_S + API_TIMEOUT_S > SUBMIT_TIMEOUT_S:
                         break                      # the next try would not end inside the submit bound
                     await sleep(gap)
                 try:
@@ -257,7 +257,7 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                 except CaptchaError as e:
                     if not sent:
                         await ctx.event("no reCAPTCHA token: %s" % e, "submit", "engine")
-                        return _result(Retry(errors.CAPTCHA_FAILED), *read)
+                        return _result(Retry(e.code), *read)
                     break
                 batch = str(uuid.uuid4())
                 batches.append(batch)

@@ -95,11 +95,20 @@ def test_the_image_pool_has_a_day_window_of_40_jobs_and_video_50_credits_a_day_a
         {"name": "month", "kind": "month", "tz": "UTC", "budget": {"pro": 1000}}]}, "50 from first use + 1000 a month"
 
 
-def test_the_token_source_setting_takes_only_a_built_source():
-    rule = SPEC.settings()["flow.captcha_provider"]
-    assert rule.validate("yescaptcha") == "yescaptcha"
+def test_the_token_source_setting_takes_a_built_source_or_an_order_of_them():
+    s = SPEC.settings()
+    rule = s["flow.captcha_provider"]
+    for ok in ("yescaptcha", "capsolver", "anticaptcha", "capsolver,yescaptcha", "anticaptcha, capsolver"):
+        assert rule.validate(ok) == ok
+    for bad in ("2captcha", "", "capsolver,capsolver", "capsolver,", "capsolver;yescaptcha"):
+        with pytest.raises(ValueError):
+            rule.validate(bad)
+    assert (s["flow.captcha_timeout_s"].default, s["flow.captcha_poll_s"].default) == (120, 3)
+    assert s["flow.capsolver_proxy_task"].default is True
+    score = s["flow.anticaptcha_min_score"]
+    assert score.default == 0.9 and score.validate(0.3) == 0.3
     with pytest.raises(ValueError):
-        rule.validate("capsolver")
+        score.validate(0.5)
 
 
 def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
@@ -125,11 +134,12 @@ def test_the_registry_takes_flow_beside_the_others_and_no_model_name_clashes():
 
 def test_flow_registers_its_codes_on_load():
     codes = {"flow.http_error", "flow.captcha_failed", "flow.captcha_refused", "flow.too_much_traffic",
-             "flow.model_access_denied"}
-    assert set(SPEC.codes()) == codes and codes <= set(errors.RULES)
-    for code in codes:          # before the send or nothing made: an attempt, refunded when they run out
+             "flow.model_access_denied", "flow.captcha_timeout"}
+    ours = {"flow.captcha_key_invalid", "flow.captcha_no_balance"}       # the solver's key or balance: ours to fix
+    assert set(SPEC.codes()) == codes | ours and codes | ours <= set(errors.RULES)
+    for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True), code
+        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, code not in ours), code
 
 
 # ---- plan ----------------------------------------------------------------------------------------------------------

@@ -892,11 +892,19 @@ never captured. A request whose input image cannot be read is refused earlier, a
 unproven are in `fixtures/flow/FINDINGS.md`.
 
 **What the worker needs.** `deploy/worker-flow.env` (from the `.example`): the usual worker variables plus
-`FLOW_YESCAPTCHA_KEY`, the YesCaptcha client key. It is a secret of this worker only: read once at start, removed from
-the environment, never a setting, never logged. Without it every job is retried as `flow.captcha_failed` and fails
-refunded after its attempts; checks still run. Each account should have a proxy: every call to Google, every result
-download and every call to YesCaptcha's API goes through it (owner, 23/10; direct only for an account with none). The
-token task itself is proxyless: the solver mints the token from its own network.
+the key of each reCAPTCHA solver `flow.captcha_provider` names: `FLOW_YESCAPTCHA_KEY` (YesCaptcha),
+`FLOW_CAPSOLVER_KEY` (CapSolver), `FLOW_ANTICAPTCHA_KEY` (Anti-Captcha). They are secrets of this worker only: read once
+at start, removed from the environment, never a setting, never logged. A chosen source without its key, or whose
+service refuses the key, retries every job as `flow.captcha_key_invalid`; an empty solver balance is
+`flow.captcha_no_balance`, no token within `flow.captcha_timeout_s` `flow.captcha_timeout`; each fails refunded after
+its attempts and never blames the flow account; checks still run. `flow.captcha_provider` may name an order
+(`capsolver,yescaptcha`): the next source is tried when one gives no token, inside the same timeout. Each account
+should have a proxy: every call to Google, every result download and every call to a solver's API goes through it
+(owner, 23/10; direct only for an account with none). The token tasks: YesCaptcha `RecaptchaV3TaskProxylessM1` and
+Anti-Captcha `RecaptchaV3TaskProxyless` (no proxy task exists for it; `flow.anticaptcha_min_score`) are minted from the
+solver's own network; CapSolver `ReCaptchaV3EnterpriseTask` is solved through the account's proxy (its address and
+login are given to CapSolver), so the token comes from the IP that sends the generate; `flow.capsolver_proxy_task`
+false (or no proxy) uses its proxyless task.
 
 **Account.** Import a Cookie-Editor JSON export of flow.google.com (a normal browser profile, closed right after the
 export; never sign that profile out: the Google account is shared with Gemini). Only google.com cookies are sealed;
@@ -911,8 +919,8 @@ renewed first, the two jars are merged cookie by cookie, the later rotation winn
 every cookie a page load refreshed when the run ends. The checks also run while flow is drained (`flow.claims_enabled`
 false, the default), so an imported account is kept signed in before flow takes jobs. A signed-out page is one spaced strike and a rest with a recheck; three counted strikes end the account.
 
-**An image job.** Load the project page; per try: a reCAPTCHA Enterprise token (YesCaptcha
-`RecaptchaV3TaskProxylessM1`, action `IMAGE_GENERATION`, 10-17 s); a new batch id written to the job; marked sent; one
+**An image job.** Load the project page; per try: a reCAPTCHA Enterprise token (from the
+`flow.captcha_provider` source, action `IMAGE_GENERATION`; YesCaptcha took 10-17 s); a new batch id written to the job; marked sent; one
 `ogiZ0b` POST, whose reply flow holds until the image is drawn (13-17 s) and which carries the signed
 `flow-content.google` JPEG link (`Completed`, fetched through the proxy).
 
@@ -940,7 +948,10 @@ deadline with its refund. Both pools rest after any generate.
 |---|---|---|
 | `flow.claims_enabled` | false | drain mode: no new job; the checks (and so the session upkeep) go on |
 | `flow.rotate_interval_s` | 600 | between two `RotateCookies` of one account (120-900) |
-| `flow.captcha_provider` | yescaptcha | the token source; only `yescaptcha` is built |
+| `flow.captcha_provider` | yescaptcha | the token source: `yescaptcha`, `capsolver`, `anticaptcha`, or an order such as `capsolver,yescaptcha` |
+| `flow.captcha_timeout_s`, `flow.captcha_poll_s` | 120, 3 | one token's time (all sources of the order), between two task reads |
+| `flow.capsolver_proxy_task` | true | CapSolver solves through the account's proxy; false: proxyless |
+| `flow.anticaptcha_min_score` | 0.9 | Anti-Captcha's score queue (0.3, 0.7, 0.9) |
 | `flow.captcha_max_tries` | 5 | tries of one job against the reCAPTCHA check |
 | `flow.captcha_retry_gap_s` | 60 | between two tries of one job |
 | `flow.account_min_gap_s` | 300 | the pool rest after a generate |
