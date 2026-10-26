@@ -298,6 +298,7 @@ def test_browser_worker_loads_only_its_own_engine():
 @pytest.mark.parametrize("provider, expected", [
     ("dola", "['relay_browser', 'relay_dola.e2e', 'relay_dola.engine']"),
     ("vibes", "['relay_vibes.e2e', 'relay_vibes.engine']"),
+    ("muse", "['relay_muse.e2e', 'relay_muse.engine']"),
 ])
 def test_e2e_loads_its_provider_engine_and_e2e_module(provider, expected):
     assert loaded_after("e2e", "--provider", provider) == expected
