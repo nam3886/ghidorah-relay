@@ -598,6 +598,25 @@ describe("the card rules", () => {
     expect(dola!.advanced.map((i) => i.key)).toEqual(["dola.render_deadline_s"]);
   });
 
+  it("put a card's keys first among its basic settings, the settings that use them after, each in the order read", () => {
+    const flow = cardsOf([
+      setting({ key: "flow.anticaptcha_key", value: null, basic: true, secret: true }),
+      setting({ key: "flow.capsolver_key", value: null, basic: true, secret: true }),
+      setting({ key: "flow.captcha_provider", value: ["yescaptcha"], type: "list", basic: true }),
+      setting({ key: "flow.poll_s", value: 5, basic: true }),
+      setting({ key: "flow.yescaptcha_key", value: null, basic: true, secret: true }),
+      setting({ key: "flow.render_deadline_s", value: 600 }),
+    ])[0]!;
+    expect(flow.basic.map((i) => i.key)).toEqual([
+      "flow.anticaptcha_key",
+      "flow.capsolver_key",
+      "flow.yescaptcha_key",
+      "flow.captcha_provider",
+      "flow.poll_s",
+    ]);
+    expect(flow.advanced.map((i) => i.key)).toEqual(["flow.render_deadline_s"]);
+  });
+
   it("find a model's prices by its id or an alias, a tier after @, and the keys no model has", () => {
     const table = items()[4]!.value as Record<string, unknown>;
     expect(priceInputs(models()[0]!, table).map((p) => [p.key, p.label, p.text])).toEqual([

@@ -35,7 +35,8 @@ export interface Card {
 }
 
 // One card per group, General ("core") first, then the providers in the drawn order. A card with no basic setting
-// (General: the core marks none) shows its settings unfolded, as its basic ones.
+// (General: the core marks none) shows its settings unfolded, as its basic ones. A card's keys (its secret settings)
+// come first among its basic ones, the settings that use them after, each part in the order read.
 export function cardsOf(items: readonly SettingItem[]): Card[] {
   const by = new Map<string, Card>();
   for (const item of items) {
@@ -47,6 +48,7 @@ export function cardsOf(items: readonly SettingItem[]): Card[] {
   }
   for (const card of by.values()) {
     if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];
+    card.basic = [...card.basic.filter((i) => i.secret), ...card.basic.filter((i) => !i.secret)];
   }
   const core = by.get("core");
   by.delete("core");

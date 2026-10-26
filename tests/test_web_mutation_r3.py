@@ -401,6 +401,9 @@ BOTH_PARAMS = 'err.param === "old_password" || err.param === "new_password"'
 @mutation(SETTINGS_CARDS, "if (!card.basic.length) [card.basic, card.advanced] = [card.advanced, []];", "",
           expect=RULES + "put the claims switch, the models and the prices in their own place, basic first, the rest "
                          "under Advanced")
+@mutation(SETTINGS_CARDS, "[...card.basic.filter((i) => i.secret), ...card.basic.filter((i) => !i.secret)]", "card.basic",
+          expect=RULES + "put a card's keys first among its basic settings, the settings that use them after, each in "
+                         "the order read")
 @mutation(SETTINGS_CARDS, "...new Set([...(item?.keys ?? []), ...Object.keys(table)]),",
           "...new Set([...Object.keys(table)]),",
           expect=RULES + "draw a blank input for every declared option the table does not hold")
