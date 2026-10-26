@@ -29,6 +29,7 @@ from relay_muse.engine.web import (
     Web,
     read_session,
     read_usage,
+    remember_action,
     workspace,
 )
 from relay_muse.spec import POOLS, WEEK
@@ -74,10 +75,15 @@ async def check_account(ctx, settings, *, deps: Deps | None = None,
                 vm, _ = workspace(info)
             except (VmNotReady, SiteError):
                 return Health("unknown", state_patch={"vm_state": str(info.get("status"))[:40]})
+            remember_action((getattr(ctx.account, "provider_state", None) or {}).get("usage_action"))
             usage = await read_usage(web)
     except (NetError, SiteError) as e:
         raise RuntimeError(str(e)) from None
-    patch: dict[str, Any] = {"vm_state": str(info.get("vm_state"))[:40]}
+    # a figure not read now is not shown as current: the last one is cleared, never left looking fresh
+    patch: dict[str, Any] = {"vm_state": str(info.get("vm_state"))[:40], "usage_percent": None, "quota_ok": None,
+                             "usage_resets_at": None}
+    if web.usage_action is not None:
+        patch["usage_action"] = web.usage_action
     effects: tuple[Any, ...] = ()
     if usage is not None:
         tier = "pro" if usage.paid else "free"

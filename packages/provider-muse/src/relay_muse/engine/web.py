@@ -112,6 +112,7 @@ class Web:
         for name, value in self.start.items():
             self.s.cookies.set(name, value, domain=SITE_HOST)
         self.signed_out = False
+        self.usage_action: dict | None = None      # the Usage action the run used (to keep on the account)
 
     async def __aenter__(self) -> "Web":
         return self
@@ -339,6 +340,16 @@ class Hunt:
 
 
 HUNTS: dict[str, Hunt] = {}     # deployment id -> its hunt while the action id is not known
+_ACTION_ID = re.compile(r"[0-9a-f]{40,44}")
+_DEPLOYMENT = re.compile(r"dpl_[A-Za-z0-9]+")
+
+
+def remember_action(known: Any) -> None:
+    """Take an action id an earlier check found (kept on the account, so a restarted worker does not hunt again for
+    minutes): `{"deployment": "dpl_...", "id": "<hex>"}`. Anything else is ignored."""
+    if isinstance(known, dict) and isinstance(known.get("deployment"), str) and isinstance(known.get("id"), str) \
+            and _DEPLOYMENT.fullmatch(known["deployment"]) and _ACTION_ID.fullmatch(known["id"]):
+        ACTION_IDS.setdefault(known["deployment"], known["id"])
 
 
 async def read_usage(web: Web) -> Usage | None:
@@ -360,6 +371,7 @@ async def read_usage(web: Web) -> Usage | None:
         if action is None:
             log.warning("muse usage: no %s in the scripts of deployment %s", USAGE_ACTION, deployment)
             return None
+        web.usage_action = {"deployment": deployment, "id": action}
         resp = await web.post_action(action, deployment, [{"includeAgreement": True}])
         usage = parse_usage(resp.text) if resp.status_code == 200 else None
         if usage is None:

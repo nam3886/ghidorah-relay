@@ -103,7 +103,7 @@ def test_the_usage_action_is_hunted_once_per_deployment_and_a_missing_one_change
     web.ACTION_IDS.clear()
     lost = site(**{"GET /_next/static/chunks/28gp_oyvbad8g.js": (404, "", {})})
     health, _ = run(lost)
-    assert health.state == "alive" and health.effects == () and "usage_percent" not in health.state_patch
+    assert health.state == "alive" and health.effects == () and health.state_patch["usage_percent"] is None
     assert web.ACTION_IDS == {DPL: None}
     for broken in ((500, "oops", {}), (200, "0:{}\n", {}), OSError("reset")):
         web.ACTION_IDS.clear()
@@ -175,3 +175,31 @@ def test_a_hunt_cut_by_its_budget_goes_on_at_the_next_read_and_retries_a_failed_
     missing = SlowSite()
     del missing.scripts["/_next/static/chunks/28gp_oyvbad8g.js"]
     assert asyncio.run(web.Hunt(PAGE).run(missing)) is None
+
+
+REMEMBER = '            remember_action((getattr(ctx.account, "provider_state", None) or {}).get("usage_action"))\n'
+
+
+@mutation(CHECK_FILE, REMEMBER, "", expect="no hunt after a restart")
+def test_the_action_id_is_kept_on_the_account_so_a_restarted_worker_does_not_hunt_again():
+    s = site()
+    health, _ = run(s)
+    assert health.state_patch["usage_action"] == {"deployment": DPL, "id": ACTION}
+    web.ACTION_IDS.clear()                                  # a restarted worker
+    ctx = Ctx()
+    ctx.account.provider_state = {"usage_action": health.state_patch["usage_action"]}
+    again = site()
+    health, _ = run(again, ctx)
+    assert not [c for c in again.calls if c.path.startswith("/_next/")], "no hunt after a restart"
+    assert health.state_patch["usage_percent"] == 9
+    for junk in ({"deployment": "x", "id": ACTION}, {"deployment": DPL, "id": "nope"}, "dpl", None):
+        web.ACTION_IDS.clear()
+        web.remember_action(junk)
+        assert web.ACTION_IDS == {}
+
+
+def test_a_usage_not_read_now_clears_the_last_figure():
+    health, _ = run(site(answer=(500, "oops", {})))
+    assert health.state == "alive"
+    assert {k: health.state_patch[k] for k in ("usage_percent", "quota_ok", "usage_resets_at")} == dict.fromkeys(
+        ("usage_percent", "quota_ok", "usage_resets_at"))
