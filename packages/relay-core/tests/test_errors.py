@@ -358,8 +358,9 @@ def test_free_retries_belong_to_a_requeued_job_scoped_code_that_uses_no_attempt_
 # what a customer reads (a public code, a `public_text`, a neutral sentence, the message of a code shown as itself):
 # no internal word
 INTERNAL_WORDS = re.compile(r"\baccount|\bpool\b|\bworker\b|\bproxy|cookie|captcha|\bbrowser\b|\bsession|"
-                            r"upstream|solver|\blane\b|\bD\d{1,3}\b|\bwaf\b|firewall|\bmint|security (check|token)|"
-                            r"\bsign(er|ature)|\btoken|throttl|\bcredits?\b|checkpoint|conversation|selector|\bpage\b|"
+                            r"upstream|solver|\blane\b|(?-i:\bD\d{1,3}\b)|\bwaf\b|firewall|\bmint|"
+                            r"security (check|token)|\bsign(er|ature)|\btoken|throttl|\bcredits?\b|checkpoint|"
+                            r"conversation|selector|\bpage\b|"
                             r"headless|chrome|recaptcha|\bcdp\b|\b7100\d{5}\b|internal\.|\bunexpected\b", re.IGNORECASE)
 
 
