@@ -39,7 +39,7 @@ def test_the_spec_registers_and_its_codes_are_sound():
     assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing"}
     assert all(core_errors.RULES[c] is r for c, r in CODES.items())
     for rule in CODES.values():         # the reference's sentence
-        assert rule.public_text.endswith(".") and "again" in rule.public_text and rule.public
+        assert rule.public_text.endswith(".") and "again" in rule.public_text and rule.public_code != rule.code
     assert SPEC.caps.execution == "http" and SPEC.caps.account_slots == 1 and SPEC.caps.has_reconcile
     assert SPEC.ref_is_conversation and SPEC.frames.verbatim
 

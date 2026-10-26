@@ -149,12 +149,12 @@ The internal reference: a client never sees these codes nor their messages. It s
 
 ## `muse.*`
 
-| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
-|---|---|---|---|---|---|---|---|---|
-| `muse.http_error` | 502 | api_error | no | yes | yes | 0 | yes | muse answered with an error before the order was taken |
-| `muse.output_missing` | 502 | api_error | yes | yes | no | 0 | yes | muse has no file for this result; the charge is returned |
-| `muse.refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | muse answered in words without making the image or video; the charge is returned |
-| `muse.vm_not_ready` | 503 | api_error | no | no | no | 3 | yes | the muse workspace did not wake; the order was not sent |
+| Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|---|
+| `muse.http_error` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | muse answered with an error before the order was taken |
+| `muse.output_missing` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | muse has no file for this result; the charge is returned |
+| `muse.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | muse answered in words without making the image or video; the charge is returned |
+| `muse.vm_not_ready` | `temporarily_unavailable` | 503 | api_error | no | no | no | 3 | yes | the muse workspace did not wake (or could not be leased); the order was not sent |
 
 ## `pool.*`
 

@@ -13,28 +13,28 @@ VM_NOT_READY = "muse.vm_not_ready"      # the account's cloud VM did not wake (o
 REFUSED = "muse.refused"                # muse answered the order in words with no image or video
 OUTPUT_MISSING = "muse.output_missing"  # muse has no file for a result it showed
 
-def _rule(*args, text: str, **kw) -> Rule:
-    return Rule(*args, **kw, public_text=text)
-
-
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
-    _rule(HTTP_ERROR, 502, "api_error", True, False, True, True, True,
-          "muse answered with an error before the order was taken",
-          text="muse kept answering with errors and nothing was made. Sending the request again later may work."),
+    Rule(HTTP_ERROR, 502, "api_error", True, False, True, True,
+         "muse answered with an error before the order was taken",
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="muse kept answering with errors and nothing was made. Sending the request again later may "
+                     "work."),
     # The account's state, not the order's: back to the queue with no attempt used for the first three.
-    _rule(VM_NOT_READY, 503, "api_error", False, False, False, True, True,
-          "the muse workspace did not wake; the order was not sent", free_retries=3,
-          text="muse could not start the work in time and nothing was made. Sending the request again later may "
-               "work."),
+    Rule(VM_NOT_READY, 503, "api_error", False, False, False, True,
+         "the muse workspace did not wake (or could not be leased); the order was not sent", free_retries=3,
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="muse could not start the work in time and nothing was made. Sending the request again later "
+                     "may work."),
     # muse answered for good with no media (a refused prompt, a question): the job dies now, the charge is returned.
-    _rule(REFUSED, 422, "invalid_request_error", True, True, False, True, True,
-          "muse answered in words without making the image or video; the charge is returned",
-          text="muse refused to make this. Sending the same request again will not help; change the prompt or the "
-               "image."),
-    _rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True, True,
-          "muse has no file for this result; the charge is returned",
-          text="muse had no file for the result. Sending the request again may work."),
+    Rule(REFUSED, 422, "invalid_request_error", True, True, False, True,
+         "muse answered in words without making the image or video; the charge is returned",
+         public_code=core_errors.CONTENT_REFUSED,
+         public_text="muse refused to make this. Sending the same request again will not help; change the prompt or "
+                     "the image."),
+    Rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True,
+         "muse has no file for this result; the charge is returned", public_code=core_errors.GENERATION_FAILED,
+         public_text="muse had no file for the result. Sending the request again may work."),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.
