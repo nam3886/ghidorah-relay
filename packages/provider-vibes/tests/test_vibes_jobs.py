@@ -272,8 +272,9 @@ def test_a_generate_answered_with_a_dead_session_fails_with_its_refund_is_never_
     """The answer shows the session was gone when vibes answered, not that the generate was never taken: never
     `NotTaken` (a re-send on another account), never `Retry`; the job fails now with its refund, `sent_at` kept."""
     assert EXPIRED["status"] == 401 and EXPIRED["body"]["error"]["code"] == "SESSION_EXPIRED"
-    assert "Max-Age=0" in EXPIRED["headers"]["Set-Cookie"]
-    for resp in (answer(EXPIRED), EXPIRED_CODE, CLEARED_COOKIE, httpx.Response(403, json=EXPIRED["body"])):
+    assert "Max-Age=0" in EXPIRED["set_cookie_seen"]
+    as_seen = httpx.Response(401, headers={"set-cookie": EXPIRED["set_cookie_seen"]}, json=EXPIRED["body"])
+    for resp in (answer(EXPIRED), as_seen, EXPIRED_CODE, CLEARED_COOKIE, httpx.Response(403, json=EXPIRED["body"])):
         log: list = []
         fake = Vibes(log, generate=resp)
         result, _ = run_submit(fake, job())

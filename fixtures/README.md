@@ -260,6 +260,13 @@ One extend, one video edit and one image edit of the account's own earlier resul
 - `vibes/pinned-261025/v2v_014_poll_done.json`
 - `vibes/pinned-261025/v2v_015_download_video.json`
 
+## vibes.ai session ended between the batch create and the generate (26/10/2026)
+
+Rebuilt from the shape of the vibes-acc1 incident, not captured: the generate's 401 `SESSION_EXPIRED` and the clearing
+cookie (`set_cookie_seen`, kept out of `headers`); every value is a placeholder.
+
+- `vibes/signed-out-261026/t2v_generate_session_expired.json`
+
 ## vibes.ai refused image (production job f0176f20, 23/10/2026 09:39 GMT+7)
 
 A text-to-image generate that answered `success: true` with a finished batch (`isComplete: true`, `hasError: false`)
