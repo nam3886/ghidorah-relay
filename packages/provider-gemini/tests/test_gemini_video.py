@@ -262,10 +262,10 @@ def test_poll_reads_the_chat_until_the_video_is_there():
     assert turns(I2V_PENDING)[0][0].images == () and turns(I2V_PENDING)[0][0].videos == ()
 
 
-POLL_LIMIT = "                          effects=limit_effects(settings, now(), code, text, is_video(job), spent))"
+POLL_LIMIT = "        effects = limit_effects(settings, now(), code, text, is_video(job), spent)\n"
 
 
-@mutation(RESULTS_FILE, POLL_LIMIT, "                          effects=())", expect="the video pool did not rest")
+@mutation(RESULTS_FILE, POLL_LIMIT, "        effects = ()\n", expect="the video pool did not rest")
 def test_a_chat_that_answered_the_video_limit_fails_refunded_and_rests_the_video_pool():
     got = poll(pro_site([], rpc={"hNvQHb": VIDEO_LIMIT}), video_job(state={"chat": "c_000000000000a000"}))
     assert isinstance(got.outcome, Failed) and got.outcome.code == errors.VIDEO_LIMIT, got.outcome
