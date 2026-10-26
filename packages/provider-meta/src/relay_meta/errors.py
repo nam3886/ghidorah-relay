@@ -19,25 +19,23 @@ NO_VIDEO = "meta.no_video"                     # meta finished its answer with n
 
 # Warnings (not rules).
 
-_HIDDEN = "the request could not be submitted to meta"
-
-
 def _ui(code: str, message: str) -> Rule:
     """Our browser could not drive meta's page before the send: one attempt is used, the client sees a generic error."""
-    return Rule(code, 500, "api_error", True, False, True, False, True, message, _HIDDEN)
+    return Rule(code, 500, "api_error", True, False, True, True, message, public_code=core_errors.INTERNAL_ERROR)
 
 
 CODES: dict[str, Rule] = {r.code: r for r in (
-    Rule(CHECKPOINT, 503, "api_error", False, False, False, True, True,
-         "the meta account met a browser checkpoint; the job is tried again"),
+    Rule(CHECKPOINT, 503, "api_error", False, False, False, True,
+         "the meta account met a browser checkpoint; the job is tried again",
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE),
     _ui(UI_PAGE_NOT_READY, "meta's page showed no sign-in sign or no ready composer"),
     _ui(UI_SEND_FAILED, "the prompt could not be sent on meta's page"),
-    Rule(NO_IMAGE, 422, "invalid_request_error", True, True, False, True, True,
-         "meta made no image for this order; the charge is returned",
+    Rule(NO_IMAGE, 422, "invalid_request_error", True, True, False, True,
+         "meta made no image for this order; the charge is returned", public_code=core_errors.GENERATION_FAILED,
          public_text="meta made no image for this request. Sending the request again may work; if it keeps "
                      "failing, change the prompt."),
-    Rule(NO_VIDEO, 422, "invalid_request_error", True, True, False, True, True,
-         "meta made no video for this order; the charge is returned",
+    Rule(NO_VIDEO, 422, "invalid_request_error", True, True, False, True,
+         "meta made no video for this order; the charge is returned", public_code=core_errors.GENERATION_FAILED,
          public_text="meta made no video for this request. Sending the request again may work; if it keeps "
                      "failing, change the prompt."),
 )}

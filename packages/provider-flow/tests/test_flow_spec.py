@@ -160,7 +160,9 @@ def test_flow_registers_its_codes_on_load():
     for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
         counts = code != "flow.tier_required"      # not the order's fault: uses no attempt (a bounded few times)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, counts, counts, code not in ours), code
+        assert (r.terminal, r.refund, r.counts_attempt, errors.hidden(r)) == (False, counts, counts, code in ours), code
+        assert r.public_code == (errors.INTERNAL_ERROR if code in ours else errors.GENERATION_FAILED
+                                 if code == "flow.upload_failed" else errors.TEMPORARILY_UNAVAILABLE), code
 
 
 # ---- plan ----------------------------------------------------------------------------------------------------------

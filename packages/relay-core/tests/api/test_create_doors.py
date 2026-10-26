@@ -541,11 +541,11 @@ def test_a_plan_refusal_is_its_own_400_and_an_engine_crash_never_leaks_its_text(
         r = await post(refuse="input.prompt_ratio_conflict")
         assert error_of(r) == (400, "input.prompt_ratio_conflict", None), r.text
         r = await post(refuse="not.registered")
-        assert r.status_code == 500 and error_of(r)[1] == "internal.unexpected", r.text
+        assert r.status_code == 500 and error_of(r)[1] == "internal_error", r.text
         r = await post(duck="input.bad_duration")
-        assert r.status_code == 500 and error_of(r)[1] == "internal.unexpected", "duck-typed: %s" % r.text
+        assert r.status_code == 500 and error_of(r)[1] == "internal_error", "duck-typed: %s" % r.text
         r = await post(boom=True)
-        assert r.status_code == 500 and error_of(r)[1] == "internal.unexpected" and "secret" not in r.text, r.text
+        assert r.status_code == 500 and error_of(r)[1] == "internal_error" and "secret" not in r.text, r.text
         assert not jobs(db, key.id) and charges(db, key_id=key.id) == 0, nothing_made(db, key)
 
     run_app(db, scenario)
@@ -841,10 +841,10 @@ def test_media_urls_fall_back_to_the_request_host(db):
 
 @mutation(DOORS, 'errors.shown(code or errors.INTERNAL) if status == "failed"', '(code, code) if status == "failed"',
           expect="message")
-def test_a_failed_job_shows_the_rule_message_the_code_and_refunded_never_engine_text(db, monkeypatch):
+def test_a_failed_job_shows_its_neutral_code_its_customer_sentence_and_refunded_never_internals(db, monkeypatch):
     monkeypatch.setattr(errors, "RULES", dict(errors.RULES))
-    errors.register(errors.Rule("ours.secret", 502, "api_error", True, True, False, False, True, "internal detail",
-                                "the request could not be completed"))
+    errors.register(errors.Rule("ours.secret", 502, "api_error", True, True, False, True, "internal detail",
+                                public_code=errors.INTERNAL_ERROR))
 
     async def scenario(env):
         key = await env.new_key()
@@ -854,11 +854,14 @@ def test_a_failed_job_shows_the_rule_message_the_code_and_refunded_never_engine_
         await finish_failed(db, hidden, "ours.secret", "upstream said: engine detail secret")
         a = (await env.client.get("%s/%s" % (VIDEO_PATH, public), headers=key.headers)).json()
         assert (a["status"], a["error_code"], a["error"], a["refunded"]) == (
-            "failed", "render.deadline", errors.rule("render.deadline").message, True), "message: %s" % a
+            "failed", "timeout", errors.rule("render.deadline").public_text, True), "message: %s" % a
         b = (await env.client.get("%s/%s" % (VIDEO_PATH, hidden), headers=key.headers)).json()
-        assert (b["error_code"], b["error"]) == ("internal.unexpected", "the request could not be completed"), (
+        assert (b["error_code"], b["error"]) == ("internal_error", errors.PUBLIC_CODES["internal_error"][1]), (
             "message: %s" % b)
         assert "secret" not in str(a) + str(b) and a["finished_at"]
+        assert "render.deadline" not in str(a) and "internal detail" not in str(b) and "ours" not in str(b)
+        stored = db.all("SELECT error_code FROM jobs WHERE id IN (%s, %s) ORDER BY error_code", public, hidden)
+        assert [r[0] for r in stored] == ["ours.secret", "render.deadline"], "the row keeps the internal code"
 
     run_app(db, scenario)
 

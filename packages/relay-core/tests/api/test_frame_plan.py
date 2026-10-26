@@ -111,7 +111,7 @@ def test_a_provider_with_frames_and_no_row_is_500_frame_unusable_with_no_charge_
 
     api_key, r = run_app(db, scenario, spec=framed())
     # the client sees the generic error: the detail is ours to fix
-    assert error_of(r)[:2] == (500, "internal.unexpected"), "no silent fallback: %s" % r.text
+    assert error_of(r)[:2] == (500, "internal_error"), "no silent fallback: %s" % r.text
     assert jobs(db, api_key.id) == [] and charges(db, key_id=api_key.id) == 0, "no silent fallback: a job or a charge"
     assert any("provider=fake kind=video model=fake-video" in rec.getMessage() for rec in caplog.records
                if rec.levelno == logging.ERROR), "the error log names provider, kind and model"

@@ -1103,7 +1103,8 @@ def test_a_secret_in_the_upstream_model_fact_is_not_stored(db):
 
 # ---- a failure that is not the order's fault: free retries per job, kept in the job's own column -----------------
 FAULT = "test.browser_fault"
-FAULT_RULE = errors.Rule(FAULT, 500, "api_error", False, False, False, False, True, "a fault", "hidden", 2)
+FAULT_RULE = errors.Rule(FAULT, 500, "api_error", False, False, False, True, "a fault",
+                         public_code=errors.INTERNAL_ERROR, free_retries=2)
 FAULT_COUNTS = "        counts = counts or faults > r.free_retries\n"
 FAULT_BUMP = "        faults += 1\n"
 FAULT_STORED = "attempts=attempts, fault_retries=faults,\n"

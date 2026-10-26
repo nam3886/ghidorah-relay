@@ -575,10 +575,10 @@ async def job_status(pool: AsyncConnectionPool, base_url: str, key_id, job_id: s
                      media_type: str | None = None, estimate: bool = False,
                      registry: ProviderRegistry | None = None) -> dict:
     """The status body of a job the key owns. 404 `resource.not_found` for any other job, a malformed
-    id, or (when given) a job of the other media type. `error` is the rule's message of the job's code, masked
-    for a non-public code: never engine or upstream text. The last three keys are estimates (`api/progress.py`):
-    only a caller that passes `estimate` and the `registry` may cost a read, and a read that fails costs the answer
-    nothing."""
+    id, or (when given) a job of the other media type. `error_code` and `error` are `errors.shown` of the job's
+    code: a neutral public code and its customer sentence, never the internal code, engine or upstream text. The
+    last three keys are estimates (`api/progress.py`): only a caller that passes `estimate` and the `registry` may
+    cost a read, and a read that fails costs the answer nothing."""
     try:
         wanted = uuid.UUID(job_id)
     except ValueError:

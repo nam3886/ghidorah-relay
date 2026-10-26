@@ -129,7 +129,7 @@ def test_a_failed_job_ends_the_openai_stream_with_one_error_event_then_done(db, 
         assert frames[-1] == "[DONE]" and "secret" not in str(frames)
         errors = [f for f in frames if isinstance(f, dict) and "error" in f]
         assert len(errors) == 1 and frames[-2] is errors[0], "exactly one error event, right before [DONE]: %s" % frames
-        assert errors[0] == {"error": {"code": "render.deadline", "type": "api_error", "param": None,
+        assert errors[0] == {"error": {"code": "timeout", "type": "api_error", "param": None,
                                        "message": errors[0]["error"]["message"]}}
         assert not any(isinstance(f, dict) and f.get("choices") and f["choices"][0]["delta"].get("content")
                        for f in frames), "no result text after a failure"
@@ -162,7 +162,7 @@ def test_the_gemini_stream_sends_thought_heartbeats_then_the_result_or_one_gemin
         err = frames[-1]["error"] if "error" in frames[-1] else None
         assert err is not None, "gemini error: %s" % frames[-1]
         shown = (err["code"], err["status"], err["details"][0]["reason"])
-        assert shown == (504, "DEADLINE_EXCEEDED", "render.deadline"), shown
+        assert shown == (504, "DEADLINE_EXCEEDED", "timeout"), shown
         assert not any("error" in f for f in frames[:-1]) and "secret" not in str(frames)
 
     run_app(db, scenario)

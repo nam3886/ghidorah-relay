@@ -115,9 +115,10 @@ def test_vibes_registers_its_codes_on_load_and_a_warning_is_no_rule():
     assert not hasattr(vibes_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
     for code in ("vibes.generate_refused", "vibes.render_failed"):   # the job ends now, refunded; never sent again
         r = errors.rule(code)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), code
+        assert (r.terminal, r.refund, r.counts_attempt, errors.hidden(r)) == (True, True, False, False), code
     r = errors.rule("vibes.http_error")                               # before the send: an attempt, refunded at the end
-    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True)
+    assert (r.terminal, r.refund, r.counts_attempt, r.public_code) == (False, True, True,
+                                                                       errors.TEMPORARILY_UNAVAILABLE)
 
 
 # ---- plan ------------------------------------------------------------------------------------------------------------

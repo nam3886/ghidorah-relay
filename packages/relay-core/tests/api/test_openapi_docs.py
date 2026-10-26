@@ -432,20 +432,41 @@ def test_the_job_routes_have_no_response_model(db):
 APP_SCHEMA_LINE = '        return {**schema, "servers": [{"url": public_base(request)}]}\n'
 
 
-@mutation(DOCS, "if r.public and errors.ends_job(r)), key=", "if r.public), key=", expect="never ends a job")
+@mutation(DOCS, "%s Sending again helps: %s Points refunded.", "%s %s Points refunded.", expect="is listed")
 @mutation(DOCS, '    error_code["description"] += ', '    error_code["descriptionX"] = ', expect="is listed")
-def test_the_status_lists_every_code_a_job_can_end_with_from_the_registry(db):
+def test_the_status_lists_the_neutral_codes_a_job_can_end_with_and_no_internal_code(db):
     async def scenario(env):
         return await fetch(env)
 
-    text = run_app(db, scenario)["components"]["schemas"]["JobStatus"]["properties"]["error_code"]["description"]
-    listed = {c for c in re.findall(r"^- `([a-z0-9_]+\.[a-z0-9_]+)`: ", text, re.MULTILINE)}
-    ending = {c for c, r in errors.RULES.items() if r.public and errors.ends_job(r)}
-    for code in sorted(ending):
-        assert "- `%s`: %s Points refunded." % (code, errors.RULES[code].public_text) in text, "%s is listed" % code
-    assert listed == ending, "a code that never ends a job is listed: %s" % sorted(listed - ending)
-    assert {"dola.content_refused", "vibes.source_missing", "flow.tier_required"} <= ending, "provider codes"
-    assert not [c for c, r in errors.RULES.items() if not r.public and "`%s`" % c in text], "a hidden code is listed"
+    schema = run_app(db, scenario)
+    text = schema["components"]["schemas"]["JobStatus"]["properties"]["error_code"]["description"]
+    listed = set(re.findall(r"^- `([a-z0-9_.]+)`: ", text, re.MULTILINE))
+    ending = {r.public_code for r in errors.RULES.values() if errors.ends_job(r)}
+    assert ending == set(errors.PUBLIC_CODES), "every neutral code is one a job can end with: %s" % sorted(ending)
+    for code, (helps, sentence) in errors.PUBLIC_CODES.items():
+        assert "- `%s`: %s Sending again helps: %s Points refunded." % (code, sentence, helps) in text, \
+            "%s is listed" % code
+    assert listed == ending, "a code that never ends a job is listed: %s" % sorted(listed ^ ending)
+    served = json.dumps(schema)
+    inner = sorted(c for c in errors.RULES if c.split(".")[0] not in errors.CLIENT_DOMAINS and c in served)
+    assert not inner, "an internal code is in the served reference: %s" % inner
+    shown = sorted(r.public_text for r in errors.RULES.values() if r.public_text and r.public_text in served)
+    assert not shown, "the reference lists the neutral codes' sentences, not each internal code's: %s" % shown
+
+
+@mutation(DOCS, "at the price of its model option (`prices` in `GET /v1/models`). A job",
+          "at the price of its model option (`prices` in `GET /v1/models`: the provider's own cost). A job",
+          expect="never says a price is the provider's cost")
+def test_the_reference_never_says_a_price_is_the_provider_cost_and_documents_the_server_and_the_empty_range(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    schema = run_app(db, scenario)
+    served = json.dumps(schema)
+    assert "own cost" not in served, "the reference never says a price is the provider's cost"
+    assert "`public_address`" in schema["info"]["description"], "servers comes from public_address"
+    answer = schema["paths"]["/m/{token}"]["get"]["responses"]["416"]["description"]
+    assert "bytes=-0" in answer, answer
 
 
 @mutation(APP, APP_SCHEMA_LINE, "        return schema\n", expect="servers")
@@ -539,8 +560,8 @@ def test_the_downloads_and_the_facade_errors_document_the_headers_they_send(db):
         "the native routes send no x-should-retry"
 
 
-@mutation(DOCS, '    "416": {"description": "The range starts past the end of the file. No body.", "headers": {',
-          '    "416": {"description": "The range starts past the end of the file. No body.", "headerz": {',
+@mutation(DOCS, 'The range starts past the end of the file, or is bytes=-0. No body.", "headers": {',
+          'The range starts past the end of the file, or is bytes=-0. No body.", "headerz": {',
           expect="not a valid OpenAPI document")
 def test_the_served_schema_is_a_valid_openapi_document(db):
     """The whole served document, servers and webhooks included, against the OpenAPI 3.1 specification."""

@@ -184,8 +184,8 @@ async def test_a_login_doubt_is_never_cleared_and_a_taken_order_carries_one_succ
     assert types(res).count("Success") == 1, types(res)
 
 
-FREE_RULE = "                BROWSER_FAULT_FREE_RETRIES)"
-@mutation(ERR, FREE_RULE, "                0)", expect="a browser-fault code lost its free retries")
+FREE_RULE = "free_retries=BROWSER_FAULT_FREE_RETRIES)"
+@mutation(ERR, FREE_RULE, "free_retries=0)", expect="a browser-fault code lost its free retries")
 def test_both_browser_fault_codes_use_no_attempt_for_the_first_three_retries_of_a_job():
     for code in (errors.BROWSER_COOKIES_LOST, errors.PAGE_RELOADED):
         rule = errors.CODES[code]

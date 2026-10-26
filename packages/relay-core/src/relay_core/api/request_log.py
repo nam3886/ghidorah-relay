@@ -11,7 +11,8 @@ Pure ASGI middleware, so it sees every outcome: a response, a framework error an
 - a route whose body holds a credential depends on `deps.skip_body_log`: its row keeps no body;
 - a logging failure never fails the request.
 A client hang-up (`ClientDisconnect`) is a normal event: logged at INFO, row status 499, never re-raised.
-A route may set `request.state.job_id` and `request.state.provider` for the row.
+A route may set `request.state.job_id` and `request.state.provider` for the row. The row's `error_code` is the
+internal code (`request.state.error_code`, set by the error handler), not the neutral one the client was shown.
 """
 
 import json
@@ -25,6 +26,7 @@ from starlette.requests import ClientDisconnect
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from relay_core.api.errors_http import crash_response
+from relay_core.errors import INTERNAL
 from relay_core.redact import redact_log
 
 log = logging.getLogger("relay.api")
@@ -94,6 +96,7 @@ class RequestLogMiddleware:
             log.exception("unhandled error on %s %s", scope["method"], scope["path"])
             if seen["started"]:
                 raise                              # the answer is already on the wire; nothing to rewrite
+            scope["state"]["error_code"] = INTERNAL
             await crash_response(scope["path"])(scope, receive, tee_send)
         await self._write(scope, seen, int((time.monotonic() - started) * 1000))
 
@@ -117,7 +120,7 @@ class RequestLogMiddleware:
             async with self.pool.connection() as conn:
                 await conn.execute(_INSERT, (
                     key_id, state.get("provider"), "%s %s" % (scope["method"], where), status,
-                    _uuid_or_none(state.get("job_id")), duration_ms, _error_code(answer),
+                    _uuid_or_none(state.get("job_id")), duration_ms, state.get("error_code") or _error_code(answer),
                     Jsonb(body), Jsonb(redact_log(answer)) if answer is not None else None))
         except Exception:
             log.warning("request log row not written", exc_info=True)

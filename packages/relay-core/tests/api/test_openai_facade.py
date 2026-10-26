@@ -195,11 +195,11 @@ def test_a_job_that_finishes_while_held_answers_with_its_urls_and_stop(db, monke
     run_app(db, scenario)
 
 
-@mutation(OPENAI, "        raise ApiError(fc.failure_code(state))", "        pass", expect="render.deadline")
-def test_a_failed_job_is_an_http_error_with_the_job_code_not_a_200(db, monkeypatch):
+@mutation(OPENAI, "        raise ApiError(fc.failure_code(state))", "        pass", expect="timeout")
+def test_a_failed_job_is_an_http_error_with_the_job_public_code_not_a_200(db, monkeypatch):
     monkeypatch.setattr(errors, "RULES", dict(errors.RULES))
-    errors.register(errors.Rule("ours.secret", 502, "api_error", True, True, False, False, True, "internal detail",
-                                "the request could not be completed"))
+    errors.register(errors.Rule("ours.secret", 502, "api_error", True, True, False, True, "internal detail",
+                                public_code=errors.INTERNAL_ERROR))
 
     async def scenario(env):
         monkeypatch.setattr(fc, "POLL_S", 0.05)
@@ -208,7 +208,8 @@ def test_a_failed_job_is_an_http_error_with_the_job_code_not_a_200(db, monkeypat
         later = finish_later(db, key.id, lambda d, j: finish_failed(d, j, "render.deadline", "engine secret"), 0.2)
         r = await env.client.post(CHAT, json=body, headers=key.headers)
         await later
-        assert error_of(r) == (504, "render.deadline", None), "the failed job must be an HTTP error: %s" % r.text
+        assert error_of(r) == (504, "timeout", None), "the failed job must be an HTTP error: %s" % r.text
+        assert r.json()["error"]["message"] == errors.rule("render.deadline").public_text, r.text
         assert set(r.json()["error"]) == {"code", "message", "type", "param"} and "secret" not in r.text
         job_id = jobs(db, key.id)[0][0]
         status = (await env.client.get("/v1/video/generations/%s" % job_id, headers=key.headers)).json()
@@ -217,8 +218,9 @@ def test_a_failed_job_is_an_http_error_with_the_job_code_not_a_200(db, monkeypat
                              which=1)
         r = await env.client.post(CHAT, json=body, headers=key.headers)
         await later
-        assert error_of(r)[1] == "internal.unexpected" and r.json()["error"]["message"] == (
-            "the request could not be completed"), r.text
+        assert error_of(r)[1] == "internal_error" and r.json()["error"]["message"] == (
+            errors.PUBLIC_CODES["internal_error"][1]), r.text
+        assert "ours" not in r.text and "internal detail" not in r.text
 
     run_app(db, scenario)
 

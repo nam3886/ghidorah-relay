@@ -403,7 +403,7 @@ def test_a_finished_batch_with_an_error_fails_with_its_refund():
         assert result.outcome.taken
     for code in (errors.RENDER_FAILED, errors.CONTENT_REFUSED, errors.OUTPUT_MISSING):
         rule = errors.CODES[code]
-        assert rule.terminal and rule.refund and rule.public, code
+        assert rule.terminal and rule.refund and rule.public_text, code
 
 
 # ---- a finished batch whose item vibes refused (production job f0176f20, 23/10) ----------------------------------

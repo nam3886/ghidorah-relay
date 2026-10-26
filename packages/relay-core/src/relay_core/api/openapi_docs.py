@@ -6,7 +6,9 @@ admin paths and the schemas only they used, declares the four request bodies exp
 four native job calls (documentation only: `api/schemas.py`), the error bodies, the request-time error codes of each
 operation by HTTP status, the security schemes, an introduction (`info.description`), the webhook, a tag and an
 English description per operation, and a few example answers. Text only: nothing here changes what a route does.
-The result is served at `/openapi.json`.
+The result is served at `/openapi.json`, where `app.py` adds `servers` from the `public_address` setting (else the
+request's own address) on each request. The failure codes it lists are the neutral public codes (`errors.PUBLIC_CODES`),
+never an internal code.
 """
 
 import copy
@@ -175,10 +177,9 @@ Poll `GET /v1/video/generations/{id}` or `GET /v1/images/generations/{id}` every
 come more than once with the same `event_id`: drop repeats.
 
 ## Points
-A job is charged when it is created, at the price of its model option (`prices` in `GET /v1/models`: the provider's
-own cost, at least 1 point). A job that delivers any output is `done` and keeps the whole charge. A job that delivers
-nothing is `failed` and its charge is given back: its status shows `refunded: true`. `GET /v1/points` shows the key's
-limits and spend.
+A job is charged when it is created, at the price of its model option (`prices` in `GET /v1/models`). A job that
+delivers any output is `done` and keeps the whole charge. A job that delivers nothing is `failed` and its charge is
+given back: its status shows `refunded: true`. `GET /v1/points` shows the key's limits and spend.
 
 ## Limits
 Two limits apply to a key; both refuse a create call with 429 and charge nothing.
@@ -196,18 +197,30 @@ left.
 Every error has the body `{"error": {"code", "message", "type", "param"}}`; the Gemini routes use the Gemini error
 body, with the code in `details[0].reason`. Act on `code`; `message` is fixed text for a person. Each operation lists
 the codes it can refuse a request with, by HTTP status; nothing is charged on any of them. A failed job's code is its
-`error_code`; its description in the job status lists every code a job can end with. On `/v1/chat/completions` and
-the Gemini routes an error answer carries `x-should-retry: false`, so an SDK does not send the request (and make a job)
-a second time.
+`error_code`, one of a small fixed set listed in the job status: `content_refused`, `generation_failed`,
+`temporarily_unavailable`, `timeout`, `invalid_input` and `internal_error`. Its `error` says what happened and whether
+sending the request again can help. A held or streamed request on `/v1/chat/completions` or the Gemini routes whose job
+fails answers with the same code. On those routes an error answer carries `x-should-retry: false`, so an SDK does not
+send the request (and make a job) a second time.
+
+## Server address
+`servers` holds the relay's public address (its `public_address` setting), else the address this reference was read
+from.
 
 ## Changes
+- **2026-10-26, 2026.10.26.2**: error codes are neutral. A failed job, and a failed held or streamed facade request,
+  now give one of six codes that say what it means for you, not which part of the service failed:
+  `content_refused` (send it changed), `generation_failed` (sending again may work), `temporarily_unavailable` (send it
+  again later), `timeout`, `invalid_input` (change the input) and `internal_error`; each comes with a sentence that says
+  whether sending again can help. Codes that named a provider's or the service's own machinery are no longer shown. The
+  request-time codes (`input.*`, `auth.*`, `model.*`, `quota.*`, `resource.*`) are unchanged.
 - **2026-10-26**: `source_job_id` and `source_index` work on an earlier job's output; the job status lists every code
   a job can end with; the reference documents the limits, the response headers of the file downloads, the server
   address and an operationId per call.
 """
 
 API_TITLE = "Ghidorah Relay API"
-API_VERSION = "2026.10.26"      # bumped by hand with each entry of ## Changes above
+API_VERSION = "2026.10.26.2"    # bumped by hand with each entry of ## Changes above
 
 # Request-time refusals, by operation. The HTTP status of each code is its rule's (`relay_core.errors`).
 _KEY = ("auth.invalid_key", "auth.key_disabled")
@@ -309,7 +322,7 @@ _MEDIA_RESPONSES = {
     "200": {"description": "The whole file.", "headers": _FILE_HEADERS, "content": _FILE},
     "206": {"description": "Partial content: the one byte range asked for in Range.", "content": _FILE, "headers": {
         **_FILE_HEADERS, "Content-Range": _header("The range sent and the file's size.", "bytes 0-1048575/7340032")}},
-    "416": {"description": "The range starts past the end of the file. No body.", "headers": {
+    "416": {"description": "The range starts past the end of the file, or is bytes=-0. No body.", "headers": {
         "Content-Range": _header("bytes */ and the file's size.", "bytes */7340032")}},
 }
 # The facade routes (OpenAI, Gemini): an error answer tells the SDK not to send again (`errors_http.NO_RETRY`).
@@ -334,10 +347,10 @@ def _operation_id(names: dict[tuple[str, str], str], method: str, path: str) -> 
 
 
 def _failure_codes() -> str:
-    """The codes a job can end with, read from the registry when the schema is built (core and every provider loaded
-    by then), each with its customer sentence. A hidden code is shown as `internal.unexpected`, which is listed."""
-    rules = sorted((r for r in errors.RULES.values() if r.public and errors.ends_job(r)), key=lambda r: r.code)
-    return "\n".join("- `%s`: %s Points refunded." % (r.code, r.public_text) for r in rules)
+    """The codes a job can end with: the neutral public codes (every job-ending rule of the registry maps to one, a
+    test holds it), each with its meaning and whether sending again helps. Never an internal code."""
+    return "\n".join("- `%s`: %s Sending again helps: %s Points refunded." % (code, text, helps)
+                     for code, (helps, text) in errors.PUBLIC_CODES.items())
 
 
 def _error_responses(codes: tuple[str, ...], ref: str, headers: dict | None = None) -> dict:

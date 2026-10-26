@@ -52,18 +52,24 @@ def test_every_dola_code_of_the_contract_is_registered_and_the_registry_is_sound
 
 
 def test_refusals_end_the_job_at_once_and_refund_and_transient_codes_count_an_attempt():
-    for code in ("dola.content_refused", "dola.refused_710022002", "dola.likeness_refused", "dola.needs_confirm",
-                 "dola.no_video", "dola.no_image", "dola.refused_on_accounts"):
+    public = {"dola.content_refused": errors.CONTENT_REFUSED, "dola.refused_710022002": errors.CONTENT_REFUSED,
+              "dola.likeness_refused": errors.CONTENT_REFUSED, "dola.needs_confirm": errors.CONTENT_REFUSED,
+              "dola.no_video": errors.GENERATION_FAILED, "dola.no_image": errors.GENERATION_FAILED,
+              "dola.refused_on_accounts": errors.TEMPORARILY_UNAVAILABLE}
+    for code, shown in public.items():
         r = errors.rule(code)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public, r.job_scoped) == (True, True, False, True, True), code
-        assert r.http_status == 422, code
+        assert (r.terminal, r.refund, r.counts_attempt, r.public_code, r.job_scoped) == (True, True, False, shown,
+                                                                                         True), code
+        assert r.http_status == 422 and r.public_text, code
     for code in ("dola.unknown_status", "dola.http_error", "dola.bad_response"):
         r = errors.rule(code)
-        assert (r.terminal, r.refund, r.counts_attempt, r.public) == (False, True, True, True), code
+        assert (r.terminal, r.refund, r.counts_attempt, r.public_code) == (False, True, True,
+                                                                           errors.TEMPORARILY_UNAVAILABLE), code
         assert r.http_status == 502, code
     # only a deadline cause now (Codex 25/10: the reply waits for the poll): it ends the job refunded, no attempt
     r = errors.rule("dola.temporary_error")
-    assert (r.terminal, r.refund, r.counts_attempt, r.public, r.http_status) == (True, True, False, True, 502)
+    assert (r.terminal, r.refund, r.counts_attempt, r.public_code, r.http_status) == (
+        True, True, False, errors.GENERATION_FAILED, 502)
 
 
 def test_the_ui_codes_are_ours_to_fix_so_the_client_sees_a_generic_error():
@@ -71,9 +77,9 @@ def test_the_ui_codes_are_ours_to_fix_so_the_client_sees_a_generic_error():
     assert len(ui) == 8
     for code in ui:
         r = errors.rule(code)
-        assert (r.public, r.counts_attempt, r.terminal, r.refund) == (False, True, False, True), code
+        assert (errors.hidden(r), r.counts_attempt, r.terminal, r.refund) == (True, True, False, True), code
         body = errors.envelope(code)["error"]
-        assert body["code"] == "internal.unexpected" and "dola" in body["message"], body
+        assert body["code"] == "internal_error" and body["message"] == errors.PUBLIC_CODES["internal_error"][1], body
         assert "selector" not in str(body) and code not in str(body), "the hidden code leaked: %s" % body
         assert errors.http_status(code) == 500
 

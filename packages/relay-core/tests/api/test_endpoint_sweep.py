@@ -80,8 +80,8 @@ def fill(path: str, junk: bool = False, **given: str) -> str:
 
 
 def bad(r) -> bool:
-    # the schema names internal.unexpected among the codes a job can end with: only its status counts
-    return r.status_code >= 500 or ("internal.unexpected" in r.text and r.url.path != "/openapi.json")
+    # the schema names internal_error among the codes a job can end with: only its status counts
+    return r.status_code >= 500 or ("internal_error" in r.text and r.url.path != "/openapi.json")
 
 
 @mutation(APP, "PUBLIC_ROUTES = (routes_native, routes_media, routes_catalog,",

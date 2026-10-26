@@ -45,13 +45,16 @@ def routes() -> APIRouter:
 
 
 def hidden_rule(monkeypatch):
-    monkeypatch.setitem(errors.RULES, HIDDEN, Rule(HIDDEN, 500, "api_error", False, False, False, False, True,
-                                                   "the chip row did not appear", "the render failed on our side"))
+    monkeypatch.setitem(errors.RULES, HIDDEN, Rule(HIDDEN, 500, "api_error", False, False, False, True,
+                                                   "the chip row did not appear", public_code=errors.INTERNAL_ERROR))
+
+
+GENERIC = errors.PUBLIC_CODES[errors.INTERNAL_ERROR][1]
 
 
 @mutation(CORE_ERRORS, '"param": param}}', '"param": param, "retryable": False}}',
           expect="retryable and refunded are not sent")
-@mutation(CORE_ERRORS, '"type": rule(shown_code).error_type', '"type": "api_error"', expect="authentication_error")
+@mutation(CORE_ERRORS, '"type": rule(code).error_type', '"type": "api_error"', expect="authentication_error")
 def test_an_error_has_exactly_code_message_type_param(db):
     async def scenario(env):
         r = await env.client.get("/v1/code/auth.invalid_key")
@@ -106,28 +109,28 @@ def test_a_422_names_the_first_bad_field_and_maps_it_to_its_code(db):
     run_app(db, scenario, routers=[routes()])
 
 
-@mutation(CORE_ERRORS, "if r.public else (INTERNAL, r.hidden_message)", "if True else (INTERNAL, r.hidden_message)",
-          expect="internal.unexpected")
-def test_a_non_public_code_is_shown_as_internal_with_its_hidden_message(db, monkeypatch):
+@mutation(CORE_ERRORS, "    if r.public_code == r.code:\n        return r.code, r.message\n",
+          "    if True:\n        return r.code, r.message\n", expect="internal_error")
+def test_a_hidden_code_is_shown_as_internal_error_with_the_generic_sentence(db, monkeypatch):
     hidden_rule(monkeypatch)
 
     async def scenario(env):
         r = await env.client.get("/v1/code/" + HIDDEN)
         assert r.status_code == 500
-        assert r.json() == {"error": {"code": "internal.unexpected", "message": "the render failed on our side",
-                                      "type": "api_error", "param": None}}
+        assert r.json() == {"error": {"code": "internal_error", "message": GENERIC, "type": "api_error",
+                                      "param": None}}
         assert "chip" not in r.text and HIDDEN not in r.text
 
     run_app(db, scenario, routers=[routes()])
 
 
 @mutation(ERR, "return error_response(path, INTERNAL)", 'return error_response(path, "resource.not_found")',
-          expect="a crash answers internal.unexpected")
+          expect="a crash answers internal_error")
 def test_a_crash_is_the_internal_envelope_and_never_shows_the_exception_text(db):
     async def scenario(env):
         r = await env.client.get("/v1/crash")
-        assert r.status_code == 500, "a crash answers internal.unexpected"
-        assert r.json()["error"]["code"] == "internal.unexpected"
+        assert r.status_code == 500, "a crash answers internal_error"
+        assert r.json()["error"]["code"] == "internal_error"
         assert "sk-live" not in r.text and "secret upstream" not in r.text
 
     run_app(db, scenario, routers=[routes()])
@@ -156,11 +159,11 @@ def test_a_gemini_door_answers_in_the_gemini_shape(db):
     run_app(db, scenario, routers=[routes()])
 
 
-def test_the_gemini_helper_masks_a_non_public_code_the_same_way(monkeypatch):
+def test_the_gemini_helper_masks_a_hidden_code_the_same_way(monkeypatch):
     hidden_rule(monkeypatch)
     body = gemini_body(HIDDEN)
-    assert body["error"]["message"] == "the render failed on our side"
-    assert body["error"]["details"][0]["reason"] == "internal.unexpected" and body["error"]["code"] == 500
+    assert body["error"]["message"] == GENERIC
+    assert body["error"]["details"][0]["reason"] == "internal_error" and body["error"]["code"] == 500
 
 
 @mutation(CORE_ERRORS, '"param": param}}', '"param": param, "refunded": False}}',

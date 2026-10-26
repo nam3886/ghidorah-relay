@@ -2,8 +2,9 @@
 
 Routes raise `ApiError(code, param)`; the status, `type` and text come from the code's `Rule`, never from the call
 site. Errors the framework makes itself (404, 405, 422) and crashes go through the same renderer, so no path can
-leave with another shape. The client text is always the rule's message, masked for a non-public code: never an
-exception message, an engine text or an upstream text.
+leave with another shape. The client sees only `errors.shown`: a client code with its message, any other code as its
+neutral public code and customer sentence; never an internal code, an exception message, an engine text or an
+upstream text.
 
 Two shapes: OpenAI style `{"error": {"code", "message", "type", "param"}}` everywhere, and the Gemini body on the
 Gemini doors (`/v1beta…`, `/models…`).
@@ -67,7 +68,7 @@ def is_facade_path(path: str) -> bool:
 
 
 def gemini_body(code: str, param: str | None = None) -> dict:
-    """The Gemini error body. The text and the shown code follow the same masking as the OpenAI envelope."""
+    """The Gemini error body. The text and the shown code are `errors.shown`, as in the OpenAI envelope."""
     shown_code, message = shown(code)
     status = http_status(code)
     return {"error": {"code": status, "message": message, "status": _GRPC.get(status, "UNKNOWN"),
@@ -116,6 +117,7 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(ApiError)
     async def _api_error(request: Request, exc: ApiError):
+        request.state.error_code = exc.code          # the request log keeps the internal code (`request_log`)
         return error_response(request.url.path, exc.code, exc.param, headers=exc.headers)
 
     # Starlette's class, not FastAPI's: FastAPI's subclasses it, and the 404 of an unknown path and the 405 of a
@@ -126,6 +128,7 @@ def install(app: FastAPI) -> None:
         from relay_core.api.deps import resolve_key_quietly
         await resolve_key_quietly(request)
         code = _BY_STATUS.get(exc.status_code) or ("input.invalid" if exc.status_code < 500 else INTERNAL)
+        request.state.error_code = code
         return error_response(request.url.path, code, status=exc.status_code if code == "input.invalid" else None,
                               headers=getattr(exc, "headers", None))
 

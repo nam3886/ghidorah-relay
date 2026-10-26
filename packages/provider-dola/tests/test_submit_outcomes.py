@@ -40,7 +40,7 @@ from kit_c import (
 
 from relay_browser.session import BrowserLaunchError
 from relay_core import frames
-from relay_core.errors import rule
+from relay_core.errors import hidden, rule
 from relay_core.providers import (
     REFUSED_BY,
     Accepted,
@@ -553,7 +553,7 @@ async def test_the_refusal_on_the_last_account_ends_the_job_failed_with_its_refu
     assert isinstance(res.job, Fail) and res.job.code == final, \
         "the refusal on the last account did not end the job: %r" % (res.job,)
     r = rule(final)
-    assert (r.terminal, r.refund, r.counts_attempt, r.public) == (True, True, False, True), \
+    assert (r.terminal, r.refund, r.counts_attempt, hidden(r)) == (True, True, False, False), \
         "%s does not end the job with its full refund" % final
     assert res.job.state_patch[REFUSED_BY] == ["acct-0", "acct-1"]
     assert res.job.detail.endswith("(refused on 2 account(s), the most dola.refusal_max_accounts allows)")

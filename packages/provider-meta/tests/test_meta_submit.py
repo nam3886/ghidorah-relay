@@ -499,8 +499,8 @@ def test_a_done_answer_with_one_final_image_and_one_preview_left_is_unknown_neve
 
 # ---- before the Enter: the page's state ---------------------------------------------------------------------------
 @mutation(SUBMIT_FILE, '        if state == "checkpoint":', "        if False:", expect="meta.checkpoint")
-@mutation(ERRORS_FILE, '    Rule(CHECKPOINT, 503, "api_error", False, False, False, True, True,',
-          '    Rule(CHECKPOINT, 503, "api_error", True, True, False, True, True,',
+@mutation(ERRORS_FILE, '    Rule(CHECKPOINT, 503, "api_error", False, False, False, True,',
+          '    Rule(CHECKPOINT, 503, "api_error", True, True, False, True,',
           expect="never a job failure")
 def test_a_checkpoint_sends_nothing_rests_the_account_with_a_recheck_and_never_fails_or_charges_the_job(monkeypatch):
     monkeypatch.setattr(check_module, "CHECKPOINTS", RepeatRest())
@@ -533,7 +533,7 @@ def test_the_codes_meta_uses_are_registered_with_their_rules():
     assert all(errors.RULES[c] == r for c, r in SPEC.codes().items()) and errors.violations(errors.RULES) == []
     for code in ("meta.ui_page_not_ready", "meta.ui_send_failed"):
         r = errors.rule(code)
-        assert (r.terminal, r.counts_attempt, r.refund, r.public) == (False, True, True, False), code
+        assert (r.terminal, r.counts_attempt, r.refund, errors.hidden(r)) == (False, True, True, True), code
 
 
 def test_a_job_of_another_kind_or_an_operation_of_another_kind_is_refused_before_anything_opens():

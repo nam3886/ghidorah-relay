@@ -51,9 +51,10 @@ class JobStatus(BaseModel):
     result_urls: list[str] = Field(description="Links to the video files of a finished video job, else empty.")
     images: list[str] = Field(description="Links to the image files of a finished image job, else empty.")
     error: str | None = Field(
-        description="Message of a failed job, a fixed text per error code and never provider text; null otherwise.")
+        description="What happened to a failed job and whether sending the request again can help: a fixed "
+                    "sentence, never provider text; null otherwise.")
     error_code: str | None = Field(
-        description="Code of a failed job; null otherwise.")
+        description="Code of a failed job, one of a small fixed set; null otherwise.")
     refunded: bool = Field(description="True when the charge of a failed job was given back.")
     points: int = Field(
         description="Points the job's charge took; on a refunded job, the amount that was refunded. The net charge is "

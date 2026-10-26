@@ -19,50 +19,49 @@ MODEL_ACCESS_DENIED = "flow.model_access_denied"    # flow refused every try: th
 UPLOAD_FAILED = "flow.upload_failed"        # before the send: flow did not take an input image
 TIER_REQUIRED = "flow.tier_required"        # before the send: the account's plan has no such option
 
-_CHECK_TEXT = "flow's security check could not be passed and nothing was made. Sending the request again later " \
-              "may work."
+_CHECK_TEXT = "flow could not take the order for now and nothing was made. Sending the request again later may work."
+_BUSY = core_errors.TEMPORARILY_UNAVAILABLE
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
-    Rule(HTTP_ERROR, 502, "api_error", True, False, True, True, True,
-         "flow answered with an error before the order was sent",
+    Rule(HTTP_ERROR, 502, "api_error", True, False, True, True,
+         "flow answered with an error before the order was sent", public_code=_BUSY,
          public_text="flow kept answering with errors and nothing was made. Sending the request again later may "
                      "work."),
-    Rule(CAPTCHA_FAILED, 502, "api_error", True, False, True, True, True,
-         "the security token for flow could not be obtained; the order was not sent",
+    Rule(CAPTCHA_FAILED, 502, "api_error", True, False, True, True,
+         "the security token for flow could not be obtained; the order was not sent", public_code=_BUSY,
          public_text=_CHECK_TEXT),
-    Rule(UPLOAD_FAILED, 502, "api_error", True, False, True, True, True,
-         "flow did not take an input image; the order was not sent",
+    Rule(UPLOAD_FAILED, 502, "api_error", True, False, True, True,
+         "flow did not take an input image; the order was not sent", public_code=core_errors.GENERATION_FAILED,
          public_text="flow did not take an input image and nothing was made. Sending the request again may work; "
                      "if it keeps failing, use another image."),
     # the plan read right before the send (a backstop: the option's pool already holds nothing on a plan without
     # it): not the order's fault, so it uses no attempt until the job has met it 5 times; another account may take it
-    Rule(TIER_REQUIRED, 503, "api_error", False, False, False, True, True,
+    Rule(TIER_REQUIRED, 503, "api_error", False, False, False, True,
          "no flow account of a plan that offers this option took the order; it was not sent", free_retries=5,
+         public_code=_BUSY,
          public_text="This option of the model could not be ordered from flow when the job ran and nothing was "
                      "made. Sending the request again later, or with another option, may work."),
     # The solver's own faults: ours to fix (a key, a top-up), never the flow account's; nothing was sent.
-    Rule(CAPTCHA_KEY_INVALID, 502, "api_error", True, False, True, False, True,
+    Rule(CAPTCHA_KEY_INVALID, 502, "api_error", True, False, True, True,
          "the reCAPTCHA solver refused its key, or none is set (Settings, flow.<source>_key)",
-         "the security token for flow could not be obtained; the order was not sent"),
-    Rule(CAPTCHA_NO_BALANCE, 502, "api_error", True, False, True, False, True,
-         "the reCAPTCHA solver account has no balance left",
-         "the security token for flow could not be obtained; the order was not sent"),
-    Rule(CAPTCHA_TIMEOUT, 504, "api_error", True, False, True, True, True,
-         "the security token for flow did not come in time; the order was not sent",
+         public_code=core_errors.INTERNAL_ERROR),
+    Rule(CAPTCHA_NO_BALANCE, 502, "api_error", True, False, True, True,
+         "the reCAPTCHA solver account has no balance left", public_code=core_errors.INTERNAL_ERROR),
+    Rule(CAPTCHA_TIMEOUT, 504, "api_error", True, False, True, True,
+         "the security token for flow did not come in time; the order was not sent", public_code=_BUSY,
          public_text=_CHECK_TEXT),
     # Sent, and refused before anything was made (an immediate 7 or 8 from flow, nothing listed, nothing charged): the
     # job goes back to the queue as a new attempt.
-    Rule(CAPTCHA_REFUSED, 503, "api_error", True, False, True, True, True,
-         "flow refused the request at its security check; nothing was made",
-         public_text="flow refused the request at its security check and nothing was made. Sending the request "
-                     "again later may work."),
-    Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, False, True, True, True,
-         "flow said it had too much traffic from the account; nothing was made",
+    Rule(CAPTCHA_REFUSED, 503, "api_error", True, False, True, True,
+         "flow refused the request at its security check; nothing was made", public_code=_BUSY,
+         public_text=_CHECK_TEXT),
+    Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, False, True, True,
+         "flow said it had too much traffic from the account; nothing was made", public_code=_BUSY,
          public_text="flow was too busy to take the order and nothing was made. Sending the request again later "
                      "may work."),
-    Rule(MODEL_ACCESS_DENIED, 503, "api_error", True, False, True, True, True,
-         "flow refused the model for the account; nothing was made",
+    Rule(MODEL_ACCESS_DENIED, 503, "api_error", True, False, True, True,
+         "flow refused the model for the account; nothing was made", public_code=_BUSY,
          public_text="flow refused this model for now and nothing was made. Sending the request again later may "
                      "work."),
 )}

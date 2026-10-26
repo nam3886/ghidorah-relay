@@ -288,7 +288,7 @@ def test_every_refusal_has_the_gemini_error_body(db):
 
 
 # ---- the end of a held request --------------------------------------------------------------------------------------
-@mutation(GEMINI, "        raise ApiError(fc.failure_code(state))", "        pass", expect="render.deadline")
+@mutation(GEMINI, "        raise ApiError(fc.failure_code(state))", "        pass", expect="Gemini HTTP error")
 def test_a_done_job_answers_with_its_urls_and_stop_and_a_failed_one_is_a_gemini_http_error(db, monkeypatch):
     async def scenario(env):
         monkeypatch.setattr(fc, "POLL_S", 0.05)
@@ -304,10 +304,10 @@ def test_a_done_job_answers_with_its_urls_and_stop_and_a_failed_one_is_a_gemini_
                              which=1)
         r = await env.client.post("/models/fake-video:generateContent", json=body, headers=key.headers)
         await later
-        assert "error" in r.json(), "a failed job must be a Gemini HTTP error with render.deadline: %s" % r.text
+        assert "error" in r.json(), "a failed job must be a Gemini HTTP error with its public code: %s" % r.text
         err = r.json()["error"]
         assert (r.status_code, err["code"], err["status"], err["details"][0]["reason"]) == (
-            504, 504, "DEADLINE_EXCEEDED", "render.deadline"), r.text
+            504, 504, "DEADLINE_EXCEEDED", "timeout"), r.text
         assert "secret" not in r.text
 
     run_app(db, scenario)
