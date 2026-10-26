@@ -122,8 +122,15 @@ def test_a_reset_a_silence_and_a_broken_socket_are_tunnel_errors():
     run(go())
 
 
-def test_a_handshake_with_no_answer_or_a_bad_answer_fails():
+CLOSE_ON_FAIL = "            await _close(ws, timeout)      # never left open behind a failed open\n"
+BOUNDED_SEND = "                await asyncio.wait_for(self.ws.send(self._tx.encrypt(b\"\", frame)), self.io_timeout)"
+
+
+@mutation(TUNNEL_FILE, CLOSE_ON_FAIL, "", expect="left open")
+def test_a_handshake_with_no_answer_or_a_bad_answer_fails_and_closes_the_socket():
     class Mute:
+        closed = False
+
         async def send(self, data):
             pass
 
@@ -131,16 +138,37 @@ def test_a_handshake_with_no_answer_or_a_bad_answer_fails():
             await asyncio.sleep(5)
 
         async def close(self):
-            pass
+            self.closed = True
 
     class Liar(Mute):
         async def recv(self):
             return b"\0" * 96
 
-    with pytest.raises(TunnelError, match="no handshake answer"):
-        run(Tunnel.open(Mute(), 0.1))
-    with pytest.raises(TunnelError, match="handshake failed"):
-        run(Tunnel.open(Liar(), 0.1))
+    class Stuck(Mute):
+        async def send(self, data):          # a send that never ends is cut by the handshake's bound
+            await asyncio.sleep(5)
+
+    for sock, why in ((Mute(), "no handshake within"), (Liar(), "handshake failed"), (Stuck(), "no handshake within")):
+        with pytest.raises(TunnelError, match=why):
+            run(Tunnel.open(sock, 0.1))
+        assert sock.closed, "the socket was left open after a failed open"
+
+
+@mutation(TUNNEL_FILE, BOUNDED_SEND, "                await self.ws.send(self._tx.encrypt(b\"\", frame))",
+          expect="TimeoutError")
+def test_a_send_that_hangs_is_cut_and_a_close_that_hangs_too():
+    async def go():
+        tunnel, vm = await _tunnel(vm_routes())
+        tunnel.io_timeout = 0.1
+
+        async def hang(data=None):
+            await asyncio.sleep(5)
+        vm.send = hang
+        with pytest.raises(TunnelError, match="could not be sent within"):
+            await asyncio.wait_for(tunnel.call("GET", "/x", timeout=10), 2)
+        vm.close = hang
+        await asyncio.wait_for(tunnel.close(), 1)
+    run(go())
 
 
 def test_a_reply_that_is_not_json_reads_as_none():

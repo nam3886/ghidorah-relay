@@ -148,7 +148,7 @@ class SlowSite:
     """The site's scripts, each read taking `delay` s; the first read of `flaky` fails. Reads are counted."""
 
     def __init__(self, delay=0.0, flaky=()):
-        self.delay, self.flaky, self.reads = delay, set(flaky), []
+        self.delay, self.flaky, self.reads, self.settings = delay, set(flaky), [], settings()
         self.scripts = {"/_next/static/chunks/0d9a236stbk__.js": "x;" + USAGE["other_action"],
                         "/_next/static/chunks/0a2us3yd981u4.js": USAGE["chunk_loader"],
                         "/_next/static/chunks/1h1o8k_e0bu30.js": "noop",

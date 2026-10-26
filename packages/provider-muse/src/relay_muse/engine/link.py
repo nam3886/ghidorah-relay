@@ -17,9 +17,6 @@ from relay_muse.engine.chat import setup
 from relay_muse.engine.tunnel import Tunnel
 from relay_muse.engine.web import Web, bootstrap, real_session
 
-HANDSHAKE_TIMEOUT_S = 20.0     # the Noise handshake's answer
-CALL_TIMEOUT_S = 30.0          # one call in the tunnel (a history read, a setup call)
-
 _store = None
 
 
@@ -41,8 +38,6 @@ class Deps:
     sleep: Callable[[float], Awaitable] = asyncio.sleep
     clock: Callable[[], float] = time.monotonic
     now: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
-    handshake_timeout_s: float = HANDSHAKE_TIMEOUT_S
-    call_timeout_s: float = CALL_TIMEOUT_S
 
 
 @contextlib.asynccontextmanager
@@ -50,11 +45,12 @@ async def opened(ctx, settings, deps: Deps, *, chat: bool,
                  node: str | None = None) -> AsyncIterator[tuple[Web, Tunnel]]:
     """(web, tunnel) of one run, set up for a send (`chat`) or for reads; both closed after. Raises what the steps
     raise (web.SignedOut, VmNotReady, SiteError, NetError; tunnel.TunnelError; chat.SetupError)."""
-    async with Web(ctx.account, ctx, make_session=deps.make_session) as web:
+    async with Web(ctx.account, settings, ctx, make_session=deps.make_session) as web:
         boot = await bootstrap(web, settings, sleep=deps.sleep, clock=deps.clock)
-        tunnel = await Tunnel.open(await web.socket(boot.ws_url), deps.handshake_timeout_s, deps.clock)
+        tunnel = await Tunnel.open(await web.socket(boot.ws_url), settings.get("muse.handshake_timeout_s"),
+                                   deps.clock)
         try:
-            await setup(tunnel, node or str(uuid.uuid4()), chat=chat, timeout=deps.call_timeout_s)
+            await setup(tunnel, node or str(uuid.uuid4()), chat=chat, timeout=settings.get("muse.call_timeout_s"))
             yield web, tunnel
         finally:
             await tunnel.close()

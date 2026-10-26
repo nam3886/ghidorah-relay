@@ -65,7 +65,7 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     sid = chat_of(site)
     assert out.ref.startswith("workspace/imagine_media/media-generation-generate-one-image")
     assert out.mime == "image/webp"
-    assert out.meta == {"session_id": sid}
+    assert out.meta == {"session_id": sid, "job_id": "job-1"}
     vm = site.vms[0]
     assert vm.paths()[:5] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
                               "/chat/subscribe", "/api/nodes/register", "/chat/stream"]
@@ -249,6 +249,8 @@ def test_a_proxy_that_fails_rests_the_account_and_marks_the_proxy():
     site = Site({"GET /api/session": ProxyError("connect to http://user:pw@10.0.0.9:3128 failed")})
     result, ctx = run(site)
     assert result.job == Retry("pool.proxy_failed")
+    proxy = {"http": "http://user:pw@10.0.0.9:3128", "https": "http://user:pw@10.0.0.9:3128"}
+    assert site.made == [proxy] and site.paths() == ["GET /api/session"], "never a direct try after the proxy failed"
     assert [type(e) for e in result.account] == [ProxyBad, Cooldown]
     assert not any("pw" in text for _, text in ctx.events)
     plain = Site({"GET /api/session": OSError("reset")})

@@ -1,6 +1,7 @@
 """The side chat read from the recorded histories (fixtures/muse/spike-261026), the verdict rules, and what is said."""
 
 import base64
+from types import SimpleNamespace
 
 from musekit import history
 
@@ -139,3 +140,37 @@ def test_pending_approvals_are_found_in_their_events_once():
               {"event": "approvals.snapshot", "payload": {"pending": [{"id": "ap-1"}, {"id": "bad id!"}]}},
               {"event": "agent.status", "payload": {"approval_id": "ap-9"}}]
     assert pending_approvals(events) == [("ap-1", 3), ("ap-3", None)]
+
+
+METER = "        used = made if pool == kind else -(-made * total // scale[kind])"
+
+
+@mutation(CHAT_FILE, METER, "        used = made", expect="a video is ten images' worth")
+def test_a_done_job_lowers_both_pools_by_its_share_of_the_one_meter():
+    from datetime import UTC, datetime
+
+    from musekit import settings
+
+    from relay_core.providers import Balance
+    from relay_muse.engine.chat import meter_effects
+    week = datetime(2026, 11, 2, 6, 44, tzinfo=UTC)
+    account = SimpleNamespace(capacity={"image": 300, "video": 30}, capacity_until={"image": week, "video": week})
+    video = meter_effects(account, settings(), "video", 1)
+    assert video == (Balance("image", 290, week), Balance("video", 29, week)), "a video is ten images' worth"
+    assert meter_effects(account, settings(), "image", 4) == (Balance("image", 296, week), Balance("video", 29, week))
+    assert meter_effects(account, settings(), "image", 6)[1] == Balance("video", 29, week), "a part rounds up"
+    low = SimpleNamespace(capacity={"image": 3, "video": None}, capacity_until={})
+    assert meter_effects(low, settings(), "video", 1) == (Balance("image", 0, None),), "never below 0; unknown kept"
+    assert meter_effects(SimpleNamespace(), settings(), "image", 1) == ()
+
+
+def test_more_or_fewer_results_than_paid_are_noted_with_the_job_id(caplog):
+    from relay_muse.engine.chat import made_note
+    four = reading("job_j11.json")
+    with caplog.at_level("WARNING"):
+        assert made_note(four, 2, "image", "job-9") == ("muse made 4 images, 2 were paid: the first 2 are "
+                                                         "delivered, the rest are not")
+        assert made_note(four, 4, "image", "job-9") == "muse made the 4 image(s) asked"
+        assert "fewer" not in made_note(four, 5, "image", "job-9") and "made 4 of the 5" in made_note(
+            four, 5, "image", "job-9")
+    assert [r.getMessage()[:14] for r in caplog.records] == ["muse job job-9"] * 3

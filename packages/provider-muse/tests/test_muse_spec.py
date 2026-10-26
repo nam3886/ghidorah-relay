@@ -108,7 +108,7 @@ def test_the_plan_refuses_what_muse_cannot_make():
 @mutation(SPEC_FILE, "        if prompt_counts(req.prompt, kind) - {n}:", "        if False:",
           expect="a count in the prompt")
 @mutation(SPEC_FILE, "        if other:\n", "        if False:\n", expect="a ratio in the prompt")
-@mutation(SPEC_FILE, '            if {int(a or b) for a, b in _PROMPT_SECONDS.findall(req.prompt or "")} - {duration}:',
+@mutation(SPEC_FILE, "            if prompt_seconds(req.prompt) - {duration}:",
           "            if False:", expect="a length in the prompt")
 def test_a_prompt_that_writes_out_another_count_ratio_or_length_is_refused():
     assert refused(prompt="4 images of a cat", n=2) == "input.invalid", "a count in the prompt"
@@ -156,3 +156,36 @@ def test_a_rotated_cookie_replaces_its_value_and_a_new_one_is_added_for_muse():
     assert json.loads(out)["cookies"][-1]["domain"] == ".muse.ai"
     with pytest.raises(ValueError):
         jar_of(b"not json")
+
+
+GROUPS = "        found |= {_GROUPS[w.lower()] for w in _PROMPT_GROUP_IMAGES.findall(text)}\n"
+SHAPES = '        found.append((word, _SHAPE_WORDS["ultrawide" if word.startswith("ultra") else word]))'
+WORD_SECONDS = "    return {_number(a) if a else"
+
+
+@mutation(SPEC_FILE, GROUPS, "", expect="a pair is two")
+@mutation(SPEC_FILE, SHAPES, "        pass", expect="widescreen is a ratio")
+@mutation(SPEC_FILE, WORD_SECONDS, "    return {int(a) if a.isdigit() else 5 if a else", expect="twenty seconds")
+def test_the_word_forms_of_a_count_a_shape_or_a_length_are_refused_too():
+    assert refused(prompt="a pair of photos of a dog") == "input.invalid", "a pair is two"
+    assert plan(prompt="a pair of photos of a dog", n=2).params["n"] == 2
+    assert refused(prompt="a couple of pictures of rain", n=3) == "input.invalid"
+    assert refused(prompt="a triptych of a forest") == "input.invalid" and plan(prompt="a triptych", n=3)
+    assert refused(prompt="twenty images of cats") == refused(prompt="seventeen photos") == "input.invalid"
+    assert refused(model="muse-video", prompt="a pair of clips of the sea") == "input.invalid"
+    assert refused(prompt="a widescreen city at night", ratio="1:1") == "input.prompt_ratio_conflict", \
+        "widescreen is a ratio"
+    assert plan(prompt="a widescreen city at night", ratio="16:9").params["ratio"] == "16:9"
+    assert refused(model="muse-video", prompt="a balloon, portrait orientation") == "input.prompt_ratio_conflict"
+    assert plan("muse-video", "a balloon, portrait orientation", ratio="9:16").params["ratio"] == "9:16"
+    assert refused(prompt="a square image of a cat", ratio="16:9") == "input.prompt_ratio_conflict"
+    assert refused(prompt="an ultra-wide desert road", ratio="16:9") == "input.prompt_ratio_conflict"
+    for free in ("a portrait of a woman in oils", "a busy town square at dusk", "a vertical garden on a wall"):
+        assert plan(prompt=free, ratio="16:9").params["ratio"] == "16:9", free
+    assert refused(model="muse-video", prompt="make it twenty seconds long") == "input.prompt_duration_conflict", \
+        "twenty seconds"
+    assert refused(model="muse-video", prompt="rain for twenty-five seconds") == "input.prompt_duration_conflict"
+    assert refused(model="muse-video", prompt="half a minute of rain", duration=10) == "input.prompt_duration_conflict"
+    assert refused(model="muse-video", prompt="a one minute timelapse") == "input.prompt_duration_conflict"
+    assert plan("muse-video", "ten seconds of rain", duration=10).price_key == "muse-video@10s"
+    assert plan("muse-video", "a mini cooper in the rain, five-second shot").price_key == "muse-video@5s"

@@ -11,15 +11,17 @@ record.
 """
 
 import base64
+import logging
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any, NamedTuple
 
-from relay_core.providers import Output
+from relay_core.providers import Balance, Output
 from relay_muse.constants import MEDIA_DIR
 from relay_muse.engine import noise
 from relay_muse.engine.tunnel import Reply, Tunnel
 
+log = logging.getLogger("relay_muse.chat")
 CAPABILITIES = ["chat_cancel", "delta_stream", "custom_reactions", "custom_reactions_facebook_thumbs_up_v1"]
 PRESENTATIONS = ["file", "image", "video", "audio", "text_with_button", "generic_list", "image_options",
                  "external_link"]
@@ -246,9 +248,64 @@ def verdict(r: Reading, want: int, settled: bool) -> str | None:
     return "refused" if r.answered else None
 
 
-def outputs(r: Reading, want: int, session: str) -> tuple[Output, ...]:
-    """The first `want` results (what was paid for: more are never delivered)."""
-    return tuple(Output(m.ref, m.mime, i, meta={"session_id": session}) for i, m in enumerate(r.media[:want]))
+def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, ...]:
+    """The first `want` results (what was paid for: more are never delivered). `paid` (the job id, a video's
+    duration and ratio) rides on each output's meta, so the fetch can compare the file with it."""
+    return tuple(Output(m.ref, m.mime, i, meta={"session_id": session, **paid})
+                 for i, m in enumerate(r.media[:want]))
+
+
+def paid_of(job) -> dict[str, Any]:
+    """What `outputs` carries of a job: its id, and a video's paid length and ratio."""
+    params = job.params or {}
+    keep = ("duration", "ratio") if params.get("kind") == "video" else ()
+    return {"job_id": str(job.id), **{k: params[k] for k in keep if params.get(k) is not None}}
+
+
+def budgets(settings) -> dict[str, int]:
+    """Each pool's weekly budget for a free account (`<p>.pools`), the scale of muse's one meter."""
+    out = {}
+    for name, cfg in (settings.get("muse.pools") or {}).items():
+        week = next((w for w in (cfg or {}).get("windows") or () if w.get("name") == "week"), None)
+        value = ((week or {}).get("budget") or {}).get("free")
+        if type(value) is int and value > 0:
+            out[name] = value
+    return out
+
+
+def meter_effects(account, settings, kind: str, made: int) -> tuple:
+    """muse has ONE weekly meter for images and videos; the relay keeps two pools. When a job is done, both pools are
+    lowered by its share of that meter, counted by what muse MADE (extras it drew beyond n included, though never
+    delivered): `made` outputs of `kind` are made/budget[kind] of the week, which is that share of every pool's
+    budget (with the defaults a video is 10 images' worth). Reported as each pool's balance from what it held when
+    the run started; the core charged the job's own pool already, and the report replaces that figure. A pool whose
+    balance is unknown is left to the next check, which reads the real meter."""
+    scale = budgets(settings)
+    if kind not in scale:
+        return ()
+    effects = []
+    for pool, total in scale.items():
+        left = (getattr(account, "capacity", None) or {}).get(pool)
+        if left is None:
+            continue
+        used = made if pool == kind else -(-made * total // scale[kind])
+        refill = (getattr(account, "capacity_until", None) or {}).get(pool)
+        effects.append(Balance(pool, max(0, left - used), refill))     # the check's report anchors the week
+    return tuple(effects)
+
+
+def made_note(r: Reading, want: int, kind: str, job_id) -> str:
+    """The timeline line of a done job: how many results muse made against the paid n. More or fewer than paid is
+    also a warning in the log (with the job id), to measure how often the words change the count."""
+    made = len(r.media)
+    if made == want:
+        return "muse made the %d %s(s) asked" % (want, kind)
+    if made > want:
+        text = "muse made %d %ss, %d were paid: the first %d are delivered, the rest are not" % (made, kind, want, want)
+    else:
+        text = "muse made %d of the %d %ss asked; all are charged (any output is a full charge)" % (made, want, kind)
+    log.warning("muse job %s: %s", job_id, text)
+    return text
 
 
 def want_of(params: Mapping[str, Any]) -> int:

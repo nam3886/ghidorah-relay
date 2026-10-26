@@ -109,3 +109,30 @@ def test_a_ref_outside_the_media_folder_is_never_read():
         with pytest.raises(OutputGone):
             fetch(site, ref)
         assert site.calls == [], "never leaves the media folder"
+
+
+LENGTH_CHECK = "        if abs(length - float(paid[\"duration\"])) > LENGTH_SLACK_S:"
+
+
+@mutation(RESULTS_FILE, LENGTH_CHECK, "        if False:", expect="a 10 s video paid as 5 s")
+def test_a_video_off_its_paid_length_or_ratio_is_delivered_and_noted(monkeypatch, caplog):
+    from relay_muse.engine.results import video_off
+    probed = {"streams": [{"codec_type": "video", "width": 1280, "height": 720}], "format": {"duration": "10.000"}}
+    assert video_off(probed, {"duration": 5, "ratio": "16:9"}) == "10.00 s, 5 s paid", "a 10 s video paid as 5 s"
+    assert video_off(probed, {"duration": 10, "ratio": "9:16"}) == "1280x720, 9:16 paid"
+    assert video_off(probed, {"duration": 10, "ratio": "16:9"}) == "" and video_off({}, {"duration": 5}) == ""
+
+    async def fake_probe(data):
+        return probed
+    monkeypatch.setattr(results, "probe", fake_probe)
+    ref = "workspace/imagine_media/a-video-0-1a2b.mp4"
+    site = Site(vm_routes_=vm_routes(files={ref: b"mp4-bytes"}))
+    ctx = Ctx()
+
+    async def go():
+        out = Output(ref, "video/mp4", 0, meta={"job_id": "job-7", "duration": 5, "ratio": "16:9"})
+        return [c async for c in results.fetch(ctx, out, settings(), deps=site.deps())]
+    with caplog.at_level("WARNING"):
+        assert asyncio.run(go()) == [b"mp4-bytes"]
+    assert any("muse job job-7 output 0: 10.00 s, 5 s paid" in r.getMessage() for r in caplog.records)
+    assert any("not what was paid" in text for _, text in ctx.events)

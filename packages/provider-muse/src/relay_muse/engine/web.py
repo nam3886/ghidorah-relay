@@ -39,12 +39,7 @@ from relay_muse.constants import (
 from relay_muse.credential import jar_of, on_site, renewable, with_cookies
 
 log = logging.getLogger("relay_muse.web")
-API_TIMEOUT_S = 30          # one HTTP call
-WS_TIMEOUT_S = 30           # the WebSocket upgrade
 RENEW_TIMEOUT_S = 5.0       # writing rotated cookies back: past it nothing is written
-USAGE_BUDGET_S = 90         # the whole Usage read, the hunt for its action id included (check bound 144 s)
-SCAN_MAX_SCRIPTS = 400      # site scripts read at most while hunting the action id (the site loads about 190)
-SCAN_BATCH = 12             # scripts read at once
 _VM_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
 
 
@@ -85,32 +80,32 @@ def _proxy_failure(exc: BaseException) -> bool:
 
 def real_session(proxies: dict[str, str] | None):
     from curl_cffi import AsyncSession  # imported on first real use: importing the engine stays offline
-    return AsyncSession(impersonate="chrome", proxies=proxies, timeout=API_TIMEOUT_S)
+    return AsyncSession(impersonate="chrome", proxies=proxies)
 
 
 class _Socket:
-    """curl_cffi's async WebSocket as the tunnel's `Socket`."""
+    """curl_cffi's async WebSocket as the tunnel's `Socket`: every send and the close are cut at `timeout`."""
 
-    def __init__(self, ws):
-        self.ws = ws
+    def __init__(self, ws, timeout: float):
+        self.ws, self.timeout = ws, timeout
 
     async def send(self, data: bytes) -> None:
-        await self.ws.send(data)
+        await asyncio.wait_for(self.ws.send(data), self.timeout)
 
     async def recv(self) -> bytes:
         data, _flags = await self.ws.recv()
         return data
 
     async def close(self) -> None:
-        await self.ws.close()
+        await asyncio.wait_for(self.ws.close(), self.timeout)
 
 
 class Web:
     """One run's HTTP to muse.ai. `async with`: on a clean exit with a run's `ctx`, rotated cookies are kept."""
 
-    def __init__(self, account, ctx=None, session=None,
+    def __init__(self, account, settings, ctx=None, session=None,
                  make_session: Callable[[dict[str, str] | None], Any] = real_session):
-        self.ctx, self.start = ctx, jar_of(account.credential)
+        self.ctx, self.settings, self.start = ctx, settings, jar_of(account.credential)
         url = proxy_url(account.proxy)
         self.proxies = {"http": url, "https": url} if url else None
         self.s = session if session is not None else make_session(self.proxies)
@@ -135,7 +130,8 @@ class Web:
         try:
             return await getattr(self.s, method)(SITE_URL + path, headers={"Origin": SITE_URL,
                                                                           "Referer": SITE_URL + "/", **headers},
-                                                 timeout=API_TIMEOUT_S, allow_redirects=False, **kw)
+                                                 timeout=self.settings.get("muse.http_timeout_s"),
+                                                 allow_redirects=False, **kw)
         except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
 
@@ -155,11 +151,15 @@ class Web:
     async def socket(self, url: str) -> _Socket:
         """The WebSocket to the VM's load balancer, through the same proxy."""
         try:
-            ws = await self.s.ws_connect(url, headers={"Origin": SITE_URL}, timeout=WS_TIMEOUT_S,
+            ws = await self.s.ws_connect(url, headers={"Origin": SITE_URL}, timeout=self.ws_timeout,
                                          proxies=self.proxies, impersonate="chrome")
         except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
-        return _Socket(ws)
+        return _Socket(ws, self.ws_timeout)
+
+    @property
+    def ws_timeout(self) -> float:
+        return self.settings.get("muse.ws_timeout_s")
 
     def cookies(self) -> dict[str, str]:
         """The muse.ai cookies the session holds now (what muse set included)."""
@@ -318,10 +318,10 @@ class Hunt:
         self.tries = 0
 
     async def run(self, web: Web) -> str | None:
-        """The action id; None once every script was read without it (or `SCAN_MAX_SCRIPTS` reads were spent).
-        A script that could not be read goes to the back of the queue; one read is counted per try."""
-        while self.queue and self.tries < SCAN_MAX_SCRIPTS:
-            batch = list(dict.fromkeys(self.queue))[:SCAN_BATCH]
+        """The action id; None once every script was read without it (or `muse.scan_max_scripts` reads were
+        spent). A script that could not be read goes to the back of the queue; one read is counted per try."""
+        while self.queue and self.tries < web.settings.get("muse.scan_max_scripts"):
+            batch = list(dict.fromkeys(self.queue))[:web.settings.get("muse.scan_batch")]
             answers = await asyncio.gather(*(web.get(p, accept="*/*") for p in batch), return_exceptions=True)
             self.tries += len(batch)
             self.queue = [p for p in self.queue if p not in batch]
@@ -367,7 +367,7 @@ async def read_usage(web: Web) -> Usage | None:
         return usage
 
     try:
-        return await asyncio.wait_for(read(), USAGE_BUDGET_S)
+        return await asyncio.wait_for(read(), web.settings.get("muse.usage_budget_s"))
     except Exception as e:      # noqa: BLE001 - the figure is a bonus: the check goes on without it
         log.warning("muse usage: not read (%s)", type(e).__name__)
         return None

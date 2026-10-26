@@ -43,7 +43,10 @@ from relay_muse.engine.chat import (
     deny_approvals,
     history_events,
     history_path,
+    made_note,
+    meter_effects,
     outputs,
+    paid_of,
     read_history,
     signature,
     stream_body,
@@ -135,7 +138,7 @@ class _Run:
             return await self._failed(exc)
 
     async def _steps(self, image: tuple[bytes, str] | None) -> SubmitResult:
-        timeout = self.deps.call_timeout_s
+        timeout = self.settings.get("muse.call_timeout_s")
         async with opened(self.ctx, self.settings, self.deps, chat=True, node=self.node) as (_web, tunnel):
             self.signed_in = True
             message = compose(self.job.operation, self.job.params, self.job.sent_text)
@@ -173,10 +176,10 @@ class _Run:
                     seen, since = signature(reading), self.deps.clock()
                 found = verdict(reading, self.want, self.deps.clock() - since >= settle_s)
                 if found == "done":
-                    if len(reading.media) < self.want:
-                        await self._say("muse made %d of the %d %ss asked; all are charged (any output is a full "
-                                        "charge)" % (len(reading.media), self.want, self.kind))
-                    return _result(Completed(outputs(reading, self.want, self.session)), Success())
+                    await self._say(made_note(reading, self.want, self.kind, self.job.id))
+                    return _result(Completed(outputs(reading, self.want, self.session, **paid_of(self.job))),
+                                   Success(), *meter_effects(self.ctx.account, self.settings, self.kind,
+                                                             len(reading.media)))
                 if found == "refused":
                     why = "muse answered with no %s: %s" % (self.kind, " ".join(reading.text.split())[:300])
                     await self._say(why, "submit_error")

@@ -65,7 +65,7 @@ async def check_account(ctx, settings, *, deps: Deps | None = None,
                         now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> Health:
     deps = deps or Deps()
     try:
-        async with Web(ctx.account, ctx, make_session=deps.make_session) as web:
+        async with Web(ctx.account, settings, ctx, make_session=deps.make_session) as web:
             try:
                 info = await read_session(web)
             except SignedOut:

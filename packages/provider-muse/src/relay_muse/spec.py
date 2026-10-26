@@ -41,22 +41,80 @@ from relay_muse.credential import MAX_COOKIES
 from relay_muse.credential import parse_credential as _parse_credential
 
 # What a prompt may not say against the paid options: muse's agent follows the words, so a prompt asking another
-# ratio, length or count would get it (and only the paid one may be made). Conservative on purpose.
+# ratio, length or count would get it (only the paid count is delivered and charged; the rest is waste). Numbers and
+# the plain word forms are caught; anything subtler is left to the engine, which delivers at most n and notes a video
+# that is not what was paid.
 _PROMPT_RATIO = re.compile(r"(?<![\d.:])(21:9|16:9|9:16|4:3|3:4|3:2|2:3|1:1)(?![\d:])")
-# a length in seconds: "10 seconds", "5-sec", "10s"; a bare "s" only after 1 to 15 ("the 1990s", "50s style" are eras)
-_PROMPT_SECONDS = re.compile(r"(?<![\w.])(?:(\d+)\s*-?\s*(?:secs?|seconds?)|([1-9]|1[0-5])\s*-?\s*s)\b", re.IGNORECASE)
-_WORDS = "zero one two three four five six seven eight nine ten eleven twelve"
-_NUMBERS = {**{w: i for i, w in enumerate(_WORDS.split())}, "a dozen": 12}
-# a number, at most one word ("a 10 second clip" is a length, not a count), then the noun
-_COUNT = r"(?<![\w.])(\d+|%s)\s+(?:(?!(?:seconds?|secs?)\b)[a-z-]+\s+)?(?:%s)\b"
-_PROMPT_IMAGES = re.compile(_COUNT % ("|".join(_NUMBERS), "images?|pictures?|photos?|pics?"), re.IGNORECASE)
-_PROMPT_VIDEOS = re.compile(_COUNT % ("|".join(_NUMBERS), "videos?|clips?"), re.IGNORECASE)
+# shape words: always for "widescreen"; an orientation only when it names the frame ("portrait orientation", "vertical
+# video"), so "a portrait of a woman" or "a town square" stay free
+_SHAPE_WORDS = {"widescreen": ("16:9",), "wide-screen": ("16:9",), "cinemascope": ("16:9", "21:9"),
+                "ultrawide": ("21:9",), "ultra-wide": ("21:9",), "portrait": ("9:16", "3:4", "2:3"),
+                "vertical": ("9:16", "3:4", "2:3"), "landscape": ("16:9", "4:3", "3:2", "21:9"),
+                "horizontal": ("16:9", "4:3", "3:2", "21:9"), "square": ("1:1",)}
+_PROMPT_SHAPE = re.compile(
+    r"\b(widescreen|wide-screen|cinemascope|ultra-?wide)\b"
+    r"|\b(portrait)\s+(?:orientation|format|mode|aspect|ratio)\b"
+    r"|\b(vertical|landscape|horizontal|square)\s+(?:orientation|format|mode|aspect|ratio|frame|video|image|shot)\b",
+    re.IGNORECASE)
+_UNITS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+          "seventeen eighteen nineteen twenty").split()
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60}
+_NUMBERS = {**{w: i for i, w in enumerate(_UNITS)}, **_TENS, "a dozen": 12}
+_NUMBER = r"\d+|(?:%s)(?:[ -](?:%s))?|%s" % ("|".join(_TENS), "|".join(_UNITS[1:10]), "|".join(
+    sorted(_NUMBERS, key=len, reverse=True)))
+# a length: "10 seconds", "twenty seconds", "5-sec", "10s", "half a minute", "a minute"; a bare "s" only after 1 to 15
+# ("the 1990s", "50s style" are eras)
+_PROMPT_SECONDS = re.compile(r"(?<![\w.])(?:(%s)\s*-?\s*(?:secs?|seconds?)|([1-9]|1[0-5])\s*-?\s*s"
+                             r"|(half a|an?|one|two|1|2)\s*-?\s*min(?:ute)?s?)\b" % _NUMBER, re.IGNORECASE)
+_MINUTES = {"half a": 30, "a": 60, "an": 60, "one": 60, "1": 60, "two": 120, "2": 120}
+# a number, at most one word ("a 10 second clip" is a length, not a count), then the noun; or "a pair of", "a couple
+# of", "a trio of"; or a diptych or triptych (images only)
+_COUNT = r"(?<![\w.])(%s)\s+(?:(?!(?:seconds?|secs?)\b)[a-z-]+\s+)?(?:%s)\b"
+_IMAGE_NOUNS, _VIDEO_NOUNS = "images?|pictures?|photos?|pics?|shots?|versions?|variations?", "videos?|clips?"
+_PROMPT_IMAGES = re.compile(_COUNT % (_NUMBER, _IMAGE_NOUNS), re.IGNORECASE)
+_PROMPT_VIDEOS = re.compile(_COUNT % (_NUMBER, _VIDEO_NOUNS), re.IGNORECASE)
+_GROUP = r"(?<![\w.])(?:an?\s+)?(pair|couple|trio)\s+of\s+(?:[a-z-]+\s+)?(?:%s)\b"
+_GROUPS = {"pair": 2, "couple": 2, "trio": 3}
+_PROMPT_GROUP_IMAGES = re.compile(_GROUP % _IMAGE_NOUNS, re.IGNORECASE)
+_PROMPT_GROUP_VIDEOS = re.compile(_GROUP % _VIDEO_NOUNS, re.IGNORECASE)
+_PANELS = re.compile(r"\b(diptych|triptych)\b", re.IGNORECASE)
+
+
+def _number(word: str) -> int:
+    word = " ".join(word.lower().replace("-", " ").split())
+    if word.isdigit():
+        return int(word)
+    if word in _NUMBERS:
+        return _NUMBERS[word]
+    tens, _, unit = word.partition(" ")
+    return _TENS[tens] + _NUMBERS[unit]
 
 
 def prompt_counts(text: str, kind: str) -> set[int]:
-    """The counts of images (or videos) a prompt writes out ("4 images", "two cat photos", "3 clips")."""
-    found = (_PROMPT_IMAGES if kind == "image" else _PROMPT_VIDEOS).findall(text or "")
-    return {int(w) if w.isdigit() else _NUMBERS[" ".join(w.lower().split())] for w in found}
+    """The counts of images (or videos) a prompt writes out ("4 images", "two cat photos", "a pair of photos",
+    "a triptych", "3 clips")."""
+    text = text or ""
+    if kind == "image":
+        found = {_number(w) for w in _PROMPT_IMAGES.findall(text)}
+        found |= {_GROUPS[w.lower()] for w in _PROMPT_GROUP_IMAGES.findall(text)}
+        return found | {2 if w.lower() == "diptych" else 3 for w in _PANELS.findall(text)}
+    return {_number(w) for w in _PROMPT_VIDEOS.findall(text)} | {
+        _GROUPS[w.lower()] for w in _PROMPT_GROUP_VIDEOS.findall(text)}
+
+
+def prompt_shapes(text: str) -> list[tuple[str, tuple[str, ...]]]:
+    """(what the prompt says, the ratios it allows) for every ratio or shape word it writes out."""
+    found = [(r, (r,)) for r in _PROMPT_RATIO.findall(text or "")]
+    for groups in _PROMPT_SHAPE.findall(text or ""):
+        word = next(g for g in groups if g).lower()
+        found.append((word, _SHAPE_WORDS["ultrawide" if word.startswith("ultra") else word]))
+    return found
+
+
+def prompt_seconds(text: str) -> set[int]:
+    """The lengths, in seconds, a prompt writes out."""
+    return {_number(a) if a else int(b) if b else _MINUTES[" ".join(c.lower().split())]
+            for a, b, c in _PROMPT_SECONDS.findall(text or "")}
 
 
 def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError:
@@ -120,6 +178,24 @@ _SETTINGS = dict((
              min=10, max=600),
     _setting("wake_poll_s", int, 3,
              "Seconds between two reads of the session while the workspace wakes.", min=1, max=30),
+    _setting("http_timeout_s", int, 30, "Seconds one HTTP call to muse.ai may take (through the account's proxy).",
+             min=5, max=120),
+    _setting("ws_timeout_s", int, 30, "Seconds the WebSocket to the account's workspace may take to open, and each "
+             "frame sent on it or its close.", min=5, max=120),
+    _setting("handshake_timeout_s", int, 20, "Seconds the workspace may take to answer the tunnel's handshake.",
+             min=5, max=120),
+    _setting("call_timeout_s", int, 30, "Seconds one call in the tunnel may take to answer (a setup call, a history "
+             "read).", min=5, max=120),
+    _setting("fetch_timeout_s", int, 120, "Seconds one result file may take to come through the tunnel.",
+             min=30, max=600),
+    _setting("media_max_mb", int, 64, "The largest result file taken, in MiB (a 10 s video was under 6 MiB).",
+             min=1, max=512),
+    _setting("usage_budget_s", int, 90, "Seconds an account check may spend on the weekly Usage figure, the hunt "
+             "for its action in the site's scripts included (the hunt goes on at the next check). The check itself "
+             "is cut at 144 s.", min=10, max=130),
+    _setting("scan_max_scripts", int, 400, "The most reads of the site's scripts one deployment's hunt for the "
+             "Usage action may spend (the site loads about 190).", min=50, max=2000),
+    _setting("scan_batch", int, 12, "Site scripts read at once while hunting the Usage action.", min=1, max=32),
     _setting("usage_stop_percent", int, 95,
              "The weekly Usage percentage at which an account is sent no more jobs until its reset (both pools read "
              "0). Below it, what is left of each pool's budget follows the percentage.", min=1, max=100),
@@ -200,7 +276,7 @@ class MuseSpec:
                 raise _refuse("input.bad_ratio", "%s takes the ratios %s (a video from an image keeps its shape)"
                               % (req.model, ", ".join(allowed) or "none"), "ratio")
         ratio = req.ratio or (C.VIDEO_RATIOS[0] if kind == "video" and not req.images else None)
-        other = sorted({r for r in _PROMPT_RATIO.findall(req.prompt or "") if r != ratio})
+        other = sorted({said for said, allows in prompt_shapes(req.prompt) if ratio not in allows})
         if other:
             raise _refuse("input.prompt_ratio_conflict", "the prompt says %s but the job's ratio is %s: remove it "
                           "from the prompt" % (" / ".join(other), ratio or "the image's or muse's own"))
@@ -215,7 +291,7 @@ class MuseSpec:
             if duration not in C.DURATIONS:
                 raise _refuse("input.bad_duration", "%s makes %s s videos" % (
                     req.model, " or ".join(map(str, C.DURATIONS))), "duration")
-            if {int(a or b) for a, b in _PROMPT_SECONDS.findall(req.prompt or "")} - {duration}:
+            if prompt_seconds(req.prompt) - {duration}:
                 raise _refuse("input.prompt_duration_conflict", "the prompt names another length than %d s: remove "
                               "it from the prompt" % duration)
             params["duration"] = duration

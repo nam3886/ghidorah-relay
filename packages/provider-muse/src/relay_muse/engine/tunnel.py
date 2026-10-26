@@ -15,6 +15,14 @@ from typing import Any, NamedTuple, Protocol
 from relay_muse.engine import noise
 
 
+async def _close(ws, timeout: float) -> None:
+    """Close the socket, cut at `timeout`; closing a dead socket says nothing."""
+    try:
+        await asyncio.wait_for(ws.close(), timeout)
+    except Exception:      # noqa: BLE001
+        pass
+
+
 class Socket(Protocol):
     async def send(self, data: bytes) -> None: ...
     async def recv(self) -> bytes: ...
@@ -38,8 +46,8 @@ class Reply(NamedTuple):
 
 class Tunnel:
     def __init__(self, ws: Socket, send: noise.Cipher, receive: noise.Cipher,
-                 clock: Callable[[], float] = time.monotonic):
-        self.ws, self._tx, self._rx, self.clock = ws, send, receive, clock
+                 clock: Callable[[], float] = time.monotonic, io_timeout: float = 30.0):
+        self.ws, self._tx, self._rx, self.clock, self.io_timeout = ws, send, receive, clock, io_timeout
         self._sid = 0
         self._parts = noise.Reassembler()
         self._status: dict[int, int] = {}
@@ -54,24 +62,24 @@ class Tunnel:
         """The handshake: message 1 with the freshness nonce, the server's message 2, an empty message 3, then one
         empty transport frame (the web client's kick)."""
         hs = noise.Initiator()
-        await ws.send(hs.message1(b"\x0a\x20" + os.urandom(32)))
         try:
-            reply = await asyncio.wait_for(ws.recv(), timeout)
-            hs.read2(reply)
-        except TimeoutError:
-            raise TunnelError("no handshake answer within %g s" % timeout) from None
-        except Exception as e:
-            raise TunnelError("the handshake failed (%s)" % type(e).__name__) from None
-        last, send, receive = hs.message3(b"")
-        await ws.send(last)
-        await ws.send(send.encrypt(b"", b""))
-        return cls(ws, send, receive, clock)
+            async with asyncio.timeout(timeout):
+                await ws.send(hs.message1(b"\x0a\x20" + os.urandom(32)))
+                hs.read2(await ws.recv())
+                last, send, receive = hs.message3(b"")
+                await ws.send(last)
+                await ws.send(send.encrypt(b"", b""))
+        except BaseException as e:
+            await _close(ws, timeout)      # never left open behind a failed open
+            if isinstance(e, TimeoutError):
+                raise TunnelError("no handshake within %g s" % timeout) from None
+            if isinstance(e, Exception):
+                raise TunnelError("the handshake failed (%s)" % type(e).__name__) from None
+            raise
+        return cls(ws, send, receive, clock, timeout)
 
     async def close(self) -> None:
-        try:
-            await self.ws.close()
-        except Exception:      # noqa: BLE001 - closing a dead socket says nothing
-            pass
+        await _close(self.ws, self.io_timeout)
 
     async def _start(self, verb: str, path: str, body: Any = None, raw: bytes | None = None,
                      service: int = noise.DAEMON) -> int:
@@ -79,8 +87,13 @@ class Tunnel:
         data = raw if raw is not None else (json.dumps(body).encode() if body is not None else b"")
         headers = ([("content-type", "application/json")] if body is not None else []) + [("accept-language", "en-US")]
         payload = noise.request_payload(self._sid, verb, path, headers, data, service)
-        for frame in noise.chunks(self._sid, payload):
-            await self.ws.send(self._tx.encrypt(b"", frame))
+        try:
+            for frame in noise.chunks(self._sid, payload):
+                await asyncio.wait_for(self.ws.send(self._tx.encrypt(b"", frame)), self.io_timeout)
+        except TimeoutError:
+            raise TunnelError("a frame could not be sent within %g s" % self.io_timeout) from None
+        except Exception as e:
+            raise TunnelError("the tunnel closed while sending (%s)" % type(e).__name__) from None
         return self._sid
 
     async def _pump(self, timeout: float) -> bool:
