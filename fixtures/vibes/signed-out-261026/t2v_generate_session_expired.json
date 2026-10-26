@@ -1,0 +1,33 @@
+{
+ "note": "Rebuilt from the shape of the 26/10 incident (vibes-acc1): the session ended on vibes' side between the batch create (200) and the generate. The status, the error code and the clearing Set-Cookie as seen; the message and every value are placeholders, no real cookie.",
+ "step": "generate",
+ "method": "POST",
+ "path": "/api/generate/videos",
+ "request": {
+  "batchId": "<batch>",
+  "inputs": [
+   {
+    "type": "prompt",
+    "value": "<prompt>",
+    "original_prompt": "<prompt>",
+    "config": {}
+   }
+  ],
+  "config": {
+   "videoModel": "midjen-short",
+   "resolution": "480p"
+  },
+  "mg_request_id": "www-<request>"
+ },
+ "status": 401,
+ "headers": {
+  "Content-Type": "application/json",
+  "Set-Cookie": "meta_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax"
+ },
+ "body": {
+  "error": {
+   "code": "SESSION_EXPIRED",
+   "message": "<message>"
+  }
+ }
+}

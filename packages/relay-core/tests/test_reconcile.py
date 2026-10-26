@@ -2,6 +2,7 @@
 still unknown with a growing interval, the lease fence, the browser share and the render deadline."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from jobkit import account, key, run, status
@@ -21,7 +22,7 @@ from lifecyclekit import (
 from relay_core import failpoints
 from relay_core.budget import BrowserBudget, Purpose
 from relay_core.jobs import store
-from relay_core.providers import Found, NotSent, StillUnknown
+from relay_core.providers import Cooldown, Found, NotSent, StillUnknown, Suspect
 from relay_core.testing.fake_provider import FakeEngine, FakeSettings, FakeSpec
 from relay_core.testing.mutation import mutation
 
@@ -136,6 +137,26 @@ def test_still_unknown_grows_the_interval_from_60_seconds_and_stops_at_30_minute
 
     job_id, seen = run(db, scenario)
     assert seen == [60, 120, 240, 480, 960, 1800, 1800] and status(db, job_id) == "unknown"
+
+
+@mutation("packages/relay-core/src/relay_core/jobs/apply.py",
+          "        await _effects(conn, job, effects, caps, pools)\n", "",
+          expect="the read's strike reaches the account")
+def test_a_still_unknown_read_that_shows_a_signed_out_account_strikes_and_rests_it(db):
+    k, acc = key(db), account(db, left=100)
+
+    async def scenario(p):
+        job_id = await unknown_due(p, db, k)
+        engine = FakeEngine()
+        engine.script_reconcile("*", StillUnknown(effects=(
+            Suspect("not signed in"), Cooldown("signed out", datetime.now(UTC) + timedelta(hours=1), recheck=True))))
+        await pass_once(reconciler(p, engine))
+        return job_id
+
+    job_id = run(db, scenario)
+    assert status(db, job_id) == "unknown", "the job keeps waiting"
+    assert db.one("SELECT strikes, cooldown_until > clock_timestamp() + interval '50 minutes' FROM accounts "
+                  "WHERE id = %s", acc) == (1, True), "the read's strike reaches the account"
 
 
 def test_a_reconcile_that_raises_or_hangs_counts_as_still_unknown_and_frees_the_account(db):

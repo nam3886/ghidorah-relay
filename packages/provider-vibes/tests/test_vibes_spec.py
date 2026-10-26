@@ -109,7 +109,7 @@ def test_the_registry_takes_vibes_beside_dola_and_meta_and_no_model_name_clashes
 # ---- error rules -----------------------------------------------------------------------------------------------------
 def test_vibes_registers_its_codes_on_load_and_a_warning_is_no_rule():
     codes = {"vibes.http_error", "vibes.generate_refused", "vibes.render_failed", "vibes.content_refused",
-             "vibes.output_missing", "vibes.source_missing"}
+             "vibes.output_missing", "vibes.source_missing", "vibes.session_expired"}
     assert set(SPEC.codes()) == codes and codes <= set(errors.RULES), "the codes are registered when the package loads"
     assert {c for c in errors.RULES if c.startswith("vibes.")} == codes and errors.violations(errors.RULES) == []
     assert not hasattr(vibes_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"

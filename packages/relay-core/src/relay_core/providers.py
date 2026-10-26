@@ -330,8 +330,10 @@ class NotSent:
 @dataclass(frozen=True)
 class StillUnknown:
     """The read did not settle it. `answered` True: the read worked and found nothing (or nothing provable); False (the
-    default): it failed or gave no proof, so the render deadline may not treat it as the final read."""
+    default): it failed or gave no proof, so the render deadline may not treat it as the final read. `effects`: what
+    the read showed about the account (a signed-out answer's strike and rest), applied with the result."""
     answered: bool = False
+    effects: tuple[AccountEffect, ...] = ()
 
 
 Reconciled = Found | NotSent | StillUnknown

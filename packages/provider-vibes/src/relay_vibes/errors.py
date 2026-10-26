@@ -16,6 +16,7 @@ RENDER_FAILED = "vibes.render_failed"          # vibes finished the batch with a
 CONTENT_REFUSED = "vibes.content_refused"      # vibes finished the batch but its item has an error or no media
 OUTPUT_MISSING = "vibes.output_missing"        # the download answered that the finished item's file does not exist
 SOURCE_MISSING = "vibes.source_missing"        # a pinned job's source output is no longer one vibes can work on
+SESSION_EXPIRED = "vibes.session_expired"      # the send was answered: the account's session is gone
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -39,6 +40,13 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     Rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True,
          "vibes has no file for this result; the charge is returned", public_code=core_errors.GENERATION_FAILED,
          public_text="vibes had no file for the result. Sending the request again may work."),
+    # vibes answered the send with a 401/403 that proves the account's session is gone: the job ends now and the
+    # charge is returned. It is never sent again (the answer does not prove the order was not taken).
+    Rule(SESSION_EXPIRED, 503, "api_error", True, True, False, True,
+         "vibes answered the order as signed out (the account's session had ended); the charge is returned",
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="The order could not be confirmed, so the job ended and its charge was returned. Sending the "
+                     "request again later may work."),
     # Found before the send: nothing is sent, the job ends and the charge is returned.
     Rule(SOURCE_MISSING, 422, "invalid_request_error", True, True, False, True,
          "vibes no longer has the source job's result to work on; the charge is returned",

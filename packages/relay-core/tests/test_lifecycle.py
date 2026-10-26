@@ -472,6 +472,8 @@ def test_fail_refunds_the_key_stores_the_redacted_detail_and_shows_the_rule_mess
 
     got, outcome = run(db, scenario)
     assert outcome == "failed" and wallet(db, k) == (0, 0) and charges(db, got.job_id) == []
+    assert cols(db, got.job_id, "status, sent_at IS NOT NULL") == ("failed", True), (
+        "a sent job that fails keeps its sent_at and is never queued again")
     code, error = cols(db, got.job_id, "error_code, error")
     assert code == "account.prompt_mismatch" and SECRET not in error and "abcdef0123" not in error
     assert "[omitted len=" in error or "[redacted]" in error

@@ -240,6 +240,85 @@ def test_an_explicit_refusal_of_the_generate_fails_the_job_with_its_refund():
         assert len(fake.sent("generate")) == 1 and "batch" in result.job.state_patch
 
 
+# ---- submit: a session vibes ended between the batch create and the generate (vibes-acc1, 26/10) -------------------
+EXPIRED = rec("signed-out-261026/t2v_generate_session_expired")      # 401 SESSION_EXPIRED, Set-Cookie clears it
+EXPIRED_CODE = httpx.Response(401, json=EXPIRED["body"])                         # the code alone
+CLEARED_COOKIE = httpx.Response(401, headers={"set-cookie": "meta_session=; Path=/"}, json={})    # the cookie alone
+NO_PROOF = [httpx.Response(401, json={"error": "Unauthorized"}), httpx.Response(401, json={}),
+            httpx.Response(403, json={"error": {"code": "FORBIDDEN"}}),
+            httpx.Response(401, headers={"set-cookie": "other=; Max-Age=0"}, json={}),
+            httpx.Response(401, headers={"set-cookie": "meta_session=fresh; Max-Age=3600"}, json={})]
+PROOF_RULE = '    return (isinstance(error, dict) and error.get("code") in SESSION_GONE_CODES) or clears_session(resp)'
+NOT_PROVEN = "            if not session_gone(resp):"
+DOUBT_ON_AMBIGUOUS = "                return _result(Ambiguous(said), *doubt)"
+PROVEN_FAIL = "            return _result(Fail(errors.SESSION_EXPIRED, said"
+REQUEUED = ('            return _result(__import__("relay_core.providers", fromlist=["NotTaken"]).NotTaken('
+            '"pool.account_logged_out"), *doubt) or _result(Fail(errors.SESSION_EXPIRED, said')
+PROVEN_DOUBT = "{BATCH_KEY: batch}), *doubt)"
+EMPTY_COOKIE = "        if not value.strip():"
+MAX_AGE_0 = 'if key.strip().lower() == "max-age" and age.strip().lstrip("-").isdigit() and int(age) <= 0:'
+WHY = "the proven 401 fails with its refund"
+
+
+@mutation(HTTP_FILE, PROOF_RULE, "    return False", expect=WHY)
+@mutation(HTTP_FILE, PROOF_RULE, "    return clears_session(resp)", expect=WHY)
+@mutation(HTTP_FILE, PROOF_RULE, '    return isinstance(error, dict) and error.get("code") in SESSION_GONE_CODES',
+          expect=WHY)
+@mutation(HTTP_FILE, EMPTY_COOKIE, "        if False:", expect=WHY)
+@mutation(SUBMIT_FILE, NOT_PROVEN, "            if True:", expect=WHY)
+@mutation(SUBMIT_FILE, PROVEN_FAIL, REQUEUED, expect=WHY)
+@mutation(SUBMIT_FILE, PROVEN_DOUBT, "{BATCH_KEY: batch}))", expect="strikes and rests")
+def test_a_generate_answered_with_a_dead_session_fails_with_its_refund_is_never_sent_again_and_strikes_the_account():
+    """The answer shows the session was gone when vibes answered, not that the generate was never taken: never
+    `NotTaken` (a re-send on another account), never `Retry`; the job fails now with its refund, `sent_at` kept."""
+    assert EXPIRED["status"] == 401 and EXPIRED["body"]["error"]["code"] == "SESSION_EXPIRED"
+    assert "Max-Age=0" in EXPIRED["headers"]["Set-Cookie"]
+    for resp in (answer(EXPIRED), EXPIRED_CODE, CLEARED_COOKIE, httpx.Response(403, json=EXPIRED["body"])):
+        log: list = []
+        fake = Vibes(log, generate=resp)
+        result, _ = run_submit(fake, job())
+        batch = body(fake.sent("create")[0])["id"]
+        assert isinstance(result.job, Fail) and result.job.code == errors.SESSION_EXPIRED, (
+            "%s: %s %s" % (WHY, resp.headers, result.job))
+        assert result.job.state_patch == {"batch": batch}
+        assert len(fake.sent("generate")) == 1 and log[-2:] == ["mark_sent", "generate"]
+        assert [type(e) for e in result.account] == [Suspect, Cooldown], "strikes and rests: %s" % (result.account,)
+        assert result.account[1].recheck and result.account[1].until > NOW
+    rule = errors.CODES[errors.SESSION_EXPIRED]
+    assert rule.terminal and rule.refund and not rule.counts_attempt
+
+
+@mutation(HTTP_FILE, MAX_AGE_0, "if False:", expect="a Max-Age 0 clears the session")
+def test_a_session_cookie_cleared_by_max_age_alone_is_proof_too():
+    resp = httpx.Response(401, headers={"set-cookie": "meta_session=deleted; Max-Age=0; Path=/"}, json={})
+    result, _ = run_submit(Vibes([], generate=resp), job())
+    assert isinstance(result.job, Fail), "a Max-Age 0 clears the session: %s" % (result.job,)
+
+
+@mutation(SUBMIT_FILE, DOUBT_ON_AMBIGUOUS, "                return _result(Ambiguous(said))",
+          expect="a 401 without proof still strikes")
+def test_a_signed_out_generate_without_proof_stays_unknown_but_strikes_and_rests_the_account_at_once():
+    for resp in NO_PROOF:
+        fake = Vibes([], generate=resp)
+        result, _ = run_submit(fake, job())
+        assert isinstance(result.job, Ambiguous), (resp.headers, result.job)
+        assert [type(e) for e in result.account] == [Suspect, Cooldown], (
+            "a 401 without proof still strikes: %s" % (result.account,))
+        assert len(fake.sent("generate")) == 1
+    checkpoint = answer(CHECKPOINT)
+    checkpoint.headers["set-cookie"] = "meta_session=; Max-Age=0"
+    result, _ = run_submit(Vibes([], generate=checkpoint), job())
+    assert isinstance(result.job, Ambiguous) and [type(e) for e in result.account] == [Cooldown], (
+        "the checkpoint is never a signed-out answer")
+
+
+def test_the_session_expired_code_ends_a_job_with_its_refund_and_uses_no_attempt():
+    rule = errors.CODES[errors.SESSION_EXPIRED]
+    assert rule.terminal and rule.refund and rule.job_scoped and not rule.counts_attempt
+    assert rule.public_code == "temporarily_unavailable"
+    assert rule.public_text and "session" not in rule.public_text.lower()
+
+
 # ---- submit: the three operations ---------------------------------------------------------------------------------
 def test_text_to_image_is_drawn_inside_the_request_and_ends_completed_with_the_png_download():
     log: list = []
@@ -346,7 +425,7 @@ def test_an_account_that_rests_is_not_called_at_all_by_a_submit():
 def poll(fake: Vibes, j=None, rests=None, account_id="acc-1", rand=lambda: 0.0):
     j = j or job(batch="3fbc9c32-3f9d-47d1-aa43-377c9bf65697")
     return asyncio.run(B.poll(Ctx(fake.log, account_id), j, SETTINGS, rests or Rests(lambda: NOW),
-                              transport=fake.transport, rand=rand))
+                              transport=fake.transport, rand=rand, now=lambda: NOW))
 
 
 DONE_RULE = ("    return batch.get(\"isComplete\") is True and bool(content) and all(c.get(\"isLoading\") is False "
@@ -500,6 +579,24 @@ def test_a_transient_read_failure_is_read_again_at_the_interval():
     assert S4_500["body"] == {"error": "Failed to fetch generation batch"}
 
 
+POLL_GONE = "    if session_gone(resp):      # the job keeps waiting"
+
+
+@mutation(BATCH_FILE, POLL_GONE, "    if False:      # the job keeps waiting",
+          expect="a dead session on a poll strikes the account")
+def test_a_poll_refused_because_the_session_is_gone_keeps_waiting_and_strikes_the_account():
+    for resp in (answer({**EXPIRED, "path": "/api/generation-batches/x"}), EXPIRED_CODE, CLEARED_COOKIE):
+        result = poll(Vibes([], batch=resp))
+        assert isinstance(result.outcome, Pending) and not result.outcome.answered, result.outcome
+        assert result.outcome.next_in_s == 20, "the job is read again at the interval"
+        assert [type(e) for e in result.effects] == [Suspect, Cooldown], (
+            "a dead session on a poll strikes the account: %s" % (result.effects,))
+        assert result.effects[1].until > NOW and result.effects[1].recheck
+    for resp in NO_PROOF:
+        result = poll(Vibes([], batch=resp))
+        assert isinstance(result.outcome, Pending) and result.effects == (), resp.headers
+
+
 def test_the_poll_interval_is_the_setting_plus_up_to_half_again_never_less():
     assert SPEC.settings()["vibes.poll_interval_s"].default == 20
     assert [B.interval_s(SETTINGS, lambda r=r: r) for r in (0.0, 0.5, 0.999)] == [20, 25, 29]
@@ -549,6 +646,23 @@ def test_a_reconcile_read_that_fails_settles_nothing_and_the_checkpoint_rests_th
     log: list = []
     assert reconcile(Vibes(log), rests=rests) == StillUnknown() and log == [] and rests.left_s("acc-1") == 600
     assert reconcile(Vibes([]), job()) == StillUnknown(), "no batch id: nothing to read"
+
+
+@mutation(BATCH_FILE, "    if session_gone(resp):      # never NotSent", "    if False:      # never NotSent",
+          expect="a dead session on the read strikes the account")
+def test_a_reconcile_read_refused_because_the_session_is_gone_stays_unknown_and_strikes_the_account():
+    """The batch may hold a generate a live session sent before: never `NotSent`, never `Found`; the account is
+    struck and rested so no other job is claimed onto it. A 401 without proof stays as it was."""
+    for resp in (answer({**EXPIRED, "path": "/api/generation-batches/x"}), EXPIRED_CODE, CLEARED_COOKIE):
+        found = asyncio.run(B.reconcile(Ctx([]), job(batch="3fbc9c32-3f9d-47d1-aa43-377c9bf65697"), SETTINGS,
+                                        Rests(lambda: NOW), transport=Vibes([], batch=resp).transport,
+                                        now=lambda: NOW))
+        assert isinstance(found, StillUnknown) and not found.answered, found
+        assert [type(e) for e in found.effects] == [Suspect, Cooldown], (
+            "a dead session on the read strikes the account: %s" % (found,))
+        assert found.effects[1].until > NOW and found.effects[1].recheck
+    for resp in NO_PROOF:
+        assert reconcile(Vibes([], batch=resp)) == StillUnknown(), resp.headers
 
 
 # ---- fetch ---------------------------------------------------------------------------------------------------------

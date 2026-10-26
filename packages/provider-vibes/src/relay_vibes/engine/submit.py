@@ -10,10 +10,16 @@ Money rules that shape this file (each has a test and a mutation):
   again.
 - There is ONE generate POST per job, ever. Nothing here repeats it, and after `mark_sent` nothing returns `Retry`
   or `NotTaken` (either would put the job back in the queue and send it again).
-- A generate that gives no clear answer (no answer at all, a timeout, a 5xx, a sign-in error, the checkpoint) is
-  `Ambiguous`: the job becomes unknown and the reconciler reads its batch. Only a 200 `success: true` is taken; only an
-  explicit refusal from vibes' app (a 4xx JSON other than 401/403/429, or `success: false`) fails the job, and so
-  does a finished image batch whose item vibes refused (`success: true`, but the item has an `error` or no media).
+- A 401/403 that proves vibes no longer holds the session (`session_gone`: the JSON code `SESSION_EXPIRED` or a
+  cleared session cookie, live 26/10) fails the job at once with its refund (`vibes.session_expired`), pinned or not.
+  It is never re-sent: the answer shows only that the session was gone when vibes answered, not that the generate
+  was never taken.
+- A generate that gives no clear answer (no answer at all, a timeout, a 5xx, a sign-in error without that proof, the
+  checkpoint) is `Ambiguous`: the job becomes unknown and the reconciler reads its batch. Any 401/403 (proof or not)
+  also strikes and rests the account at once, so no other job is claimed onto a dead session. Only a 200
+  `success: true` is taken; only an explicit refusal from vibes' app (a 4xx JSON other than 401/403/429, or
+  `success: false`) fails the job, and so does a finished image batch whose item vibes refused
+  (`success: true`, but the item has an `error` or no media).
 
 Before `mark_sent` every failure is an ordinary retry: the checkpoint `pool.account_throttled` with the account's
 rest, a signed-out answer `pool.account_logged_out` with a spaced strike, a proxy that cannot reach vibes
@@ -73,7 +79,7 @@ from relay_vibes.engine.batch import (
     render_error,
 )
 from relay_vibes.engine.check import SIGNED_OUT_STATUSES, doubt_effects
-from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, json_of
+from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, json_of, session_gone
 
 THROTTLED = "pool.account_throttled"
 LOGGED_OUT = "pool.account_logged_out"
@@ -253,8 +259,11 @@ class _Run:
             return _result(Fail(errors.GENERATE_REFUSED, "vibes refused the image edit (%d): %s"
                                 % (resp.status_code, str(said)[:300])))
         if resp.status_code in SIGNED_OUT_STATUSES:     # unclear for the job, but a doubt about the account
-            return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code), *doubt_effects(
-                "not signed in: vibes answered %d to the image edit" % resp.status_code, self.now()))
+            doubt = doubt_effects("not signed in: vibes answered %d to the image edit" % resp.status_code, self.now())
+            if session_gone(resp):      # the session was gone: fail now with the refund, never re-sent
+                return _result(Fail(errors.SESSION_EXPIRED, "vibes answered %d to the image edit: the session is "
+                                    "gone" % resp.status_code), *doubt)
+            return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code), *doubt)
         return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code))
 
     def generate_body(self, batch: str, prompt: str, config: dict, frame: dict | None) -> dict:
@@ -281,6 +290,13 @@ class _Run:
                     return _result(Fail(*why, {BATCH_KEY: batch}), Success())
                 return _result(Completed(outputs(done, self.kind)), Success())
             return _result(Accepted(batch, {BATCH_KEY: batch}, taken=True), Success())
+        if resp.status_code in SIGNED_OUT_STATUSES:     # a doubt about the account, proof or not
+            said = "vibes answered %d to the generate" % resp.status_code
+            doubt = doubt_effects("not signed in: " + said, self.now())
+            if not session_gone(resp):
+                return _result(Ambiguous(said), *doubt)
+            # the session was gone when vibes answered: fail now with the refund, never re-sent (it may have been taken)
+            return _result(Fail(errors.SESSION_EXPIRED, said + ": the session is gone", {BATCH_KEY: batch}), *doubt)
         refused = (resp.status_code == 200 and body.get("success") is False) or (
             400 <= resp.status_code < 500 and resp.status_code not in NOT_A_REFUSAL and body)
         if refused:

@@ -486,6 +486,8 @@ async def apply_reconciled(db: AsyncConnectionPool, job_id, result: Reconciled, 
     that is proven only after the render deadline (`render_deadline_s`, required) does not requeue: a late re-send is
     never made, the read is recorded as the final one (at the moment it started) and the reaper fails the job with its
     refund.
+    A `StillUnknown` with account `effects` (the read showed a signed-out session) applies them to the job's account
+    in the same transaction, the account locked right after the job.
     `lease_id` (the reconcile lease) is fenced in the same transaction when given, and deleted in it too when
     `release_lease` is set."""
     async with tx(db) as conn:
@@ -498,7 +500,13 @@ async def apply_reconciled(db: AsyncConnectionPool, job_id, result: Reconciled, 
                 raise LeaseLost(lease_id)
         elif lease_id is not None:
             await leases.fence(conn, lease_id)
+        effects = result.effects if isinstance(result, StillUnknown) else ()
+        job = await _lock_job(conn, job_id)
+        await _lock_effect_account(conn, job, effects)
         status = await _reconciled(conn, job_id, result, read_started_at, pools, render_deadline_s)
+        await _effects(conn, job, effects, caps, pools)
+        if effects:
+            await _health(conn, job)
         if release_lease and lease_id is not None:
             await leases.release(conn, lease_id)
         return status

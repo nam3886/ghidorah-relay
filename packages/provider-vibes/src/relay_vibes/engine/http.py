@@ -33,6 +33,7 @@ from relay_vibes.credential import renewable, session_of, with_session
 log = logging.getLogger("relay_vibes.http")
 RENEW_TIMEOUT_S = 5.0                # a session renewal (the write) cut at this: past it nothing is written
 SIGNED_OUT_STATUSES = (401, 403)     # what vibes answers a session it no longer knows (a checkpoint 403 is not one)
+SESSION_GONE_CODES = ("SESSION_EXPIRED",)     # vibes' JSON `error.code` for a session it no longer holds (26/10)
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -64,6 +65,34 @@ def json_of(resp: httpx.Response) -> dict:
     except ValueError:
         return {}
     return body if isinstance(body, dict) else {}
+
+
+def clears_session(resp: httpx.Response) -> bool:
+    """vibes clears the session cookie in its answer: a `Set-Cookie` of `meta_session` that is empty or has
+    `Max-Age` 0 or less."""
+    for line in resp.headers.get_list("set-cookie"):
+        first, *attrs = line.split(";")
+        name, _, value = first.partition("=")
+        if name.strip() != SESSION_COOKIE:
+            continue
+        if not value.strip():
+            return True
+        for attr in attrs:
+            key, _, age = attr.partition("=")
+            if key.strip().lower() == "max-age" and age.strip().lstrip("-").isdigit() and int(age) <= 0:
+                return True
+    return False
+
+
+def session_gone(resp: httpx.Response) -> bool:
+    """A signed-out answer that PROVES vibes no longer holds the session, so the call was refused before vibes took
+    anything from it: a 401 or 403 (never the checkpoint) whose JSON `error.code` is a session-gone code, or that
+    clears the session cookie (live 26/10: 401 `{"error": {"code": "SESSION_EXPIRED", ...}}` with
+    `Set-Cookie: meta_session=; Max-Age=0`). A 401 with neither proves nothing."""
+    if resp.status_code not in SIGNED_OUT_STATUSES or is_checkpoint(resp):
+        return False
+    error = json_of(resp).get("error")
+    return (isinstance(error, dict) and error.get("code") in SESSION_GONE_CODES) or clears_session(resp)
 
 
 class Resting(Exception):

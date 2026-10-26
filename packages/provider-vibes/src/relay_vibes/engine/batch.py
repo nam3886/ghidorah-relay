@@ -17,10 +17,15 @@ A job's batch id is ours (a UUID the submit made) and is written to the job befo
 - A 403 `X-Vercel-Mitigated: challenge` is the checkpoint: the account makes no call for `vibes.checkpoint_rest_s`
   (doubled by each repeat within a day, up to `vibes.checkpoint_rest_max_s`) and the job keeps waiting.
   A 5xx (vibes says `Failed to fetch generation batch` now and then) is read again.
+- A poll answered with a signed-out 401/403 that proves the session is gone (`session_gone`) strikes and rests the
+  account, and the job keeps waiting (the render may still finish). A reconcile read answered so does the same to the
+  account, and the job stays unknown: the batch it cannot read may hold a generate that a live session
+  sent before. A generate that was itself answered so never gets here (the submit fails it with its refund).
 """
 
 import random
 from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 import httpx
@@ -40,7 +45,8 @@ from relay_core.providers import (
 )
 from relay_vibes import errors
 from relay_vibes.constants import BATCHES_PATH, DOWNLOAD_PATH, DOWNLOAD_TIMEOUT_S, OUTPUT_MIME
-from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, json_of
+from relay_vibes.engine.check import doubt_effects
+from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, json_of, session_gone
 
 BATCH_KEY = "batch"          # provider_state key of the job's batch id
 CHECKPOINT_NOTE = "vibes' security checkpoint: the account makes no call for a while, the job keeps waiting"
@@ -123,8 +129,9 @@ def batch_of(resp: httpx.Response) -> dict | None:
 
 # ---- poll ----------------------------------------------------------------------------------------------------------
 async def poll(ctx, job, settings, rests: Rests, *, transport=None,
-               rand: Callable[[], float] = random.random) -> PollResult:
-    """One read of the job's batch. `transport` and `rand` are seams for tests."""
+               rand: Callable[[], float] = random.random,
+               now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> PollResult:
+    """One read of the job's batch. `transport`, `rand` and `now` are seams for tests."""
     batch = batch_id(job)
     wait = interval_s(settings, rand)
     if not batch:
@@ -138,6 +145,9 @@ async def poll(ctx, job, settings, rests: Rests, *, transport=None,
     if is_checkpoint(resp):
         seconds, cooldown = checkpoint_rest(ctx, settings, rests, "vibes security checkpoint on a poll")
         return PollResult(Pending(CHECKPOINT_NOTE, seconds, answered=False), effects=(cooldown,))
+    if session_gone(resp):      # the job keeps waiting; the account is doubted at once
+        said = "vibes answered %d to the batch read" % resp.status_code
+        return PollResult(Pending(said, wait, answered=False), effects=doubt_effects("not signed in: " + said, now()))
     found = batch_of(resp)
     if found is None:
         return PollResult(Pending("vibes answered %d to the batch read" % resp.status_code, wait, answered=False))
@@ -150,9 +160,11 @@ async def poll(ctx, job, settings, rests: Rests, *, transport=None,
 
 
 # ---- reconcile -----------------------------------------------------------------------------------------------------
-async def reconcile(ctx, job, settings, rests: Rests, *, transport=None) -> Reconciled:
+async def reconcile(ctx, job, settings, rests: Rests, *, transport=None,
+                    now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> Reconciled:
     """Did the generate of an unknown job reach vibes? Read its batch: accepted is `Found`; the empty shell is
-    `StillUnknown(answered=True)` (never `NotSent`: it cannot prove the send did not happen)."""
+    `StillUnknown(answered=True)` (never `NotSent`: it cannot prove the send did not happen). `transport` and `now`
+    are seams for tests."""
     batch = batch_id(job)
     if not batch:
         return StillUnknown()
@@ -163,6 +175,9 @@ async def reconcile(ctx, job, settings, rests: Rests, *, transport=None) -> Reco
     if is_checkpoint(resp):
         checkpoint_rest(ctx, settings, rests, "vibes security checkpoint on a reconcile")
         return StillUnknown()
+    if session_gone(resp):      # never NotSent: the generate may have gone through before the session ended
+        return StillUnknown(effects=doubt_effects("not signed in: vibes answered %d to the batch read"
+                                                  % resp.status_code, now()))
     found = batch_of(resp)
     if found is None:
         return StillUnknown()

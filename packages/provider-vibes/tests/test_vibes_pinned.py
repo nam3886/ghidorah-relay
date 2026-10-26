@@ -234,3 +234,24 @@ def test_an_image_edit_vibes_refused_fails_with_its_refund_and_a_source_without_
     log: list = []
     result, _ = run_submit(Vibes(log), job("vibes-image-edit", source=bare))
     assert isinstance(result.job, Fail) and result.job.code == errors.SOURCE_MISSING and log == []
+
+
+# ---- a session vibes ended before the send (26/10) -------------------------------------------------------------------
+EDIT_GONE = "            if session_gone(resp):      # the session was gone: fail now with the refund, never re-sent"
+
+
+@mutation(SUBMIT_FILE, EDIT_GONE, "            if False:", expect="a dead session fails the pinned job")
+def test_a_pinned_send_refused_because_the_session_is_gone_fails_with_its_refund_and_strikes_the_account():
+    """As any job: it ends now with its refund (`vibes.session_expired`, not `render.unclear_send`), never sent
+    again."""
+    proven = rec("signed-out-261026/t2v_generate_session_expired")
+    for model in ("vibes-video-extend", "vibes-video-edit", "vibes-image-edit"):
+        fake = Vibes([], batch=read_source, generate=answer(proven))
+        result, _ = run_submit(fake, job(model))
+        assert isinstance(result.job, Fail) and result.job.code == errors.SESSION_EXPIRED, (
+            "a dead session fails the pinned job: %s %s" % (model, result.job))
+        assert len(fake.sent("generate")) == 1
+        assert [type(e).__name__ for e in result.account] == ["Suspect", "Cooldown"], (model, result.account)
+        if model != "vibes-image-edit":
+            assert result.job.state_patch == {"batch": body(fake.sent("create")[0])["id"]}
+    assert errors.CODES[errors.SESSION_EXPIRED].refund

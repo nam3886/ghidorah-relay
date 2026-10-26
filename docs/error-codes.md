@@ -226,4 +226,5 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `vibes.http_error` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | vibes answered with an error before the order was sent |
 | `vibes.output_missing` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | vibes has no file for this result; the charge is returned |
 | `vibes.render_failed` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | vibes ended the render with an error and no result; the charge is returned |
+| `vibes.session_expired` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | vibes answered the order as signed out (the account's session had ended); the charge is returned |
 | `vibes.source_missing` | `invalid_input` | 422 | invalid_request_error | yes | yes | no | 0 | yes | vibes no longer has the source job's result to work on; the charge is returned |
