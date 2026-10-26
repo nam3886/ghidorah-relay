@@ -230,11 +230,12 @@ def test_a_workspace_that_does_not_wake_or_none_assigned_goes_back_to_the_queue_
         assert isinstance(result.account[-1], Cooldown) and ctx.calls == [] and site.vms == []
 
 
-@mutation(WEB_FILE, TOKEN_CHECK, "    if False:", expect="muse.http_error")
+@mutation(WEB_FILE, TOKEN_CHECK, "    if False:", expect="403 to the tunnel token call")
 def test_a_failed_step_before_the_send_is_retried_unsent():
     forbidden = Site({"POST /api/hatch/token": (403, {"error": "Forbidden"}, {})})
     result, ctx = run(forbidden)
     assert result.job == Retry("muse.http_error") and ctx.calls == [] and forbidden.vms == []
+    assert any("muse answered 403 to the tunnel token call" in text for _, text in ctx.events), ctx.events
     empty = Site({"POST /api/hatch/token": (200, {"token": "t"}, {})})
     assert run(empty)[0].job == Retry("muse.http_error")
     node = Site(vm_routes_=vm_routes(overrides={"/api/nodes/register": (400, {"ok": False})}))

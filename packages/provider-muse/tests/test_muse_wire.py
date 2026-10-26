@@ -57,9 +57,10 @@ def test_a_payload_over_48_kb_is_cut_into_chunks_and_put_back_together():
     payload = noise.request_payload(7, "POST", "/chat/stream", [("content-type", "application/json")],
                                     b"x" * 120_000, noise.SENTINEL)
     frames = noise.chunks(3, payload)
-    assert len(frames) == 3 and all(len(noise.parse(f)[4][0]) <= noise.CHUNK_BYTES for f in frames)
     joined = b"".join(noise.parse(f)[4][0] for f in frames)
     assert joined == payload, "the whole payload"
+    assert len(frames) == 3 and all(len(noise.parse(f)[4][0]) <= noise.CHUNK_BYTES for f in frames)
+    assert {noise.parse(f)[3][0] for f in frames} == {3} and [noise.parse(f)[2][0] for f in frames] == [0, 1, 2]
     sr = noise.parse(joined)
     assert sr[1] == [noise.SENTINEL]
     frame = noise.parse(sr[2][0])
