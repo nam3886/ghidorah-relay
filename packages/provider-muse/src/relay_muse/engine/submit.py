@@ -26,6 +26,7 @@ from relay_core.providers import (
     Ambiguous,
     Completed,
     Cooldown,
+    Dead,
     Fail,
     NotTaken,
     ProxyBad,
@@ -55,7 +56,7 @@ from relay_muse.engine.chat import (
 )
 from relay_muse.engine.link import Deps, opened
 from relay_muse.engine.tunnel import TunnelError
-from relay_muse.engine.web import NetError, SignedOut, SiteError, VmNotReady
+from relay_muse.engine.web import LeaseFailed, NetError, SignedOut, SiteError, VmNotReady
 
 log = logging.getLogger("relay_muse.submit")
 
@@ -211,6 +212,8 @@ class _Run:
         await self._say("nothing was sent: %s" % cause)
         if isinstance(exc, SignedOut):
             return _result(Retry(POOL_LOGGED_OUT), *signed_out_effects(now))
+        if isinstance(exc, LeaseFailed):
+            return _result(Retry(errors.VM_NOT_READY), Dead(str(exc)))
         if isinstance(exc, VmNotReady):
             return _result(Retry(errors.VM_NOT_READY), Cooldown("muse workspace not ready",
                                                                 now + timedelta(seconds=VM_REST_S)))

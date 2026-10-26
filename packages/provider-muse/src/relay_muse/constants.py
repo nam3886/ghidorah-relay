@@ -13,6 +13,12 @@ SITE_URL = "https://muse.ai"
 SITE_HOST = "muse.ai"
 SESSION_COOKIE = "hatch_sess"         # the signed-in session; a jar without it is not an account
 SESSION_PATH = "/api/session"         # {status: assigned, vm_id, endpoint_url, vm_state}; rotates hatch_vml
+# A new account has no workspace yet: the session read says `unavailable` (the site's `no_vm`; `none` in its code);
+# the site then leases one with {vmType: standard}, answered {status: assigned, gatewayUrl, vmName}, or 403 once
+# the account has one.
+LEASE_PATH = "/api/hatch/lease-vm"
+LEASE_BODY = {"vmType": "standard"}
+NO_VM = ("unavailable", "none")
 WAKE_PATH = "/api/hatch/vm/wake"      # {vm_id, retry_count, connect_attempt_id}: only when vm_state is not RUNNING
 TOKEN_PATH = "/api/hatch/token"       # {vmAddress, vmName} -> {token, notary_token}; 403 without the Sec-Fetch-*
 ASSIGNED = "assigned"

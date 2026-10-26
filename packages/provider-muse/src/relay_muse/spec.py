@@ -173,6 +173,9 @@ _SETTINGS = dict((
     _setting("send_ack_timeout_s", int, 60,
              "Seconds muse may take to acknowledge the send; no answer by then makes the job unknown (it is looked "
              "up, never sent again).", min=10, max=300),
+    _setting("lease_timeout_s", int, 30,
+             "Seconds muse may take to answer the lease of a new account's first workspace (asked once, only when the "
+             "session has none).", min=5, max=120),
     _setting("wake_timeout_s", int, 90,
              "Seconds a job waits for the account's sleeping workspace to wake before it goes back to the queue.",
              min=10, max=600),

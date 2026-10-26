@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from musekit import FIXTURES, NOW, SESSION_OK, Ctx, Site, settings
 
-from relay_core.providers import Balance, Cooldown, Suspect, Tier
+from relay_core.providers import Balance, Cooldown, Dead, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_muse.credential import jar_of
 from relay_muse.engine import check, web
@@ -203,3 +203,62 @@ def test_a_usage_not_read_now_clears_the_last_figure():
     assert health.state == "alive"
     assert {k: health.state_patch[k] for k in ("usage_percent", "quota_ok", "usage_resets_at")} == dict.fromkeys(
         ("usage_percent", "quota_ok", "usage_resets_at"))
+
+
+NO_VM = {"status": "unavailable"}
+LEASED = {"status": "assigned", "gatewayUrl": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
+CHECK_LEASE = "            if has_no_vm(info):\n                try:"
+FORBIDDEN_OK = "    if resp.status_code != 403 and (resp.status_code != 200 or body.get(\"status\") != ASSIGNED):"
+
+
+@mutation(CHECK_FILE, CHECK_LEASE, "            if False:\n                try:", expect="POST /api/hatch/lease-vm")
+def test_a_new_account_with_no_workspace_is_leased_one_once_and_reads_alive():
+    s = site(**{"GET /api/session": [(200, NO_VM, {}), (200, SESSION_OK, {})],
+                "POST /api/hatch/lease-vm": (200, LEASED, {})})
+    health, _ = run(s)
+    assert [c.path for c in s.calls][:3] == ["/api/session", "/api/hatch/lease-vm", "/api/session"], \
+        "POST /api/hatch/lease-vm"
+    lease = s.calls[1]
+    assert json.loads(lease.data) == {"vmType": "standard"} and lease.headers["Sec-Fetch-Mode"] == "cors"
+    assert s.made == [{"http": "http://user:pw@10.0.0.9:3128", "https": "http://user:pw@10.0.0.9:3128"}]
+    assert health.state == "alive" and health.identity == check.identity_of(SESSION_OK["vm_id"])
+
+
+@mutation(WEB_FILE, FORBIDDEN_OK, "    if resp.status_code != 200 or body.get(\"status\") != ASSIGNED:",
+          expect="403 is already assigned")
+def test_a_403_to_the_lease_means_a_workspace_exists_and_the_check_goes_on():
+    s = site(**{"GET /api/session": [(200, NO_VM, {}), (200, SESSION_OK, {})],
+                "POST /api/hatch/lease-vm": (403, {"error": "Forbidden"}, {})})
+    health, _ = run(s)
+    assert health.state == "alive", "403 is already assigned: %s" % (health,)
+
+
+def test_a_lease_answered_but_not_yet_in_the_session_uses_the_lease_answer():
+    s = site(**{"GET /api/session": (200, NO_VM, {}), "POST /api/hatch/lease-vm": (200, LEASED, {})})
+    health, _ = run(s)
+    assert health.state == "alive" and health.identity == check.identity_of(SESSION_OK["vm_id"])
+
+
+def test_a_failed_lease_leaves_the_account_dead_with_the_reason_and_no_token_is_asked():
+    for answer, why in (((500, {"code": "server_error"}, {}), "muse answered 500 (server_error) to the workspace"),
+                        ((200, {"status": "denied"}, {}), "muse answered 200 (denied) to the workspace"),
+                        ((403, {}, {}), "the session still has none")):
+        s = site(**{"GET /api/session": (200, NO_VM, {}), "POST /api/hatch/lease-vm": answer})
+        health, _ = run(s)
+        assert health.state == "unknown" and [type(e) for e in health.effects] == [Dead], (answer, health)
+        assert why in health.effects[0].reason, health.effects[0].reason
+        assert "/api/hatch/token" not in [c.path for c in s.calls]
+
+
+def test_a_lease_with_no_answer_in_time_fails_and_an_existing_workspace_is_never_leased():
+    class Slow:
+        settings = settings(lease_timeout_s=0.05)
+
+        async def post_json(self, path, body):
+            await asyncio.sleep(5)
+    with pytest.raises(web.LeaseFailed, match="did not answer the workspace lease within 0.05 s"):
+        asyncio.run(web.lease_workspace(Slow()))
+    for status in ({**SESSION_OK, "vm_state": "SLEEPING"}, {"status": "unassigned"}, SESSION_OK):
+        s = site(**{"GET /api/session": (200, status, {})})
+        run(s)
+        assert "/api/hatch/lease-vm" not in [c.path for c in s.calls], status

@@ -24,6 +24,9 @@ from relay_core.providers import Proxy, epoch_time
 from relay_muse.constants import (
     APP_ID,
     ASSIGNED,
+    LEASE_BODY,
+    LEASE_PATH,
+    NO_VM,
     NOISE_URL,
     QUOTA_OK,
     RUNNING,
@@ -61,6 +64,11 @@ class SiteError(Exception):
 
 class VmNotReady(Exception):
     """The account has no running workspace (none assigned, or it did not wake in time)."""
+
+
+class LeaseFailed(Exception):
+    """The account has no workspace and muse would not lease it one: the account is not claimable until a check
+    leases it (the reason says what muse answered; never a token)."""
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -224,6 +232,36 @@ async def read_session(web: Web) -> dict:
     return body
 
 
+def has_no_vm(info: dict) -> bool:
+    """Does the session say the account has no workspace yet (a new account)?"""
+    return info.get("status") in NO_VM
+
+
+async def lease_workspace(web: Web) -> dict:
+    """Lease the account's first workspace, once, and return the session that names it. A 403 is muse saying the
+    account has one already: the session is read again. Anything else is LeaseFailed. Only called when the session
+    says it has none (`has_no_vm`): a workspace that exists is never leased again."""
+    timeout = web.settings.get("muse.lease_timeout_s")
+    try:
+        resp = await asyncio.wait_for(web.post_json(LEASE_PATH, LEASE_BODY), timeout)
+    except TimeoutError:
+        raise LeaseFailed("muse did not answer the workspace lease within %g s" % timeout) from None
+    body = _json(resp)
+    body = body if isinstance(body, dict) else {}
+    if resp.status_code != 403 and (resp.status_code != 200 or body.get("status") != ASSIGNED):
+        code = body.get("code") or body.get("error") or body.get("status")
+        raise LeaseFailed("muse answered %d%s to the workspace lease" % (
+            resp.status_code, " (%s)" % str(code)[:60] if isinstance(code, str) and code else ""))
+    after = await read_session(web)
+    if after.get("status") == ASSIGNED:
+        return after
+    if resp.status_code == 200 and isinstance(body.get("gatewayUrl"), str) and isinstance(body.get("vmName"), str):
+        return {"status": ASSIGNED, "vm_id": body["vmName"], "endpoint_url": body["gatewayUrl"],
+                "vm_state": after.get("vm_state")}
+    raise LeaseFailed("muse answered %d to the workspace lease but the session still has none (%s)" % (
+        resp.status_code, str(after.get("status"))[:40]))
+
+
 def workspace(info: dict) -> tuple[str, str]:
     """(vm_id, endpoint_url) of an assigned session; VmNotReady when none is assigned, SiteError when malformed."""
     if info.get("status") != ASSIGNED:
@@ -252,6 +290,8 @@ async def bootstrap(web: Web, settings, *, sleep: Callable[[float], Awaitable] =
                     clock: Callable[[], float] = time.monotonic) -> Boot:
     """Session (waking the workspace when it is not RUNNING), then the tunnel's tokens."""
     info = await read_session(web)
+    if has_no_vm(info):
+        info = await lease_workspace(web)
     vm, endpoint = workspace(info)
     if info.get("vm_state") != RUNNING:
         await wake(web, vm, settings, sleep, clock)

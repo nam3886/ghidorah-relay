@@ -17,16 +17,19 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from relay_core.providers import Balance, Health, Tier
+from relay_core.providers import Balance, Dead, Health, Tier
 from relay_muse.engine.link import Deps
 from relay_muse.engine.submit import signed_out_effects
 from relay_muse.engine.web import (
+    LeaseFailed,
     NetError,
     SignedOut,
     SiteError,
     Usage,
     VmNotReady,
     Web,
+    has_no_vm,
+    lease_workspace,
     read_session,
     read_usage,
     remember_action,
@@ -71,6 +74,13 @@ async def check_account(ctx, settings, *, deps: Deps | None = None,
                 info = await read_session(web)
             except SignedOut:
                 return Health("unknown", effects=signed_out_effects(now()))
+            if has_no_vm(info):
+                try:
+                    info = await lease_workspace(web)
+                except LeaseFailed as e:
+                    # not claimable until a later check leases the workspace (it is checked again at the dead
+                    # interval; an alive read then revives it)
+                    return Health("unknown", state_patch={"vm_state": "no_vm"}, effects=(Dead(str(e)),))
             try:
                 vm, _ = workspace(info)
             except (VmNotReady, SiteError):

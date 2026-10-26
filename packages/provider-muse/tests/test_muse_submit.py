@@ -12,6 +12,7 @@ from relay_core.providers import (
     Ambiguous,
     Completed,
     Cooldown,
+    Dead,
     Fail,
     NotTaken,
     ProxyBad,
@@ -27,6 +28,7 @@ from relay_muse.engine.web import NetError
 SUBMIT_FILE = "packages/provider-muse/src/relay_muse/engine/submit.py"
 WEB_FILE = "packages/provider-muse/src/relay_muse/engine/web.py"
 REPORT_REF = "            await self._core(lambda: self.ctx.report_ref(self.session, {\"session_id\": self.session}))\n"
+LEASE_CALL = "        info = await lease_workspace(web)\n    vm, endpoint = workspace(info)"
 TOKEN_CHECK = "    if not isinstance(token, str) or not token or not isinstance(notary, str) or not notary.strip():"
 
 
@@ -284,3 +286,29 @@ def test_an_approval_the_agent_asks_is_denied():
     (deny,) = [r for r in site.vms[0].requests if r.path.startswith("/approvals/")]
     assert (deny.service, deny.path) == (1, "/approvals/ap-7/decide")
     assert deny.json() == {"approval_id": "ap-7", "decision": "deny", "expected_message_revision": 2}, "deny"
+
+
+NO_VM = {"status": "unavailable"}
+LEASED = {"status": "assigned", "gatewayUrl": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
+SUBMIT_LEASE = "            return _result(Retry(errors.VM_NOT_READY), Dead(str(exc)))"
+
+
+@mutation(WEB_FILE, LEASE_CALL, "        pass\n    vm, endpoint = workspace(info)", expect="Completed")
+def test_a_job_on_a_new_account_leases_its_workspace_wakes_it_and_goes_on():
+    asleep = {**SESSION_OK, "vm_state": "SUSPENDED"}
+    site = Site({"GET /api/session": [(200, NO_VM, {}), (200, asleep, {}), (200, SESSION_OK, {})],
+                 "POST /api/hatch/lease-vm": (200, LEASED, {})}, vm_routes_=vm_routes([answered("job_j01.json")]))
+    result, _ = run(site)
+    assert isinstance(result.job, Completed), result
+    assert site.paths()[:4] == ["GET /api/session", "POST /api/hatch/lease-vm", "GET /api/session",
+                                "POST /api/hatch/vm/wake"], "lease-vm then wake: %s" % site.paths()
+
+
+@mutation(SUBMIT_FILE, SUBMIT_LEASE, "            return _result(Retry(errors.VM_NOT_READY))", expect="Dead")
+def test_a_job_whose_lease_fails_sends_nothing_and_leaves_the_account_dead_with_the_reason():
+    site = Site({"GET /api/session": (200, NO_VM, {}),
+                 "POST /api/hatch/lease-vm": (500, {"code": "server_error"}, {})})
+    result, ctx = run(site)
+    assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
+    assert [type(e) for e in result.account] == [Dead], "Dead"
+    assert result.account[0].reason == "muse answered 500 (server_error) to the workspace lease"
