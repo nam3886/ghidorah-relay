@@ -336,8 +336,12 @@ class _Session:
         self.site, self.proxies, self.cookies, self.closed = site, proxies, Cookies(), False
 
     async def _do(self, method, url, headers=None, data=None, timeout=None, allow_redirects=None):
-        assert url.startswith("https://muse.ai/") and allow_redirects is False
-        path = url[len("https://muse.ai"):]
+        assert allow_redirects is False
+        if url.startswith("https://api.ipify.org"):
+            path = "ipify"
+        else:
+            assert url.startswith("https://muse.ai/")
+            path = url[len("https://muse.ai"):]
         call = SimpleNamespace(method=method.upper(), path=path, headers=dict(headers or {}), data=data)
         self.site.calls.append(call)
         self.site.cookies_seen.append({c.name: c.value for c in self.cookies.jar})

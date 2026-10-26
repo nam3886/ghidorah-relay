@@ -1186,6 +1186,11 @@ Noise_XX tunnel to `hatch.metaaivm.com`. The check (every hour) reads the sessio
 one spaced strike and a rest with a recheck (three end the account as signed out); its identity is a hash of the
 workspace id.
 
+**Proxy probe.** An admin proxy edit (or Re-check proxy) probes the proxy through itself only: the exit address, then
+muse.ai's page with no cookie; a 5xx or no answer is a bad proxy. It is not a region verdict: muse serves its page
+everywhere but resolves an account's workspace only from the regions it serves (27/10: Berlin yes, Toronto no), which
+the account check reports as `unavailable` and rests.
+
 **Usage and pools.** muse has one weekly meter (a whole percentage, reset at a time it names per account). The pools
 `image` (400 a week) and `video` (40 a week) count outputs, each in a 168 h window placed by that reset; the check
 reports what is left of both in proportion to the unused share, and none at `muse.usage_stop_percent` or when muse

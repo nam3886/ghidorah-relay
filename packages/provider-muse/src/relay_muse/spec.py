@@ -227,7 +227,7 @@ class MuseSpec:
     caps = Caps(
         execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
-        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
+        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=True,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
     limits = LIMITS + (
         FixedLimit("relay_muse.credential.MAX_COOKIES", MAX_COOKIES,

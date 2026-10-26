@@ -292,3 +292,27 @@ def test_a_workspace_unavailable_from_here_is_a_rest_never_a_lease():
                           "be served"
     bare, _ = run(site(**{"GET /api/session": (200, {"status": "unavailable"}, {})}), unavailable_rest_s=600)
     assert "no reason given" in bare.effects[0].reason and (bare.effects[0].until - NOW).total_seconds() == 600
+
+
+PROBE_BAD = "    if page.status_code >= 500:"
+
+
+@mutation(WEB_FILE, PROBE_BAD, "    if False:", expect="a 5xx is a bad proxy")
+def test_the_proxy_probe_reads_the_exit_and_muse_through_the_proxy_only():
+    from relay_core.providers import Proxy
+    from relay_muse.engine.web import probe_proxy
+    s = Site({"GET ipify": (200, "203.0.113.7\n", {}), "GET /": (200, "<html>", {})})
+    verdict = asyncio.run(probe_proxy(Proxy("10.0.0.9", 3128, "user:pw"), make_session=s.session))
+    assert verdict.ok and verdict.reason.startswith("usable (exit 203.0.113.7, ")
+    assert s.made == [{"http": "http://user:pw@10.0.0.9:3128", "https": "http://user:pw@10.0.0.9:3128"}]
+    assert [c.path for c in s.calls] == ["ipify", "/"], "no cookie, no other call"
+    bad = Site({"GET ipify": (200, "203.0.113.7", {}), "GET /": (502, "bad gateway", {})})
+    verdict = asyncio.run(probe_proxy(Proxy("10.0.0.9", 3128, "user:pw"), make_session=bad.session))
+    assert not verdict.ok, "a 5xx is a bad proxy"
+    assert verdict.reason == "muse.ai answered 502 through this proxy (exit 203.0.113.7)"
+    down = Site({"GET ipify": OSError("x"), "GET /": OSError("connect to http://user:pw@10.0.0.9:3128 failed")})
+    verdict = asyncio.run(probe_proxy(Proxy("10.0.0.9", 3128, "user:pw"), make_session=down.session))
+    assert not verdict.ok and verdict.reason == "the proxy could not reach muse.ai (OSError)"
+    from relay_muse.engine import build_engine
+    from relay_muse.spec import SPEC
+    assert SPEC.caps.has_probe_proxy and hasattr(build_engine(SPEC, settings()), "probe_proxy")

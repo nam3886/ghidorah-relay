@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from typing import Any, NamedTuple
 from urllib.parse import quote, urlencode, urlsplit
 
-from relay_core.providers import Cooldown, Dead, Proxy, epoch_time
+from relay_core.providers import Cooldown, Dead, Proxy, ProxyVerdict, epoch_time
 from relay_muse.constants import (
     APP_ID,
     ASSIGNED,
@@ -221,6 +221,42 @@ async def keep_rotated(ctx, web: Web) -> bool:
         log.warning("muse account %s: rotated cookies not written back (%s)",
                     getattr(getattr(ctx, "account", None), "id", "?"), type(e).__name__)
         return False
+
+
+# ---- the proxy probe ----------------------------------------------------------------------------------------------
+EXIT_IP_URL = "https://api.ipify.org"
+
+
+async def probe_proxy(proxy: Proxy, timeout: float = 30, *,
+                      make_session: Callable[[dict[str, str] | None], Any] = real_session,
+                      clock: Callable[[], float] = time.monotonic) -> ProxyVerdict:
+    """Can this proxy reach muse.ai? Through the proxy only (never direct): the exit address, then muse.ai's page, no
+    cookie, nothing spent. A 5xx or no answer is a bad proxy. Not a region verdict: muse serves the page everywhere,
+    but resolves an account's workspace only from the regions it serves (27/10: Berlin yes, Toronto no); the account
+    check says that (`unavailable`). The verdict's reason names the exit and the latency, never the login."""
+    url = proxy_url(proxy)
+    session = make_session({"http": url, "https": url})
+    try:
+        try:
+            ip = await session.get(EXIT_IP_URL, timeout=timeout, allow_redirects=False)
+            exit_ip = ip.text.strip()[:45] if ip.status_code == 200 else ""
+        except Exception:      # noqa: BLE001 - the address is a bonus; muse's answer decides
+            exit_ip = ""
+        start = clock()
+        page = await session.get(SITE_URL + "/", headers={"Accept": "text/html"}, timeout=timeout,
+                                 allow_redirects=False)
+        took = round((clock() - start) * 1000)
+    except Exception as e:
+        return ProxyVerdict(False, "the proxy could not reach muse.ai (%s)" % type(e).__name__)
+    finally:
+        try:
+            await session.close()
+        except Exception:      # noqa: BLE001
+            pass
+    if page.status_code >= 500:
+        return ProxyVerdict(False, "muse.ai answered %d through this proxy (exit %s)" % (
+            page.status_code, exit_ip or "unknown"))
+    return ProxyVerdict(True, "usable (exit %s, %d ms)" % (exit_ip or "unknown", took))
 
 
 # ---- bootstrap ----------------------------------------------------------------------------------------------------

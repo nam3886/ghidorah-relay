@@ -5,6 +5,7 @@ Each method is a thin delegate to the module that owns the behaviour; the settin
 from relay_muse.engine import check as _check
 from relay_muse.engine import results as _results
 from relay_muse.engine import submit as _submit
+from relay_muse.engine import web as _web
 
 
 class MuseEngine:
@@ -25,6 +26,9 @@ class MuseEngine:
 
     async def check_account(self, ctx):
         return await _check.check_account(ctx, self.settings)
+
+    async def probe_proxy(self, proxy):
+        return await _web.probe_proxy(proxy, self.settings.get("muse.http_timeout_s"))
 
     async def run_command(self, ctx, kind, args):
         raise ValueError("muse runs no command of kind %r" % kind)
