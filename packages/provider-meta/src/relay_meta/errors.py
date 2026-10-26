@@ -33,9 +33,13 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     _ui(UI_PAGE_NOT_READY, "meta's page showed no sign-in sign or no ready composer"),
     _ui(UI_SEND_FAILED, "the prompt could not be sent on meta's page"),
     Rule(NO_IMAGE, 422, "invalid_request_error", True, True, False, True, True,
-         "meta made no image for this order; the charge is returned"),
+         "meta made no image for this order; the charge is returned",
+         public_text="meta made no image for this request. Sending the request again may work; if it keeps "
+                     "failing, change the prompt."),
     Rule(NO_VIDEO, 422, "invalid_request_error", True, True, False, True, True,
-         "meta made no video for this order; the charge is returned"),
+         "meta made no video for this order; the charge is returned",
+         public_text="meta made no video for this request. Sending the request again may work; if it keeps "
+                     "failing, change the prompt."),
 )}
 
 # A module loaded twice (a test reloading it) keeps its first registration.

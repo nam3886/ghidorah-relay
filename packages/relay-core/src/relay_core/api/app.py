@@ -13,7 +13,7 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from psycopg_pool import AsyncConnectionPool
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -34,6 +34,7 @@ from relay_core.admin import (
 )
 from relay_core.admin.router import AdminGuard, AdminHeaders, build_admin_router
 from relay_core.api import errors_http, routes_catalog, routes_gemini, routes_media, routes_native, routes_openai
+from relay_core.api.doors import public_base
 from relay_core.api.openapi_docs import public_schema
 from relay_core.api.request_log import RequestLogMiddleware
 from relay_core.providers import ProviderRegistry
@@ -89,11 +90,12 @@ def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectSt
     schema: dict | None = None      # built on the first request: the routes never change after startup
 
     @health.get(SCHEMA_URL, include_in_schema=False)
-    async def openapi_json() -> dict:
+    async def openapi_json(request: Request) -> dict:
         nonlocal schema
         if schema is None:
             schema = public_schema(app)
-        return schema
+        # the address is a setting, read on each request: `public_address`, else the address this request came to
+        return {**schema, "servers": [{"url": public_base(request)}]}
 
     app.include_router(health)
     app.include_router(pages.router)

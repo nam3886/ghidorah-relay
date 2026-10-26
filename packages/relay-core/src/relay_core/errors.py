@@ -33,7 +33,9 @@ class Rule:
     sees `internal.unexpected` with `hidden_message`, because the detail is ours to fix and not theirs to act on.
     `free_retries`: a requeue for this code uses no attempt until the job has been requeued for codes of this kind
     that many times (`jobs.fault_retries`, never reset); the requeue after that uses one, so `max_attempts` ends a job
-    that keeps meeting the fault."""
+    that keeps meeting the fault. `public_text`: for a public code a job can end with (`ends_job`), the sentence the
+    API reference shows a customer: what happened and whether sending the request again can help, with no internal
+    word (account, proxy, cookie...)."""
 
     code: str
     http_status: int
@@ -46,6 +48,13 @@ class Rule:
     message: str
     hidden_message: str = ""
     free_retries: int = 0
+    public_text: str = ""
+
+
+def ends_job(r: Rule) -> bool:
+    """A code a job can end `failed` with: one that ends it now, or one that uses an attempt (at once, or after its
+    free retries) so the last attempt ends it. Every failed job is refunded (`jobs.fail.fail_in_tx`)."""
+    return r.job_scoped and (r.terminal or r.counts_attempt or r.free_retries > 0)
 
 
 def _problems(key: str, r: Rule) -> list[str]:
@@ -88,8 +97,8 @@ def violations(rules: Mapping[str, Rule]) -> list[str]:
 
 
 def _r(code: str, status: int, kind: str, *, message: str, terminal: bool = False, refund: bool = False,
-       counts: bool = False, scoped: bool = True) -> Rule:
-    return Rule(code, status, kind, refund, terminal, counts, True, scoped, message)
+       counts: bool = False, scoped: bool = True, text: str = "") -> Rule:
+    return Rule(code, status, kind, refund, terminal, counts, True, scoped, message, public_text=text)
 
 
 _BAD = "invalid_request_error"
@@ -156,28 +165,44 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     _r("pool.proxy_failed", 503, _API, message="the account's proxy failed"),
 
     _r("account.dead_session", 502, _API, message="the account session died before the result arrived",
-       **_paid_dead),
+       **_paid_dead,
+       text="The render was lost before its result arrived. Sending the request again may work."),
     _r("account.wrong_conversation", 502, _API, message="the upstream conversation does not match this job",
-       **_paid_dead),
-    _r("account.prompt_mismatch", 502, _API, message="the upstream order does not match this job", **_paid_dead),
+       **_paid_dead,
+       text="The provider's answer did not match this job, so it was not delivered. Sending the request again may "
+            "work."),
+    _r("account.prompt_mismatch", 502, _API, message="the upstream order does not match this job", **_paid_dead,
+       text="The provider's order did not match this job, so it was not delivered. Sending the request again may "
+            "work."),
 
-    _r("render.deadline", 504, _API, message="the result did not arrive before the deadline", **_paid_dead),
-    _r("render.download_failed", 502, _API, message="the result could not be downloaded", refund=True, counts=True),
-    _r("render.file_unreadable", 502, _API, message="the result file is unreadable", **_paid_dead),
-    _r("render.watermarked_only", 502, _API, message="only a watermarked result was delivered", **_paid_dead),
+    _r("render.deadline", 504, _API, message="the result did not arrive before the deadline", **_paid_dead,
+       text="The result did not arrive in time. Sending the request again may work."),
+    _r("render.download_failed", 502, _API, message="the result could not be downloaded", refund=True, counts=True,
+       text="The result could not be downloaded after several tries. Sending the request again may work."),
+    _r("render.file_unreadable", 502, _API, message="the result file is unreadable", **_paid_dead,
+       text="The result file could not be read. Sending the request again may work."),
+    _r("render.watermarked_only", 502, _API, message="only a watermarked result was delivered", **_paid_dead,
+       text="Only a watermarked result was made, so none was delivered. Sending the request again may work."),
 
     _r("render.unclear_send", 502, _API,
        message="the provider's answer to the order was unclear and cannot be checked, so the job ended",
-       **_paid_dead),
+       **_paid_dead,
+       text="The provider's answer to the order was unclear and could not be checked, so the job ended rather than "
+            "risk a second order. Sending the request again may work."),
 
     # A pinned job (it works on an earlier job's output) runs only on the account that made that output: when that
     # account can no longer run it, the job ends at once with its refund instead of waiting.
     _r("source.account_unavailable", 409, _BAD,
-       message="the account that made the source job is no longer available", **_paid_dead),
+       message="the account that made the source job is no longer available", **_paid_dead,
+       text="The source job's result can no longer be worked on. Sending the request again with this source job will "
+            "not help."),
     _r("source.account_exhausted", 429, "rate_limit_error",
-       message="the account that made the source job has no quota left for now", **_paid_dead),
+       message="the account that made the source job has no quota left for now", **_paid_dead,
+       text="The capacity that can work on the source job is used up for now. Sending the request again later may "
+            "work."),
 
-    _r("queue.never_started", 503, _API, message="the job never started", **_paid_dead),
+    _r("queue.never_started", 503, _API, message="the job never started", **_paid_dead,
+       text="The job could not start in time. Sending the request again later may work."),
     _r("job.not_submitted", 409, _BAD, message="the job was never sent upstream, so there is nothing to re-check",
        **_pre),
     _r("job.busy", 409, _BAD, message="the job is being checked right now", **_pre),
@@ -188,7 +213,8 @@ RULES: dict[str, Rule] = {r.code: r for r in (
          job_scoped=False, message="the prompt frame for this model is missing or unusable",
          hidden_message="an internal error occurred"),
     # The net, not a destination: an unclassified failure is treated as transient, then given up on and refunded.
-    _r(INTERNAL, 500, _API, message="an internal error occurred", refund=True, counts=True),
+    _r(INTERNAL, 500, _API, message="an internal error occurred", refund=True, counts=True,
+       text="An error on our side ended the job. Sending the request again may work."),
 )}
 
 

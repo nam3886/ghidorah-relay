@@ -53,7 +53,7 @@ class JobStatus(BaseModel):
     error: str | None = Field(
         description="Message of a failed job, a fixed text per error code and never provider text; null otherwise.")
     error_code: str | None = Field(
-        description="Code of a failed job (the error codes document lists them); null otherwise.")
+        description="Code of a failed job; null otherwise.")
     refunded: bool = Field(description="True when the charge of a failed job was given back.")
     points: int = Field(
         description="Points the job's charge took; on a refunded job, the amount that was refunded. The net charge is "

@@ -2,6 +2,7 @@
 
 import ast
 import importlib
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -307,3 +308,29 @@ def test_free_retries_belong_to_a_requeued_job_scoped_code_that_uses_no_attempt_
                 free_retries=1), dict(refund=False, terminal=False, free_retries=-1)):
         rule = good(**{"refund": False, "terminal": False, **bad})
         assert broken(rule), "a free-retry rule that makes no sense was accepted: %r" % (bad,)
+
+
+# what a customer reads about a failed job (`public_text`, shown in the API reference): no internal word
+INTERNAL_WORDS = re.compile(r"\baccount|\bpool\b|\bworker\b|\bproxy|cookie|captcha|\bbrowser\b|\bsession\b|"
+                            r"upstream|solver|\blane\b|\bD\d{1,3}\b", re.IGNORECASE)
+
+
+@mutation("packages/provider-dola/src/relay_dola/errors.py", "message, public_text=_TRANSIENT_TEXT)", "message)",
+          expect="has no public sentence")
+@mutation(ERRORS, "    return r.job_scoped and (r.terminal or r.counts_attempt or r.free_retries > 0)\n",
+          "    return r.job_scoped and (r.terminal or r.counts_attempt)\n", expect="flow.tier_required ends a job")
+def test_every_public_code_a_job_can_end_with_has_a_customer_sentence_that_says_whether_sending_again_helps():
+    """A new job-ending code without `public_text` fails here, whatever provider registers it."""
+    assert PROVIDER_SPECS, "no provider spec was found to import"
+    ending = {c for c, r in RULES.items() if r.public and errors.ends_job(r)}
+    assert {"render.deadline", "internal.unexpected"} <= ending
+    assert {"flow.tier_required", "qwen.waf_refused"} <= ending, \
+        "flow.tier_required ends a job (after its free retries)"
+    assert not {c for c in ending if c.startswith("pool.")} and "meta.checkpoint" not in ending, \
+        "a code that only requeues never ends a job"
+    for code in sorted(ending):
+        text = RULES[code].public_text
+        assert text, "%s has no public sentence (Rule.public_text)" % code
+        assert text.isascii() and text.endswith("."), "%s: one plain English sentence: %r" % (code, text)
+        assert "again" in text, "%s: say whether sending again can help: %r" % (code, text)
+        assert not INTERNAL_WORDS.search(text), "%s leaks an internal word: %r" % (code, text)

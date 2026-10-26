@@ -1,8 +1,10 @@
 """The public OpenAPI schema: valid, public routes only, the hand-parsed bodies and the error
 envelope declared."""
 
+import importlib
 import json
 import re
+from pathlib import Path
 
 import pytest
 from apikit import run_app
@@ -10,9 +12,15 @@ from doorkit import IMAGE, VIDEO, finish_failed
 from fastapi.openapi.models import OpenAPI
 from test_status_progress import NEW_KEYS, plant, samples
 
-from relay_core.api import doors, progress
+from relay_core import errors
+from relay_core.api import doors, openapi_docs, progress
 from relay_core.api.schemas import JobCreated, JobStatus
 from relay_core.testing.mutation import mutation
+
+# as `relay serve` runs: every provider's codes are registered before the schema is built
+_REPO = Path(__file__).resolve().parents[4]
+for _spec in sorted(_REPO.glob("packages/provider-*/src/relay_*/spec.py")):
+    importlib.import_module(_spec.parent.name + ".spec")
 
 DOCS = "packages/relay-core/src/relay_core/api/openapi_docs.py"
 SCHEMAS = "packages/relay-core/src/relay_core/api/schemas.py"
@@ -151,7 +159,8 @@ def test_the_public_schema_is_built_once_per_app_and_served_from_the_copy(db, mo
 
 # internal labels and code notes that must never reach a client's reading
 INTERNAL = re.compile(r"\bD\d{1,3}\b|contracts|\blane\b|\bphase\b|TODO|FIXME|XXX|ponytail|\[P9\]|"
-                      r"\bpool\b|\bworker\b|\baccount\b", re.IGNORECASE)
+                      r"\bpool\b|\bworker\b|\baccount|\bproxy|cookie|captcha|\bbrowser\b|\bsession\b|upstream|solver",
+                      re.IGNORECASE)
 
 
 def strings(node):
@@ -171,6 +180,8 @@ def strings(node):
           expect="an internal note in the public schema")
 @mutation(SCHEMAS, "your place in the line while queued", "your place in the worker pool while queued",
           expect="an internal note in the public schema")
+@mutation("packages/relay-core/src/relay_core/errors.py", 'text="The render was lost before its result arrived.',
+          'text="The account was lost before its result arrived.', expect="an internal note in the public schema")
 def test_the_public_schema_text_is_english_and_carries_no_internal_note(db):
     async def scenario(env):
         return await fetch(env)
@@ -178,7 +189,8 @@ def test_the_public_schema_text_is_english_and_carries_no_internal_note(db):
     texts = list(strings(run_app(db, scenario)))
     assert texts
     for text in texts:
-        assert not INTERNAL.search(text), "an internal note in the public schema: %r" % text[:200]
+        prose = re.sub(r"`[a-z0-9_]+\.[a-z0-9_]+`", "", text)      # a code's name is fixed: only the prose counts
+        assert not INTERNAL.search(prose), "an internal note in the public schema: %r" % text[:200]
         assert text.isascii() or not re.search(r"[\u00c0-\u1ef9]", text), "not English: %r" % text[:200]
 
 
@@ -414,3 +426,114 @@ def test_the_job_routes_have_no_response_model(db):
                 method, path, schema)
 
     run_app(db, scenario)
+
+
+# ---- the reference: failure codes, servers, operationIds, version, limits, headers ----------------------------------
+APP_SCHEMA_LINE = '        return {**schema, "servers": [{"url": public_base(request)}]}\n'
+
+
+@mutation(DOCS, "if r.public and errors.ends_job(r)), key=", "if r.public), key=", expect="never ends a job")
+@mutation(DOCS, '    error_code["description"] += ', '    error_code["descriptionX"] = ', expect="is listed")
+def test_the_status_lists_every_code_a_job_can_end_with_from_the_registry(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    text = run_app(db, scenario)["components"]["schemas"]["JobStatus"]["properties"]["error_code"]["description"]
+    listed = {c for c in re.findall(r"^- `([a-z0-9_]+\.[a-z0-9_]+)`: ", text, re.MULTILINE)}
+    ending = {c for c, r in errors.RULES.items() if r.public and errors.ends_job(r)}
+    for code in sorted(ending):
+        assert "- `%s`: %s Points refunded." % (code, errors.RULES[code].public_text) in text, "%s is listed" % code
+    assert listed == ending, "a code that never ends a job is listed: %s" % sorted(listed - ending)
+    assert {"dola.content_refused", "vibes.source_missing", "flow.tier_required"} <= ending, "provider codes"
+    assert not [c for c, r in errors.RULES.items() if not r.public and "`%s`" % c in text], "a hidden code is listed"
+
+
+@mutation(APP, APP_SCHEMA_LINE, "        return schema\n", expect="servers")
+def test_the_server_address_is_the_public_address_setting_else_the_request_base(db):
+    async def scenario(env):
+        first = await fetch(env)
+        assert first.get("servers") == [{"url": "http://relay.test"}], "servers: %s" % first.get("servers")
+        await env.settings.set("public_address", "https://api.example.com")
+        second = await fetch(env)
+        assert second["servers"] == [{"url": "https://api.example.com"}], "servers follow the setting"
+        assert {k: v for k, v in second.items() if k != "servers"} == {
+            k: v for k, v in first.items() if k != "servers"}
+
+    run_app(db, scenario)
+
+
+@mutation(DOCS, '    return _camel(names[(method, path)]) + ("Short" if path.startswith("/models") else "")',
+          '    return _camel(names[(method, path)])', expect="operationIds are unique")
+@mutation(DOCS, '    return head + "".join(w[:1].upper() + w[1:] for w in rest)', '    return name',
+          expect="camelCase")
+def test_every_operation_has_a_unique_camel_case_operation_id_named_after_its_route(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    schema = run_app(db, scenario)
+    ids = [(op.get("operationId"), method, path) for path, ops in schema["paths"].items()
+           for method, op in ops.items()]
+    assert all(i for i, _, _ in ids), "every operation has an operationId: %s" % [x for x in ids if not x[0]]
+    names = [i for i, _, _ in ids]
+    assert len(names) == len(set(names)), "operationIds are unique: %s" % sorted(n for n in names if names.count(n) > 1)
+    for name, method, path in ids:
+        assert re.fullmatch(r"[a-z][a-zA-Z0-9]*", name), "camelCase: %s (%s %s)" % (name, method, path)
+    paths = schema["paths"]
+    assert paths["/v1beta/models/{model}:generateContent"]["post"]["operationId"] == "generateContent"
+    assert paths["/models/{model}:generateContent"]["post"]["operationId"] == "generateContentShort"
+    assert paths["/v1/video/generations"]["post"]["operationId"] == "createVideo"
+    for path, ops in paths.items():
+        if path.startswith("/models"):
+            for method, op in ops.items():
+                assert "Identical to %s /v1beta%s." % (method.upper(), path) in op["description"], path
+
+
+@mutation(DOCS, "    schema[\"info\"].update(title=API_TITLE, version=API_VERSION, description=INTRO)\n",
+          "    schema[\"info\"].update(description=INTRO)\n", expect="title and version")
+def test_the_title_version_changes_and_limits_are_documented(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    schema = run_app(db, scenario)
+    info = schema["info"]
+    assert (info["title"], info["version"]) == ("Ghidorah Relay API", openapi_docs.API_VERSION), "title and version"
+    assert "## Changes" in info["description"] and "2026-10-26" in info["description"]
+    for word in ("## Limits", "`quota.too_many_queued`", "`quota.key_exceeded`", "max_unfinished_jobs",
+                 "Retry-After", "x-should-retry"):
+        assert word in info["description"], word
+    for code in ("quota.too_many_queued", "quota.key_exceeded"):
+        assert errors.http_status(code) == 429, code
+    created = schema["paths"]["/v1/video/generations"]["post"]["responses"]["429"]["description"]
+    assert "quota.too_many_queued" in created and "Retry-After" in created
+
+
+MEDIA = ("/m/{token}", "/v1/video/generations/{job_id}/content", "/v1/video/generations/{job_id}/content/{idx}",
+         "/v1/images/generations/{job_id}/content/{idx}")
+
+
+@mutation(DOCS, '                op["responses"].update(copy.deepcopy(_MEDIA_RESPONSES))\n',
+          "                pass\n", expect="file headers")
+@mutation(DOCS, "            headers = copy.deepcopy(_NO_RETRY) if is_facade_path(path) else None\n",
+          "            headers = None\n", expect="x-should-retry on the chat errors")
+def test_the_downloads_and_the_facade_errors_document_the_headers_they_send(db):
+    async def scenario(env):
+        schema = await fetch(env)
+        key = await env.new_key()
+        live = await env.client.post("/v1/chat/completions", json={"model": "nope", "messages": []},
+                                     headers=key.headers)
+        assert live.status_code == 400 and live.headers.get("x-should-retry") == "false", live.headers
+        return schema
+
+    schema = run_app(db, scenario)
+    for path in MEDIA:
+        op = schema["paths"][path]["get"]
+        answers = op["responses"]
+        assert {"Content-Type", "Content-Length", "Accept-Ranges"} <= set(answers["200"].get("headers", {})), \
+            "file headers: %s" % path
+        assert "Content-Range" in answers["206"]["headers"] and "Content-Range" in answers["416"]["headers"], path
+        assert any(p["name"] == "Range" and p["in"] == "header" for p in op["parameters"]), path
+    chat = schema["paths"]["/v1/chat/completions"]["post"]["responses"]
+    assert chat["400"].get("headers", {}).get("x-should-retry"), "x-should-retry on the chat errors"
+    assert "text/event-stream" in chat["200"]["content"]
+    assert "headers" not in schema["paths"]["/v1/video/generations"]["post"]["responses"]["400"], \
+        "the native routes send no x-should-retry"

@@ -55,14 +55,17 @@ WARN_DURATION_CAPPED = "dola.duration_capped"   # 2.0 / 1.0 at their longest len
 _HIDDEN = "the request could not be submitted to dola"
 
 
-def _refusal(code: str, message: str) -> Rule:
+def _refusal(code: str, message: str, text: str) -> Rule:
     """dola said no for good: the job dies now and the charge is returned (sending again only burns credit)."""
-    return Rule(code, 422, "invalid_request_error", True, True, False, True, True, message)
+    return Rule(code, 422, "invalid_request_error", True, True, False, True, True, message, public_text=text)
+
+
+_TRANSIENT_TEXT = "dola kept answering with errors and nothing was made. Sending the request again later may work."
 
 
 def _transient(code: str, message: str) -> Rule:
     """A failure that may pass: one attempt is used, and the job fails (refunded) when they run out."""
-    return Rule(code, 502, "api_error", True, False, True, True, True, message)
+    return Rule(code, 502, "api_error", True, False, True, True, True, message, public_text=_TRANSIENT_TEXT)
 
 
 def _ui_retry(code: str, message: str) -> Rule:
@@ -79,20 +82,34 @@ def _ui(code: str, message: str) -> Rule:
 
 
 CODES: dict[str, Rule] = {r.code: r for r in (
-    _refusal(CONTENT_REFUSED, "dola refused to make this (copyright, safety or content rules); the charge is returned"),
+    _refusal(CONTENT_REFUSED, "dola refused to make this (copyright, safety or content rules); the charge is returned",
+             "dola refused to make this (copyright, safety or content rules). Sending the same request again will "
+             "not help; change the prompt or the images."),
     _refusal(REFUSED_710022002, "dola refused to take this order (its code 710022002, which it gives for prompts it "
-                                "will not make); nothing was made and the charge is returned"),
+                                "will not make); nothing was made and the charge is returned",
+             "dola would not take this prompt. Sending the same prompt again will not help; change it."),
     _refusal(REFUSED_ON_ACCOUNTS, "dola would not take this order on the most accounts a job may try (it was "
-                                  "throttled); nothing was made and the charge is returned"),
-    _refusal(LIKENESS_REFUSED,"dola refused: with a photo of a person it only makes videos of the account owner"),
-    _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered"),
-    _refusal(NO_VIDEO, "dola made no video for this order"),
-    _refusal(NO_IMAGE, "dola made no image for this order"),
+                                  "throttled); nothing was made and the charge is returned",
+             "dola would not take the order for now and nothing was made. Sending the request again later may "
+             "work."),
+    _refusal(LIKENESS_REFUSED, "dola refused: with a photo of a person it only makes videos of the account owner",
+             "dola does not make a video from a photo of a real person. Sending the request again with the same "
+             "image will not help."),
+    _refusal(NEEDS_CONFIRM, "dola asked a question instead of taking the order, and never delivered",
+             "dola asked a question instead of making the result. Sending the request again with a clearer, more "
+             "direct prompt may work."),
+    _refusal(NO_VIDEO, "dola made no video for this order",
+             "dola made no video for this request. Sending the request again may work; if it keeps failing, change "
+             "the prompt."),
+    _refusal(NO_IMAGE, "dola made no image for this order",
+             "dola made no image for this request. Sending the request again may work; if it keeps failing, change "
+             "the prompt."),
     # The render-deadline cause of a job whose last word from dola is "something went wrong" (spec.deadline_cause):
     # the reply keeps the job waiting for the poll (Codex 25/10), and an empty conversation ends it with this.
     # A deadline cause ends the job with its refund and uses no attempt (as every deadline cause).
     Rule(TEMPORARY_ERROR, 502, "api_error", True, True, False, True, True,
-         "dola reported a temporary error when it took the order, and never delivered; the charge is returned"),
+         "dola reported a temporary error when it took the order, and never delivered; the charge is returned",
+         public_text="dola reported a temporary error and made nothing. Sending the request again may work."),
     _transient(UNKNOWN_STATUS, "dola answered with a status that is not understood"),
     _transient(HTTP_ERROR, "dola answered with an HTTP error"),
     _transient(BAD_RESPONSE, "dola answered with something that is not readable"),

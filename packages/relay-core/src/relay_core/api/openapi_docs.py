@@ -13,9 +13,11 @@ import copy
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.routing import iter_route_contexts
 from pydantic import BaseModel
 
 from relay_core import errors
+from relay_core.api.errors_http import is_facade_path
 from relay_core.api.routes_gemini import GenerateBody
 from relay_core.api.routes_native import ImageBody, VideoBody
 from relay_core.api.routes_openai import ChatBody
@@ -178,12 +180,34 @@ own cost, at least 1 point). A job that delivers any output is `done` and keeps 
 nothing is `failed` and its charge is given back: its status shows `refunded: true`. `GET /v1/points` shows the key's
 limits and spend.
 
+## Limits
+Two limits apply to a key; both refuse a create call with 429 and charge nothing.
+- **Unfinished jobs**: a key holds at most `max_unfinished_jobs` jobs that are not yet `done` or `failed`
+  (`GET /v1/points` shows it beside `unfinished_jobs`; null is no cap). One more is refused `quota.too_many_queued`.
+  Send it again once one of your jobs ends.
+- **Points**: the key's points have a day limit and a total limit, and each provider can have its own cap on top
+  (`points` and `providers` in `GET /v1/points`; null is unlimited, 0 is closed). A job whose price does not fit is
+  refused `quota.key_exceeded`. The day limit starts again each day; the total limit does not.
+
+There is no per-second request limit, and no `Retry-After` or rate-limit header: read `GET /v1/points` to see what is
+left.
+
 ## Errors
 Every error has the body `{"error": {"code", "message", "type", "param"}}`; the Gemini routes use the Gemini error
 body, with the code in `details[0].reason`. Act on `code`; `message` is fixed text for a person. Each operation lists
 the codes it can refuse a request with, by HTTP status; nothing is charged on any of them. A failed job's code is its
-`error_code`.
+`error_code`; its description in the job status lists every code a job can end with. On `/v1/chat/completions` and
+the Gemini routes an error answer carries `x-should-retry: false`, so an SDK does not send the request (and make a job)
+a second time.
+
+## Changes
+- **2026-10-26**: `source_job_id` and `source_index` work on an earlier job's output; the job status lists every code
+  a job can end with; the reference documents the limits, the response headers of the file downloads, the server
+  address and an operationId per call.
 """
+
+API_TITLE = "Ghidorah Relay API"
+API_VERSION = "2026.10.26"      # bumped by hand with each entry of ## Changes above
 
 # Request-time refusals, by operation. The HTTP status of each code is its rule's (`relay_core.errors`).
 _KEY = ("auth.invalid_key", "auth.key_disabled")
@@ -241,7 +265,8 @@ for _pre in ("/v1beta", ""):
 _WEBHOOK = {"post": {
     "summary": "Job ended", "tags": ["Native"],
     "description": "Sent to the job's callback_url when it reaches done or failed. Not signed: read the job with your "
-                   "key before acting on it. Answer 2xx; a repeat keeps the same event_id.",
+                   "key before acting on it; for job.failed its error_code says why (listed under the job status). "
+                   "Answer 2xx; a repeat keeps the same event_id.",
     "parameters": [
         {"name": "X-Relay-Event", "in": "header", "required": True, "schema": {"type": "string"},
          "description": "job.done or job.failed, as event in the body."},
@@ -258,14 +283,77 @@ _WEBHOOK = {"post": {
     "responses": {"200": {"description": "Any 2xx answer counts as delivered."}}}}
 
 
-def _error_responses(codes: tuple[str, ...], ref: str) -> dict:
+# The file downloads (`routes_media.respond`): whole, or one byte range.
+_MEDIA_PATHS = {"/m/{token}", "/v1/video/generations/{job_id}/content",
+                "/v1/video/generations/{job_id}/content/{idx}", "/v1/images/generations/{job_id}/content/{idx}"}
+_RANGE_PARAM = {"name": "Range", "in": "header", "required": False, "schema": {"type": "string"},
+                "example": "bytes=0-1048575",
+                "description": "One byte range, such as bytes=0-1048575 or bytes=-500. Several ranges, or one that "
+                               "cannot be read, get the whole file."}
+
+
+def _header(text: str, example: str | None = None) -> dict:
+    return {"description": text, "schema": {"type": "string", **({"example": example} if example else {})}}
+
+
+_FILE_HEADERS = {
+    "Content-Type": _header("The file's own type, such as video/mp4 or image/png.", "video/mp4"),
+    "Content-Length": _header("Bytes in this answer.", "1048576"),
+    "Accept-Ranges": _header("Always bytes: a Range request is honoured.", "bytes"),
+    "Content-Disposition": _header("inline, with the file's download name."),
+    "Cache-Control": _header("public, max-age=86400 for a job's output by share link; private, no-cache otherwise."),
+    "X-Content-Type-Options": _header("Always nosniff.", "nosniff"),
+}
+_FILE = {"*/*": {"schema": {"type": "string", "format": "binary"}}}
+_MEDIA_RESPONSES = {
+    "200": {"description": "The whole file.", "headers": _FILE_HEADERS, "content": _FILE},
+    "206": {"description": "Partial content: the one byte range asked for in Range.", "content": _FILE, "headers": {
+        **_FILE_HEADERS, "Content-Range": _header("The range sent and the file's size.", "bytes 0-1048575/7340032")}},
+    "416": {"description": "The range starts past the end of the file. No body.", "headers": {
+        "Content-Range": _header("bytes */ and the file's size.", "bytes */7340032")}},
+}
+# The facade routes (OpenAI, Gemini): an error answer tells the SDK not to send again (`errors_http.NO_RETRY`).
+_NO_RETRY = {"x-should-retry": _header("Always false: an SDK must not send the request again by itself.", "false")}
+_SSE = {"text/event-stream": {"schema": {"type": "string"}}}
+_STREAM_NOTE = " A streamed answer is text/event-stream with Cache-Control: no-cache."
+
+# operationId: the route function's name in camelCase. A function on two paths gets one name per path: the Gemini
+# short paths (`/models/...`) end in Short, the video's first file has its own.
+_OPERATION_IDS = {("get", "/v1/video/generations/{job_id}/content"): "videoFirstContent"}
+
+
+def _camel(name: str) -> str:
+    head, *rest = name.split("_")
+    return head + "".join(w[:1].upper() + w[1:] for w in rest)
+
+
+def _operation_id(names: dict[tuple[str, str], str], method: str, path: str) -> str:
+    if (method, path) in _OPERATION_IDS:
+        return _OPERATION_IDS[(method, path)]
+    return _camel(names[(method, path)]) + ("Short" if path.startswith("/models") else "")
+
+
+def _failure_codes() -> str:
+    """The codes a job can end with, read from the registry when the schema is built (core and every provider loaded
+    by then), each with its customer sentence. A hidden code is shown as `internal.unexpected`, which is listed."""
+    rules = sorted((r for r in errors.RULES.values() if r.public and errors.ends_job(r)), key=lambda r: r.code)
+    return "\n".join("- `%s`: %s Points refunded." % (r.code, r.public_text) for r in rules)
+
+
+def _error_responses(codes: tuple[str, ...], ref: str, headers: dict | None = None) -> dict:
     """`{status: response}` naming each code under its rule's HTTP status, in the order given."""
     by_status: dict[str, list[str]] = {}
     for code in codes:
         by_status.setdefault(str(errors.http_status(code)), []).append(code)
-    return {status: {"description": "Codes: %s." % ", ".join("`%s`" % c for c in found),
-                     "content": {"application/json": {"schema": {"$ref": ref}}}}
-            for status, found in sorted(by_status.items())}
+    out = {}
+    for status, found in sorted(by_status.items()):
+        text = "Codes: %s." % ", ".join("`%s`" % c for c in found)
+        if status == "429":
+            text += " See Limits in the introduction; no Retry-After header is sent."
+        out[status] = {"description": text, "content": {"application/json": {"schema": {"$ref": ref}}}}
+        if headers:
+            out[status]["headers"] = headers
+    return out
 
 
 def _refs(node: Any, found: set[str]) -> None:
@@ -307,12 +395,20 @@ def public_schema(app: FastAPI) -> dict:
         body = model.model_json_schema(ref_template=_REF + "{model}")
         schemas.update(body.pop("$defs", {}))
         schemas[model.__name__] = body
+        if model is JobStatus:
+            error_code = body["properties"]["error_code"]
+            error_code["description"] += " Every failed job is refunded (refunded is true). The codes a job can end " \
+                "with:\n\n" + _failure_codes()
+    names = {(m.lower(), c.path_format): c.name for c in iter_route_contexts(app.routes) for m in c.methods or ()}
     for path, ops in schema["paths"].items():
         for method, op in ops.items():
             if not isinstance(op, dict):
                 continue
             tag, text = _DOCS.get((method, path), ("Other", ""))
             op["tags"], op["description"] = [tag], text or op.get("description", "")
+            op["operationId"] = _operation_id(names, method, path)
+            if path.startswith("/models"):
+                op["description"] += " Identical to %s /v1beta%s." % (method.upper(), path)
             if (method, path) in _BODIES:
                 op["requestBody"] = {"required": True, "content": {"application/json": {
                     "schema": {"$ref": _REF + _BODIES[(method, path)].__name__}}}}
@@ -324,15 +420,24 @@ def public_schema(app: FastAPI) -> dict:
             if (method, path) in _EXAMPLES and "200" in op["responses"]:
                 op["responses"]["200"].setdefault("content", {}).setdefault("application/json", {})["example"] = (
                     copy.deepcopy(_EXAMPLES[(method, path)]))
+            if path in _MEDIA_PATHS:
+                op["responses"].update(copy.deepcopy(_MEDIA_RESPONSES))
+                op.setdefault("parameters", []).append(copy.deepcopy(_RANGE_PARAM))
+            if method == "post" and (path == "/v1/chat/completions" or path.endswith(":streamGenerateContent")):
+                op["responses"]["200"].setdefault("content", {}).update(copy.deepcopy(_SSE))
+                op["description"] += _STREAM_NOTE
             error_ref = _REF + ("GeminiError" if gemini else "Error")
-            op["responses"].update(_error_responses(_ERRORS.get((method, path), ()), error_ref))
+            headers = copy.deepcopy(_NO_RETRY) if is_facade_path(path) else None
+            op["responses"].update(_error_responses(_ERRORS.get((method, path), ()), error_ref, headers))
             op["responses"]["default"] = {
                 "description": "Error", "content": {"application/json": {"schema": {"$ref": error_ref}}}}
+            if headers:
+                op["responses"]["default"]["headers"] = headers
             if path not in _KEYLESS:
                 op["security"] = [{"BearerAuth": []}, {"ApiKeyHeader": []}] + (
                     [{"GoogleApiKeyHeader": []}] if gemini else [])
     comps["securitySchemes"] = copy.deepcopy(_SECURITY)
-    schema["info"]["description"] = INTRO
+    schema["info"].update(title=API_TITLE, version=API_VERSION, description=INTRO)
     schema["tags"] = copy.deepcopy(_TAGS)
     schema["webhooks"] = {"jobEnded": copy.deepcopy(_WEBHOOK)}
     _prune(schema)
