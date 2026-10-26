@@ -49,7 +49,10 @@ def fake_db(monkeypatch):
 
 
 @mutation(E2E, 'if env.get("RELAY_E2E_SPEND") != "yes":', "if False:", expect="== 2")
-def test_it_refuses_to_spend_unless_asked_or_with_an_unknown_case(fake_db, capsys):
+def test_it_refuses_to_spend_unless_asked_or_with_an_unknown_case(fake_db, capsys, monkeypatch):
+    async def cases(pool, base, raw, names):
+        return 0
+    monkeypatch.setattr(e2e, "_cases", cases)
     assert asyncio.run(e2e.run({"DATABASE_URL": "postgresql://nowhere/x"})) == 2
     assert asyncio.run(e2e.run({**ENV, "RELAY_E2E_CASES": "img-n1-1:1,nope"})) == 2
     assert "RELAY_E2E_SPEND=yes" in capsys.readouterr().err
