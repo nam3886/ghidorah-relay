@@ -11,6 +11,7 @@ members = [
     "relay-flow",
     "relay-gemini",
     "relay-meta",
+    "relay-muse",
     "relay-qwen",
     "relay-vibes",
     "relay-workspace",
@@ -953,6 +954,7 @@ dependencies = [
     { name = "relay-flow" },
     { name = "relay-gemini" },
     { name = "relay-meta" },
+    { name = "relay-muse" },
     { name = "relay-qwen" },
     { name = "relay-vibes" },
 ]
@@ -964,6 +966,7 @@ requires-dist = [
     { name = "relay-flow", editable = "packages/provider-flow" },
     { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
+    { name = "relay-muse", editable = "packages/provider-muse" },
     { name = "relay-qwen", editable = "packages/provider-qwen" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]
@@ -1054,6 +1057,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "relay-muse"
+version = "0.0.0"
+source = { editable = "packages/provider-muse" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "curl-cffi" },
+    { name = "relay-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography" },
+    { name = "curl-cffi" },
+    { name = "relay-core", editable = "packages/relay-core" },
+]
+
+[[package]]
 name = "relay-qwen"
 version = "0.0.0"
 source = { editable = "packages/provider-qwen" }
@@ -1091,6 +1111,7 @@ dependencies = [
     { name = "relay-flow" },
     { name = "relay-gemini" },
     { name = "relay-meta" },
+    { name = "relay-muse" },
     { name = "relay-qwen" },
     { name = "relay-vibes" },
 ]
@@ -1115,6 +1136,7 @@ requires-dist = [
     { name = "relay-flow", editable = "packages/provider-flow" },
     { name = "relay-gemini", editable = "packages/provider-gemini" },
     { name = "relay-meta", editable = "packages/provider-meta" },
+    { name = "relay-muse", editable = "packages/provider-muse" },
     { name = "relay-qwen", editable = "packages/provider-qwen" },
     { name = "relay-vibes", editable = "packages/provider-vibes" },
 ]

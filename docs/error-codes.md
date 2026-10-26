@@ -147,6 +147,15 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `model.uncosted` | itself | 403 | permission_error | yes | no | no | 0 | no | this model option cannot be ordered yet |
 | `model.unpriced` | itself | 403 | permission_error | yes | no | no | 0 | no | this model option has no price yet |
 
+## `muse.*`
+
+| Code | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|
+| `muse.http_error` | 502 | api_error | no | yes | yes | 0 | yes | muse answered with an error before the order was taken |
+| `muse.output_missing` | 502 | api_error | yes | yes | no | 0 | yes | muse has no file for this result; the charge is returned |
+| `muse.refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | muse answered in words without making the image or video; the charge is returned |
+| `muse.vm_not_ready` | 503 | api_error | no | no | no | 3 | yes | the muse workspace did not wake; the order was not sent |
+
 ## `pool.*`
 
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |

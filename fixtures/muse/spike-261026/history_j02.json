@@ -1,0 +1,269 @@
+{
+ "ok": true,
+ "result": {
+  "channel": "all",
+  "chat_events": [
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Create one image of a lighthouse on a rocky coast during a storm, cinematic. Use a 16:9 landscape aspect ratio. Generate it directly without asking questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993913249,
+    "event_name": "message.user",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1792993913249,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 778,
+     "content": "Create one image of a lighthouse on a rocky coast during a storm, cinematic. Use a 16:9 landscape aspect ratio. Generate it directly without asking questions.",
+     "display_text": "Create one image of a lighthouse on a rocky coast during a storm, cinematic. Use a 16:9 landscape aspect ratio. Generate it directly without asking questions.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792993913249,
+     "is_thread": true,
+     "message_id": "<uuid>",
+     "metadata": {
+      "client_app_id": "hatch-web",
+      "client_chat_context": {
+       "chat_id": "<uuid>",
+       "chat_kind": "direct",
+       "device_id": "<uuid>",
+       "event_kind": "message",
+       "origin_provider": "main",
+       "require_mention": false
+      },
+      "client_device_id": "<uuid>",
+      "client_timezone": "Asia/Ho_Chi_Minh",
+      "context_seq": 1,
+      "message_kind": "message",
+      "thoughtful_follow_through": true,
+      "timestamp_timezone": "Asia/Ho_Chi_Minh"
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "user",
+     "seq": 778,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "user",
+    "seq": 778,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Generating your cinematic storm lighthouse in 16:9 — no questions, straight to it.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993930455,
+    "event_name": "message.assistant",
+    "message_id": "assistant-msg-<uuid>",
+    "occurred_at_ms": 1792993915734,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 779,
+     "content": "Generating your cinematic storm lighthouse in 16:9 — no questions, straight to it.",
+     "display_text": "Generating your cinematic storm lighthouse in 16:9 — no questions, straight to it.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792993930455,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 3,
+      "message_kind": "commentary",
+      "public_commentary": true,
+      "recipient": "commentary",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1792993915734
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 779,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 779,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Done — stormy, cinematic, 16:9.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993931058,
+    "event_name": "message.assistant",
+    "message_id": "assistant-msg-<uuid>",
+    "occurred_at_ms": 1792993930447,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 780,
+     "content": "Done — stormy, cinematic, 16:9.",
+     "display_text": "Done — stormy, cinematic, 16:9.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792993931058,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 10,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1792993930447
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 780,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 780,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": "<uuid>",
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Lighthouse on a rocky coast during a storm",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993930813,
+    "event_name": "delta.presentation",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1792993930813,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "agent_id": "<uuid>",
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 781,
+     "data": {
+      "fallback_text": "![Lighthouse on a rocky coast during a storm](sandbox:<b64 len=112>.webp)",
+      "images": [
+       {
+        "byte_len": 507170,
+        "label": "Lighthouse on a rocky coast during a storm",
+        "mime": "image/webp",
+        "missing": false,
+        "path": "sandbox:<b64 len=112>.webp",
+        "variants": {
+         "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-create-one-image-of-a-lighthou-0-<uuid>.webp"
+        }
+       }
+      ]
+     },
+     "display_text": "Lighthouse on a rocky coast during a storm",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792993930813,
+     "fallback_text": "![Lighthouse on a rocky coast during a storm](sandbox:<b64 len=112>.webp)",
+     "id": "widget-<uuid>",
+     "image_path": "<b64 len=110>.webp",
+     "is_thread": true,
+     "kind": "image",
+     "message_id": "<uuid>",
+     "parent_agent_id": "<uuid>",
+     "reply_to_text": "Lighthouse on a rocky coast during a storm",
+     "role": "assistant",
+     "seq": 781,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "state": {
+      "data": {},
+      "version": 0
+     },
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 781,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  ],
+  "has_more": false,
+  "transcript_revision": 781
+ }
+}

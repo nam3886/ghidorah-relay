@@ -1,0 +1,311 @@
+{
+ "requests": [
+  {
+   "verb": "POST",
+   "path": "/client/register-capabilities",
+   "body": {
+    "client_id": "<uuid>",
+    "platform": "web",
+    "display_name": "Muse Web",
+    "version": "0.0.0",
+    "capabilities": {
+     "data_sources": {},
+     "device_commands": {},
+     "hatch_app_commands": {},
+     "rendering": {
+      "supported_presentations": [
+       "file",
+       "image",
+       "video",
+       "audio",
+       "text_with_button",
+       "generic_list",
+       "image_options",
+       "external_link"
+      ],
+      "supported_inline_presentations": [
+       "option"
+      ],
+      "supported_text_entities": []
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/subscribe",
+   "body": {
+    "after_stream_seq": 0,
+    "after_chat_event_seq": 555,
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ]
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/api/nodes/register",
+   "body": {
+    "node_id": "<uuid>",
+    "display_name": "Chrome (Linux)",
+    "platform": "linux",
+    "commands_v2": {
+     "ping": {
+      "description": "Connection liveness check"
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/stream",
+   "body": {
+    "node_id": "<uuid>",
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ],
+    "timezone": "Asia/Ho_Chi_Minh",
+    "session_id": "<redacted len=36>",
+    "metadata": {
+     "thread_is_dictation_used": false
+    },
+    "items": [
+     {
+      "type": "image",
+      "mime_type": "image/webp",
+      "data_base64": "<base64 16 chars>",
+      "filename": "j01_0.webp"
+     },
+     {
+      "type": "text",
+      "text": "Animate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions."
+     }
+    ],
+    "model": "auto/auto"
+   }
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=101>.mp4",
+   "body": null
+  }
+ ],
+ "responses": [
+  {
+   "sid": 1,
+   "status": 200,
+   "body": {
+    "accepted_data_sources": 0,
+    "accepted_device_commands": 0,
+    "accepted_hatch_app_commands": 0,
+    "capabilities": [
+     "video_file_ref_ingest",
+     "voice_user_speech_status"
+    ],
+    "rejected_ids": []
+   }
+  },
+  {
+   "sid": 4,
+   "status": 200,
+   "body": {
+    "node_id": "<uuid>",
+    "status": "registered"
+   }
+  },
+  {
+   "sid": 5,
+   "status": 200,
+   "body": {
+    "channel": "main",
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "reply_to_message_id": "<uuid>",
+    "session_id": "<redacted len=36>"
+   }
+  },
+  {
+   "sid": 12,
+   "status": 200,
+   "body": "<2769957B video/mp4>"
+  }
+ ],
+ "final_history_events": [
+  {
+   "event_name": "message.user",
+   "role": "user",
+   "display_text": "[image:image/webp <b64 len=102>.webp]\nAnimate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions.",
+   "occurred_at_ms": 1792994862509,
+   "payload": {
+    "chat_event_seq": 818,
+    "content": "[image:image/webp <b64 len=102>.webp]\nAnimate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions.",
+    "display_text": "[image:image/webp <b64 len=102>.webp]\nAnimate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994862509,
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "metadata": {
+     "attachments": [
+      {
+       "bytes_len": 535500,
+       "caption": null,
+       "filename": "j01_0.webp",
+       "kind": null,
+       "mime_type": "image/webp",
+       "path": "<b64 len=102>.webp",
+       "sha256": "<b64 len=64>",
+       "transcription": null
+      }
+     ],
+     "client_app_id": "hatch-web",
+     "client_chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "origin_provider": "main",
+      "require_mention": false
+     },
+     "client_device_id": "<uuid>",
+     "client_timezone": "Asia/Ho_Chi_Minh",
+     "context_seq": 1,
+     "message_kind": "message_parts",
+     "parts": [
+      {
+       "bytes_len": 535500,
+       "filename": "j01_0.webp",
+       "mime_type": "image/webp",
+       "path": "<b64 len=102>.webp",
+       "sha256": "<b64 len=64>",
+       "type": "file_ref"
+      },
+      {
+       "text": "Animate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions.",
+       "type": "text"
+      }
+     ],
+     "thoughtful_follow_through": true,
+     "timestamp_timezone": "Asia/Ho_Chi_Minh"
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "user",
+    "seq": 818,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "message.assistant",
+   "role": "assistant",
+   "display_text": "Done, 5 seconds, same 1:1 framing. The fox slowly turns toward the camera as snow falls.",
+   "occurred_at_ms": 1792994907818,
+   "payload": {
+    "chat_event_seq": 819,
+    "content": "Done, 5 seconds, same 1:1 framing. The fox slowly turns toward the camera as snow falls.",
+    "display_text": "Done, 5 seconds, same 1:1 framing. The fox slowly turns toward the camera as snow falls.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994908395,
+    "is_thread": true,
+    "message_id": "assistant-msg-<uuid>",
+    "metadata": {
+     "can_broadcast_share": true,
+     "context_seq": 14,
+     "message_kind": "message",
+     "root_message_execution_id": "<uuid>",
+     "started_at_ms": 1792994907818
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "assistant",
+    "seq": 819,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "status": "completed",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "delta.presentation",
+   "role": "assistant",
+   "display_text": "Fox in snow turning toward camera",
+   "occurred_at_ms": 1792994908369,
+   "payload": {
+    "agent_id": "<uuid>",
+    "chat_event_seq": 820,
+    "data": {
+     "fallback_text": "![Fox in snow turning toward camera](sandbox:<b64 len=95>.mp4)\n",
+     "videos": [
+      {
+       "byte_len": 2769957,
+       "label": "Fox in snow turning toward camera",
+       "mime": "video/mp4",
+       "missing": false,
+       "path": "sandbox:<b64 len=95>.mp4",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-fox-snow-turn-0-<uuid>.mp4"
+       }
+      }
+     ]
+    },
+    "display_text": "Fox in snow turning toward camera",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994908369,
+    "fallback_text": "![Fox in snow turning toward camera](sandbox:<b64 len=95>.mp4)\n",
+    "id": "widget-<uuid>",
+    "is_thread": true,
+    "kind": "video",
+    "message_id": "<uuid>",
+    "parent_agent_id": "<uuid>",
+    "reply_to_text": "Fox in snow turning toward camera",
+    "role": "assistant",
+    "seq": 820,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "state": {
+     "data": {},
+     "version": 0
+    },
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "message.assistant",
+   "role": "assistant",
+   "display_text": "Want a version where it holds eye contact a little longer at the end?",
+   "occurred_at_ms": 1792994908384,
+   "payload": {
+    "chat_event_seq": 821,
+    "content": "Want a version where it holds eye contact a little longer at the end?",
+    "display_text": "Want a version where it holds eye contact a little longer at the end?",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994908961,
+    "is_thread": true,
+    "message_id": "assistant-msg-<uuid>",
+    "metadata": {
+     "can_broadcast_share": true,
+     "context_seq": 14,
+     "message_kind": "message",
+     "root_message_execution_id": "<uuid>",
+     "started_at_ms": 1792994908384
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "assistant",
+    "seq": 821,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "status": "completed",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  }
+ ]
+}

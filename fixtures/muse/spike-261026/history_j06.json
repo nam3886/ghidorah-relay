@@ -1,0 +1,399 @@
+{
+ "ok": true,
+ "result": {
+  "channel": "all",
+  "chat_events": [
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Generate two different images of a cozy reading nook with a window seat, each in 4:3 aspect ratio. Generate them directly without asking questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994116361,
+    "event_name": "message.user",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1792994116361,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 797,
+     "content": "Generate two different images of a cozy reading nook with a window seat, each in 4:3 aspect ratio. Generate them directly without asking questions.",
+     "display_text": "Generate two different images of a cozy reading nook with a window seat, each in 4:3 aspect ratio. Generate them directly without asking questions.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994116361,
+     "is_thread": true,
+     "message_id": "<uuid>",
+     "metadata": {
+      "client_app_id": "hatch-web",
+      "client_chat_context": {
+       "chat_id": "<uuid>",
+       "chat_kind": "direct",
+       "device_id": "<uuid>",
+       "event_kind": "message",
+       "origin_provider": "main",
+       "require_mention": false
+      },
+      "client_device_id": "<uuid>",
+      "client_timezone": "Asia/Ho_Chi_Minh",
+      "context_seq": 1,
+      "message_kind": "message",
+      "thoughtful_follow_through": true,
+      "timestamp_timezone": "Asia/Ho_Chi_Minh"
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "user",
+     "seq": 797,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "user",
+    "seq": 797,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Here are two different takes, both in 4:3:\n\nThe first is a bright, airy nook with a long window seat, built-in bookshelves, and soft sage and rust cushions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994143054,
+    "event_name": "message.assistant",
+    "message_id": "assistant-msg-<uuid>",
+    "occurred_at_ms": 1792994142383,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 798,
+     "content": "Here are two different takes, both in 4:3:\n\nThe first is a bright, airy nook with a long window seat, built-in bookshelves, and soft sage and rust cushions.",
+     "display_text": "Here are two different takes, both in 4:3:\n\nThe first is a bright, airy nook with a long window seat, built-in bookshelves, and soft sage and rust cushions.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994143054,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 19,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1792994142383
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 798,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 798,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": "<uuid>",
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Cozy reading nook with a long window seat and built-in bookshelves",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994143024,
+    "event_name": "delta.presentation",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1792994143024,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "agent_id": "<uuid>",
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 799,
+     "data": {
+      "fallback_text": "![Cozy reading nook with a long window seat and built-in bookshelves](sandbox:<b64 len=111>.webp)\n",
+      "images": [
+       {
+        "byte_len": 509742,
+        "label": "Cozy reading nook with a long window seat and built-in bookshelves",
+        "mime": "image/webp",
+        "missing": false,
+        "path": "sandbox:<b64 len=111>.webp",
+        "variants": {
+         "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-cozy-reading-nook-window-seat-0-<uuid>.webp"
+        }
+       }
+      ]
+     },
+     "display_text": "Cozy reading nook with a long window seat and built-in bookshelves",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994143024,
+     "fallback_text": "![Cozy reading nook with a long window seat and built-in bookshelves](sandbox:<b64 len=111>.webp)\n",
+     "id": "widget-<uuid>",
+     "image_path": "<b64 len=109>.webp",
+     "is_thread": true,
+     "kind": "image",
+     "message_id": "<uuid>",
+     "parent_agent_id": "<uuid>",
+     "reply_to_text": "Cozy reading nook with a long window seat and built-in bookshelves",
+     "role": "assistant",
+     "seq": 799,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "state": {
+      "data": {},
+      "version": 0
+     },
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 799,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "The second is a warmer bay-window nook with wooden frames, an overhead book shelf, and a chunky knit throw.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994143453,
+    "event_name": "message.assistant",
+    "message_id": "assistant-msg-<uuid>",
+    "occurred_at_ms": 1792994143041,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 800,
+     "content": "The second is a warmer bay-window nook with wooden frames, an overhead book shelf, and a chunky knit throw.",
+     "display_text": "The second is a warmer bay-window nook with wooden frames, an overhead book shelf, and a chunky knit throw.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994143453,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 19,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1792994143041
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 800,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 800,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": "<uuid>",
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Cozy reading nook in a bay window with wooden frames and a knit throw",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994143423,
+    "event_name": "delta.presentation",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1792994143423,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "agent_id": "<uuid>",
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 801,
+     "data": {
+      "fallback_text": "![Cozy reading nook in a bay window with wooden frames and a knit throw](sandbox:<b64 len=111>.webp)\n",
+      "images": [
+       {
+        "byte_len": 463864,
+        "label": "Cozy reading nook in a bay window with wooden frames and a knit throw",
+        "mime": "image/webp",
+        "missing": false,
+        "path": "sandbox:<b64 len=111>.webp",
+        "variants": {
+         "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-cozy-reading-nook-window-seat-0-<uuid>.webp"
+        }
+       }
+      ]
+     },
+     "display_text": "Cozy reading nook in a bay window with wooden frames and a knit throw",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994143423,
+     "fallback_text": "![Cozy reading nook in a bay window with wooden frames and a knit throw](sandbox:<b64 len=111>.webp)\n",
+     "id": "widget-<uuid>",
+     "image_path": "<b64 len=109>.webp",
+     "is_thread": true,
+     "kind": "image",
+     "message_id": "<uuid>",
+     "parent_agent_id": "<uuid>",
+     "reply_to_text": "Cozy reading nook in a bay window with wooden frames and a knit throw",
+     "role": "assistant",
+     "seq": 801,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "state": {
+      "data": {},
+      "version": 0
+     },
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 801,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "agent_id": null,
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "Want me to make a variation of either one?",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994143845,
+    "event_name": "message.assistant",
+    "message_id": "assistant-msg-<uuid>",
+    "occurred_at_ms": 1792994143444,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 802,
+     "content": "Want me to make a variation of either one?",
+     "display_text": "Want me to make a variation of either one?",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1792994143845,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 19,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1792994143444
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 802,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 802,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  ],
+  "has_more": false,
+  "transcript_revision": 801
+ }
+}

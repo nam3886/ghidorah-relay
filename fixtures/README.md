@@ -477,3 +477,25 @@ Redacted calls of the qwen step-0 spike (auth refresh, WAF answers, t2i, image e
 - `qwen/spike-261023/task_status_wrong_path.json`
 - `qwen/spike-261023/waf_plain_no_bx.json`
 - `qwen/spike-261023/waf_replayed_bx_other_body.json`
+
+## muse.ai live spike (26/10/2026)
+
+One free muse.ai account, 11 jobs over HTTP and the Noise tunnel, through one unused proxy
+(`plans/muse-spike-261026.md`). The spike's own redaction: every uuid is `<uuid>`, the VM id `<vm_id>`, the side
+chat ids `<redacted len=36>`, long base64 `<b64 len=N>`; no cookie or token is in them. `job_<n>.json`: the requests
+sent in the tunnel, the answers, and the side chat's final history (j01 one 1:1 image, j03 a 5 s t2v, j07 the refusal
+in words, j10 i2v with the image inline, j11 four images in one card); `history_j02.json` and `history_j06.json`: the
+last history answer of j02 (a commentary line before the answer) and j06 (two images, one card each), redacted the same
+way from the box captures; `results_all.json`: each job's summary with the Usage before and after.
+`usage-261026.json`: the Usage action's subscription object and the script lines that declare it (recorded in the
+browser). Not captured: a signed-out session, a sleeping workspace's wake, an approval, a quota at 100 %.
+
+- `muse/spike-261026/history_j02.json`
+- `muse/spike-261026/history_j06.json`
+- `muse/spike-261026/job_j01.json`
+- `muse/spike-261026/job_j03.json`
+- `muse/spike-261026/job_j07.json`
+- `muse/spike-261026/job_j10.json`
+- `muse/spike-261026/job_j11.json`
+- `muse/spike-261026/results_all.json`
+- `muse/usage-261026.json`

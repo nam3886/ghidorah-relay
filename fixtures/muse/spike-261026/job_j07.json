@@ -1,0 +1,208 @@
+{
+ "requests": [
+  {
+   "verb": "POST",
+   "path": "/client/register-capabilities",
+   "body": {
+    "client_id": "<uuid>",
+    "platform": "web",
+    "display_name": "Muse Web",
+    "version": "0.0.0",
+    "capabilities": {
+     "data_sources": {},
+     "device_commands": {},
+     "hatch_app_commands": {},
+     "rendering": {
+      "supported_presentations": [
+       "file",
+       "image",
+       "video",
+       "audio",
+       "text_with_button",
+       "generic_list",
+       "image_options",
+       "external_link"
+      ],
+      "supported_inline_presentations": [
+       "option"
+      ],
+      "supported_text_entities": []
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/subscribe",
+   "body": {
+    "after_stream_seq": 0,
+    "after_chat_event_seq": 555,
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ]
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/api/nodes/register",
+   "body": {
+    "node_id": "<uuid>",
+    "display_name": "Chrome (Linux)",
+    "platform": "linux",
+    "commands_v2": {
+     "ping": {
+      "description": "Connection liveness check"
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/stream",
+   "body": {
+    "message": "Generate a photorealistic image of Taylor Swift and Elon Musk shaking hands at a press conference. Generate it directly without asking questions.",
+    "node_id": "<uuid>",
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ],
+    "timezone": "Asia/Ho_Chi_Minh",
+    "session_id": "<redacted len=36>",
+    "metadata": {
+     "thread_is_dictation_used": false
+    }
+   }
+  }
+ ],
+ "responses": [
+  {
+   "sid": 1,
+   "status": 200,
+   "body": {
+    "accepted_data_sources": 0,
+    "accepted_device_commands": 0,
+    "accepted_hatch_app_commands": 0,
+    "capabilities": [
+     "video_file_ref_ingest",
+     "voice_user_speech_status"
+    ],
+    "rejected_ids": []
+   }
+  },
+  {
+   "sid": 4,
+   "status": 200,
+   "body": {
+    "node_id": "<uuid>",
+    "status": "registered"
+   }
+  },
+  {
+   "sid": 5,
+   "status": 200,
+   "body": {
+    "channel": "main",
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "reply_to_message_id": "<uuid>",
+    "session_id": "<redacted len=36>"
+   }
+  }
+ ],
+ "final_history_events": [
+  {
+   "event_name": "message.user",
+   "role": "user",
+   "display_text": "Generate a photorealistic image of Taylor Swift and Elon Musk shaking hands at a press conference. Generate it directly without asking questions.",
+   "occurred_at_ms": 1792994169325,
+   "payload": {
+    "chat_event_seq": 804,
+    "content": "Generate a photorealistic image of Taylor Swift and Elon Musk shaking hands at a press conference. Generate it directly without asking questions.",
+    "display_text": "Generate a photorealistic image of Taylor Swift and Elon Musk shaking hands at a press conference. Generate it directly without asking questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994169325,
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "metadata": {
+     "client_app_id": "hatch-web",
+     "client_chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "origin_provider": "main",
+      "require_mention": false
+     },
+     "client_device_id": "<uuid>",
+     "client_timezone": "Asia/Ho_Chi_Minh",
+     "context_seq": 1,
+     "message_kind": "message",
+     "thoughtful_follow_through": true,
+     "timestamp_timezone": "Asia/Ho_Chi_Minh"
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "user",
+    "seq": 804,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "message.assistant",
+   "role": "assistant",
+   "display_text": "I can't make a photorealistic image of Taylor Swift and Elon Musk shaking hands like that.\n\nI can do a different take on the same idea instead — a stylized illustration of two fictional figures at a press conference, or a photorealistic press conference scene with the podium and microphones but no identifiable people. Want me to try one of those?\n\n[[hatch_widget:widget-<uuid>]]",
+   "occurred_at_ms": 1792994188779,
+   "payload": {
+    "chat_event_seq": 806,
+    "content": "I can't make a photorealistic image of Taylor Swift and Elon Musk shaking hands like that.\n\nI can do a different take on the same idea instead — a stylized illustration of two fictional figures at a press conference, or a photorealistic press conference scene with the podium and microphones but no identifiable people. Want me to try one of those?\n\n[[hatch_widget:widget-<uuid>]]",
+    "display_text": "I can't make a photorealistic image of Taylor Swift and Elon Musk shaking hands like that.\n\nI can do a different take on the same idea instead — a stylized illustration of two fictional figures at a press conference, or a photorealistic press conference scene with the podium and microphones but no identifiable people. Want me to try one of those?\n\n[[hatch_widget:widget-<uuid>]]",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994189685,
+    "is_thread": true,
+    "message_id": "assistant-msg-<uuid>",
+    "metadata": {
+     "can_broadcast_share": true,
+     "context_seq": 19,
+     "message_kind": "message",
+     "root_message_execution_id": "<uuid>",
+     "started_at_ms": 1792994188779
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "assistant",
+    "seq": 806,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "status": "completed",
+    "transcript_surface": "main_chat",
+    "visibility": "public",
+    "widgets": [
+     {
+      "data": {
+       "button_style": "dotted_lines",
+       "options": [
+        "Make a stylized fictional version instead",
+        "Make a press conference scene without real people"
+       ]
+      },
+      "display_text": "Make a stylized fictional version instead / Make a press conference scene without real people",
+      "fallback_text": "- Make a stylized fictional version instead\n- Make a press conference scene without real people",
+      "kind": "option",
+      "reply_to_text": "Make a stylized fictional version instead / Make a press conference scene without real people",
+      "state": {
+       "data": {},
+       "version": 0
+      },
+      "widget_id": "widget-<uuid>"
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -12,6 +12,7 @@ dependencies = [
     "relay-flow",
     "relay-gemini",
     "relay-qwen",
+    "relay-muse",
     "relay-cli",
 ]
 
@@ -35,6 +36,7 @@ relay-meta = { workspace = true }
 relay-flow = { workspace = true }
 relay-gemini = { workspace = true }
 relay-qwen = { workspace = true }
+relay-muse = { workspace = true }
 relay-cli = { workspace = true }
 
 [tool.ruff]
@@ -48,7 +50,7 @@ ignore = ["UP031"]   # %-formatting is the house style
 
 [tool.ruff.lint.isort]
 known-first-party = ["relay_core", "relay_browser", "relay_dola", "relay_vibes", "relay_meta", "relay_flow",
-                     "relay_gemini", "relay_qwen", "relay_cli"]
+                     "relay_gemini", "relay_qwen", "relay_muse", "relay_cli"]
 known-local-folder = ["guards"]
 
 [tool.pytest.ini_options]

@@ -12,6 +12,7 @@ from relay_dola.spec import SPEC as DOLA
 from relay_flow.spec import SPEC as FLOW
 from relay_gemini.spec import SPEC as GEMINI
 from relay_meta.spec import SPEC as META
+from relay_muse.spec import SPEC as MUSE
 from relay_qwen.spec import SPEC as QWEN
 from relay_vibes.spec import SPEC as VIBES
 
@@ -24,10 +25,11 @@ BASIC = {
     "meta": {"claims_enabled", "prices", "disabled_models", "browser_slots"},
     "vibes": {"claims_enabled", "prices", "disabled_models"},
     "qwen": {"claims_enabled", "prices", "disabled_models"},
+    "muse": {"claims_enabled", "prices", "disabled_models"},
 }
 
 
-@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES, QWEN], ids=lambda s: s.name)
+@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES, QWEN, MUSE], ids=lambda s: s.name)
 def test_disabled_models_takes_the_catalog_ids_and_the_basic_settings_are_the_everyday_ones(spec):
     settings = spec.settings()
     paused = settings[spec.name + ".disabled_models"]
@@ -43,7 +45,7 @@ def test_disabled_models_takes_the_catalog_ids_and_the_basic_settings_are_the_ev
           'DEFAULT_PRICES = {**prices_at_cost(DEFAULT_COSTS), "qwen-image-3.0-pro": 2}', expect="not 1:1 with its cost")
 @mutation("packages/relay-core/src/relay_core/pricing.py", "return {k: max(1, n) for k, n in costs.items()}",
           "return dict(costs)", expect="a free option")
-@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES, QWEN], ids=lambda s: s.name)
+@pytest.mark.parametrize("spec", [DOLA, FLOW, GEMINI, META, VIBES, QWEN, MUSE], ids=lambda s: s.name)
 def test_every_default_price_is_its_default_cost_and_never_below_one_point(spec):
     """Owner 24/10, restated 25/10: 1 upstream credit or use = 1 point, and an option that costs 0 sells at 1."""
     settings = spec.settings()

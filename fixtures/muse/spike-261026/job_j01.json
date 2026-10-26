@@ -1,0 +1,259 @@
+{
+ "requests": [
+  {
+   "verb": "POST",
+   "path": "/client/register-capabilities",
+   "body": {
+    "client_id": "<uuid>",
+    "platform": "web",
+    "display_name": "Muse Web",
+    "version": "0.0.0",
+    "capabilities": {
+     "data_sources": {},
+     "device_commands": {},
+     "hatch_app_commands": {},
+     "rendering": {
+      "supported_presentations": [
+       "file",
+       "image",
+       "video",
+       "audio",
+       "text_with_button",
+       "generic_list",
+       "image_options",
+       "external_link"
+      ],
+      "supported_inline_presentations": [
+       "option"
+      ],
+      "supported_text_entities": []
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/api/nodes/register",
+   "body": {
+    "node_id": "<uuid>",
+    "display_name": "Chrome (Linux)",
+    "platform": "linux",
+    "commands_v2": {
+     "ping": {
+      "description": "Connection liveness check"
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/subscribe",
+   "body": {
+    "after_stream_seq": 0,
+    "after_chat_event_seq": 0,
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ],
+    "session_id": "<redacted len=36>"
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/stream",
+   "body": {
+    "message": "Generate one image: a red fox sitting in fresh snow at sunrise, photorealistic. Square 1:1 aspect ratio. Just generate it, do not ask questions.",
+    "node_id": "<uuid>",
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ],
+    "timezone": "Asia/Ho_Chi_Minh",
+    "session_id": "<redacted len=36>",
+    "metadata": {
+     "thread_is_dictation_used": false
+    }
+   }
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=118>.webp",
+   "body": null
+  }
+ ],
+ "responses": [
+  {
+   "sid": 1,
+   "status": 200,
+   "body": {
+    "accepted_data_sources": 0,
+    "accepted_device_commands": 0,
+    "accepted_hatch_app_commands": 0,
+    "capabilities": [
+     "video_file_ref_ingest",
+     "voice_user_speech_status"
+    ],
+    "rejected_ids": []
+   }
+  },
+  {
+   "sid": 2,
+   "status": 400,
+   "body": {
+    "ok": false,
+    "error": {
+     "code": "invalid_params",
+     "message": "noise connection has no active stream; subscribe (chat.subscribe) before node.register"
+    }
+   }
+  },
+  {
+   "sid": 3,
+   "status": 404,
+   "body": {
+    "ok": false,
+    "error": {
+     "code": "not_found",
+     "message": "session not found"
+    }
+   }
+  },
+  {
+   "sid": 4,
+   "status": 200,
+   "body": {
+    "channel": "main",
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "reply_to_message_id": "<uuid>",
+    "session_id": "<redacted len=36>"
+   }
+  },
+  {
+   "sid": 34,
+   "status": 200,
+   "body": "<535500B image/webp>"
+  }
+ ],
+ "final_history_events": [
+  {
+   "event_name": "message.user",
+   "role": "user",
+   "display_text": "Generate one image: a red fox sitting in fresh snow at sunrise, photorealistic. Square 1:1 aspect ratio. Just generate it, do not ask questions.",
+   "occurred_at_ms": 1792993483637,
+   "payload": {
+    "chat_event_seq": 764,
+    "content": "Generate one image: a red fox sitting in fresh snow at sunrise, photorealistic. Square 1:1 aspect ratio. Just generate it, do not ask questions.",
+    "display_text": "Generate one image: a red fox sitting in fresh snow at sunrise, photorealistic. Square 1:1 aspect ratio. Just generate it, do not ask questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993483637,
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "metadata": {
+     "client_app_id": "hatch-web",
+     "client_chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "origin_provider": "main",
+      "require_mention": false
+     },
+     "client_device_id": "<uuid>",
+     "client_timezone": "Asia/Ho_Chi_Minh",
+     "context_seq": 1,
+     "message_kind": "message",
+     "thoughtful_follow_through": true,
+     "timestamp_timezone": "Asia/Ho_Chi_Minh"
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "user",
+    "seq": 764,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "message.assistant",
+   "role": "assistant",
+   "display_text": "Here it is:",
+   "occurred_at_ms": 1792993510525,
+   "payload": {
+    "chat_event_seq": 766,
+    "content": "Here it is:",
+    "display_text": "Here it is:",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993511160,
+    "is_thread": true,
+    "message_id": "assistant-msg-<uuid>",
+    "metadata": {
+     "can_broadcast_share": true,
+     "context_seq": 11,
+     "message_kind": "message",
+     "root_message_execution_id": "<uuid>",
+     "started_at_ms": 1792993510525
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "assistant",
+    "seq": 766,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "status": "completed",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "delta.presentation",
+   "role": "assistant",
+   "display_text": "A red fox sitting in fresh snow at sunrise",
+   "occurred_at_ms": 1792993510830,
+   "payload": {
+    "agent_id": "<uuid>",
+    "chat_event_seq": 767,
+    "data": {
+     "fallback_text": "![A red fox sitting in fresh snow at sunrise](sandbox:<b64 len=112>.webp)",
+     "images": [
+      {
+       "byte_len": 535500,
+       "label": "A red fox sitting in fresh snow at sunrise",
+       "mime": "image/webp",
+       "missing": false,
+       "path": "sandbox:<b64 len=112>.webp",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-generate-one-image-a-red-fox-s-0-<uuid>.webp"
+       }
+      }
+     ]
+    },
+    "display_text": "A red fox sitting in fresh snow at sunrise",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792993510830,
+    "fallback_text": "![A red fox sitting in fresh snow at sunrise](sandbox:<b64 len=112>.webp)",
+    "id": "widget-<uuid>",
+    "image_path": "<b64 len=110>.webp",
+    "is_thread": true,
+    "kind": "image",
+    "message_id": "<uuid>",
+    "parent_agent_id": "<uuid>",
+    "reply_to_text": "A red fox sitting in fresh snow at sunrise",
+    "role": "assistant",
+    "seq": 767,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "state": {
+     "data": {},
+     "version": 0
+    },
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  }
+ ]
+}

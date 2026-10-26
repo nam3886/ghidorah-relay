@@ -1,0 +1,303 @@
+{
+ "requests": [
+  {
+   "verb": "POST",
+   "path": "/client/register-capabilities",
+   "body": {
+    "client_id": "<uuid>",
+    "platform": "web",
+    "display_name": "Muse Web",
+    "version": "0.0.0",
+    "capabilities": {
+     "data_sources": {},
+     "device_commands": {},
+     "hatch_app_commands": {},
+     "rendering": {
+      "supported_presentations": [
+       "file",
+       "image",
+       "video",
+       "audio",
+       "text_with_button",
+       "generic_list",
+       "image_options",
+       "external_link"
+      ],
+      "supported_inline_presentations": [
+       "option"
+      ],
+      "supported_text_entities": []
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/subscribe",
+   "body": {
+    "after_stream_seq": 0,
+    "after_chat_event_seq": 555,
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ]
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/api/nodes/register",
+   "body": {
+    "node_id": "<uuid>",
+    "display_name": "Chrome (Linux)",
+    "platform": "linux",
+    "commands_v2": {
+     "ping": {
+      "description": "Connection liveness check"
+     }
+    }
+   }
+  },
+  {
+   "verb": "POST",
+   "path": "/chat/stream",
+   "body": {
+    "message": "Generate four separate images of a vintage red bicycle leaning on a brick wall, each in a different art style: watercolor, pixel art, oil painting, pencil sketch. Each 1:1 square. Generate them directly without asking questions.",
+    "node_id": "<uuid>",
+    "capabilities": [
+     "chat_cancel",
+     "delta_stream",
+     "custom_reactions",
+     "custom_reactions_facebook_thumbs_up_v1"
+    ],
+    "timezone": "Asia/Ho_Chi_Minh",
+    "session_id": "<redacted len=36>",
+    "metadata": {
+     "thread_is_dictation_used": false
+    }
+   }
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=118>.webp",
+   "body": null
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=117>.webp",
+   "body": null
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=118>.webp",
+   "body": null
+  },
+  {
+   "verb": "GET",
+   "path": "<b64 len=118>.webp",
+   "body": null
+  }
+ ],
+ "responses": [
+  {
+   "sid": 1,
+   "status": 200,
+   "body": {
+    "accepted_data_sources": 0,
+    "accepted_device_commands": 0,
+    "accepted_hatch_app_commands": 0,
+    "capabilities": [
+     "video_file_ref_ingest",
+     "voice_user_speech_status"
+    ],
+    "rejected_ids": []
+   }
+  },
+  {
+   "sid": 4,
+   "status": 200,
+   "body": {
+    "node_id": "<uuid>",
+    "status": "registered"
+   }
+  },
+  {
+   "sid": 5,
+   "status": 200,
+   "body": {
+    "channel": "main",
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "reply_to_message_id": "<uuid>",
+    "session_id": "<redacted len=36>"
+   }
+  },
+  {
+   "sid": 11,
+   "status": 200,
+   "body": "<781804B image/webp>"
+  },
+  {
+   "sid": 12,
+   "status": 200,
+   "body": "<664454B image/webp>"
+  },
+  {
+   "sid": 13,
+   "status": 200,
+   "body": "<942736B image/webp>"
+  },
+  {
+   "sid": 14,
+   "status": 200,
+   "body": "<929092B image/webp>"
+  }
+ ],
+ "final_history_events": [
+  {
+   "event_name": "message.user",
+   "role": "user",
+   "display_text": "Generate four separate images of a vintage red bicycle leaning on a brick wall, each in a different art style: watercolor, pixel art, oil painting, pencil sketch. Each 1:1 square. Generate them directly without asking questions.",
+   "occurred_at_ms": 1792994947853,
+   "payload": {
+    "chat_event_seq": 823,
+    "content": "Generate four separate images of a vintage red bicycle leaning on a brick wall, each in a different art style: watercolor, pixel art, oil painting, pencil sketch. Each 1:1 square. Generate them directly without asking questions.",
+    "display_text": "Generate four separate images of a vintage red bicycle leaning on a brick wall, each in a different art style: watercolor, pixel art, oil painting, pencil sketch. Each 1:1 square. Generate them directly without asking questions.",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994947853,
+    "is_thread": true,
+    "message_id": "<uuid>",
+    "metadata": {
+     "client_app_id": "hatch-web",
+     "client_chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "origin_provider": "main",
+      "require_mention": false
+     },
+     "client_device_id": "<uuid>",
+     "client_timezone": "Asia/Ho_Chi_Minh",
+     "context_seq": 1,
+     "message_kind": "message",
+     "thoughtful_follow_through": true,
+     "timestamp_timezone": "Asia/Ho_Chi_Minh"
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "user",
+    "seq": 823,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "message.assistant",
+   "role": "assistant",
+   "display_text": "Here are your four 1:1 versions:",
+   "occurred_at_ms": 1792994980774,
+   "payload": {
+    "chat_event_seq": 824,
+    "content": "Here are your four 1:1 versions:",
+    "display_text": "Here are your four 1:1 versions:",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994981916,
+    "is_thread": true,
+    "message_id": "assistant-msg-<uuid>",
+    "metadata": {
+     "can_broadcast_share": true,
+     "context_seq": 21,
+     "message_kind": "message",
+     "root_message_execution_id": "<uuid>",
+     "started_at_ms": 1792994980774
+    },
+    "parent_agent_id": "<uuid>",
+    "role": "assistant",
+    "seq": 824,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "status": "completed",
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  },
+  {
+   "event_name": "delta.presentation",
+   "role": "assistant",
+   "display_text": "Watercolor — vintage red bicycle leaning on a brick wall, Pixel art — vintage red bicycle leaning on a brick wall, Oil painting — vintage red bicycle leaning on a brick wall, Pencil sketch — vintage red bicycle leaning on a brick wall",
+   "occurred_at_ms": 1792994981668,
+   "payload": {
+    "agent_id": "<uuid>",
+    "chat_event_seq": 825,
+    "data": {
+     "fallback_text": "![Watercolor — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)\n![Pixel art — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=111>.webp)\n![Oil painting — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)\n![Pencil sketch — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)",
+     "images": [
+      {
+       "byte_len": 781804,
+       "label": "Watercolor — vintage red bicycle leaning on a brick wall",
+       "mime": "image/webp",
+       "missing": false,
+       "path": "sandbox:<b64 len=112>.webp",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-watercolor-0-<uuid>.webp"
+       }
+      },
+      {
+       "byte_len": 664454,
+       "label": "Pixel art — vintage red bicycle leaning on a brick wall",
+       "mime": "image/webp",
+       "missing": false,
+       "path": "sandbox:<b64 len=111>.webp",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-pixel-art-0-<uuid>.webp"
+       }
+      },
+      {
+       "byte_len": 942736,
+       "label": "Oil painting — vintage red bicycle leaning on a brick wall",
+       "mime": "image/webp",
+       "missing": false,
+       "path": "sandbox:<b64 len=112>.webp",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-oil-painti-0-<uuid>.webp"
+       }
+      },
+      {
+       "byte_len": 929092,
+       "label": "Pencil sketch — vintage red bicycle leaning on a brick wall",
+       "mime": "image/webp",
+       "missing": false,
+       "path": "sandbox:<b64 len=112>.webp",
+       "variants": {
+        "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-pencil-ske-0-<uuid>.webp"
+       }
+      }
+     ]
+    },
+    "display_text": "Watercolor — vintage red bicycle leaning on a brick wall, Pixel art — vintage red bicycle leaning on a brick wall, Oil painting — vintage red bicycle leaning on a brick wall, Pencil sketch — vintage red bicycle leaning on a brick wall",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1792994981668,
+    "fallback_text": "![Watercolor — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)\n![Pixel art — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=111>.webp)\n![Oil painting — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)\n![Pencil sketch — vintage red bicycle leaning on a brick wall](sandbox:<b64 len=112>.webp)",
+    "id": "widget-<uuid>",
+    "is_thread": true,
+    "kind": "image",
+    "message_id": "<uuid>",
+    "parent_agent_id": "<uuid>",
+    "reply_to_text": "Watercolor — vintage red bicycle leaning on a brick wall, Pixel art — vintage red bicycle leaning on a brick wall, Oil painting — vintage red bicycle leaning on a brick wall, Pencil sketch — vintage red bicycle leaning on a brick wall",
+    "role": "assistant",
+    "seq": 825,
+    "session_id": "<redacted len=36>",
+    "source": "runtime",
+    "state": {
+     "data": {},
+     "version": 0
+    },
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   }
+  }
+ ]
+}

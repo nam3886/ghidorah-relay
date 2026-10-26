@@ -1,0 +1,948 @@
+{
+ "j02": {
+  "label": "j02",
+  "kind": "image",
+  "prompt": "Create one image of a lighthouse on a rocky coast during a storm, cinematic. Use a 16:9 landscape aspect ratio. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 0,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "0% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "Lighthouse on a rocky coast during a storm",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 3,
+  "elapsed_s": 23.0,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Generating your cinematic storm lighthouse in 16:9 — no questions, straight to it."
+   ],
+   [
+    "message.assistant",
+    null,
+    "Done — stormy, cinematic, 16:9."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Lighthouse on a rocky coast during a storm"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-create-one-image-of-a-lighthou-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=110>.webp",
+    "noise_status": 200,
+    "bytes": 507170,
+    "probe": {
+     "programs": [],
+     "streams": [
+      {
+       "codec_type": "video",
+       "width": 2048,
+       "height": 1152
+      }
+     ],
+     "format": {}
+    },
+    "file": "media/j02_0.webp"
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 0,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "0% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j03": {
+  "label": "j03",
+  "kind": "video",
+  "prompt": "Generate a 5-second video of ocean waves crashing on black volcanic rocks at golden hour, slow motion. Aspect ratio 16:9 landscape, duration 5 seconds. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 0,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "0% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "video",
+    "text": "Ocean waves crashing on black volcanic rocks at golden hour",
+    "n_images": 0,
+    "data_keys": [
+     "fallback_text",
+     "videos"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 3,
+  "elapsed_s": 44.1,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Done, 5 seconds, 16:9 landscape."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Ocean waves crashing on black volcanic rocks at golden hour"
+   ],
+   [
+    "message.assistant",
+    null,
+    "Want another angle or a longer cut of this scene?"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-generate-a-5-second-video-of-o-0-<uuid>.mp4"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=110>.mp4",
+    "noise_status": 200,
+    "bytes": 5489249,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1280,
+      "height": 720,
+      "duration": "5.000000"
+     },
+     {
+      "codec_type": "audio",
+      "duration": "5.000000"
+     }
+    ],
+    "file": "media/j03_0.mp4",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 2,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "2% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j04": {
+  "label": "j04",
+  "kind": "image",
+  "prompt": "Generate one image of a tall waterfall in a misty jungle, vertical 9:16 portrait aspect ratio. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 2,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "2% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "Tall waterfall in a misty jungle, vertical 9:16",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 2,
+  "elapsed_s": 23.0,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Here you go:"
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Tall waterfall in a misty jungle, vertical 9:16"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-generate-one-image-of-a-tall-w-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=110>.webp",
+    "noise_status": 200,
+    "bytes": 620728,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1152,
+      "height": 2048
+     }
+    ],
+    "file": "media/j04_0.webp",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 2,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "2% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j05": {
+  "label": "j05",
+  "kind": "image",
+  "prompt": "a cat",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 2,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "2% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "a cat",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 3,
+  "elapsed_s": 23.0,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Here's a cat for you."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "a cat"
+   ],
+   [
+    "message.assistant",
+    null,
+    "Want a video of it, or a specific kind — white, black, kitten?"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-a-cat-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=85>.webp",
+    "noise_status": 200,
+    "bytes": 399276,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1920,
+      "height": 1280
+     }
+    ],
+    "file": "media/j05_0.webp",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j06": {
+  "label": "j06",
+  "kind": "image",
+  "prompt": "Generate two different images of a cozy reading nook with a window seat, each in 4:3 aspect ratio. Generate them directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "Cozy reading nook with a long window seat and built-in bookshelves",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   },
+   {
+    "kind": "image",
+    "text": "Cozy reading nook in a bay window with wooden frames and a knit throw",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 5,
+  "elapsed_s": 33.6,
+  "statuses": [],
+  "replies": [
+   [
+    "delta.presentation",
+    null,
+    "Cozy reading nook with a long window seat and built-in bookshelves"
+   ],
+   [
+    "message.assistant",
+    null,
+    "The second is a warmer bay-window nook with wooden frames, an overhead book shelf, and a chunky knit throw."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Cozy reading nook in a bay window with wooden frames and a knit throw"
+   ],
+   [
+    "message.assistant",
+    null,
+    "Want me to make a variation of either one?"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-cozy-reading-nook-window-seat-0-<uuid>.webp",
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-cozy-reading-nook-window-seat-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=109>.webp",
+    "noise_status": 200,
+    "bytes": 509742,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1792,
+      "height": 1344
+     }
+    ],
+    "file": "media/j06_0.webp",
+    "dur": null
+   },
+   {
+    "path": "<b64 len=109>.webp",
+    "noise_status": 200,
+    "bytes": 463864,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1792,
+      "height": 1344
+     }
+    ],
+    "file": "media/j06_1.webp",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j07": {
+  "label": "j07",
+  "kind": "image",
+  "prompt": "Generate a photorealistic image of Taylor Swift and Elon Musk shaking hands at a press conference. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [],
+  "_all_done": true,
+  "_n_asst": 1,
+  "elapsed_s": 49.1,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "I can't make a photorealistic image of Taylor Swift and Elon Musk shaking hands like that.\n\nI can do a different take on the same idea instead — a stylized illustration of two fictional figures at a press conference, or a photorealistic press conference scene with the podium and microphones but no identifiable people. Want me to try one of those?\n\n[[hatch_widget:widget-<uuid>]]"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [],
+  "files": [],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j08": {
+  "label": "j08",
+  "kind": "image",
+  "prompt": "Generate one poster image with the exact text OPEN DAILY 9-5 in bold letters above a bakery storefront, 3:4 portrait. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "Bakery poster - OPEN DAILY 9-5",
+    "n_images": 1,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 2,
+  "elapsed_s": 23.0,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Done, 3:4 portrait poster with **OPEN DAILY 9-5** in bold above the bakery storefront."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Bakery poster - OPEN DAILY 9-5"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-bakery-poster-open-daily-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=104>.webp",
+    "noise_status": 200,
+    "bytes": 543824,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1344,
+      "height": 1792
+     }
+    ],
+    "file": "media/j08_0.webp",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j09": {
+  "label": "j09",
+  "kind": "video",
+  "prompt": "Generate a 10-second video of a hot air balloon rising over misty mountains at dawn. Vertical 9:16 portrait aspect ratio, duration 10 seconds. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 3,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "3% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "video",
+    "text": "Hot air balloon rising over misty mountains at dawn",
+    "n_images": 0,
+    "data_keys": [
+     "fallback_text",
+     "videos"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 2,
+  "elapsed_s": 65.1,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Done — 10 seconds, vertical 9:16 (720×1280), hot air balloon rising over misty mountains at dawn."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Hot air balloon rising over misty mountains at dawn"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-hot-air-balloon-misty-mountain-0-<uuid>.mp4"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=110>.mp4",
+    "noise_status": 200,
+    "bytes": 3789114,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 720,
+      "height": 1280,
+      "duration": "10.000000"
+     },
+     {
+      "codec_type": "audio",
+      "duration": "10.000000"
+     }
+    ],
+    "file": "media/j09_0.mp4",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 6,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "6% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j10": {
+  "label": "j10",
+  "kind": "video",
+  "prompt": "Animate this image into a 5-second video: the fox slowly turns its head toward the camera while snow gently falls. Keep the same 1:1 framing. Generate it directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 6,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "6% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "attached": "j01_0.webp",
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "video",
+    "text": "Fox in snow turning toward camera",
+    "n_images": 0,
+    "data_keys": [
+     "fallback_text",
+     "videos"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 3,
+  "elapsed_s": 55.8,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Done, 5 seconds, same 1:1 framing. The fox slowly turns toward the camera as snow falls."
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Fox in snow turning toward camera"
+   ],
+   [
+    "message.assistant",
+    null,
+    "Want a version where it holds eye contact a little longer at the end?"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-fox-snow-turn-0-<uuid>.mp4"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=93>.mp4",
+    "noise_status": 200,
+    "bytes": 2769957,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 960,
+      "height": 960,
+      "duration": "5.000000"
+     },
+     {
+      "codec_type": "audio",
+      "duration": "5.000000"
+     }
+    ],
+    "file": "media/j10_0.mp4",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 8,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "8% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ },
+ "j11": {
+  "label": "j11",
+  "kind": "image",
+  "prompt": "Generate four separate images of a vintage red bicycle leaning on a brick wall, each in a different art style: watercolor, pixel art, oil painting, pencil sketch. Each 1:1 square. Generate them directly without asking questions.",
+  "usage_before": {
+   "http": 200,
+   "percentUsed": 8,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "8% used",
+   "topupLabel": "0% used (1B tokens left)"
+  },
+  "subscribe_status": 200,
+  "node_register": 200,
+  "send_status": 200,
+  "ack_keys": [
+   "channel",
+   "is_thread",
+   "message_id",
+   "reply_to_message_id",
+   "session_id"
+  ],
+  "presentations": [
+   {
+    "kind": "image",
+    "text": "Watercolor — vintage red bicycle leaning on a brick wall, Pixel art — vintage red bicycle leaning on a brick wall, Oil painting — vintage red bicycle leaning on a brick wall, Pencil sketch — vintage red bicycle leaning on a brick wall",
+    "n_images": 4,
+    "data_keys": [
+     "fallback_text",
+     "images"
+    ]
+   }
+  ],
+  "_all_done": true,
+  "_n_asst": 2,
+  "elapsed_s": 44.1,
+  "statuses": [],
+  "replies": [
+   [
+    "message.assistant",
+    null,
+    "Here are your four 1:1 versions:"
+   ],
+   [
+    "delta.presentation",
+    null,
+    "Watercolor — vintage red bicycle leaning on a brick wall, Pixel art — vintage red bicycle leaning on a brick wall, Oil painting — vintage red bicycle leaning on a brick wall, Pencil sketch — vintage red bicycle leaning on a brick wall"
+   ]
+  ],
+  "approvals_denied": [],
+  "media_refs": [
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-watercolor-0-<uuid>.webp",
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-pixel-art-0-<uuid>.webp",
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-oil-painti-0-<uuid>.webp",
+   "https://<vm_id>.metaaivm.com/media/raw/workspace/imagine_media/media-generation-vintage-red-bicycle-pencil-ske-0-<uuid>.webp"
+  ],
+  "files": [
+   {
+    "path": "<b64 len=110>.webp",
+    "noise_status": 200,
+    "bytes": 781804,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1600,
+      "height": 1600
+     }
+    ],
+    "file": "media/j11_0.webp",
+    "dur": null
+   },
+   {
+    "path": "<b64 len=109>.webp",
+    "noise_status": 200,
+    "bytes": 664454,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1600,
+      "height": 1600
+     }
+    ],
+    "file": "media/j11_1.webp",
+    "dur": null
+   },
+   {
+    "path": "<b64 len=110>.webp",
+    "noise_status": 200,
+    "bytes": 942736,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1600,
+      "height": 1600
+     }
+    ],
+    "file": "media/j11_2.webp",
+    "dur": null
+   },
+   {
+    "path": "<b64 len=110>.webp",
+    "noise_status": 200,
+    "bytes": 929092,
+    "probe": [
+     {
+      "codec_type": "video",
+      "width": 1600,
+      "height": 1600
+     }
+    ],
+    "file": "media/j11_3.webp",
+    "dur": null
+   }
+  ],
+  "usage_after": {
+   "http": 200,
+   "percentUsed": 9,
+   "quotaStatus": "SUFFICIENT",
+   "state": "METERED",
+   "resetsAt": 1793601888,
+   "tier": "hatch_free",
+   "topupBalance": 40000000,
+   "topupTotal": 40000000,
+   "label": "9% used",
+   "topupLabel": "0% used (1B tokens left)"
+  }
+ }
+}
