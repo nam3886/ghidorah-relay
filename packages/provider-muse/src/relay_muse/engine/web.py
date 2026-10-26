@@ -35,6 +35,7 @@ from relay_muse.constants import (
     SITE_HOST,
     SITE_URL,
     TOKEN_PATH,
+    UNAVAILABLE,
     USAGE_ACTION,
     VM_HOST_SUFFIX,
     WAKE_PATH,
@@ -64,6 +65,11 @@ class SiteError(Exception):
 
 class VmNotReady(Exception):
     """The account has no running workspace (none assigned, or it did not wake in time)."""
+
+
+class Unavailable(VmNotReady):
+    """muse says the account's workspace cannot be reached from where the call comes from (`unavailable`): never a
+    reason to lease one. The account rests `muse.unavailable_rest_s` and is read again."""
 
 
 class LeaseFailed(Exception):
@@ -279,8 +285,18 @@ def lease_effect(e: LeaseFailed, settings, now: datetime):
     return Dead(str(e))
 
 
+def unavailable_effect(e: Unavailable, settings, now: datetime) -> Cooldown:
+    return Cooldown(str(e), now + timedelta(seconds=settings.get("muse.unavailable_rest_s")), recheck=True)
+
+
 def workspace(info: dict) -> tuple[str, str]:
-    """(vm_id, endpoint_url) of an assigned session; VmNotReady when none is assigned, SiteError when malformed."""
+    """(vm_id, endpoint_url) of an assigned session; Unavailable when muse says the workspace is unavailable from
+    here, VmNotReady when none is assigned, SiteError when malformed."""
+    if info.get("status") == UNAVAILABLE:
+        issue = info.get("vm_resolution_issue")
+        kind = issue.get("kind") if isinstance(issue, dict) else None
+        raise Unavailable("muse says the workspace is unavailable from here (%s): the proxy's region may not be "
+                          "served" % (str(kind)[:40] if kind else "no reason given"))
     if info.get("status") != ASSIGNED:
         raise VmNotReady("the session has no workspace assigned (%s)" % str(info.get("status"))[:40])
     vm, endpoint = info.get("vm_id"), info.get("endpoint_url")

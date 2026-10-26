@@ -55,7 +55,16 @@ from relay_muse.engine.chat import (
 )
 from relay_muse.engine.link import Deps, opened
 from relay_muse.engine.tunnel import TunnelError
-from relay_muse.engine.web import LeaseFailed, NetError, SignedOut, SiteError, VmNotReady, lease_effect
+from relay_muse.engine.web import (
+    LeaseFailed,
+    NetError,
+    SignedOut,
+    SiteError,
+    Unavailable,
+    VmNotReady,
+    lease_effect,
+    unavailable_effect,
+)
 
 log = logging.getLogger("relay_muse.submit")
 
@@ -213,6 +222,8 @@ class _Run:
             return _result(Retry(POOL_LOGGED_OUT), *signed_out_effects(now))
         if isinstance(exc, LeaseFailed):
             return _result(Retry(errors.VM_NOT_READY), lease_effect(exc, self.settings, now))
+        if isinstance(exc, Unavailable):
+            return _result(Retry(errors.VM_NOT_READY), unavailable_effect(exc, self.settings, now))
         if isinstance(exc, VmNotReady):
             return _result(Retry(errors.VM_NOT_READY), Cooldown("muse workspace not ready",
                                                                 now + timedelta(seconds=VM_REST_S)))

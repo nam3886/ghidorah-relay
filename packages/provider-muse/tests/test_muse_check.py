@@ -205,7 +205,8 @@ def test_a_usage_not_read_now_clears_the_last_figure():
         ("usage_percent", "quota_ok", "usage_resets_at"))
 
 
-NO_VM = {"status": "unavailable"}
+NO_VM = {"status": "none"}
+UNAVAILABLE = {"status": "unavailable", "vm_resolution_issue": {"kind": "retryable"}}
 LEASED = {"status": "assigned", "gatewayUrl": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
 CHECK_LEASE = "            if has_no_vm(info):\n                try:"
 FORBIDDEN_OK = "    if resp.status_code != 403 and (resp.status_code != 200 or body.get(\"status\") != ASSIGNED):"
@@ -275,3 +276,19 @@ def test_a_lease_with_no_answer_in_time_fails_and_an_existing_workspace_is_never
         s = site(**{"GET /api/session": (200, status, {})})
         run(s)
         assert "/api/hatch/lease-vm" not in [c.path for c in s.calls], status
+
+
+@mutation("packages/provider-muse/src/relay_muse/constants.py", 'NO_VM = ("none",)', 'NO_VM = ("none", "unavailable")',
+          expect="never leased for unavailable")
+@mutation(CHECK_FILE, "            except Unavailable as e:", "            except KeyError as e:", expect="rests")
+def test_a_workspace_unavailable_from_here_is_a_rest_never_a_lease():
+    s = site(**{"GET /api/session": (200, UNAVAILABLE, {})})
+    health, _ = run(s)
+    assert "/api/hatch/lease-vm" not in [c.path for c in s.calls], "never leased for unavailable"
+    assert health.state == "unknown" and [type(e) for e in health.effects] == [Cooldown], "rests: %s" % (health,)
+    rest = health.effects[0]
+    assert rest.recheck and (rest.until - NOW).total_seconds() == 3600
+    assert rest.reason == "muse says the workspace is unavailable from here (retryable): the proxy's region may not " \
+                          "be served"
+    bare, _ = run(site(**{"GET /api/session": (200, {"status": "unavailable"}, {})}), unavailable_rest_s=600)
+    assert "no reason given" in bare.effects[0].reason and (bare.effects[0].until - NOW).total_seconds() == 600

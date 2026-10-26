@@ -13,12 +13,16 @@ SITE_URL = "https://muse.ai"
 SITE_HOST = "muse.ai"
 SESSION_COOKIE = "hatch_sess"         # the signed-in session; a jar without it is not an account
 SESSION_PATH = "/api/session"         # {status: assigned, vm_id, endpoint_url, vm_state}; rotates hatch_vml
-# A new account has no workspace yet: the session read says `unavailable` (the site's `no_vm`; `none` in its code);
-# the site then leases one with {vmType: standard}, answered {status: assigned, gatewayUrl, vmName}, or 403 once
-# the account has one.
+# A new account has no workspace yet: the session read says `none` (the site then leases one with {vmType:
+# standard}, answered {status: assigned, gatewayUrl, vmName}, or 403 once the account has one). `unavailable`
+# ({vm_resolution_issue: {kind: retryable | explicit_unavailable}}) is NOT that: muse cannot resolve the account's
+# workspace from where the call comes from. Measured 27/10: the same session read `assigned` (SUSPENDED) through a
+# Berlin proxy and `unavailable`/retryable through a Toronto one, while the owner's browser showed it connected; the
+# site never leases on it (it retries a retryable one later). A lease there is refused (503 lease_rejected).
 LEASE_PATH = "/api/hatch/lease-vm"
 LEASE_BODY = {"vmType": "standard"}
-NO_VM = ("unavailable", "none")
+NO_VM = ("none",)
+UNAVAILABLE = "unavailable"
 WAKE_PATH = "/api/hatch/vm/wake"      # {vm_id, retry_count, connect_attempt_id}: only when vm_state is not RUNNING
 TOKEN_PATH = "/api/hatch/token"       # {vmAddress, vmName} -> {token, notary_token}; 403 without the Sec-Fetch-*
 ASSIGNED = "assigned"

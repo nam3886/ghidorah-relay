@@ -288,7 +288,8 @@ def test_an_approval_the_agent_asks_is_denied():
     assert deny.json() == {"approval_id": "ap-7", "decision": "deny", "expected_message_revision": 2}, "deny"
 
 
-NO_VM = {"status": "unavailable"}
+NO_VM = {"status": "none"}
+UNAVAILABLE = {"status": "unavailable", "vm_resolution_issue": {"kind": "retryable"}}
 LEASED = {"status": "assigned", "gatewayUrl": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
 SUBMIT_LEASE = "            return _result(Retry(errors.VM_NOT_READY), lease_effect(exc, self.settings, now))"
 
@@ -313,3 +314,15 @@ def test_a_job_whose_lease_fails_sends_nothing_and_rests_or_ends_the_account():
         assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
         assert [type(e) for e in result.account] == [effect], "rest or end: %s" % (result.account,)
         assert result.account[0].reason == "muse answered %d (lease_rejected) to the workspace lease" % status
+
+
+UNAVAILABLE_RESULT = "unavailable_effect(exc, self.settings, now))"
+
+
+@mutation(SUBMIT_FILE, UNAVAILABLE_RESULT, "Cooldown('x', now))", expect="unavailable from here")
+def test_a_job_whose_workspace_is_unavailable_from_here_rests_the_account_and_leases_nothing():
+    site = Site({"GET /api/session": (200, UNAVAILABLE, {})})
+    result, ctx = run(site)
+    assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
+    assert site.paths() == ["GET /api/session"]
+    assert [type(e) for e in result.account] == [Cooldown] and "unavailable from here" in result.account[0].reason

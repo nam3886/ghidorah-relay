@@ -25,6 +25,7 @@ from relay_muse.engine.web import (
     NetError,
     SignedOut,
     SiteError,
+    Unavailable,
     Usage,
     VmNotReady,
     Web,
@@ -34,6 +35,7 @@ from relay_muse.engine.web import (
     read_session,
     read_usage,
     remember_action,
+    unavailable_effect,
     workspace,
 )
 from relay_muse.spec import POOLS, WEEK
@@ -83,6 +85,9 @@ async def check_account(ctx, settings, *, deps: Deps | None = None,
                                                                                                       now()),))
             try:
                 vm, _ = workspace(info)
+            except Unavailable as e:
+                return Health("unknown", state_patch={"vm_state": "unavailable"},
+                              effects=(unavailable_effect(e, settings, now()),))
             except (VmNotReady, SiteError):
                 return Health("unknown", state_patch={"vm_state": str(info.get("status"))[:40]})
             remember_action((getattr(ctx.account, "provider_state", None) or {}).get("usage_action"))
