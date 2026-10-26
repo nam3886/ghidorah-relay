@@ -20,7 +20,8 @@ Money rules that shape this file (each has a test and a mutation):
   Complete with the job's media: `Completed`. A video send complete with the "generating" item and a chat: `Accepted`.
   Complete with a final text and no media: gemini answered for good, the job fails with its refund
   (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
-  videos for you today", `gemini.refused` otherwise, the text kept in the detail). The one exception: a final text
+  videos for you today", `gemini.limit_reached` for a refusal that empties a pool (below), `gemini.refused`
+  otherwise, the text kept in the detail). The one exception: a final text
   saying something went wrong on gemini's side and asking to try again (`is_temporary_failure`) is `NotTaken`
   (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
   core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
@@ -317,6 +318,12 @@ def limit_read_pool(code: str, text: str, pool: str) -> str | None:
     return pool if code == errors.REFUSED else None
 
 
+def refusal_code(code: str, effects: tuple) -> str:
+    """The code a refusal ends its job with: `gemini.limit_reached` for a plain refusal that empties a pool (the
+    account's limit, `limit_effects`), else the judged code. The refund and the no-retry are the same for both."""
+    return errors.LIMIT_REACHED if code == errors.REFUSED and effects else code
+
+
 def limit_effects(settings, now: datetime, code: str, text: str, video: bool,
                   spent: Balance | None = None) -> tuple[Balance, ...]:
     """What a refusal does to the account's pool; the job's own outcome (failed, refunded) does not change.
@@ -367,8 +374,9 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, *
         return _result(NotTaken(errors.UPSTREAM_FAILED), *rest)
     if verdict == "refused":
         code, text = what
-        return _result(Fail(code, "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}), Success(), *rest,
-                       *limit_effects(settings, now, code, text, video, spent))
+        effects = limit_effects(settings, now, code, text, video, spent)
+        return _result(Fail(refusal_code(code, effects), "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}),
+                       Success(), *rest, *effects)
     return _result(Ambiguous(what), *rest)
 
 

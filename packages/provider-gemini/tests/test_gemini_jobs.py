@@ -13,6 +13,7 @@ from geminikit import (
     I2I,
     LISTING,
     NOT_ENTITLED,
+    PRO_USAGE,
     PSID,
     READ,
     READ_LINK,
@@ -407,8 +408,9 @@ def poll(g, j):
     return asyncio.run(R.poll(Ctx(g.log), j, settings(), Sessions(), transport=g.transport, rand=lambda: 0.0))
 
 
-@mutation(RESULTS_FILE, '    if verdict == "refused":\n        code, text = what\n        return PollResult(Failed(',
-          '    if False:\n        code, text = what\n        return PollResult(Failed(', expect="a refused chat")
+@mutation(RESULTS_FILE, '    if verdict == "refused":\n        code, text = what\n        effects = limit_effects(',
+          '    if False:\n        code, text = what\n        effects = limit_effects(', expect="a refused chat")
+@mutation(RESULTS_FILE, "Failed(refusal_code(code, effects),", "Failed(code,", expect="a used-up window on a read")
 def test_poll_reads_the_found_chat_an_image_is_done_a_plain_answer_fails_anything_else_waits():
     state = {"chat": T2I_CHAT}
     done = poll(Gemini([], rpc={"hNvQHb": READ}), job(state=state))
@@ -418,6 +420,10 @@ def test_poll_reads_the_found_chat_an_image_is_done_a_plain_answer_fails_anythin
                    job(state=state))
     assert isinstance(refused.outcome, Failed), "a refused chat must fail: %s" % refused.outcome
     assert refused.outcome.code == errors.REFUSED
+    spent = PRO_USAGE.replace("[2400,0,1,", "[0,0,1,")
+    limit = poll(Gemini([], rpc={"hNvQHb": chat_read(T2I_PROMPT, "I can't make that.", image=False),
+                                 "jSf9Qc": spent}), job(state=state))
+    assert limit.outcome.code == errors.LIMIT_REACHED, "a used-up window on a read is the limit: %s" % (limit,)
     waiting = poll(Gemini([], rpc={"hNvQHb": chat_read(T2I_PROMPT, "", image=False)}), job(state=state))
     assert isinstance(waiting.outcome, Pending) and waiting.outcome.next_in_s == 30
     assert poll(Gemini([]), job()).outcome.answered is False

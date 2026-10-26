@@ -11,6 +11,7 @@ from relay_core.errors import Rule
 HTTP_ERROR = "gemini.http_error"          # before the send: gemini answered a step with an error; tried again
 UPLOAD_FAILED = "gemini.upload_failed"    # before the send: the input image was not taken; tried again
 REFUSED = "gemini.refused"                # gemini finished its answer with text and no image
+LIMIT_REACHED = "gemini.limit_reached"    # such a refusal that is the account's limit (it empties the pool)
 NOT_ENTITLED = "gemini.not_entitled"      # gemini answered that the account's plan does not include this
 VIDEO_LIMIT = "gemini.video_limit"        # gemini answered that the account makes no more videos today
 UNRESOLVED = "gemini.account_unresolved"  # before the send: the Google account of the session is not the one meant
@@ -43,10 +44,17 @@ CODES: dict[str, Rule] = {r.code: r for r in (
                      "work."),
     # gemini answered for good with no image: the job dies now and the charge is returned (never sent twice).
     Rule(REFUSED, 422, "invalid_request_error", True, True, False, True,
-         "gemini answered without a result (a refused prompt or a reached limit); the charge is returned",
+         "gemini answered without a result (a refused prompt); the charge is returned",
          public_code=core_errors.CONTENT_REFUSED,
-         public_text="gemini answered without a result (a refused prompt or a reached limit). Sending the request "
-                     "again later, or with a different prompt, may work."),
+         public_text="gemini refused to make this. Sending the same request again will not help; change the prompt "
+                     "or the images."),
+    # The same answer when it is the account's limit (`submit.refusal_code`: a quota-like video refusal, or an image
+    # refusal while the usage read shows a used-up window): the same refund and no retry, but the customer is told it
+    # is capacity, not their prompt.
+    Rule(LIMIT_REACHED, 502, "api_error", True, True, False, True,
+         "gemini answered without a result and the account's limit is reached; the charge is returned",
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="gemini's capacity for this was used up for now. Sending the request again later may work."),
     Rule(NOT_ENTITLED, 502, "api_error", True, True, False, True,
          "the gemini account cannot make this; the charge is returned", public_code=core_errors.INVALID_INPUT,
          public_text="gemini could not make this option. Sending the same request again is unlikely to help; try "

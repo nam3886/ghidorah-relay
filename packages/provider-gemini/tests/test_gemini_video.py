@@ -32,6 +32,7 @@ from geminikit import (
     settings,
 )
 
+from relay_core import errors as core_errors
 from relay_core.net import FetchFailed
 from relay_core.providers import (
     Accepted,
@@ -495,6 +496,7 @@ def test_a_generating_answer_with_any_other_text_is_accepted_never_refunded_and_
 LOWER = '    t = text.lower().replace("\\u2019", "\'")'
 CANNOT = '    t = t.replace("cannot", "can\'t").replace("can not", "can\'t")'
 PUNCT = "    return \" \".join(re.sub(r\"[^\\w']+\", \" \", t).split())"
+REFUSAL_CODE = "    return errors.LIMIT_REACHED if code == errors.REFUSED and effects else code\n"
 QUOTA = ("    return code == errors.VIDEO_LIMIT or (code == errors.REFUSED and any(w in plain(text) "
          "for w in QUOTA_WORDS))")
 
@@ -503,6 +505,7 @@ QUOTA = ("    return code == errors.VIDEO_LIMIT or (code == errors.REFUSED and a
 @mutation(SUBMIT_FILE, CANNOT, "    t = t", expect="a variant of the limit")
 @mutation(SUBMIT_FILE, PUNCT, "    return t", expect="a variant of the limit")
 @mutation(SUBMIT_FILE, QUOTA, "    return code == errors.VIDEO_LIMIT", expect="a quota-like answer")
+@mutation(SUBMIT_FILE, REFUSAL_CODE, "    return code\n", expect="a quota-like refusal is the limit")
 def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_any_language_rests_the_video_pool():
     for text in ("I CAN'T CREATE MORE VIDEOS FOR YOU TODAY.", "I can’t create more videos for you today",
                  "Sorry, I cannot create more videos right now.", "You've reached your daily video limit!",
@@ -514,7 +517,8 @@ def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_a
                  "I can't make any more of these until tomorrow."):
         log = []
         result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
-        assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED
+        assert isinstance(result.job, Fail) and result.job.code == errors.LIMIT_REACHED, \
+            "a quota-like refusal is the limit, not a content refusal: %r" % text
         assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] \
             == ["video"], "a quota-like answer did not empty the video pool: %r" % text
     log = []
@@ -626,7 +630,12 @@ def test_a_limit_empties_the_pool_until_the_reset_the_usage_read_names_and_an_im
     log = []
     result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), pro_ctx(log),
                  job())
-    assert result.job.code == errors.REFUSED
+    assert result.job.code == errors.LIMIT_REACHED, "a refusal on a used-up window is the limit: %s" % (result.job,)
+    limit, refused = core_errors.RULES[errors.LIMIT_REACHED], core_errors.RULES[errors.REFUSED]
+    assert (limit.refund, limit.terminal, limit.counts_attempt, limit.free_retries) == (
+        refused.refund, refused.terminal, refused.counts_attempt, refused.free_retries), "the same refund, no retry"
+    assert core_errors.shown(errors.LIMIT_REACHED)[0] == "temporarily_unavailable"
+    assert core_errors.shown(errors.REFUSED)[0] == "content_refused"
     assert Balance("image", 0, RESET, "5h") in result.account, "a used-up window did not empty the image pool: %s" % (
         result.account,)
 

@@ -111,7 +111,8 @@ def test_gemini_registers_its_codes_on_load():
     for code in ("gemini.http_error", "gemini.upload_failed", "gemini.account_unresolved"):   # before the send
         r = errors.rule(code)
         assert (r.terminal, r.refund, r.counts_attempt, errors.hidden(r)) == (False, True, True, False), code
-    shown = {"gemini.refused": errors.CONTENT_REFUSED, "gemini.not_entitled": errors.INVALID_INPUT,
+    shown = {"gemini.refused": errors.CONTENT_REFUSED, "gemini.limit_reached": errors.TEMPORARILY_UNAVAILABLE,
+             "gemini.not_entitled": errors.INVALID_INPUT,
              "gemini.video_limit": errors.TEMPORARILY_UNAVAILABLE}
     for code, public in shown.items():   # answered for good: refunded
         r = errors.rule(code)

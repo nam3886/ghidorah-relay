@@ -68,6 +68,7 @@ from relay_gemini.engine.submit import (
     limit_effects,
     limit_read_pool,
     outputs_of,
+    refusal_code,
     sent_text,
     short_balance,
     usage_spent,
@@ -162,8 +163,8 @@ async def poll(ctx, job, settings, sessions: Sessions, *, transport=None,
         return PollResult(Done(outputs_of(what, chat)), effects=(Success(),))
     if verdict == "refused":
         code, text = what
-        return PollResult(Failed(code, "gemini answered: %s" % text[:300]),
-                          effects=limit_effects(settings, now(), code, text, is_video(job), spent))
+        effects = limit_effects(settings, now(), code, text, is_video(job), spent)
+        return PollResult(Failed(refusal_code(code, effects), "gemini answered: %s" % text[:300]), effects=effects)
     if video_room_short(settings, room):
         # measured 25/10: a video sent into a used-up 5-hour window is taken ("generating") and never rendered
         return PollResult(Failed(errors.VIDEO_LIMIT, "gemini took the video but rendered nothing while the account's "
