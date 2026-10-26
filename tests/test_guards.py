@@ -256,7 +256,7 @@ def run_py(code: str) -> str:
 LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
           "for m in sys.modules if m.split('.')[0] in "
           "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow', "
-          "'relay_gemini', 'relay_qwen') and "
+          "'relay_gemini', 'relay_qwen', 'relay_muse') and "
           "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
@@ -281,6 +281,7 @@ def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "gemini") == "['relay_gemini.engine']"
     # qwen runs the browser image, but its engine opens Chrome only for a mint: the kit loads then, not at start
     assert loaded_after("worker", "--provider", "qwen") == "['relay_qwen.engine']"
+    assert loaded_after("worker", "--provider", "muse") == "['relay_muse.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',

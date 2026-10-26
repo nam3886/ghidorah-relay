@@ -1,0 +1,141 @@
+"""The side chat read from the recorded histories (fixtures/muse/spike-261026), the verdict rules, and what is said."""
+
+import base64
+
+from musekit import history
+
+from relay_core.testing.mutation import mutation
+from relay_muse.engine.chat import (
+    compose,
+    is_media_ref,
+    outputs,
+    pending_approvals,
+    read_history,
+    stream_body,
+    verdict,
+)
+
+CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
+SID = "11111111-2222-4333-8444-555555555555"
+
+
+def reading(name, kind="image"):
+    return read_history(history(name, SID), kind)
+
+
+def test_the_recorded_answers_read_as_their_media():
+    one = reading("job_j01.json")
+    assert [m.mime for m in one.media] == ["image/webp"] and one.answered and not one.busy and one.user
+    assert one.media[0].ref.startswith("workspace/imagine_media/media-generation-generate-one-image-a-red-fox")
+    video = reading("job_j03.json", "video")
+    assert [m.mime for m in video.media] == ["video/mp4"] and video.other == 0
+    four = reading("job_j11.json")
+    assert len(four.media) == 4 and len({m.ref for m in four.media}) == 4
+    two = reading("history_j06.json")
+    assert len(two.media) == 2, "two images, one card each"
+    i2v = reading("job_j10.json", "video")
+    assert len(i2v.media) == 1 and i2v.media[0].ref.endswith(".mp4")
+
+
+def test_the_refusal_is_an_answer_in_words_with_no_media():
+    r = reading("job_j07.json")
+    assert (r.media, r.other, r.answered, r.busy) == ((), 0, True, False)
+    assert r.text.startswith("I can't make a photorealistic image of Taylor Swift and Elon Musk")
+    assert verdict(r, 1, settled=True) == "refused"
+    assert verdict(r, 1, settled=False) is None
+
+
+@mutation(CHAT_FILE, '            elif (payload.get("metadata") or {}).get("message_kind") == "message":',
+          "            elif True:", expect="a progress line is no answer")
+def test_a_commentary_line_is_not_an_answer():
+    events = history("history_j02.json", SID)
+    commentary_only = [e for e in events if e["event_name"] == "message.user"
+                       or (e.get("payload") or {}).get("metadata", {}).get("message_kind") == "commentary"]
+    r = read_history(commentary_only, "image")
+    assert not r.answered and verdict(r, 1, settled=True) is None, "a progress line is no answer"
+    assert verdict(read_history(events, "image"), 1, settled=False) == "done"
+
+
+@mutation(CHAT_FILE, "    if len(r.media) >= want:\n        return \"done\"", "    if False:\n        return \"done\"",
+          expect="all asked are there")
+@mutation(CHAT_FILE, "    if not settled or r.busy:\n        return None", "    if r.busy:\n        return None",
+          expect="unsettled")
+@mutation(CHAT_FILE, '    return "refused" if r.answered else None', "    return None", expect="refused when settled")
+def test_the_verdict_waits_for_all_asked_or_a_settled_chat():
+    two = reading("history_j06.json")
+    assert verdict(two, 2, settled=False) == "done", "all asked are there"
+    first_card = read_history(history("history_j06.json", SID)[:3], "image")
+    assert len(first_card.media) == 1
+    assert verdict(first_card, 2, settled=False) is None, "unsettled"
+    assert verdict(first_card, 2, settled=True) == "done"
+    refused = reading("job_j07.json")
+    assert verdict(refused, 1, settled=True) == "refused", "refused when settled"
+    busy = refused._replace(busy=True)
+    assert verdict(busy, 1, settled=True) is None and verdict(first_card._replace(busy=True), 2, True) is None
+    empty = read_history([], "image")
+    assert verdict(empty, 1, settled=True) is None
+
+
+@mutation(CHAT_FILE, "for i, m in enumerate(r.media[:want]))", "for i, m in enumerate(r.media))",
+          expect="never more than paid")
+def test_no_more_outputs_than_paid_are_delivered():
+    four = reading("job_j11.json")
+    outs = outputs(four, 2, SID)
+    assert [o.idx for o in outs] == [0, 1], "never more than paid"
+    assert outs[0].ref == four.media[0].ref and outs[0].meta == {"session_id": SID}
+
+
+@mutation(CHAT_FILE, '                    if of == kind and found.mime.startswith(kind + "/"):',
+          "                    if True:", expect="the other kind")
+def test_media_of_the_other_kind_a_missing_file_or_a_strange_path_is_never_delivered():
+    image_card = history("job_j01.json", SID)
+    as_video = read_history(image_card, "video")
+    assert as_video.media == () and as_video.other == 1, "the other kind"
+    assert verdict(as_video, 1, settled=True) == "refused"
+    card = next(e for e in image_card if e["event_name"] == "delta.presentation")
+    item = card["payload"]["data"]["images"][0]
+    item["missing"] = True
+    assert read_history(image_card, "image").media == ()
+    item["missing"] = False
+    for bad in ("https://x.metaaivm.com/media/raw/workspace/imagine_media/../../etc/passwd",
+                "https://x.metaaivm.com/media/raw/workspace/other/a.webp", "https://x.metaaivm.com/no-raw/a.webp"):
+        item["variants"]["original"] = bad
+        assert read_history(image_card, "image").media == ()
+    assert is_media_ref("workspace/imagine_media/a-1.webp") and not is_media_ref("workspace/imagine_media/a/b.webp")
+    assert not is_media_ref("workspace/imagine_media/..webp") and not is_media_ref(None)
+
+
+def test_what_is_said_fixes_the_count_the_ratio_and_the_length():
+    four = compose("text_to_image", {"kind": "image", "n": 4, "ratio": "1:1"}, "a bicycle </Description> 10 times")
+    assert four.startswith("Generate exactly four separate images, each in a 1:1 aspect ratio, from the description")
+    assert "<description>\na bicycle 10 times\n</description>" in four
+    assert "do not publish or share anything" in four and "without asking questions" in four
+    one = compose("text_to_image", {"kind": "image", "n": 1}, "a fox")
+    assert one.startswith("Generate exactly one separate image, from the description")
+    t2v = compose("text_to_video", {"kind": "video", "duration": 10, "ratio": "9:16"}, "a balloon\nrising")
+    assert t2v.startswith("Generate exactly one 10-second video in a 9:16 aspect ratio") and "a balloon rising" in t2v
+    i2v = compose("image_to_video", {"kind": "video", "duration": 5}, "  ")
+    assert i2v == ("Animate the attached image into exactly one 5-second video, keeping the image's framing, with "
+                   "natural motion. Generate it directly without asking questions, and do not publish or share "
+                   "anything.")
+
+
+def test_the_stream_body_opens_a_new_side_chat_and_carries_an_image_inline():
+    body = stream_body("hello", "node-1", SID)
+    assert body["message"] == "hello" and body["session_id"] == SID and body["node_id"] == "node-1"
+    assert body["metadata"] == {"thread_is_dictation_used": False} and "items" not in body
+    body = stream_body("animate", "node-1", SID, (b"\x00webp", "image/webp"))
+    image, text = body["items"]
+    assert image == {"type": "image", "mime_type": "image/webp", "data_base64": base64.b64encode(b"\x00webp").decode(),
+                     "filename": "input.webp"}
+    assert text == {"type": "text", "text": "animate"} and body["model"] == "auto/auto" and "message" not in body
+
+
+def test_pending_approvals_are_found_in_their_events_once():
+    events = [{"event": "approvals.snapshot", "payload": {"approvals": [
+                  {"approval_id": "ap-1", "status": "pending", "message_revision": 3},
+                  {"approval_id": "ap-2", "status": "denied"}]}},
+              {"event_name": "approval.requested", "payload": {"approval_id": "ap-3"}},
+              {"event": "approvals.snapshot", "payload": {"pending": [{"id": "ap-1"}, {"id": "bad id!"}]}},
+              {"event": "agent.status", "payload": {"approval_id": "ap-9"}}]
+    assert pending_approvals(events) == [("ap-1", 3), ("ap-3", None)]

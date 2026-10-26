@@ -1,0 +1,283 @@
+"""The submit against an in-process muse (its site over HTTP, its VM behind a real Noise responder), fed the recorded
+histories of fixtures/muse/spike-261026. Money rules first: the chat id before `mark_sent`, one send, no re-send."""
+
+import asyncio
+import json
+
+import pytest
+from musekit import IMAGE_REF, NOW, SESSION_OK, Ctx, Site, history, job, settings, stream_bodies, vm_routes
+
+from relay_core.providers import (
+    Accepted,
+    Ambiguous,
+    Completed,
+    Cooldown,
+    Fail,
+    NotTaken,
+    ProxyBad,
+    Retry,
+    Success,
+    Suspect,
+)
+from relay_core.testing.mutation import mutation
+from relay_muse.credential import jar_of
+from relay_muse.engine import submit as submit_mod
+from relay_muse.engine.web import NetError
+
+SUBMIT_FILE = "packages/provider-muse/src/relay_muse/engine/submit.py"
+WEB_FILE = "packages/provider-muse/src/relay_muse/engine/web.py"
+REPORT_REF = "            await self._core(lambda: self.ctx.report_ref(self.session, {\"session_id\": self.session}))\n"
+TOKEN_CHECK = "    if not isinstance(token, str) or not token or not isinstance(notary, str) or not notary.strip():"
+
+
+def chat_of(site: Site) -> str:
+    return stream_bodies(site)[0]["session_id"]
+
+
+def answered(name, after=0):
+    """A history route: empty for `after` reads, then the recorded job's events for the chat it is asked about."""
+    seen = {"n": 0}
+
+    def events(req):
+        seen["n"] += 1
+        if seen["n"] <= after:
+            return []
+        return history(name, req.path.rsplit("session_id=", 1)[1])
+    return events
+
+
+def run(site: Site, j=None, ctx=None, **over):
+    ctx = ctx or Ctx()
+    deps = site.deps(read_media=_media, now=lambda: NOW)
+    result = asyncio.run(submit_mod.submit(ctx, j or job(), settings(**over), deps=deps))
+    return result, ctx
+
+
+async def _media(ref):
+    return b"RIFFwebp"
+
+
+def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_file():
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json", after=1)]))
+    result, ctx = run(site)
+    assert isinstance(result.job, Completed) and result.account == (Success(),)
+    (out,) = result.job.outputs
+    sid = chat_of(site)
+    assert out.ref.startswith("workspace/imagine_media/media-generation-generate-one-image")
+    assert out.mime == "image/webp"
+    assert out.meta == {"session_id": sid}
+    vm = site.vms[0]
+    assert vm.paths()[:5] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
+                              "/chat/subscribe", "/api/nodes/register", "/chat/stream"]
+    assert "session_id" not in vm.requests[2].json() and vm.requests[2].json()["after_chat_event_seq"] == 41
+    assert vm.paths().count("/chat/stream") == 1
+    assert all(p == "/chat/history?limit=40&transcript_mode=messages&session_id=" + sid for p in vm.paths()[5:])
+    body = stream_bodies(site)[0]
+    assert body["node_id"] == vm.requests[0].json()["client_id"] == vm.requests[3].json()["node_id"]
+    assert body["message"].startswith("Generate exactly one separate image")
+    assert "a red fox in fresh snow" in body["message"]
+    assert vm.closed
+
+
+@mutation(SUBMIT_FILE, REPORT_REF, "", expect="the chat id first")
+def test_the_chat_id_is_kept_before_mark_sent_and_the_send_comes_after_it():
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
+    result, ctx = run(site)
+    sid = chat_of(site)
+    assert ctx.calls[:2] == [("report_ref", sid, {"session_id": sid}), ("mark_sent",)], "the chat id first"
+
+
+def test_a_refused_report_ref_or_mark_sent_propagates_and_nothing_is_sent():
+    for gate in ("report_ref", "mark_sent"):
+        site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
+        with pytest.raises(RuntimeError, match="lease lost"):
+            run(site, ctx=Ctx(fail=gate))
+        assert stream_bodies(site) == []
+
+
+@mutation(WEB_FILE, '                                         proxies=self.proxies, impersonate="chrome")',
+          '                                         impersonate="chrome")', expect="the WebSocket's proxy")
+def test_every_call_goes_through_the_accounts_proxy_and_rotated_cookies_are_kept():
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
+    result, ctx = run(site)
+    proxy = {"http": "http://user:pw@10.0.0.9:3128", "https": "http://user:pw@10.0.0.9:3128"}
+    assert site.made == [proxy]
+    ws = next(c for c in site.calls if c.method == "WS")
+    assert ws.proxies == proxy, "the WebSocket's proxy"
+    assert ws.path.startswith("wss://hatch.metaaivm.com/v1/noise?vm_id=%s&auth_token=tok-abc&notary_token="
+                              "endorsement.v1.n&app_id=hatch-web&request_id=" % SESSION_OK["vm_id"])
+    token = next(c for c in site.calls if c.path == "/api/hatch/token")
+    assert token.headers["Sec-Fetch-Site"] == "same-origin" and token.headers["Sec-Fetch-Mode"] == "cors"
+    assert json.loads(token.data) == {"vmAddress": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
+    assert site.cookies_seen[0] == {"hatch_sess": "sess-value-1", "hatch_vml": "vml-1"}
+    assert [jar_of(b)["hatch_vml"] for b in ctx.renewed] == ["vml-2"]
+    no_proxy = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
+    run(no_proxy, ctx=Ctx(proxy=None))
+    assert no_proxy.made == [None]
+
+
+@mutation(SUBMIT_FILE, "                if found == \"refused\":", "                if False:", expect="Fail")
+def test_an_answer_in_words_with_no_image_is_refused_and_refunded_once_settled():
+    site = Site(vm_routes_=vm_routes([answered("job_j07.json")]))
+    result, _ = run(site)
+    assert isinstance(result.job, Fail), result
+    assert result.job.code == "muse.refused" and "Taylor Swift" in result.job.detail
+    assert result.account == (Success(),)
+
+
+@mutation(SUBMIT_FILE, "                    seen, since = signature(reading), self.deps.clock()",
+          "                    seen = signature(reading)", expect="before the second card")
+def test_a_new_card_starts_the_settle_again():
+    """Nothing for 0.8 s, the first of two images at 0.8 s, the second at 1.1 s: with a 0.6 s settle the first card
+    must not be delivered alone (the quiet time before it does not count)."""
+    import time
+    start = []
+
+    def timed(req):
+        sid = req.path.rsplit("session_id=", 1)[1]
+        start.append(time.monotonic())
+        t = time.monotonic() - start[0]
+        events = history("history_j06.json", sid)
+        return [] if t < 0.8 else events[:3] if t < 1.1 else events
+    site = Site(vm_routes_=vm_routes([timed]))
+    result, _ = run(site, job(n=2), settle_s=0.6, history_poll_s=0.05)
+    assert isinstance(result.job, Completed)
+    assert len(result.job.outputs) == 2, "before the second card"
+
+
+def test_fewer_images_than_asked_are_delivered_once_settled_and_charged():
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
+    result, ctx = run(site, job(n=3))
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1
+    assert any("made 1 of the 3 images" in text for _, text in ctx.events)
+
+
+@mutation(SUBMIT_FILE, "            if left <= 0:\n                return self._accepted()",
+          "            if left <= 0:\n                return _result(Ambiguous('late'))", expect="taken")
+def test_past_the_hold_a_taken_order_is_accepted_for_the_poll():
+    site = Site(vm_routes_=vm_routes([[]]))
+    result, _ = run(site, image_submit_timeout_s=submit_mod.HOLD_MARGIN_S + 0.3)
+    assert isinstance(result.job, Accepted), "taken: %s" % (result.job,)
+    sid = chat_of(site)
+    assert result.job.ref == sid and result.job.taken and dict(result.job.provider_state) == {"session_id": sid}
+
+
+def test_a_tunnel_that_breaks_after_the_acknowledgement_leaves_the_order_taken():
+    def broken(req):
+        raise_after = site.vms[0]
+        raise_after.broken()
+        return "silent"
+    site = Site(vm_routes_=vm_routes([broken]))
+    result, _ = run(site)
+    assert isinstance(result.job, Accepted) and result.job.taken
+    assert len(stream_bodies(site)) == 1
+
+
+@mutation(SUBMIT_FILE, "            except TunnelError as e:\n                return await self._unknown(",
+          "            except TunnelError as e:\n                return _result(Retry(errors.HTTP_ERROR)) or (",
+          expect="Ambiguous")
+def test_no_answer_to_the_send_is_unknown_and_never_sent_again():
+    site = Site(vm_routes_=vm_routes(stream="silent"))
+    result, ctx = run(site)
+    assert isinstance(result.job, Ambiguous), result
+    assert len(stream_bodies(site)) == 1 and ("mark_sent",) in ctx.calls
+
+
+@mutation(SUBMIT_FILE, "            if 400 <= reply.status < 500:", "            if False:", expect="NotTaken")
+def test_a_4xx_to_the_send_is_not_taken_and_a_5xx_is_unknown():
+    site = Site(vm_routes_=vm_routes(stream=(400, {"ok": False, "error": {"code": "invalid_params"}})))
+    result, ctx = run(site)
+    assert isinstance(result.job, NotTaken) and result.job.code == "muse.http_error", result
+    assert any("invalid_params" in text for _, text in ctx.events)
+    site = Site(vm_routes_=vm_routes(stream=(502, {"error": "bad gateway"})))
+    assert isinstance(run(site)[0].job, Ambiguous)
+    other_chat = Site(vm_routes_=vm_routes(stream=(200, {"session_id": "99999999-0000-4000-8000-000000000000"})))
+    assert isinstance(run(other_chat)[0].job, Ambiguous)
+
+
+@mutation(SUBMIT_FILE, "            return _result(Retry(POOL_LOGGED_OUT), *signed_out_effects(now))",
+          "            return _result(Retry(errors.HTTP_ERROR))", expect="pool.account_logged_out")
+def test_a_signed_out_session_sends_nothing_strikes_once_and_asks_for_a_recheck():
+    site = Site({"GET /api/session": (401, {"error": "Unauthorized"}, {"hatch_sess": "deleted"})})
+    result, ctx = run(site)
+    assert result.job == Retry("pool.account_logged_out")
+    strike, rest = result.account
+    assert isinstance(strike, Suspect) and strike.min_gap_s == 540
+    assert isinstance(rest, Cooldown) and rest.recheck and (rest.until - NOW).total_seconds() == 600
+    assert site.vms == [] and ctx.calls == [] and ctx.renewed == [], "nothing sent, no cookie kept"
+
+
+@mutation(WEB_FILE, '    if info.get("vm_state") != RUNNING:\n        await wake(',
+          "    if False:\n        await wake(", expect="POST /api/hatch/vm/wake")
+def test_a_sleeping_workspace_is_woken_and_the_job_goes_on():
+    asleep = {**SESSION_OK, "vm_state": "SLEEPING"}
+    site = Site({"GET /api/session": [(200, asleep, {}), (200, asleep, {}), (200, SESSION_OK, {})]},
+                vm_routes_=vm_routes([answered("job_j01.json")]))
+    result, _ = run(site)
+    assert isinstance(result.job, Completed)
+    assert site.paths()[:4] == ["GET /api/session", "POST /api/hatch/vm/wake", "GET /api/session",
+                                "GET /api/session"]
+    wake = site.calls[1]
+    assert json.loads(wake.data)["vm_id"] == SESSION_OK["vm_id"] and wake.headers["Sec-Fetch-Mode"] == "cors"
+
+
+def test_a_workspace_that_does_not_wake_or_none_assigned_goes_back_to_the_queue_unsent():
+    asleep = {**SESSION_OK, "vm_state": "SLEEPING"}
+    for answer in ((200, asleep, {}), (200, {"status": "unassigned"}, {})):
+        site = Site({"GET /api/session": answer})
+        result, ctx = run(site)
+        assert result.job == Retry("muse.vm_not_ready")
+        assert isinstance(result.account[-1], Cooldown) and ctx.calls == [] and site.vms == []
+
+
+@mutation(WEB_FILE, TOKEN_CHECK, "    if False:", expect="muse.http_error")
+def test_a_failed_step_before_the_send_is_retried_unsent():
+    forbidden = Site({"POST /api/hatch/token": (403, {"error": "Forbidden"}, {})})
+    result, ctx = run(forbidden)
+    assert result.job == Retry("muse.http_error") and ctx.calls == [] and forbidden.vms == []
+    empty = Site({"POST /api/hatch/token": (200, {"token": "t"}, {})})
+    assert run(empty)[0].job == Retry("muse.http_error")
+    node = Site(vm_routes_=vm_routes(overrides={"/api/nodes/register": (400, {"ok": False})}))
+    result, ctx = run(node)
+    assert result.job == Retry("muse.http_error") and ctx.calls == [] and stream_bodies(node) == []
+
+
+def test_a_proxy_that_fails_rests_the_account_and_marks_the_proxy():
+    class ProxyError(Exception):
+        pass
+    site = Site({"GET /api/session": ProxyError("connect to http://user:pw@10.0.0.9:3128 failed")})
+    result, ctx = run(site)
+    assert result.job == Retry("pool.proxy_failed")
+    assert [type(e) for e in result.account] == [ProxyBad, Cooldown]
+    assert not any("pw" in text for _, text in ctx.events)
+    plain = Site({"GET /api/session": OSError("reset")})
+    assert run(plain)[0].job == Retry("muse.http_error")
+    assert str(NetError("ProxyError", True)) == "muse.ai could not be reached (ProxyError)"
+
+
+def test_an_image_to_video_carries_its_image_inline():
+    site = Site(vm_routes_=vm_routes([answered("job_j10.json")]))
+    j = job("image_to_video", sent_text="the fox turns its head", inputs=(IMAGE_REF,))
+    result, _ = run(site, j)
+    assert isinstance(result.job, Completed) and result.job.outputs[0].mime == "video/mp4"
+    body = stream_bodies(site)[0]
+    assert body["items"][0]["data_base64"] == "UklGRndlYnA=" and body["items"][0]["mime_type"] == "image/webp"
+    assert body["items"][1]["text"].startswith("Animate the attached image into exactly one 5-second video")
+
+
+@mutation("packages/provider-muse/src/relay_muse/engine/chat.py", '            "approval_id": aid, "decision": "deny",',
+          '            "approval_id": aid, "decision": "approve",', expect="deny")
+def test_an_approval_the_agent_asks_is_denied():
+    def with_approval(req):
+        vm = site.vms[0]
+        if not any(r.path.startswith("/approvals/") for r in vm.requests):
+            vm.push({"event": "approvals.snapshot", "payload": {"approvals": [
+                {"approval_id": "ap-7", "status": "pending", "message_revision": 2}]}})
+            return []
+        return history("job_j01.json", req.path.rsplit("session_id=", 1)[1])
+    site = Site(vm_routes_=vm_routes([with_approval]))
+    result, ctx = run(site)
+    assert isinstance(result.job, Completed)
+    (deny,) = [r for r in site.vms[0].requests if r.path.startswith("/approvals/")]
+    assert (deny.service, deny.path) == (1, "/approvals/ap-7/decide")
+    assert deny.json() == {"approval_id": "ap-7", "decision": "deny", "expected_message_revision": 2}, "deny"
