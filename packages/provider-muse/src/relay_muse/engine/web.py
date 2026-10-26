@@ -247,6 +247,8 @@ async def lease_workspace(web: Web) -> dict:
     account has one already: the session is read again. Anything else is LeaseFailed. Only called when the session
     says it has none (`has_no_vm`): a workspace that exists is never leased again."""
     timeout = web.settings.get("muse.lease_timeout_s")
+    log.info("muse account %s: the session names no workspace; leasing its first",
+             getattr(getattr(getattr(web, "ctx", None), "account", None), "id", "?"))
     try:
         resp = await asyncio.wait_for(web.post_json(LEASE_PATH, LEASE_BODY), timeout)
     except TimeoutError:
