@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from relay_core import errors
 from relay_core.api import facade_common as fc
@@ -34,29 +34,38 @@ router = APIRouter()
 
 
 class _ImageUrl(Strict):
-    url: str
-    detail: str | None = None
+    url: str = Field(description="The input image: an https URL or a base64 data URI.")
+    detail: str | None = Field(default=None, description="Accepted for compatibility and not used.")
 
 
 class _Text(Strict):
-    type: Literal["text"]
-    text: str
+    type: Literal["text"] = Field(description="Always the word text.")
+    text: str = Field(description="Text of the prompt; the text parts are joined by new lines.")
 
 
 class _Image(Strict):
-    type: Literal["image_url"]
-    image_url: _ImageUrl
+    type: Literal["image_url"] = Field(description="Always the word image_url.")
+    image_url: _ImageUrl = Field(description="The input image of this part.")
 
 
 class _Message(Strict):
-    role: str
-    content: str | list[Annotated[_Text | _Image, Field(discriminator="type")]] | None = None
+    role: str = Field(description="The role of the message; only the last message is read.")
+    content: str | list[Annotated[_Text | _Image, Field(discriminator="type")]] | None = Field(
+        default=None, description="Text, or a list of text and image_url parts.")
 
 
 class ChatBody(Strict):
-    model: str
-    messages: list[_Message]
-    stream: bool = False
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "model": "example-video", "messages": [{"role": "user", "content": "A red kite over a beach at sunset"}],
+        "stream": False}]})
+
+    model: str = Field(description="Model id or alias, from GET /v1/models.")
+    messages: list[_Message] = Field(description=(
+        "The conversation. Only the last message is used: its text is the prompt and its image_url parts are the "
+        "input images."))
+    stream: bool = Field(default=False, description=(
+        "True: answer with server-sent events (chat.completion.chunk), a heartbeat while the job runs, then "
+        "data: [DONE]. False: hold the request until the job ends."))
 
 
 def extract(body: ChatBody) -> tuple[str, tuple[ImageRef, ...]]:

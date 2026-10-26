@@ -4,7 +4,7 @@ URL and the compatibility fields of older clients are refused or absent. Media r
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import Field, StrictInt
+from pydantic import ConfigDict, Field, StrictInt
 
 from relay_core.api.deps import require_key
 from relay_core.api.doors import (
@@ -28,15 +28,27 @@ router = APIRouter()
 
 
 class _Common(Strict):
-    model: str
-    prompt: str
-    ratio: str | None = None
-    n: StrictInt | None = None
-    image: str | None = None
-    images: list[str] | None = None
-    options: dict[str, Any] | None = None
-    title: str | None = None
-    callback_url: str | None = None
+    model: str = Field(description=(
+        "Model id or alias, from GET /v1/models: a video model on the video call, an image model on the image call."))
+    prompt: str = Field(description=(
+        "What to make. Trimmed, never blank, at most the model's `limits.max_prompt_chars` characters."))
+    ratio: str | None = Field(default=None, description=(
+        "Aspect ratio, such as 16:9, from the model's `limits.ratios`. Omit it for the model's default."))
+    n: StrictInt | None = Field(default=None, description=(
+        "How many outputs to make, for a model that makes several (see its `limits`). Omit it for the default."))
+    image: str | None = Field(default=None, description=(
+        "One input image: an https URL or a base64 data URI. JPEG, PNG or WebP, at most 12 MiB."))
+    images: list[str] | None = Field(default=None, description=(
+        "Input images, each as in `image`. At most 10 together with `image`; how many a model takes is its "
+        "`limits.max_images`."))
+    options: dict[str, Any] | None = Field(default=None, description=(
+        "Model-specific settings (a mode, a resolution). What a model takes is in its `limits` in GET /v1/models and "
+        "in GET /v1/providers/{provider}/options, where provider is the model's `owned_by`. At most 16 KiB as JSON."))
+    title: str | None = Field(default=None, description=(
+        "Your name for the job, one line of at most 200 characters. The status shows it back as `title`."))
+    callback_url: str | None = Field(default=None, description=(
+        "An https URL that gets a POST when the job ends (see Polling and webhooks in the introduction). Checked at "
+        "creation: a URL that is not https or not a public address is refused `input.invalid`."))
     source_job_id: str | None = Field(default=None, description=(
         "Id of an earlier finished job of this API key whose output this request works on (an extend, an edit). Only "
         "for a model that takes a source (its `limits.source` names the kind of output it needs). The job is made "
@@ -47,11 +59,22 @@ class _Common(Strict):
 
 
 class VideoBody(_Common):
-    duration: StrictInt | None = None
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "model": "example-video", "prompt": "A red kite over a beach at sunset, slow pan", "duration": 5,
+        "ratio": "16:9", "title": "Kite", "callback_url": "https://example.com/hooks/relay"}]})
+
+    duration: StrictInt | None = Field(default=None, description=(
+        "Length in seconds, from the model's `limits.durations`. Omit it for the model's default."))
 
 
 class ImageBody(_Common):
-    style: str | None = None
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "model": "example-image", "prompt": "A watercolor fox in the snow", "ratio": "1:1",
+        "images": ["https://example.com/fox.jpg"]}]})
+
+    style: str | None = Field(default=None, description=(
+        "Image style, for a model with styles: its `limits.styles`, or the styles of GET "
+        "/v1/providers/{provider}/options."))
 
 
 def _refs(body: _Common) -> tuple[ImageRef, ...]:

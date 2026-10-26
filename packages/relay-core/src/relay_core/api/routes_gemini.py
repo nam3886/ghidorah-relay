@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from relay_core.api import facade_common as fc
 from relay_core.api.deps import require_key
@@ -37,30 +37,44 @@ router = APIRouter()
 
 class _Inline(Strict):
     """The SDK writes `mime_type` here where the REST docs say `mimeType`: both are accepted."""
-    data: str
-    mime_type: str = Field(validation_alias=AliasChoices("mimeType", "mime_type"))
+    data: str = Field(description="The image as base64, standard or url-safe, padded or not.")
+    mime_type: str = Field(validation_alias=AliasChoices("mimeType", "mime_type"),
+                           description="An image type, such as image/png (mime_type is accepted too).")
 
 
 class _File(Strict):
-    file_uri: str = Field(validation_alias=AliasChoices("fileUri", "file_uri"))
-    mime_type: str | None = Field(default=None, validation_alias=AliasChoices("mimeType", "mime_type"))
+    file_uri: str = Field(validation_alias=AliasChoices("fileUri", "file_uri"),
+                          description="An https URL of the input image (file_uri is accepted too).")
+    mime_type: str | None = Field(default=None, validation_alias=AliasChoices("mimeType", "mime_type"),
+                                  description="Optional; when sent, an image type such as image/png.")
 
 
 class _Part(Strict):
-    text: str | None = None
-    inline_data: _Inline | None = Field(default=None, validation_alias="inlineData")
-    file_data: _File | None = Field(default=None, validation_alias="fileData")
+    text: str | None = Field(default=None, description="Text of the prompt; text parts are joined by new lines.")
+    inline_data: _Inline | None = Field(default=None, validation_alias="inlineData",
+                                        description="An input image sent inline.")
+    file_data: _File | None = Field(default=None, validation_alias="fileData",
+                                    description="An input image sent by URL.")
 
 
 class _Content(Strict):
-    role: Literal["user", "model"] | None = None
-    parts: list[_Part]
+    role: Literal["user", "model"] | None = Field(default=None, description=(
+        "user or model; none counts as user. The last user content is the request."))
+    parts: list[_Part] = Field(description="Text and image parts of this content.")
 
 
 class GenerateBody(Strict):
-    contents: list[_Content]
-    system_instruction: _Content | None = Field(default=None, validation_alias="systemInstruction")
-    generation_config: dict[str, Any] | None = Field(default=None, validation_alias="generationConfig")
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "contents": [{"role": "user", "parts": [{"text": "A watercolor fox in the snow"}]}]}]})
+
+    contents: list[_Content] = Field(description=(
+        "The conversation. The last user content is the request: its text parts are the prompt, its inlineData and "
+        "fileData parts the input images."))
+    system_instruction: _Content | None = Field(default=None, validation_alias="systemInstruction", description=(
+        "Text put before the prompt, separated by a blank line."))
+    generation_config: dict[str, Any] | None = Field(default=None, validation_alias="generationConfig", description=(
+        "Only an empty object is accepted (the Gemini SDK sends one beside systemInstruction); any setting in it "
+        "is refused input.invalid."))
 
 
 def _text(content: _Content | None) -> str:

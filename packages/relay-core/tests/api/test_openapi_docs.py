@@ -167,7 +167,7 @@ def strings(node):
         yield node
 
 
-@mutation(DOCS, "Create a video job. Charged at creation", "Create a video job (D27). Charged at creation",
+@mutation(DOCS, '_CHARGE = "Charged at creation', '_CHARGE = "Charged (D27) at creation',
           expect="an internal note in the public schema")
 @mutation(SCHEMAS, "your place in the line while queued", "your place in the worker pool while queued",
           expect="an internal note in the public schema")
@@ -319,7 +319,77 @@ def test_every_field_is_documented_the_progress_is_bounded_and_no_formula_is_pub
     run_app(db, scenario)
 
 
-@mutation(DOCS, '("get", "/v1/points"): ("Usage",', '("get", "/v1/points"): ("Account",', expect="points tag is Usage")
+GEMINI = "packages/relay-core/src/relay_core/api/routes_gemini.py"
+
+
+def fields_of(schemas: dict, name: str, seen: set[str]):
+    """(component, field, property) of every field a body reaches: its own, and those of the parts it refers to."""
+    if name in seen:
+        return
+    seen.add(name)
+    for field, prop in schemas[name].get("properties", {}).items():
+        yield name, field, prop
+        refs: set[str] = set()
+        _refs_in(prop, refs)
+        for ref in sorted(refs):
+            yield from fields_of(schemas, ref, seen)
+
+
+def _refs_in(node, found: set[str]) -> None:
+    if isinstance(node, dict):
+        if isinstance(node.get("$ref"), str):
+            found.add(node["$ref"].rsplit("/", 1)[-1])
+        for v in node.values():
+            _refs_in(v, found)
+    elif isinstance(node, list):
+        for v in node:
+            _refs_in(v, found)
+
+
+@mutation(NATIVE, "title: str | None = Field(default=None, description=(",
+          "title: str | None = Field(default=None, title=(", expect="every body field is documented")
+@mutation(GEMINI, 'description="An input image sent by URL."', 'title="An input image sent by URL."',
+          expect="every body field is documented")
+def test_every_field_of_every_request_body_is_documented_and_each_body_has_an_example(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    schema = run_app(db, scenario)
+    schemas, seen, found = schema["components"]["schemas"], set(), []
+    for name in sorted(set(CREATE_BODIES.values())):
+        assert schemas[name].get("examples"), "%s has an example" % name
+        for component, field, prop in fields_of(schemas, name, seen):
+            found.append((component, field))
+            assert len(prop.get("description", "").split()) >= 3, "every body field is documented: %s.%s" % (
+                component, field)
+    assert {("VideoBody", "source_job_id"), ("ImageBody", "source_index"), ("_Inline", "mimeType"),
+            ("_ImageUrl", "url")} <= set(found), "the walk reaches the nested parts: %s" % sorted(found)
+
+
+def test_every_documented_refusal_is_a_registered_code_under_its_own_status(db):
+    async def scenario(env):
+        return await fetch(env)
+
+    from relay_core import errors
+
+    schema = run_app(db, scenario)
+    listed = 0
+    for path, ops in schema["paths"].items():
+        for method, op in ops.items():
+            for status, answer in op["responses"].items():
+                for code in re.findall(r"`([a-z_]+\.[a-z_]+)`", answer.get("description", "")):
+                    listed += 1
+                    assert errors.rule(code).code == code, "%s %s names an unknown code %s" % (method, path, code)
+                    assert str(errors.http_status(code)) == status, (method, path, code, status)
+    assert listed > 50, "the create calls list their refusals"
+    intro = schema["info"]["description"]
+    for topic in ("## Authentication", "## Job lifecycle", "## Polling and webhooks", "not signed", "## Points",
+                  "## Errors", "GET /v1/providers/{provider}/options"):
+        assert topic in intro, "the introduction covers %r" % topic
+    assert schema["webhooks"]["jobEnded"]["post"]["requestBody"]
+
+
+@mutation(DOCS, '("get", "/v1/points"): ("Usage",','("get", "/v1/points"): ("Account",', expect="points tag is Usage")
 def test_the_points_route_is_tagged_usage_and_still_answers_the_same(db):
     async def scenario(env):
         schema = await fetch(env)

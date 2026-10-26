@@ -551,8 +551,8 @@ def test_a_plan_refusal_is_its_own_400_and_an_engine_crash_never_leaks_its_text(
     run_app(db, scenario)
 
 
-@mutation(NATIVE, "    style: str | None = None\n",
-          "    style: str | None = None\n    template: StrictInt | None = None\n",
+@mutation(NATIVE, "\n    style: str | None = Field(",
+          "\n    template: StrictInt | None = None\n    style: str | None = Field(",
           expect="the door took a template field")
 def test_the_fields_of_each_door_reach_plan_as_one_request(db, monkeypatch):
     async def scenario(env):
