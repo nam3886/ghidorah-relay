@@ -1184,14 +1184,19 @@ workspace id.
 **Usage and pools.** muse has one weekly meter (a whole percentage, reset at a time it names per account). The pools
 `image` (400 a week) and `video` (40 a week) count outputs, each in a 168 h window placed by that reset; the check
 reports what is left of both in proportion to the unused share, and none at `muse.usage_stop_percent` or when muse
-says the quota is not sufficient. The figure comes from the site's `fetchSubscriptionAction` server action, whose id is
-found by name in the site's scripts once per site deployment; when it cannot be found the check goes on without it
-(the relay's own counts hold).
+says the quota is not sufficient. Between checks, each done job lowers BOTH pools by its share of the one meter,
+counted by what muse made (with the defaults a video is 10 images' worth), as a reported balance from what each pool
+held when the run started. The figure comes from the site's `fetchSubscriptionAction` server action, whose id is
+found by name in the site's scripts once per site deployment (the hunt reads about 190 scripts through the proxy and
+may take two checks); when it cannot be found the check goes on without it (the relay's own counts hold).
 
 **Send.** One new side chat per job: the tunnel is set up (client register, subscribe, node register), the chat id is
 written to the job, `mark_sent`, ONE `/chat/stream` (an input image inline, base64). The customer's text goes between
 `<description>` tags under instructions that fix the count, the ratio and the length; a prompt that writes out another
-count, ratio or length is refused at the door. Then the chat's history is read every `muse.history_poll_s`:
+count, ratio or length is refused at the door, numbers and plain word forms alike ("a pair of", "a triptych",
+"twenty seconds", "half a minute", "widescreen", "portrait orientation"; "a portrait of a woman" stays free). A video
+whose probed length or ratio is off the paid one is delivered all the same and noted on the job (a warning in the log
+with the job id); more images than paid are never delivered. Then the chat's history is read every `muse.history_poll_s`:
 - the n results asked are there: delivered (never more than n); fewer, once the chat stayed the same for
   `muse.settle_s` with every message complete: delivered too, all charged (any output is a full charge);
 - a settled chat with an answer in words and no result (a refusal, a question): failed `muse.refused`, refunded;
@@ -1212,6 +1217,9 @@ count, ratio or length is refused at the door. Then the chat's history is read e
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
 | `muse.usage_stop_percent` | 95 | the weekly Usage at which an account takes no more jobs until its reset |
+| `muse.http_timeout_s`, `muse.ws_timeout_s`, `muse.handshake_timeout_s`, `muse.call_timeout_s` | 30, 30, 20, 30 | one HTTP call; the WebSocket's open and each frame sent or its close; the tunnel's handshake; one call in the tunnel |
+| `muse.fetch_timeout_s`, `muse.media_max_mb` | 120, 64 | one result file through the tunnel, and the largest taken |
+| `muse.usage_budget_s`, `muse.scan_max_scripts`, `muse.scan_batch` | 90, 400, 12 | the Usage read of one check (the hunt for its action goes on at the next check), the most script reads of one deployment's hunt, and the reads at once |
 | `muse.render_deadline_s` | 900 | an unfinished job is given up then, refunded |
 | `muse.prices`, `muse.costs` | 1 per output | points per image (`muse-image`, `muse-image@n<k>`) or per video (`muse-video@5s`, `@10s`); one use of its pool |
 | `muse.pools` | image 400, video 40 a week | uses per account per 168 h, from muse's reset |
