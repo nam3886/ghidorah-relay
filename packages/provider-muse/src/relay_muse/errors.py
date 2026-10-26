@@ -2,10 +2,8 @@
 
 The codes the platform owns are not repeated: a signed-out session before the send is `pool.account_logged_out`, a
 proxy that cannot reach muse `pool.proxy_failed`, an order that never shows up `render.deadline`. Each rule carries the
-sentence the public API reference shows a customer (`public_text`) where the registry has that field.
+sentence the public API reference shows a customer (`public_text`).
 """
-
-from dataclasses import fields
 
 from relay_core import errors as core_errors
 from relay_core.errors import Rule
@@ -15,11 +13,8 @@ VM_NOT_READY = "muse.vm_not_ready"      # the account's cloud VM did not wake (o
 REFUSED = "muse.refused"                # muse answered the order in words with no image or video
 OUTPUT_MISSING = "muse.output_missing"  # muse has no file for a result it showed
 
-_PUBLIC = "public_text" in {f.name for f in fields(Rule)}
-
-
 def _rule(*args, text: str, **kw) -> Rule:
-    return Rule(*args, **kw, **({"public_text": text} if _PUBLIC else {}))
+    return Rule(*args, **kw, public_text=text)
 
 
 CODES: dict[str, Rule] = {r.code: r for r in (

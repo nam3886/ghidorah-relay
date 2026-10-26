@@ -38,8 +38,8 @@ def test_the_spec_registers_and_its_codes_are_sound():
     assert not core_errors.violations({**core_errors.RULES, **CODES})
     assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing"}
     assert all(core_errors.RULES[c] is r for c, r in CODES.items())
-    for rule in CODES.values():         # the reference's sentence, where the registry has the field
-        assert getattr(rule, "public_text", "x") and rule.public
+    for rule in CODES.values():         # the reference's sentence
+        assert rule.public_text.endswith(".") and "again" in rule.public_text and rule.public
     assert SPEC.caps.execution == "http" and SPEC.caps.account_slots == 1 and SPEC.caps.has_reconcile
     assert SPEC.ref_is_conversation and SPEC.frames.verbatim
 
