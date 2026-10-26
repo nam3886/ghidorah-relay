@@ -537,3 +537,21 @@ def test_the_downloads_and_the_facade_errors_document_the_headers_they_send(db):
     assert "text/event-stream" in chat["200"]["content"]
     assert "headers" not in schema["paths"]["/v1/video/generations"]["post"]["responses"]["400"], \
         "the native routes send no x-should-retry"
+
+
+@mutation(DOCS, '    "416": {"description": "The range starts past the end of the file. No body.", "headers": {',
+          '    "416": {"description": "The range starts past the end of the file. No body.", "headerz": {',
+          expect="not a valid OpenAPI document")
+def test_the_served_schema_is_a_valid_openapi_document(db):
+    """The whole served document, servers and webhooks included, against the OpenAPI 3.1 specification."""
+    from openapi_spec_validator import validate
+
+    async def scenario(env):
+        return await fetch(env)
+
+    schema = run_app(db, scenario)
+    assert schema["openapi"].startswith("3.1") and schema["servers"] and schema["webhooks"]
+    try:
+        validate(schema)
+    except Exception as e:      # the validator's own error class differs between its versions
+        raise AssertionError("not a valid OpenAPI document: %s" % e) from None
