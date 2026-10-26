@@ -505,7 +505,7 @@ QUOTA = ("    return code == errors.VIDEO_LIMIT or (code == errors.REFUSED and a
 @mutation(SUBMIT_FILE, CANNOT, "    t = t", expect="a variant of the limit")
 @mutation(SUBMIT_FILE, PUNCT, "    return t", expect="a variant of the limit")
 @mutation(SUBMIT_FILE, QUOTA, "    return code == errors.VIDEO_LIMIT", expect="a quota-like answer")
-@mutation(SUBMIT_FILE, REFUSAL_CODE, "    return code\n", expect="a quota-like refusal is the limit")
+@mutation(SUBMIT_FILE, REFUSAL_CODE, "    return code\n", expect="a quota-like answer is the limit")
 def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_any_language_rests_the_video_pool():
     for text in ("I CAN'T CREATE MORE VIDEOS FOR YOU TODAY.", "I can’t create more videos for you today",
                  "Sorry, I cannot create more videos right now.", "You've reached your daily video limit!",
@@ -518,7 +518,7 @@ def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_a
         log = []
         result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
         assert isinstance(result.job, Fail) and result.job.code == errors.LIMIT_REACHED, \
-            "a quota-like refusal is the limit, not a content refusal: %r" % text
+            "a quota-like answer is the limit, not a content refusal: %r" % text
         assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] \
             == ["video"], "a quota-like answer did not empty the video pool: %r" % text
     log = []
@@ -654,7 +654,8 @@ def test_a_used_up_five_hour_block_never_empties_the_pro_image_pool_that_counts_
     log = []
     result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), nb21_ctx(log),
                  job(model=NB21))
-    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, \
+        "a window the pool does not have made image_pro's refusal the limit: %s" % (result.job,)
     assert not any(isinstance(e, Balance) for e in result.account), \
         "a window the pool does not have emptied image_pro: %s" % (result.account,)
     log = []
