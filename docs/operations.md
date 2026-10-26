@@ -107,7 +107,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen` = the provider workers. A bare `docker compose up`
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse` = the provider workers. A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
 - Every service has its own env file (`deploy/<service>.env`, gitignored), copied from `deploy/<service>.env.example`
@@ -547,7 +547,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |
@@ -1159,6 +1159,63 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.costs` | 1 per image, the qwen price list per video (720p: HappyHorse 1.1 30/60/90, 1.0 40/80/120, Wan 2.7 20/40/60; 1080p: 40/80/120, 70/140/210, 30/60/90) | one job of the image budget, or qwen credits |
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
+
+## The muse provider (`relay worker --provider muse`)
+
+muse.ai (Meta's agent app) over plain HTTP and a Noise tunnel, no browser. Models:
+- `muse-image` (1 to 4 images from text, `n` priced per image; ratios 1:1, 16:9, 9:16, 4:3, 3:4, or none: muse picks);
+- `muse-video` (a 5 or 10 s video with sound: from text, 16:9 default or 9:16, or one input image animated in its own
+  shape, the text optional).
+The protocol and the spike of 26/10 are in `plans/muse-spike-261026.md` and `fixtures/muse/README.md`.
+
+**What the worker needs.** The http image (`worker-muse`) and `deploy/worker-muse.env` with the usual worker
+variables. No key of its own.
+
+**Account.** A Cookie-Editor JSON export (or a `Cookie:` header) of muse.ai with `hatch_sess`; only the muse.ai cookies
+are kept. Every call goes through the account's proxy, the WebSocket included (curl_cffi, Chrome fingerprint). Each run
+reads `GET /api/session` (muse rotates `hatch_vml` there; the run writes the rotated cookies back, so the relay is the
+only thing that renews a muse session: never use the jar elsewhere), wakes the account's workspace when it is not
+`RUNNING` (`POST /api/hatch/vm/wake`, then the session is read every `muse.wake_poll_s` until `muse.wake_timeout_s`),
+buys the tunnel's tokens (`POST /api/hatch/token`, which answers 403 without the `Sec-Fetch-*` headers) and opens the
+Noise_XX tunnel to `hatch.metaaivm.com`. The check (every hour) reads the session and the weekly Usage figure: a 401 is
+one spaced strike and a rest with a recheck (three end the account as signed out); its identity is a hash of the
+workspace id.
+
+**Usage and pools.** muse has one weekly meter (a whole percentage, reset at a time it names per account). The pools
+`image` (400 a week) and `video` (40 a week) count outputs, each in a 168 h window placed by that reset; the check
+reports what is left of both in proportion to the unused share, and none at `muse.usage_stop_percent` or when muse
+says the quota is not sufficient. The figure comes from the site's `fetchSubscriptionAction` server action, whose id is
+found by name in the site's scripts once per site deployment; when it cannot be found the check goes on without it
+(the relay's own counts hold).
+
+**Send.** One new side chat per job: the tunnel is set up (client register, subscribe, node register), the chat id is
+written to the job, `mark_sent`, ONE `/chat/stream` (an input image inline, base64). The customer's text goes between
+`<description>` tags under instructions that fix the count, the ratio and the length; a prompt that writes out another
+count, ratio or length is refused at the door. Then the chat's history is read every `muse.history_poll_s`:
+- the n results asked are there: delivered (never more than n); fewer, once the chat stayed the same for
+  `muse.settle_s` with every message complete: delivered too, all charged (any output is a full charge);
+- a settled chat with an answer in words and no result (a refusal, a question): failed `muse.refused`, refunded;
+- an approval the agent asks is denied;
+- no verdict by the end of the submit's hold: the order is taken, the poll reads the chat every `muse.poll_interval_s`
+  with the same rules. No answer to the send itself is unknown: the reconciler reads the chat (any event: found), never
+  sends again; the render deadline fails it with its refund. A 4xx answer to the send is `muse.http_error` (nothing
+  was made, tried again). The files are read in the tunnel (`/fs/raw/workspace/imagine_media/<file>`): there is no
+  public link.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `muse.claims_enabled` | false | drain mode: no new job; the checks go on and keep the sessions alive |
+| `muse.image_submit_timeout_s`, `muse.video_submit_timeout_s` | 240, 420 | the hold of one submit; a taken order is polled after it |
+| `muse.history_poll_s` | 10 | between two reads of the chat in a submit |
+| `muse.settle_s` | 45 | an unchanged, complete chat this long delivers fewer results than asked, or fails an answer in words |
+| `muse.poll_interval_s` | 30 | between two reads of a job that outlived its submit |
+| `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
+| `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
+| `muse.usage_stop_percent` | 95 | the weekly Usage at which an account takes no more jobs until its reset |
+| `muse.render_deadline_s` | 900 | an unfinished job is given up then, refunded |
+| `muse.prices`, `muse.costs` | 1 per output | points per image (`muse-image`, `muse-image@n<k>`) or per video (`muse-video@5s`, `@10s`); one use of its pool |
+| `muse.pools` | image 400, video 40 a week | uses per account per 168 h, from muse's reset |
+| `muse.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The box runbook
 

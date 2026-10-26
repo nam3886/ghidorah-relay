@@ -49,7 +49,7 @@ set -euo pipefail
 D=$HOME/relay-deploy
 N=$HOME/relay-deploy-new
 MIG=packages/relay-core/src/relay_core/db/migrations
-IMAGES="relay-api relay-migrate relay-worker-dola relay-worker-meta relay-worker-vibes relay-worker-flow relay-worker-gemini relay-worker-qwen"
+IMAGES="relay-api relay-migrate relay-worker-dola relay-worker-meta relay-worker-vibes relay-worker-flow relay-worker-gemini relay-worker-qwen relay-worker-muse"
 LOGS=$HOME/relay-logs
 LOGS_DAYS=7
 LOGS_FILES=20
@@ -332,12 +332,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 for p in ${workers[@]+"${workers[@]}"}; do
-  case "$p" in dola | meta | vibes | flow | gemini | qwen) ;; *) die "unknown provider '$p' (dola, meta, vibes, flow, gemini, qwen)" ;; esac
+  case "$p" in dola | meta | vibes | flow | gemini | qwen | muse) ;; *) die "unknown provider '$p' (dola, meta, vibes, flow, gemini, qwen, muse)" ;; esac
 done
 if [ -n "$sha" ]; then [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || die "a commit is 7 to 40 hex digits: '$sha'"; fi
 
 default_claims() {   # the default <p>.claims_enabled of each provider's spec (test_deploy_sh compares them)
-  case "$1" in dola) echo true ;; meta | vibes | flow | gemini | qwen) echo false ;; esac
+  case "$1" in dola) echo true ;; meta | vibes | flow | gemini | qwen | muse) echo false ;; esac
 }
 
 restart_workers() {   # a provider claims after its restart exactly when it claimed before: off stays off

@@ -22,7 +22,7 @@ MIG = "packages/relay-core/src/relay_core/db/migrations"
 SECRET = "S3CRET-VALUE-0042"
 SNAPSHOT = "relay-claims-snapshot"
 ENV_FILES = (".env", "api.env", "migrate.env", "worker-dola.env", "worker-meta.env", "worker-flow.env",
-             "worker-gemini.env", "worker-qwen.env")
+             "worker-gemini.env", "worker-qwen.env", "worker-muse.env")
 
 SSH_STUB = """\
 #!/usr/bin/env bash
@@ -752,7 +752,8 @@ def test_an_unreadable_claims_state_stops_before_any_provider_is_drained(tmp_pat
 
 
 def test_the_claims_defaults_of_deploy_sh_are_those_of_the_provider_specs():
-    for package in ("relay_dola", "relay_flow", "relay_gemini", "relay_meta", "relay_vibes", "relay_qwen"):
+    for package in ("relay_dola", "relay_flow", "relay_gemini", "relay_meta", "relay_vibes", "relay_qwen",
+                    "relay_muse"):
         module = importlib.import_module(package + ".spec")
         name = module.SPEC.name
         default = module.SPEC.settings()[name + ".claims_enabled"].default

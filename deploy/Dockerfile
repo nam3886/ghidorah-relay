@@ -1,4 +1,4 @@
-# Two targets: `http` for api, migrate, worker-vibes, worker-flow and worker-gemini; `browser` for worker-dola,
+# Two targets: `http` for api, migrate, worker-vibes, worker-flow, worker-gemini and worker-muse; `browser` for worker-dola,
 # worker-meta and worker-qwen (its Chrome only mints qwen's anti-bot pair). Built on the box itself; nothing is
 # pushed to a registry.
 # Base images are pinned by their multi-arch index digest; the digests, the Chrome version and the
