@@ -2,9 +2,9 @@
 
 Routes raise `ApiError(code, param)`; the status, `type` and text come from the code's `Rule`, never from the call
 site. Errors the framework makes itself (404, 405, 422) and crashes go through the same renderer, so no path can
-leave with another shape. The client sees only `errors.shown`: a client code with its message, any other code as its
-neutral public code and customer sentence; never an internal code, an exception message, an engine text or an
-upstream text.
+leave with another shape. The admin tree answers the internal code and message. A client sees only `errors.shown`:
+a client code with its message, any other code as its neutral public code and customer sentence; never an internal
+code, an exception message, an engine text or an upstream text.
 
 Two shapes: OpenAI style `{"error": {"code", "message", "type", "param"}}` everywhere, and the Gemini body on the
 Gemini doors (`/v1beta…`, `/models…`).
@@ -80,7 +80,8 @@ def error_response(path: str, code: str, param: str | None = None, *, status: in
                    headers: dict[str, str] | None = None) -> JSONResponse:
     """The response for a code, in the shape the path's door speaks. `status` overrides the rule's only for errors
     the framework made (a 405 keeps its status and its `Allow` header)."""
-    body = gemini_body(code, param) if is_gemini_path(path) else envelope(code, param)
+    admin = path == "/admin" or path.startswith("/admin/")         # the operator sees the internal code
+    body = gemini_body(code, param) if is_gemini_path(path) else envelope(code, param, internal=admin)
     if is_facade_path(path):                      # an SDK must not re-send a request whose job exists
         headers = {**(headers or {}), NO_RETRY[0]: NO_RETRY[1]}
     if status is not None and is_gemini_path(path):

@@ -75,8 +75,8 @@ CLIENT_CODE_CHECK = "        if r.job_scoped or r.code.split(\".\")[0] not in CL
 NEUTRAL_CHECK = "    elif r.public_code not in PUBLIC_CODES:\n"
 
 
-@mutation(ERRORS, CLIENT_CODE_CHECK, "        if False:\n", expect="no public code")
-@mutation(ERRORS, NEUTRAL_CHECK, "    elif False:\n", expect="no public code")
+@mutation(SRC, CLIENT_CODE_CHECK, "        if False:\n", expect="no public code")
+@mutation(SRC, NEUTRAL_CHECK, "    elif False:\n", expect="no public code")
 def test_a_code_without_a_neutral_public_code_is_refused():
     """Only a request-time code of a client domain is shown as itself; every other code names a neutral code."""
     for rule in (good(public_code=""), good(public_code="made_up"), good(public_code="x.thing"),
@@ -90,7 +90,7 @@ def test_a_code_without_a_neutral_public_code_is_refused():
         assert broken(good(public_code=code)) == [], code
 
 
-@mutation(ERRORS, "    return r.public_code == INTERNAL_ERROR and not r.public_text\n", "    return False\n",
+@mutation(SRC, "    return r.public_code == INTERNAL_ERROR and not r.public_text\n", "    return False\n",
           expect="hidden codes")
 def test_every_registered_code_maps_to_a_neutral_code_or_is_a_client_code():
     """The whole registry, every provider loaded: a new code without a mapping fails at import, and here."""

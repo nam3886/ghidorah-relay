@@ -180,8 +180,8 @@ def strings(node):
           expect="an internal note in the public schema")
 @mutation(SCHEMAS, "your place in the line while queued", "your place in the worker pool while queued",
           expect="an internal note in the public schema")
-@mutation("packages/relay-core/src/relay_core/errors.py", 'text="The render was lost before its result arrived.',
-          'text="The account was lost before its result arrived.', expect="an internal note in the public schema")
+@mutation("packages/relay-core/src/relay_core/errors.py", '"The generation failed and nothing was delivered.',
+          '"The account failed and nothing was delivered.', expect="an internal note in the public schema")
 def test_the_public_schema_text_is_english_and_carries_no_internal_note(db):
     async def scenario(env):
         return await fetch(env)
@@ -450,7 +450,9 @@ def test_the_status_lists_the_neutral_codes_a_job_can_end_with_and_no_internal_c
     served = json.dumps(schema)
     inner = sorted(c for c in errors.RULES if c.split(".")[0] not in errors.CLIENT_DOMAINS and c in served)
     assert not inner, "an internal code is in the served reference: %s" % inner
-    shown = sorted(r.public_text for r in errors.RULES.values() if r.public_text and r.public_text in served)
+    neutral = {text for _, text in errors.PUBLIC_CODES.values()}
+    shown = sorted(r.public_text for r in errors.RULES.values()
+                   if r.public_text and r.public_text not in neutral and r.public_text in served)
     assert not shown, "the reference lists the neutral codes' sentences, not each internal code's: %s" % shown
 
 

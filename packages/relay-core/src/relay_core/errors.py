@@ -300,10 +300,11 @@ def shown(code: str) -> tuple[str, str]:
     return r.public_code, r.public_text or PUBLIC_CODES[r.public_code][1]
 
 
-def envelope(code: str, param: str | None = None) -> dict:
+def envelope(code: str, param: str | None = None, *, internal: bool = False) -> dict:
     """The error body. The text always comes from the rule; `param` names the offending request field. The type, as
-    the HTTP status, is the real code's."""
-    shown_code, message = shown(code)
+    the HTTP status, is the real code's. `internal` (the admin tree only): the registered code and its message."""
+    r = rule(code)
+    shown_code, message = (r.code, r.message) if internal else shown(code)
     return {"error": {"code": shown_code, "message": message, "type": rule(code).error_type, "param": param}}
 
 

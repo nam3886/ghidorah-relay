@@ -90,8 +90,8 @@ def test_a_failed_job_shows_only_a_neutral_code_on_the_status_the_webhook_and_th
             later = later_failed(db, key, code, 3 * n + 1)
             r = await env.client.post(CHAT, json={**CHAT_BODY, "stream": False}, headers=key.headers)
             await later
-            assert r.status_code == errors.http_status(code) and r.headers["x-should-retry"] == "false", r.text
             neutral(code, r.json()["error"]["code"], r.json()["error"]["message"], r.text, "chat")
+            assert r.status_code == errors.http_status(code) and r.headers["x-should-retry"] == "false", r.text
 
             later = later_failed(db, key, code, 3 * n + 2)
             r = await env.client.post(GEN, json=GEN_BODY, headers=key.headers)

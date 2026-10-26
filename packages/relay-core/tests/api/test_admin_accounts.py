@@ -297,6 +297,8 @@ def test_the_list_shows_what_the_next_claim_will_see_a_report_until_its_refill_a
 
 # ---- patch ------------------------------------------------------------------------------------------------------
 @mutation(ROUTES, IN_USE_CHECK, "if False and (await", expect="while a worker holds it")
+@mutation("packages/relay-core/src/relay_core/api/errors_http.py", "envelope(code, param, internal=admin)",
+          "envelope(code, param)", expect="pool.account_busy")      # the admin keeps the internal code
 def test_a_proxy_or_enable_change_is_refused_while_the_account_is_in_use_but_a_label_is_not(db, pair):
     a = new_account(db, label="busy", checked=True)
     live_lease(db, a)
