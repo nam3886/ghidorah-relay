@@ -112,12 +112,13 @@ describe("provider marks", () => {
     expect(providerClass("fake")).toBe("p-other");
   });
 
-  it("orders dola, meta, vibes, flow, qwen, gemini, then any other by name", () => {
-    expect(byProviderOrder(["zeta", "flow", "alpha", "dola", "vibes", "meta"])).toEqual([
+  it("orders dola, meta, vibes, flow, qwen, gemini, muse, then any other by name", () => {
+    expect(byProviderOrder(["zeta", "muse", "flow", "alpha", "dola", "vibes", "meta"])).toEqual([
       "dola",
       "meta",
       "vibes",
       "flow",
+      "muse",
       "alpha",
       "zeta",
     ]);

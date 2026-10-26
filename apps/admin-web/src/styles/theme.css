@@ -116,6 +116,9 @@ html:root {
   --p-qwen: #8a6700;
   --p-qwen-soft: #fbf1d0;
   --p-qwen-ink: #8a6700;
+  --p-muse: #0369a1;
+  --p-muse-soft: #e0f2fe;
+  --p-muse-ink: #0369a1;
 }
 
 html.dark:root {
@@ -218,6 +221,9 @@ html.dark:root {
   --p-qwen: #fde047;
   --p-qwen-soft: #33290a;
   --p-qwen-ink: #fde047;
+  --p-muse: #7dd3fc;
+  --p-muse-soft: #0c2a3d;
+  --p-muse-ink: #7dd3fc;
 }
 
 /* A provider's colours, by class (lib/providers.ts `providerClass`): --pc and --pi the ink (PF), --ps the fill (PB).
@@ -251,6 +257,11 @@ html.dark:root {
   --pc: var(--p-gemini);
   --ps: var(--p-gemini-soft);
   --pi: var(--p-gemini-ink);
+}
+.p-muse {
+  --pc: var(--p-muse);
+  --ps: var(--p-muse-soft);
+  --pi: var(--p-muse-ink);
 }
 .p-other {
   --pc: var(--rl-neutral);
