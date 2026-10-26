@@ -42,9 +42,9 @@ log = logging.getLogger("relay_muse.web")
 API_TIMEOUT_S = 30          # one HTTP call
 WS_TIMEOUT_S = 30           # the WebSocket upgrade
 RENEW_TIMEOUT_S = 5.0       # writing rotated cookies back: past it nothing is written
-USAGE_BUDGET_S = 60         # the whole Usage read, the hunt for its action id included
+USAGE_BUDGET_S = 90         # the whole Usage read, the hunt for its action id included (check bound 144 s)
 SCAN_MAX_SCRIPTS = 400      # site scripts read at most while hunting the action id (the site loads about 190)
-SCAN_BATCH = 8              # scripts read at once
+SCAN_BATCH = 12             # scripts read at once
 _VM_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
 
 
@@ -307,23 +307,38 @@ def find_action(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-async def _hunt(web: Web, html: str) -> str | None:
-    """Read the site's scripts (those the page names, then the chunks they name) until one declares the action."""
-    queue = list(dict.fromkeys(_SCRIPT.findall(html)))
-    seen: set[str] = set()
-    while queue and len(seen) < SCAN_MAX_SCRIPTS:
-        batch = [p for p in dict.fromkeys(queue) if p not in seen][:SCAN_BATCH]
-        queue = [p for p in queue if p not in batch]
-        if not batch:
-            break
-        seen.update(batch)
-        for resp in await asyncio.gather(*(web.get(p, accept="*/*") for p in batch), return_exceptions=True):
-            text = getattr(resp, "text", "") if getattr(resp, "status_code", 0) == 200 else ""
-            found = find_action(text)
-            if found:
-                return found
-            queue += ["/_next/" + c for c in _CHUNK.findall(text) if "/_next/" + c not in seen]
-    return None
+class Hunt:
+    """The hunt for the action id in one deployment's scripts. It outlives a cut read: the next check goes on from
+    where the last one stopped (live 26/10: the site loads about 190 scripts, more than one check's budget reads
+    through a proxy)."""
+
+    def __init__(self, html: str):
+        self.queue = list(dict.fromkeys(_SCRIPT.findall(html)))
+        self.seen: set[str] = set()
+        self.tries = 0
+
+    async def run(self, web: Web) -> str | None:
+        """The action id; None once every script was read without it (or `SCAN_MAX_SCRIPTS` reads were spent).
+        A script that could not be read goes to the back of the queue; one read is counted per try."""
+        while self.queue and self.tries < SCAN_MAX_SCRIPTS:
+            batch = list(dict.fromkeys(self.queue))[:SCAN_BATCH]
+            answers = await asyncio.gather(*(web.get(p, accept="*/*") for p in batch), return_exceptions=True)
+            self.tries += len(batch)
+            self.queue = [p for p in self.queue if p not in batch]
+            for path, resp in zip(batch, answers, strict=True):
+                if getattr(resp, "status_code", 0) != 200:
+                    self.queue.append(path)
+                    continue
+                self.seen.add(path)
+                found = find_action(resp.text)
+                if found:
+                    return found
+                self.queue += [q for q in ("/_next/" + c for c in _CHUNK.findall(resp.text))
+                               if q not in self.seen and q not in self.queue]
+        return None
+
+
+HUNTS: dict[str, Hunt] = {}     # deployment id -> its hunt while the action id is not known
 
 
 async def read_usage(web: Web) -> Usage | None:
@@ -338,7 +353,9 @@ async def read_usage(web: Web) -> Usage | None:
             return None
         deployment = m.group(1)
         if deployment not in ACTION_IDS:
-            ACTION_IDS[deployment] = await _hunt(web, html)
+            hunt = HUNTS.setdefault(deployment, Hunt(html))
+            ACTION_IDS[deployment] = await hunt.run(web)
+            del HUNTS[deployment]
         action = ACTION_IDS[deployment]
         if action is None:
             log.warning("muse usage: no %s in the scripts of deployment %s", USAGE_ACTION, deployment)

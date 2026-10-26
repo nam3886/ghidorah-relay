@@ -5,6 +5,7 @@ import asyncio
 import copy
 import json
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from musekit import FIXTURES, NOW, SESSION_OK, Ctx, Site, settings
@@ -52,8 +53,10 @@ def run(s: Site, ctx=None, **over):
 @pytest.fixture(autouse=True)
 def fresh_cache():
     web.ACTION_IDS.clear()
+    web.HUNTS.clear()
     yield
     web.ACTION_IDS.clear()
+    web.HUNTS.clear()
 
 
 @mutation(CHECK_FILE, "Balance(pool, total * (100 - usage.percent) // 100, usage.resets_at, WEEK)",
@@ -136,3 +139,39 @@ def test_no_workspace_is_an_unknown_read_and_a_failed_read_fails_the_check():
         with pytest.raises(RuntimeError) as failed:
             run(site(**{"GET /api/session": answer}))
         assert "pw" not in str(failed.value)
+
+
+RETRY_LINE = "                    self.queue.append(path)\n"
+
+
+class SlowSite:
+    """The site's scripts, each read taking `delay` s; the first read of `flaky` fails. Reads are counted."""
+
+    def __init__(self, delay=0.0, flaky=()):
+        self.delay, self.flaky, self.reads = delay, set(flaky), []
+        self.scripts = {"/_next/static/chunks/0d9a236stbk__.js": "x;" + USAGE["other_action"],
+                        "/_next/static/chunks/0a2us3yd981u4.js": USAGE["chunk_loader"],
+                        "/_next/static/chunks/1h1o8k_e0bu30.js": "noop",
+                        "/_next/static/chunks/28gp_oyvbad8g.js": USAGE["action_declaration"]}
+
+    async def get(self, path, accept=""):
+        self.reads.append(path)
+        await asyncio.sleep(self.delay)
+        if path in self.flaky:
+            self.flaky.discard(path)
+            raise OSError("reset")
+        return SimpleNamespace(status_code=200, text=self.scripts.get(path, ""))
+
+
+@mutation(WEB_FILE, RETRY_LINE, "                    pass\n", expect="a script that failed is read again")
+def test_a_hunt_cut_by_its_budget_goes_on_at_the_next_read_and_retries_a_failed_script():
+    slow = SlowSite(delay=0.05, flaky={"/_next/static/chunks/28gp_oyvbad8g.js"})
+    hunt = web.Hunt(PAGE)
+    with pytest.raises(TimeoutError):
+        asyncio.run(asyncio.wait_for(hunt.run(slow), 0.08))
+    assert hunt.seen == {"/_next/static/chunks/0d9a236stbk__.js", "/_next/static/chunks/0a2us3yd981u4.js"}
+    assert asyncio.run(hunt.run(slow)) == ACTION, "a script that failed is read again"
+    assert slow.reads.count("/_next/static/chunks/0d9a236stbk__.js") == 1, "a script read is never read again"
+    missing = SlowSite()
+    del missing.scripts["/_next/static/chunks/28gp_oyvbad8g.js"]
+    assert asyncio.run(web.Hunt(PAGE).run(missing)) is None
