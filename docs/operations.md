@@ -1177,8 +1177,9 @@ reads `GET /api/session` (muse rotates `hatch_vml` there; the run writes the rot
 only thing that renews a muse session: never use the jar elsewhere), wakes the account's workspace when it is not
 `RUNNING` (`POST /api/hatch/vm/wake`, then the session is read every `muse.wake_poll_s` until `muse.wake_timeout_s`),
 leases a new account's first workspace when the session says it has none (`unavailable`: `POST /api/hatch/lease-vm`
-{"vmType": "standard"}, once; a 403 means it has one; any other answer leaves the account dead with muse's answer as
-the reason until a later check leases it), buys the tunnel's tokens (`POST /api/hatch/token`, which answers 403 without the `Sec-Fetch-*` headers) and opens the
+{"vmType": "standard"}, once; a 403 means it has one; a 5xx such as 503 `lease_rejected`, a timeout or an answer
+that is not a lease rests the account `muse.lease_retry_s` and the check after the rest asks again; only a 4xx other
+than 403 ends the account, with muse's answer as the reason), buys the tunnel's tokens (`POST /api/hatch/token`, which answers 403 without the `Sec-Fetch-*` headers) and opens the
 Noise_XX tunnel to `hatch.metaaivm.com`. The check (every hour) reads the session and the weekly Usage figure: a 401 is
 one spaced strike and a rest with a recheck (three end the account as signed out); its identity is a hash of the
 workspace id.
@@ -1219,6 +1220,7 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
 | `muse.lease_timeout_s` | 30 | how long muse may take to lease a new account's first workspace |
+| `muse.lease_retry_s` | 3600 | the rest after a lease muse refused for now (5xx, timeout), before it is asked again |
 | `muse.usage_stop_percent` | 95 | the weekly Usage at which an account takes no more jobs until its reset |
 | `muse.http_timeout_s`, `muse.ws_timeout_s`, `muse.handshake_timeout_s`, `muse.call_timeout_s` | 30, 30, 20, 30 | one HTTP call; the WebSocket's open and each frame sent or its close; the tunnel's handshake; one call in the tunnel |
 | `muse.fetch_timeout_s`, `muse.media_max_mb` | 120, 64 | one result file through the tunnel, and the largest taken |

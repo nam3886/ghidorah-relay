@@ -239,15 +239,28 @@ def test_a_lease_answered_but_not_yet_in_the_session_uses_the_lease_answer():
     assert health.state == "alive" and health.identity == check.identity_of(SESSION_OK["vm_id"])
 
 
-def test_a_failed_lease_leaves_the_account_dead_with_the_reason_and_no_token_is_asked():
-    for answer, why in (((500, {"code": "server_error"}, {}), "muse answered 500 (server_error) to the workspace"),
-                        ((200, {"status": "denied"}, {}), "muse answered 200 (denied) to the workspace"),
-                        ((403, {}, {}), "the session still has none")):
+TEMPORARY = "            temporary=not 400 <= resp.status_code < 500)"
+
+
+@mutation(WEB_FILE, TEMPORARY, "            temporary=False)", expect="a 503 is not the end of the account")
+def test_a_lease_refused_for_now_rests_the_account_and_one_refused_for_good_ends_it():
+    rest = [((503, {"code": "lease_rejected"}, {}), "muse answered 503 (lease_rejected) to the workspace lease"),
+            ((500, {"code": "server_error"}, {}), "muse answered 500 (server_error) to the workspace"),
+            ((200, {"status": "denied"}, {}), "muse answered 200 (denied) to the workspace"),
+            ((403, {}, {}), "the session still has none")]
+    for answer, why in rest:
         s = site(**{"GET /api/session": (200, NO_VM, {}), "POST /api/hatch/lease-vm": answer})
         health, _ = run(s)
-        assert health.state == "unknown" and [type(e) for e in health.effects] == [Dead], (answer, health)
-        assert why in health.effects[0].reason, health.effects[0].reason
+        assert health.state == "unknown" and [type(e) for e in health.effects] == [Cooldown], \
+            "a 503 is not the end of the account: %s %s" % (answer, health)
+        cooldown = health.effects[0]
+        assert why in cooldown.reason and cooldown.recheck and (cooldown.until - NOW).total_seconds() == 3600
         assert "/api/hatch/token" not in [c.path for c in s.calls]
+    for answer in ((401, {"error": "Unauthorized"}, {}), (404, {"code": "not_found"}, {})):
+        s = site(**{"GET /api/session": (200, NO_VM, {}), "POST /api/hatch/lease-vm": answer})
+        health, _ = run(s, lease_retry_s=600)
+        assert [type(e) for e in health.effects] == [Dead], (answer, health)
+        assert health.effects[0].reason.startswith("muse answered %d" % answer[0])
 
 
 def test_a_lease_with_no_answer_in_time_fails_and_an_existing_workspace_is_never_leased():

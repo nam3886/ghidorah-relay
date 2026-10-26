@@ -290,7 +290,7 @@ def test_an_approval_the_agent_asks_is_denied():
 
 NO_VM = {"status": "unavailable"}
 LEASED = {"status": "assigned", "gatewayUrl": SESSION_OK["endpoint_url"], "vmName": SESSION_OK["vm_id"]}
-SUBMIT_LEASE = "            return _result(Retry(errors.VM_NOT_READY), Dead(str(exc)))"
+SUBMIT_LEASE = "            return _result(Retry(errors.VM_NOT_READY), lease_effect(exc, self.settings, now))"
 
 
 @mutation(WEB_FILE, LEASE_CALL, "        pass\n    vm, endpoint = workspace(info)", expect="Completed")
@@ -304,11 +304,12 @@ def test_a_job_on_a_new_account_leases_its_workspace_wakes_it_and_goes_on():
                                 "POST /api/hatch/vm/wake"], "lease-vm then wake: %s" % site.paths()
 
 
-@mutation(SUBMIT_FILE, SUBMIT_LEASE, "            return _result(Retry(errors.VM_NOT_READY))", expect="Dead")
-def test_a_job_whose_lease_fails_sends_nothing_and_leaves_the_account_dead_with_the_reason():
-    site = Site({"GET /api/session": (200, NO_VM, {}),
-                 "POST /api/hatch/lease-vm": (500, {"code": "server_error"}, {})})
-    result, ctx = run(site)
-    assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
-    assert [type(e) for e in result.account] == [Dead], "Dead"
-    assert result.account[0].reason == "muse answered 500 (server_error) to the workspace lease"
+@mutation(SUBMIT_FILE, SUBMIT_LEASE, "            return _result(Retry(errors.VM_NOT_READY))", expect="rest or end")
+def test_a_job_whose_lease_fails_sends_nothing_and_rests_or_ends_the_account():
+    for status, effect in ((503, Cooldown), (404, Dead)):
+        site = Site({"GET /api/session": (200, NO_VM, {}),
+                     "POST /api/hatch/lease-vm": (status, {"code": "lease_rejected"}, {})})
+        result, ctx = run(site)
+        assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
+        assert [type(e) for e in result.account] == [effect], "rest or end: %s" % (result.account,)
+        assert result.account[0].reason == "muse answered %d (lease_rejected) to the workspace lease" % status

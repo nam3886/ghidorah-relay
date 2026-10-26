@@ -176,6 +176,10 @@ _SETTINGS = dict((
     _setting("lease_timeout_s", int, 30,
              "Seconds muse may take to answer the lease of a new account's first workspace (asked once, only when the "
              "session has none).", min=5, max=120),
+    _setting("lease_retry_s", int, 3600,
+             "Seconds a new account rests after muse refused or did not answer the lease of its first workspace for "
+             "now (a 5xx such as 503 lease_rejected, a timeout: capacity or a waitlist); the lease is asked again at "
+             "the check after the rest. A 4xx other than 403 ends the account instead.", min=300, max=86400),
     _setting("wake_timeout_s", int, 90,
              "Seconds a job waits for the account's sleeping workspace to wake before it goes back to the queue.",
              min=10, max=600),

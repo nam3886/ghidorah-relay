@@ -16,11 +16,11 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, NamedTuple
 from urllib.parse import quote, urlencode, urlsplit
 
-from relay_core.providers import Proxy, epoch_time
+from relay_core.providers import Cooldown, Dead, Proxy, epoch_time
 from relay_muse.constants import (
     APP_ID,
     ASSIGNED,
@@ -67,8 +67,13 @@ class VmNotReady(Exception):
 
 
 class LeaseFailed(Exception):
-    """The account has no workspace and muse would not lease it one: the account is not claimable until a check
-    leases it (the reason says what muse answered; never a token)."""
+    """The account has no workspace and muse would not lease it one (the reason says what muse answered; never a
+    token). `temporary`: a 5xx, a timeout or an answer that is not a lease (capacity, a waitlist): the account rests
+    `muse.lease_retry_s` and a later check asks again. Otherwise (a 4xx other than 403) the account is ended."""
+
+    def __init__(self, reason: str, temporary: bool):
+        super().__init__(reason)
+        self.temporary = temporary
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -245,13 +250,14 @@ async def lease_workspace(web: Web) -> dict:
     try:
         resp = await asyncio.wait_for(web.post_json(LEASE_PATH, LEASE_BODY), timeout)
     except TimeoutError:
-        raise LeaseFailed("muse did not answer the workspace lease within %g s" % timeout) from None
+        raise LeaseFailed("muse did not answer the workspace lease within %g s" % timeout, True) from None
     body = _json(resp)
     body = body if isinstance(body, dict) else {}
     if resp.status_code != 403 and (resp.status_code != 200 or body.get("status") != ASSIGNED):
         code = body.get("code") or body.get("error") or body.get("status")
         raise LeaseFailed("muse answered %d%s to the workspace lease" % (
-            resp.status_code, " (%s)" % str(code)[:60] if isinstance(code, str) and code else ""))
+            resp.status_code, " (%s)" % str(code)[:60] if isinstance(code, str) and code else ""),
+            temporary=not 400 <= resp.status_code < 500)
     after = await read_session(web)
     if after.get("status") == ASSIGNED:
         return after
@@ -259,7 +265,16 @@ async def lease_workspace(web: Web) -> dict:
         return {"status": ASSIGNED, "vm_id": body["vmName"], "endpoint_url": body["gatewayUrl"],
                 "vm_state": after.get("vm_state")}
     raise LeaseFailed("muse answered %d to the workspace lease but the session still has none (%s)" % (
-        resp.status_code, str(after.get("status"))[:40]))
+        resp.status_code, str(after.get("status"))[:40]), True)
+
+
+def lease_effect(e: LeaseFailed, settings, now: datetime):
+    """A lease refused for now (capacity, a waitlist) rests the account and the check after the rest asks again; a
+    lease refused for good (a 4xx other than 403) ends it, with muse's answer as the reason, and an alive read later
+    revives it."""
+    if e.temporary:
+        return Cooldown(str(e), now + timedelta(seconds=settings.get("muse.lease_retry_s")), recheck=True)
+    return Dead(str(e))
 
 
 def workspace(info: dict) -> tuple[str, str]:
