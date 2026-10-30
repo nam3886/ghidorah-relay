@@ -22,7 +22,7 @@ from relay_core.providers import (
     PoolSpec,
 )
 from relay_core.refusals import refusal_max_accounts_setting
-from relay_core.settings import Spec, disabled_models
+from relay_core.settings import Rule, Spec, disabled_models
 from relay_muse import catalog as C
 from relay_muse import errors as codes
 from relay_muse.constants import (
@@ -32,6 +32,7 @@ from relay_muse.constants import (
     INPUT_TOTAL_MAX_BYTES,
     LIMITS,
     MAX_ATTEMPTS,
+    MEDIA_DIRS,
     PROMPT_MAX_CHARS,
     PROVIDER,
     PROXY_REST_S,
@@ -125,6 +126,15 @@ def _refuse(code: str, detail: str = "", param: str | None = None) -> InputError
     return err
 
 
+_MEDIA_DIR = re.compile(r"workspace(?:/[A-Za-z0-9_-]+)+/")
+
+
+def _media_dirs(value: list) -> None:
+    if not 1 <= len(value) <= 8 or len(set(value)) != len(value) or not all(
+            isinstance(d, str) and _MEDIA_DIR.fullmatch(d) for d in value):
+        raise ValueError("1 to 8 different folders, each workspace/<name>/ (letters, numbers, _ and -, ending in /)")
+
+
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
     full = "%s.%s" % (PROVIDER, key)
     return full, Spec(full, kind, default, description, **bounds)
@@ -201,6 +211,12 @@ _SETTINGS = dict((
              "read).", min=5, max=120),
     _setting("fetch_timeout_s", int, 120, "Seconds one result file may take to come through the tunnel.",
              min=30, max=600),
+    _setting("media_dirs", list, list(MEDIA_DIRS),
+             "The workspace folders a muse result may come from. They are listed before the send; once muse has "
+             "answered, a file of the job's kind there that is new or changed since is the job's result, shown in the "
+             "chat or not (the first n are delivered). A file that was there before the send is never taken. When a "
+             "folder cannot be listed, only the files muse shows in the chat are taken.",
+             rule=Rule("1 to 8 different folders, each workspace/<name>/", _media_dirs)),
     _setting("media_max_mb", int, 64, "The largest result file taken, in MiB (a 10 s video was under 6 MiB).",
              min=1, max=512),
     _setting("usage_budget_s", int, 90, "Seconds an account check may spend on the weekly Usage figure, the hunt "

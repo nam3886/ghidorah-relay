@@ -1,0 +1,113 @@
+{
+ "_note": "POST /fs/list {\"path\": ...} through the tunnel, muse-acc2, read 30/10 19:00 GMT+7 (12:00Z), after jobs aae305b4 (image edit, its webp + json landed 11:48Z) and 1c7ddda2 (video, whose file was gone by then). Absolute paths are refused: 400 invalid_params 'absolute paths are not allowed'; a missing folder: 404 not_found 'path not found'.",
+ "workspace/your_files": {
+  "path": "workspace/your_files",
+  "entries": [
+   {
+    "name": ".thumbnails",
+    "type": "directory",
+    "modifiedAt": "2026-10-30T06:44:25.957Z"
+   },
+   {
+    "name": "cat_windowsill_anime_5s.mp4",
+    "type": "file",
+    "size": 4586507,
+    "modifiedAt": "2026-10-30T05:37:16.151Z"
+   },
+   {
+    "name": "cat_windowsill_heavy_snow_5s.mp4",
+    "type": "file",
+    "size": 3041595,
+    "modifiedAt": "2026-10-30T05:25:36.814Z"
+   },
+   {
+    "name": "fox_flies_snow_5s.mp4",
+    "type": "file",
+    "size": 3708901,
+    "modifiedAt": "2026-10-30T05:29:45.756Z"
+   },
+   {
+    "name": "media-generation-fox-flies-snow-5s-1793338175.json",
+    "type": "file",
+    "size": 457,
+    "modifiedAt": "2026-10-30T05:29:35.339Z"
+   },
+   {
+    "name": "media-generation-fox-snow-watercolor-9x16-0-d74ae617-0900-46fb-aef2-46d9edd0add4.webp",
+    "type": "file",
+    "size": 673346,
+    "modifiedAt": "2026-10-30T11:48:39.432Z"
+   },
+   {
+    "name": "media-generation-fox-snow-watercolor-9x16-1793360918.json",
+    "type": "file",
+    "size": 630,
+    "modifiedAt": "2026-10-30T11:48:38.156Z"
+   },
+   {
+    "name": "media-generation-last-upload-handles.json",
+    "type": "file",
+    "size": 48,
+    "modifiedAt": "2026-10-30T11:48:25.462Z"
+   },
+   {
+    "name": "media-generation-red-kite-meadow-5s-1793342660.json",
+    "type": "file",
+    "size": 457,
+    "modifiedAt": "2026-10-30T06:44:20.875Z"
+   },
+   {
+    "name": "red_kite_meadow_5s.mp4",
+    "type": "file",
+    "size": 2768621,
+    "modifiedAt": "2026-10-30T06:44:53.022Z"
+   }
+  ]
+ },
+ "workspace/imagine_media": {
+  "path": "workspace/imagine_media",
+  "entries": [
+   {
+    "name": ".thumbnails",
+    "type": "directory",
+    "modifiedAt": "2026-10-30T04:45:32.208Z"
+   },
+   {
+    "name": "cat_windowsill_5s.mp4",
+    "type": "file",
+    "size": 2512187,
+    "modifiedAt": "2026-10-30T03:48:32.237Z"
+   },
+   {
+    "name": "flying-fox-snowstorm-5s.mp4",
+    "type": "file",
+    "size": 1659357,
+    "modifiedAt": "2026-10-26T18:14:41.344Z"
+   },
+   {
+    "name": "media-generation-generate-exactly-one-separate-0-fbb48d4d-5abe-41d4-b54d-be55713e3245.webp",
+    "type": "file",
+    "size": 654202,
+    "modifiedAt": "2026-10-30T04:46:30.804Z"
+   },
+   {
+    "name": "media-generation-generate-exactly-one-separate-image-from-1793335589.json",
+    "type": "file",
+    "size": 631,
+    "modifiedAt": "2026-10-30T04:46:29.766Z"
+   },
+   {
+    "name": "media-generation-lighthouse-cliff-dusk-0-2248c519-0fae-4384-806d-a054d5d18a6a.webp",
+    "type": "file",
+    "size": 540870,
+    "modifiedAt": "2026-10-30T03:36:04.432Z"
+   },
+   {
+    "name": "ocean-waves-sandy-beach-5s.mp4",
+    "type": "file",
+    "size": 5486194,
+    "modifiedAt": "2026-10-30T03:35:15.007Z"
+   }
+  ]
+ }
+}

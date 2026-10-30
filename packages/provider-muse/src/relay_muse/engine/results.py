@@ -4,8 +4,9 @@ All three read only. The job's side chat id was persisted before the send (`exte
 - reconcile reads that chat: any event in it (the job's own message first) proves the order is there, `Found`, and
   the poll follows it. An empty or unknown chat proves nothing (muse may still be writing it): `StillUnknown`,
   answered; `NotSent` is never returned, so a lost send is never sent twice; the render deadline refunds it;
-- the poll reads the chat with the submit's rules (`chat.verdict`); "settled" is the same reading on two polls at
-  least `muse.settle_s` apart (kept in `provider_state.seen`);
+- the poll reads the chat with the submit's rules (`chat.decide`: only files new since the send's listing,
+  `provider_state.since`, count); "settled" is the same reading on two polls at least `muse.settle_s` apart (kept in
+  `provider_state.seen`);
 - the fetch reads `GET /fs/raw/<ref>` in the tunnel (there is no public URL): 404 is gone for good.
 
 The side chat is deleted once nothing more is read from it (`chat.delete_chat`, best effort): by the poll after a
@@ -23,6 +24,7 @@ from relay_core.refusals import refused_accounts
 from relay_muse import errors
 from relay_muse.engine.chat import (
     LAST,
+    decide,
     delete_chat,
     history_events,
     history_path,
@@ -34,7 +36,6 @@ from relay_muse.engine.chat import (
     paid_of,
     read_history,
     signature,
-    verdict,
     video_unavailable_here,
     want_of,
 )
@@ -79,17 +80,24 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
     session = _session_of(job)
     if session is None:
         return PollResult(Pending("the job names no muse chat", next_in_s=interval, answered=False))
+    kind, state, now = job.params.get("kind"), job.provider_state or {}, deps.now()
+    dirs, timeout = settings.get("muse.media_dirs"), settings.get("muse.call_timeout_s")
+    before = state.get("since") if type(state.get("since")) is int else None
     try:
-        events = await _events(ctx, settings, deps, session)
+        async with opened(ctx, settings, deps, chat=False) as (_web, tunnel):
+            reply = await tunnel.call("GET", history_path(session), timeout=timeout)
+            events = [] if reply.status == 404 else history_events(reply)
+            if events is not None:
+                reading = read_history(events, kind, dirs)
+                seen = signature(reading)
+                reading, found = await decide(tunnel, reading, want_of(job.params),
+                                              _settled(state, seen, now, settings.get("muse.settle_s")), before,
+                                              kind, dirs, timeout)
     except Exception as e:      # noqa: BLE001 - a failed read: polled again, never a verdict
         return PollResult(Pending("the chat could not be read (%s)" % type(e).__name__, next_in_s=interval,
                                   answered=False))
     if events is None:
         return PollResult(Pending("muse gave no history for the chat", next_in_s=interval, answered=False))
-    kind, state, now = job.params.get("kind"), job.provider_state or {}, deps.now()
-    reading = read_history(events, kind)
-    seen = signature(reading)
-    found = verdict(reading, want_of(job.params), _settled(state, seen, now, settings.get("muse.settle_s")))
     if found == "done":
         await _say(ctx, made_note(reading, want_of(job.params), kind, job.id))
         return PollResult(Done(outputs(reading, want_of(job.params), session, **paid_of(job))),
@@ -138,7 +146,7 @@ async def reconcile(ctx, job, settings, *, deps: Deps | None = None):
 
 async def fetch(ctx, out, settings, *, deps: Deps | None = None):
     """The bytes of one result, read through the tunnel. An async generator, as the core expects."""
-    if not is_media_ref(out.ref, out.mime):
+    if not is_media_ref(out.ref, out.mime, settings.get("muse.media_dirs")):
         raise OutputGone(errors.OUTPUT_MISSING, "the result is not a file of muse's media folder")
     async with opened(ctx, settings, deps or Deps(), chat=False) as (_web, tunnel):
         reply = await tunnel.call("GET", "/fs/raw/" + out.ref, timeout=settings.get("muse.fetch_timeout_s"))

@@ -250,3 +250,17 @@ def test_the_word_forms_of_a_count_a_shape_or_a_length_are_refused_too():
     assert refused(model="muse-video", prompt="a one minute timelapse") == "input.prompt_duration_conflict"
     assert plan("muse-video", "ten seconds of rain", duration=10).price_key == "muse-video@10s"
     assert plan("muse-video", "a mini cooper in the rain, five-second shot").price_key == "muse-video@5s"
+
+
+@mutation(SPEC_FILE, "            isinstance(d, str) and _MEDIA_DIR.fullmatch(d) for d in value):",
+          "            isinstance(d, str) for d in value):", expect="outside the workspace")
+def test_the_media_folders_are_a_setting_of_workspace_folders_only():
+    from relay_core.settings import SettingsError
+    spec = SPEC.settings()["muse.media_dirs"]
+    assert spec.default == ["workspace/imagine_media/", "workspace/your_files/"]
+    assert spec.validate(["workspace/your_files/", "workspace/a/b_c-1/"])
+    for bad in (["workspace/../etc/"], ["/workspace/your_files/"], ["workspace/your_files"], ["memory/"],
+                ["workspace/a b/"], [], ["workspace/x/"] * 2, [1]):
+        with pytest.raises(SettingsError):
+            spec.validate(bad)
+            pytest.fail("outside the workspace: %r" % bad)

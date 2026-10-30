@@ -7,7 +7,10 @@ from musekit import history, spike
 
 from relay_core.testing.mutation import mutation
 from relay_muse.engine.chat import (
+    File,
+    Media,
     compose,
+    fresh,
     is_media_ref,
     outputs,
     pending_approvals,
@@ -19,8 +22,7 @@ from relay_muse.engine.chat import (
 
 CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
 CONSTANTS_FILE = "packages/provider-muse/src/relay_muse/constants.py"
-VIDEO_DIRS = '              "video": ("workspace/imagine_media/", "workspace/your_files/")}'
-IMAGE_DIRS = 'MEDIA_DIRS = {"image": ("workspace/imagine_media/",),'
+MEDIA_DIRS = 'MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")'
 YOUR_FILES = "ref-spike-301030/history_your_files.json"
 EDIT = "ref-spike-301030/history_edit_two_refs.json"
 SID = "11111111-2222-4333-8444-555555555555"
@@ -44,8 +46,7 @@ def test_the_recorded_answers_read_as_their_media():
     assert len(i2v.media) == 1 and i2v.media[0].ref.endswith(".mp4")
 
 
-@mutation(CONSTANTS_FILE, VIDEO_DIRS, '              "video": ("workspace/imagine_media/",)}',
-          expect="a your_files video")
+@mutation(CONSTANTS_FILE, MEDIA_DIRS, 'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="a your_files video")
 def test_a_video_muse_saved_in_your_files_is_its_result_not_a_refusal():
     r = reading(YOUR_FILES, "video")
     assert [m.ref for m in r.media] == ["workspace/your_files/ocean_waves_beach_5s.mp4"], "a your_files video"
@@ -57,18 +58,19 @@ def test_a_video_muse_saved_in_your_files_is_its_result_not_a_refusal():
     assert as_image.media == () and as_image.other == 1, "a video is never an image's result"
 
 
-@mutation(CONSTANTS_FILE, IMAGE_DIRS, 'MEDIA_DIRS = {"image": ("workspace/imagine_media/", "workspace/your_files/"),',
-          expect="an image in your_files")
-def test_your_files_holds_a_video_result_only_never_an_image():
+@mutation(CONSTANTS_FILE, MEDIA_DIRS, 'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="an image in your_files")
+def test_an_image_in_your_files_is_a_result_too_and_the_folders_are_the_setting():
+    """Live 30/10 (job aae305b4): muse saved an edit's image in workspace/your_files."""
     image_card = history("job_j01.json", SID)
     item = next(e for e in image_card if e["event_name"] == "delta.presentation")["payload"]["data"]["images"][0]
     item["variants"]["original"] = "https://x.metaaivm.com/media/raw/workspace/your_files/a-fox-0-1a2b.webp"
     r = read_history(image_card, "image")
-    assert (r.media, r.other) == ((), 0), "an image in your_files"
-    assert verdict(r, 1, settled=True) == "refused"
-    assert not is_media_ref("workspace/your_files/a.webp", "image/webp")
-    assert is_media_ref("workspace/your_files/a.mp4", "video/mp4")
+    assert [m.ref for m in r.media] == ["workspace/your_files/a-fox-0-1a2b.webp"], "an image in your_files"
+    assert is_media_ref("workspace/your_files/a.webp", "image/webp")
     assert is_media_ref("workspace/imagine_media/a.mp4", "video/mp4"), "a 26/10 video in imagine_media"
+    only = ("workspace/imagine_media/",)
+    assert read_history(image_card, "image", only).media == ()
+    assert not is_media_ref("workspace/your_files/a.webp", "image/webp", only)
 
 
 def test_the_refusal_is_an_answer_in_words_with_no_media():
@@ -317,3 +319,34 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
     r = reading(NO_VIDEO_HERE, "video")
     assert (r.media, r.other, r.answered, r.busy, r.user) == ((), 0, True, False, True)
     assert verdict(r, 1, settled=True) == "refused" and video_unavailable_here(r.text), "nothing was made"
+
+
+# ---- only files new since the send ---------------------------------------------------------------------------------
+NEW_ONLY = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+            "key=lambda f: -f.ms)")
+ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")), "
+            "key=lambda f: -f.ms)")
+OLDEST_FIRST = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+                "key=lambda f: f.ms)")
+UNSHOWN = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []"
+UNSHOWN_ALWAYS = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown]"
+
+
+@mutation(CHAT_FILE, NEW_ONLY, ANY_TIME, expect="a file from before the send")
+@mutation(CHAT_FILE, NEW_ONLY, OLDEST_FIRST, expect="newest first")
+@mutation(CHAT_FILE, UNSHOWN, UNSHOWN_ALWAYS, expect="only once settled")
+def test_only_files_written_after_the_send_count_cards_first_then_the_unshown_newest_first():
+    old = File("workspace/your_files/ocean_waves_beach_5s.mp4", "video/mp4", 100)
+    raw = File("workspace/your_files/media-generation-boat-0-1a2b.mp4", "video/mp4", 300)
+    cut = File("workspace/your_files/paper_boat_5s.mp4", "video/mp4", 400)
+    image = File("workspace/your_files/a-fox-0-1a2b.webp", "image/webp", 500)
+    shown = reading(YOUR_FILES, "video")          # a card for ocean_waves_beach_5s.mp4
+    got = fresh(shown, [old, raw, cut, image], 200, "video", True).media
+    assert old.ref not in [m.ref for m in got], "a file from before the send"
+    assert got[0].ref == cut.ref, "newest first"
+    assert [m.ref for m in got] == [cut.ref, raw.ref] and all(m.mime == "video/mp4" for m in got)
+    new_card = fresh(shown, [old._replace(ms=250), cut], 200, "video", True).media
+    assert [m.ref for m in new_card] == [old.ref, cut.ref], "the card first"
+    assert fresh(shown, [old, cut], 200, "video", False).media == (), "only once settled"
+    assert fresh(shown._replace(busy=True), [old, cut], 200, "video", True).media == (), "only once settled"
+    assert fresh(shown, [old._replace(ms=250), cut], 200, "video", False).media == (Media(old.ref, "video/mp4"),)

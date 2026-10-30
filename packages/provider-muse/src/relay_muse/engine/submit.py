@@ -12,6 +12,9 @@ Money rules (each has a test and a mutation):
   is `NotTaken` (muse refused the request itself, nothing was made), and once muse acknowledged the send the order is
   taken whatever follows: past the hold, or on a broken tunnel, it is `Accepted` and the poll reads the chat;
 - results: any is a full charge (Q4); the first n are delivered and never more; none is a failure with its refund;
+- results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (their newest time
+  kept as `provider_state.since`) and at the verdict, and only a file written after that counts, shown in the chat or
+  not (`chat.decide`); with no listing before the send, the chat's cards are taken as they are;
 - muse's answer that the account makes no video where it is (`chat.video_unavailable_here`), once the chat is settled
   with no video (the verdict "refused": nothing was made), is a refusal of the ACCOUNT (`relay_core.refusals`): the
   video pool rests `muse.video_region_rest_s`, the strikes are left as they are, and the job goes to another account
@@ -50,10 +53,12 @@ from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_
 from relay_muse.engine.chat import (
     SetupError,
     compose,
+    decide,
     delete_chat,
     deny_approvals,
     history_events,
     history_path,
+    list_media,
     made_note,
     meter_effects,
     outputs,
@@ -61,7 +66,6 @@ from relay_muse.engine.chat import (
     read_history,
     signature,
     stream_body,
-    verdict,
     video_unavailable_here,
     want_of,
 )
@@ -125,6 +129,8 @@ class _Run:
         self.sent = False         # from the moment `mark_sent` returned: muse may have the order
         self.acked = False        # muse acknowledged the send: the order is taken
         self.keep_strikes = False  # muse refused the account: no Success for it
+        self.dirs = settings.get("muse.media_dirs")
+        self.since: int | None = None   # the newest time in the media folders before the send (None: not listed)
 
     async def _say(self, text: str, stage: str = "submit") -> None:
         try:
@@ -169,7 +175,10 @@ class _Run:
             self.signed_in = True
             message = compose(self.job.operation, self.job.params, self.job.sent_text, len(images))
             body = stream_body(message, self.node, self.session, images)
-            await self._core(lambda: self.ctx.report_ref(self.session, {"session_id": self.session}))
+            listed = await list_media(tunnel, self.dirs, timeout)
+            self.since = None if listed is None else listed[0]
+            state = {"session_id": self.session, **({} if self.since is None else {"since": self.since})}
+            await self._core(lambda: self.ctx.report_ref(self.session, state))
             await self._core(self.ctx.mark_sent)
             self.sent = True
             try:
@@ -197,10 +206,11 @@ class _Run:
         while True:
             events = history_events(await tunnel.call("GET", history_path(self.session), timeout=timeout))
             if events is not None:
-                reading = read_history(events, self.kind)
+                reading = read_history(events, self.kind, self.dirs)
                 if signature(reading) != seen:
                     seen, since = signature(reading), self.deps.clock()
-                found = verdict(reading, self.want, self.deps.clock() - since >= settle_s)
+                reading, found = await decide(tunnel, reading, self.want, self.deps.clock() - since >= settle_s,
+                                              self.since, self.kind, self.dirs, timeout)
                 if found == "done":
                     await self._say(made_note(reading, self.want, self.kind, self.job.id))
                     return _result(Completed(outputs(reading, self.want, self.session, **paid_of(self.job))),

@@ -4,7 +4,7 @@ import asyncio
 from datetime import timedelta
 
 import pytest
-from musekit import NOW, Ctx, Site, history, job, settings, vm_routes
+from musekit import NOW, Ctx, Site, folders, history, job, settings, vm_routes
 
 from relay_core.providers import Done, Failed, Found, Output, OutputGone, Pending, Rest, StillUnknown
 from relay_core.testing.mutation import mutation
@@ -191,20 +191,29 @@ def test_the_side_chat_is_deleted_once_the_jobs_last_file_is_read_and_a_failed_d
     assert deleted(odd) == []
 
 
-REF_CHECK = ('    return isinstance(ref, str) and pattern is not None and bool(pattern.fullmatch(ref))'
-             ' and ".." not in ref')
+REF_CHECK = '    return folder + "/" in dirs and bool(_NAME.fullmatch(name))'
+DOTS = '    if not isinstance(ref, str) or ".." in ref or mime.split("/", 1)[0] not in ("image", "video"):'
 
 
-@mutation("packages/provider-muse/src/relay_muse/engine/chat.py", REF_CHECK, "    return isinstance(ref, str)",
+@mutation("packages/provider-muse/src/relay_muse/engine/chat.py", REF_CHECK, "    return True",
+          expect="never leaves the media folder")
+@mutation("packages/provider-muse/src/relay_muse/engine/chat.py", DOTS,
+          '    if not isinstance(ref, str) or mime.split("/", 1)[0] not in ("image", "video"):',
           expect="never leaves the media folder")
 def test_a_ref_outside_the_media_folder_is_never_read():
     for ref, mime in (("workspace/imagine_media/../secrets.txt", "image/webp"), ("/etc/passwd", "image/webp"),
                       ("workspace/other/a.webp", "image/webp"), ("workspace/your_files/../secrets.txt", "video/mp4"),
-                      ("workspace/your_files/a/b.mp4", "video/mp4"), ("workspace/your_files/a.webp", "image/webp")):
+                      ("workspace/your_files/a/b.mp4", "video/mp4"), ("workspace/your_files/a.txt", "text/plain"),
+                      ("workspace/your_files/a..mp4", "video/mp4")):
         site = Site()
         with pytest.raises(OutputGone):
             fetch(site, ref, mime)
         assert site.calls == [], "never leaves the media folder"
+    site = Site()
+    with pytest.raises(OutputGone):
+        fetch_out(site, Output("workspace/your_files/a.webp", "image/webp", 0),
+                  media_dirs=["workspace/imagine_media/"])
+    assert site.calls == [], "never leaves the media folder of the setting"
 
 
 LENGTH_CHECK = "        if abs(length - float(paid[\"duration\"])) > LENGTH_SLACK_S:"
@@ -232,3 +241,27 @@ def test_a_video_off_its_paid_length_or_ratio_is_delivered_and_noted(monkeypatch
         assert asyncio.run(go()) == [b"mp4-bytes"]
     assert any("muse job job-7 output 0: 10.00 s, 5 s paid" in r.getMessage() for r in caplog.records)
     assert any("not what was paid" in text for _, text in ctx.events)
+
+
+POLL_SINCE = '    before = state.get("since") if type(state.get("since")) is int else None\n'
+EDITED = "workspace/your_files/media-generation-fox-snow-watercolor-9x16-0-d74ae617-0900-46fb-aef2-46d9edd0add4.webp"
+
+
+@mutation(RESULTS_FILE, POLL_SINCE, "    before = None\n", expect="the poll takes the unshown image")
+def test_a_poll_takes_only_the_files_new_since_the_send():
+    """A job past its hold: the listing before the send rides on `provider_state.since`."""
+    words = history("new-files-301030/history_unlinked_image.json", SID)
+    _, after = folders()
+    settled = {"seen": [0, 0, True, False, len(words)], "seen_at": NOW.isoformat()}
+    later = NOW + timedelta(seconds=1)
+    j = taken(state={**settled, "since": 1793342693022}, operation="image_to_image")
+    result = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), j, later)
+    assert isinstance(result.outcome, Done), "the poll takes the unshown image: %s" % (result.outcome,)
+    assert [(o.ref, o.mime) for o in result.outcome.outputs] == [(EDITED, "image/webp")]
+    everything_old = taken(state={**settled, "since": 1893456000000}, operation="image_to_image")
+    result = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), everything_old, later)
+    assert isinstance(result.outcome, Failed) and result.outcome.code == "muse.refused"
+    no_listing = taken(state=settled, operation="image_to_image")
+    site = Site(vm_routes_=vm_routes([words], folders=(after, after)))
+    assert isinstance(poll(site, no_listing, later).outcome, Failed)
+    assert "/fs/list" not in site.vms[0].paths(), "no listing before the send: the cards only"

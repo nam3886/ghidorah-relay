@@ -1213,8 +1213,13 @@ with the job id); more images than paid are never delivered. Then the chat's his
 - no verdict by the end of the submit's hold: the order is taken, the poll reads the chat every `muse.poll_interval_s`
   with the same rules. No answer to the send itself is unknown: the reconciler reads the chat (any event: found), never
   sends again; the render deadline fails it with its refund. A 4xx answer to the send is `muse.http_error` (nothing
-  was made, tried again). The files are read in the tunnel (`/fs/raw/workspace/imagine_media/<file>`, a video
-  `/fs/raw/workspace/your_files/<file>` since 30/10): there is no public link.
+  was made, tried again). The files are read in the tunnel (`/fs/raw/<folder><file>`): there is no public link.
+- only files new since the send are results: the media folders (`muse.media_dirs`) are listed (`POST /fs/list`) just
+  before the send, their newest time kept on the job (`provider_state.since`), and again at a verdict. A file of the
+  job's kind written after that time is the job's, whether the chat shows it or not (live 30/10: an edit's image saved
+  in `your_files` with no card, a video named only by a `sandbox://` link in the answer; both had been refunded). A
+  card of a file that was there before is not a result. When a folder cannot be listed before the send, the chat's
+  cards are taken as before and nothing else.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1223,6 +1228,7 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.history_poll_s` | 10 | between two reads of the chat in a submit |
 | `muse.settle_s` | 45 | an unchanged, complete chat this long delivers fewer results than asked, or fails an answer in words |
 | `muse.poll_interval_s` | 30 | between two reads of a job that outlived its submit |
+| `muse.media_dirs` | `workspace/imagine_media/`, `workspace/your_files/` | the folders a result may come from, listed before the send and at the verdict |
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
 | `muse.lease_timeout_s` | 30 | how long muse may take to lease a new account's first workspace |

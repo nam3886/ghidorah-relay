@@ -1,6 +1,6 @@
 """The side chat of one job: what is said to muse, the tunnel's setup before it, and how its history is read.
 
-Pure, but for `setup` and `deny_approvals`, which talk through a `Tunnel`. Shapes from the spike of 26/10
+Pure, but for `setup`, `deny_approvals` and `list_media`, which talk through a `Tunnel`. Shapes from the spike of 26/10
 (fixtures/muse/spike-261026): the history (`GET /chat/history?...&session_id=<chat>`) holds the user's message, the
 assistant's messages (`message.assistant`, `payload.status` "completed" once whole, `metadata.message_kind`
 "commentary" for a progress line, "message" for an answer) and the result cards (`delta.presentation`, `payload.kind`
@@ -15,12 +15,13 @@ import logging
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Any, NamedTuple
 
 from relay_core.providers import Balance, Output
-from relay_muse.constants import MEDIA_DIRS
+from relay_muse.constants import LIST_PATH, MEDIA_DIRS
 from relay_muse.engine import noise
-from relay_muse.engine.tunnel import Reply, Tunnel
+from relay_muse.engine.tunnel import Reply, Tunnel, TunnelError
 
 log = logging.getLogger("relay_muse.chat")
 CAPABILITIES = ["chat_cancel", "delta_stream", "custom_reactions", "custom_reactions_facebook_thumbs_up_v1"]
@@ -28,8 +29,7 @@ PRESENTATIONS = ["file", "image", "video", "audio", "text_with_button", "generic
                  "external_link"]
 TIMEZONE = "UTC"
 HISTORY_LIMIT = 40
-_REF = {kind: re.compile(r"(?:%s)[A-Za-z0-9][A-Za-z0-9._-]{0,200}" % "|".join(map(re.escape, dirs)))
-        for kind, dirs in MEDIA_DIRS.items()}
+_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}")
 _SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _APPROVAL_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _EXT_MIME = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -47,11 +47,13 @@ def is_session(value: object) -> bool:
     return isinstance(value, str) and bool(_SESSION.fullmatch(value))
 
 
-def is_media_ref(ref: object, mime: str) -> bool:
-    """A file of a media folder of its kind (`mime`'s type: a video may be in your_files, an image may not), and
-    nothing that could reach outside it."""
-    pattern = _REF.get(mime.split("/", 1)[0])
-    return isinstance(ref, str) and pattern is not None and bool(pattern.fullmatch(ref)) and ".." not in ref
+def is_media_ref(ref: object, mime: str, dirs: Sequence[str] = MEDIA_DIRS) -> bool:
+    """An image or a video file right in one of the media folders `dirs` (`muse.media_dirs`), and nothing that could
+    reach outside it."""
+    if not isinstance(ref, str) or ".." in ref or mime.split("/", 1)[0] not in ("image", "video"):
+        return False
+    folder, _, name = ref.rpartition("/")
+    return folder + "/" in dirs and bool(_NAME.fullmatch(name))
 
 
 # ---- what is said ---------------------------------------------------------------------------------------------------
@@ -202,17 +204,20 @@ class Reading(NamedTuple):
     user: bool                  # the job's own message is in the chat (the order is there)
 
 
-def _media(item: Mapping) -> Media | None:
+def _mime(ref: str) -> str:
+    return _EXT_MIME.get(ref[ref.rfind("."):].lower(), "")
+
+
+def _media(item: Mapping, dirs: Sequence[str]) -> Media | None:
     original = (item.get("variants") or {}).get("original") if isinstance(item.get("variants"), Mapping) else None
     if not isinstance(original, str) or "/raw/" not in original or item.get("missing"):
         return None
     ref = original.split("?", 1)[0].split("/raw/", 1)[1]
-    ext = ref[ref.rfind("."):].lower()
-    mime = item.get("mime") if isinstance(item.get("mime"), str) and "/" in item["mime"] else _EXT_MIME.get(ext, "")
-    return Media(ref, mime) if is_media_ref(ref, mime) else None
+    mime = item.get("mime") if isinstance(item.get("mime"), str) and "/" in item["mime"] else _mime(ref)
+    return Media(ref, mime) if is_media_ref(ref, mime, dirs) else None
 
 
-def read_history(events: Sequence[Mapping], kind: str) -> Reading:
+def read_history(events: Sequence[Mapping], kind: str, dirs: Sequence[str] = MEDIA_DIRS) -> Reading:
     media: dict[str, Media] = {}
     other, answered, busy, text, user = 0, False, False, "", False
     for e in events:
@@ -228,7 +233,7 @@ def read_history(events: Sequence[Mapping], kind: str) -> Reading:
             data = payload.get("data") if isinstance(payload.get("data"), Mapping) else {}
             for key, of in (("images", "image"), ("videos", "video")):
                 for item in data.get(key) or ():
-                    found = _media(item) if isinstance(item, Mapping) else None
+                    found = _media(item, dirs) if isinstance(item, Mapping) else None
                     if found is None:
                         continue
                     if of == kind and found.mime.startswith(kind + "/"):
@@ -264,6 +269,81 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
     return tuple(Output(m.ref, m.mime, i, meta={"session_id": session, **paid,
                                                 **({LAST: True} if i == len(kept) - 1 else {})})
                  for i, m in enumerate(kept))
+
+
+# ---- the files muse wrote: only those new since the send -----------------------------------------------------------
+# Live 30/10: muse may save a result and never show it in the chat: an edit's image in your_files, answered "Done — one
+# 9:16 watercolor version, kept private in your workspace." (job aae305b4), or a video named only in the answer's words
+# as sandbox://... (job 1c7ddda2). Both were refunded while muse had spent its quota. So the media folders are listed
+# before the send (`since`: the newest time of anything there, by the VM's clock) and again at a verdict: a file of
+# the job's kind written after `since` is the job's. A file that was there before the send never is, so one customer's
+# file is never another's; when a folder cannot be listed, the chat's cards are taken as before.
+# ponytail: muse may still be writing an earlier job of the same account (taken past its hold, then followed by polls)
+# while the next one is read: a file of the first that lands then is new for both. Upgrade: no send on an account while
+# another of its jobs is followed by polls.
+class File(NamedTuple):
+    ref: str
+    mime: str
+    ms: int         # modifiedAt, ms since the epoch, the VM's clock
+
+
+def _ms(entry: Mapping) -> int | None:
+    try:
+        at = datetime.fromisoformat(entry["modifiedAt"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return int(at.timestamp() * 1000) if at.tzinfo is not None else None
+
+
+async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float) -> tuple[int, list[File]] | None:
+    """(the newest time of any entry, the image and video files) of the media folders `dirs`; None when one cannot
+    be listed: an answer other than 200 with entries (a folder not made yet included), a broken tunnel."""
+    newest, files = 0, []
+    try:
+        for folder in dirs:
+            reply = await tunnel.call("POST", LIST_PATH, {"path": folder.rstrip("/")}, timeout=timeout)
+            body = reply.json() if reply.status == 200 else None
+            entries = body.get("entries") if isinstance(body, dict) else None
+            if not isinstance(entries, list):
+                return None
+            for e in entries:
+                ms = _ms(e) if isinstance(e, Mapping) else None
+                if ms is None:          # no time: never newer than anything
+                    continue
+                newest = max(newest, ms)
+                ref = folder + e["name"] if isinstance(e.get("name"), str) else ""
+                if e.get("type") == "file" and is_media_ref(ref, _mime(ref), dirs):
+                    files.append(File(ref, _mime(ref), ms))
+    except TunnelError as e:
+        log.info("muse media folders not listed: %s", e)
+        return None
+    return newest, files
+
+
+def fresh(r: Reading, files: Sequence[File], since: int, kind: str, settled: bool) -> Reading:
+    """The reading with its results limited to files of `kind` written after `since`: the chat's cards first, then,
+    once the chat is settled with every message complete, the new files it does not show, newest first (muse writes
+    a raw video, then the cut one, and may remove the raw)."""
+    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
+    refs = {f.ref for f in new}
+    cards = [m for m in r.media if m.ref in refs]
+    shown = {m.ref for m in cards}
+    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []
+    return r._replace(media=tuple(cards + rest))
+
+
+async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, since: int | None, kind: str,
+                 dirs: Sequence[str], timeout: float) -> tuple[Reading, str | None]:
+    """The verdict on a reading (`verdict`), its results checked against the files once there is one: with `since`
+    (the listing before the send) and a listing now, only new files count (`fresh`); without either, the cards."""
+    found = verdict(r, want, settled)
+    if found is None or since is None:
+        return r, found
+    listed = await list_media(tunnel, dirs, timeout)
+    if listed is None:
+        return r, found
+    r = fresh(r, listed[1], since, kind, settled)
+    return r, verdict(r, want, settled)
 
 
 # ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------

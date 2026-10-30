@@ -9,7 +9,7 @@ import asyncio
 import dataclasses
 
 import jobkit
-from musekit import Ctx, Site, history, job, settings, vm_routes
+from musekit import Ctx, Site, folders, history, job, settings, vm_routes
 
 from relay_core.jobs import store
 from relay_core.providers import Done, PollResult
@@ -113,11 +113,11 @@ def test_a_partial_result_is_a_full_charge_with_no_refund(db):
     assert late is None
 
 
-VIDEO_DIRS = '              "video": ("workspace/imagine_media/", "workspace/your_files/")}'
+MEDIA_DIRS = 'MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")'
 
 
-@mutation("packages/provider-muse/src/relay_muse/constants.py", VIDEO_DIRS,
-          '              "video": ("workspace/imagine_media/",)}', expect="a your_files video is delivered")
+@mutation("packages/provider-muse/src/relay_muse/constants.py", MEDIA_DIRS,
+          'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="a your_files video is delivered")
 def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
     """Live 30/10 (job fba992d9): muse saved the video in workspace/your_files; read as no media, it was refunded."""
     key_id, _ = jobkit.key(db), jobkit.account(db)
@@ -134,6 +134,37 @@ def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
         "a your_files video is delivered: %s" % status
     assert ledger(db, key_id) == [("charge", PRICE)], "charged in full, never refunded"
     assert account_charges(db, job_id) == [(1, False)]
+
+
+NEW_ONLY = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+            "key=lambda f: -f.ms)")
+ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")), "
+            "key=lambda f: -f.ms)")
+
+
+@mutation(CHAT_FILE, NEW_ONLY, ANY_TIME, expect="an old file is refunded")
+def test_a_new_unshown_file_is_charged_in_full_and_an_old_one_alone_is_refunded(db):
+    """Live 30/10 (job aae305b4): muse saved the image and showed none; it was refunded while muse had made it."""
+    key_id, _ = jobkit.key(db), jobkit.account(db)
+    unlinked = "new-files-301030/history_unlinked_image.json"
+
+    async def scenario(p, routes):
+        job_id, claimed = await sent_job(p, key_id)
+        result = await submit_mod.submit(Ctx(), job(), settings(), deps=Site(vm_routes_=routes).deps())
+        return job_id, await store.apply_submit(p, claimed, result, caps=jobkit.CAPS, pools=jobkit.POOLS)
+
+    made = vm_routes([answered_events(unlinked)], folders=folders())
+    job_id, status = jobkit.run(db, lambda p: scenario(p, made))
+    assert status == "fetching", "a new unshown file is delivered: %s" % status
+    assert ledger(db, key_id) == [("charge", PRICE)] and account_charges(db, job_id) == [(1, False)]
+    old = vm_routes([answered_events(unlinked)], folders=folders("2099-01-01T00:00:00.000Z"))
+    job_id, status = jobkit.run(db, lambda p: scenario(p, old))
+    assert status == "failed", "an old file is refunded: %s" % status
+    assert ledger(db, key_id)[1:] == [("charge", PRICE), ("refund", PRICE)], "an old file is refunded"
+
+
+def answered_events(name):
+    return lambda req: history(name, req.path.rsplit("session_id=", 1)[1])
 
 
 FOUND = '        return Found(session, {"session_id": session})'

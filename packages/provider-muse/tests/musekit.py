@@ -248,13 +248,24 @@ class VM:
         return [r.path for r in self.requests]
 
 
-def vm_routes(histories=(), *, stream=None, files=None, overrides=None):
+def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=None):
     """The VM's answers: the setup calls, `/chat/stream` acknowledged for the chat it names, the job's history from
-    `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404), a chat delete."""
+    `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404), a chat delete, and
+    the folder listings of `folders` (before the send, after it): each {folder: entries}, a folder it lacks 404 (with
+    no `folders`, every listing is 404)."""
     reads = list(histories)
     files = files or {}
+    sent = []
 
     def route(req):
+        if req.path == "/chat/stream":
+            sent.append(True)
+        if req.path == "/fs/list" and folders is not None:
+            path = req.json()["path"]
+            entries = folders[1 if sent else 0].get(path)
+            if entries is None:
+                return 404, {"ok": False, "error": {"code": "not_found", "message": "path not found"}}
+            return 200, {"path": path, "entries": entries}
         for prefix, answer in (overrides or {}).items():
             if req.path.startswith(prefix):
                 return answer(req) if callable(answer) else answer
@@ -396,3 +407,19 @@ def stream_bodies(site: Site) -> list[dict]:
 
 def deep(obj):
     return copy.deepcopy(obj)
+
+
+# ---- the media folders, as listed live on 30/10 (muse-acc2, after jobs aae305b4 and 1c7ddda2) ------------------------
+MEDIA_FOLDERS = ("workspace/imagine_media", "workspace/your_files")
+
+
+def folders(cut="2026-10-30T11:00:00.000Z", *added: tuple[str, str]) -> tuple[dict, dict]:
+    """(before the send, after it): the live listing with what was written from `cut` on only after, and `added`
+    files (ref, modifiedAt) after as well."""
+    live = spike("new-files-301030/fs_list_after.json")
+    after = {f: deep(live[f]["entries"]) for f in MEDIA_FOLDERS}
+    before = {f: [e for e in entries if e["modifiedAt"] < cut] for f, entries in after.items()}
+    for ref, at in added:
+        folder, name = ref.rsplit("/", 1)
+        after[folder].append({"name": name, "type": "file", "size": 1000, "modifiedAt": at})
+    return before, after

@@ -7,7 +7,19 @@ import json
 from datetime import timedelta
 
 import pytest
-from musekit import IMAGE_REF, NOW, SESSION_OK, Ctx, Site, history, job, settings, stream_bodies, vm_routes
+from musekit import (
+    IMAGE_REF,
+    NOW,
+    SESSION_OK,
+    Ctx,
+    Site,
+    folders,
+    history,
+    job,
+    settings,
+    stream_bodies,
+    vm_routes,
+)
 
 from relay_core.providers import (
     Accepted,
@@ -32,7 +44,7 @@ from relay_muse.engine.web import NetError
 SUBMIT_FILE = "packages/provider-muse/src/relay_muse/engine/submit.py"
 WEB_FILE = "packages/provider-muse/src/relay_muse/engine/web.py"
 CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
-REPORT_REF = "            await self._core(lambda: self.ctx.report_ref(self.session, {\"session_id\": self.session}))\n"
+REPORT_REF = "            await self._core(lambda: self.ctx.report_ref(self.session, state))\n"
 LEASE_CALL = "        info = await lease_workspace(web)\n    vm, endpoint = workspace(info)"
 TOKEN_CHECK = "    if not isinstance(token, str) or not token or not isinstance(notary, str) or not notary.strip():"
 
@@ -75,11 +87,12 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     assert out.meta == {"session_id": sid, "job_id": "job-1", "last": True}
     assert "/session/delete" not in site.vms[0].paths(), "a done chat is deleted by the fetch of its last output"
     vm = site.vms[0]
-    assert vm.paths()[:5] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
-                              "/chat/subscribe", "/api/nodes/register", "/chat/stream"]
+    assert vm.paths()[:6] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
+                              "/chat/subscribe", "/api/nodes/register", "/fs/list", "/chat/stream"]
     assert "session_id" not in vm.requests[2].json() and vm.requests[2].json()["after_chat_event_seq"] == 41
+    assert vm.requests[4].json() == {"path": "workspace/imagine_media"}, "the media folders are listed before"
     assert vm.paths().count("/chat/stream") == 1
-    assert all(p == "/chat/history?limit=40&transcript_mode=messages&session_id=" + sid for p in vm.paths()[5:])
+    assert all(p == "/chat/history?limit=40&transcript_mode=messages&session_id=" + sid for p in vm.paths()[6:])
     body = stream_bodies(site)[0]
     assert body["node_id"] == vm.requests[0].json()["client_id"] == vm.requests[3].json()["node_id"]
     assert body["message"].startswith("Generate exactly one separate image")
@@ -451,3 +464,72 @@ def test_a_job_whose_workspace_is_unavailable_from_here_rests_the_account_and_le
     assert result.job == Retry("muse.vm_not_ready") and ctx.calls == [] and site.vms == []
     assert site.paths() == ["GET /api/session"]
     assert [type(e) for e in result.account] == [Cooldown] and "unavailable from here" in result.account[0].reason
+
+
+# ---- only files new since the send (live 30/10: jobs aae305b4 and 1c7ddda2, refunded while muse had made them) -------
+UNLINKED = "new-files-301030/history_unlinked_image.json"
+LINKED_VIDEO = "new-files-301030/history_linked_video.json"
+EDITED = "workspace/your_files/media-generation-fox-snow-watercolor-9x16-0-d74ae617-0900-46fb-aef2-46d9edd0add4.webp"
+SNAPSHOT = "            self.since = None if listed is None else listed[0]\n"
+LIST_FAILED = "            if not isinstance(entries, list):\n                return None\n"
+LAST_RED_KITE = 1793342693022       # the newest time in the media folders before the send: red_kite_meadow_5s.mp4
+
+
+@mutation(SUBMIT_FILE, SNAPSHOT, "            self.since = None\n", expect="the unshown image is the job's")
+def test_an_edit_muse_saved_without_showing_it_is_delivered_and_its_listing_kept():
+    """Job aae305b4: "Done — one 9:16 watercolor version, kept private in your workspace.", no card, the WebP in
+    your_files."""
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=folders()))
+    result, ctx = run(site, job("image_to_image", inputs=(IMAGE_REF,), ratio="9:16"))
+    assert isinstance(result.job, Completed), "the unshown image is the job's: %s" % (result.job,)
+    (out,) = result.job.outputs
+    assert (out.ref, out.mime, out.meta.get("last")) == (EDITED, "image/webp", True)
+    sid = chat_of(site)
+    assert ctx.calls[0] == ("report_ref", sid, {"session_id": sid, "since": LAST_RED_KITE})
+    assert result.account == (Success(),)
+    lists = [r.json()["path"] for r in site.vms[0].requests if r.path == "/fs/list"]
+    assert lists == ["workspace/imagine_media", "workspace/your_files"] * 2, "listed before the send and at the verdict"
+
+
+@mutation(CHAT_FILE, LIST_FAILED, "            if not isinstance(entries, list):\n                continue\n",
+          expect="no listing before the send")
+def test_a_file_that_was_there_before_the_send_is_never_taken():
+    same = folders("2099-01-01T00:00:00.000Z")          # nothing new since the send
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=same))
+    result, _ = run(site, job("image_to_image", inputs=(IMAGE_REF,)))
+    assert isinstance(result.job, Fail) and result.job.code == "muse.refused", result.job
+    before, after = folders()
+    old_card = {"name": "ocean_waves_beach_5s.mp4", "type": "file", "size": 3708901,
+                "modifiedAt": "2026-10-30T05:29:45.756Z"}
+    before["workspace/your_files"].append(old_card)
+    after["workspace/your_files"].append(old_card)
+    shown_old = Site(vm_routes_=vm_routes([answered("ref-spike-301030/history_your_files.json")],
+                                          folders=(before, after)))
+    result, _ = run(shown_old, video_job())
+    assert isinstance(result.job, Fail) and result.job.code == "muse.refused", "an old card: %s" % (result.job,)
+    unlisted = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=({}, folders()[1])))
+    result, ctx = run(unlisted, job("image_to_image", inputs=(IMAGE_REF,)))
+    assert isinstance(result.job, Fail), "no listing before the send: %s" % (result.job,)
+    assert "since" not in ctx.calls[0][2]
+    shown = Site(vm_routes_=vm_routes([answered("ref-spike-301030/history_your_files.json")]))
+    result, _ = run(shown, video_job())
+    assert isinstance(result.job, Completed), "with no listing, the chat's card is taken as before"
+
+
+def test_a_video_only_named_in_the_answer_is_delivered_the_cut_one_not_the_raw():
+    """Job 1c7ddda2: muse made a 10 s raw video, cut it to 5 s, answered with a sandbox:// link and no card."""
+    raw = ("workspace/your_files/media-generation-a-paper-boat-0-1a2b3c4d.mp4", "2026-10-30T11:51:40.000Z")
+    cut = ("workspace/your_files/paper_boat_rainy_gutter_5s.mp4", "2026-10-30T11:52:05.000Z")
+    site = Site(vm_routes_=vm_routes([answered(LINKED_VIDEO)], folders=folders("2026-10-30T11:00:00.000Z", raw, cut)))
+    result, _ = run(site, video_job())
+    assert isinstance(result.job, Completed), result.job
+    assert [(o.ref, o.mime) for o in result.job.outputs] == [(cut[0], "video/mp4")], "never more than paid"
+
+
+def test_new_unshown_images_beyond_n_are_never_delivered():
+    added = [("workspace/imagine_media/a-fox-%d.webp" % i, "2026-10-30T11:5%d:00.000Z" % i) for i in range(3)]
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=folders("2026-10-30T11:00:00.000Z", *added)))
+    result, ctx = run(site, job("image_to_image", inputs=(IMAGE_REF,)))
+    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1
+    assert result.job.outputs[0].ref == "workspace/imagine_media/a-fox-2.webp"
+    assert any("muse made 4 images, 1 were paid" in text for _, text in ctx.events)

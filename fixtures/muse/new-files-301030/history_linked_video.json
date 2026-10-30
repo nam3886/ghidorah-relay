@@ -1,0 +1,77 @@
+{
+ "ok": true,
+ "result": {
+  "channel": "main",
+  "chat_events": [
+   {
+    "event_name": "message.user",
+    "role": "user",
+    "display_text": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street gutter\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+    "occurred_at_ms": 1793335494000,
+    "payload": {
+     "chat_event_seq": 205,
+     "content": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street gutter\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street gutter\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335494000,
+     "is_thread": true,
+     "message_id": "<uuid>",
+     "metadata": {
+      "client_app_id": "hatch-web",
+      "client_chat_context": {
+       "chat_id": "<uuid>",
+       "chat_kind": "direct",
+       "device_id": "<uuid>",
+       "event_kind": "message",
+       "origin_provider": "main",
+       "require_mention": false
+      },
+      "client_device_id": "<uuid>",
+      "client_timezone": "UTC",
+      "context_seq": 1,
+      "message_kind": "message",
+      "thoughtful_follow_through": true,
+      "timestamp_timezone": "UTC"
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "user",
+     "seq": 205,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   },
+   {
+    "event_name": "message.assistant",
+    "role": "assistant",
+    "display_text": "Done. One 5-second video, 16:9 (1280x720), showing a paper boat drifting down a rainy street gutter. It's saved in your workspace and hasn't been shared anywhere. ![paper boat video](sandbox://workspace/your_files/paper_boat_rainy_gutter_5s.mp4)",
+    "occurred_at_ms": 1793335750000,
+    "payload": {
+     "chat_event_seq": 212,
+     "content": "Done. One 5-second video, 16:9 (1280x720), showing a paper boat drifting down a rainy street gutter. It's saved in your workspace and hasn't been shared anywhere. ![paper boat video](sandbox://workspace/your_files/paper_boat_rainy_gutter_5s.mp4)",
+     "display_text": "Done. One 5-second video, 16:9 (1280x720), showing a paper boat drifting down a rainy street gutter. It's saved in your workspace and hasn't been shared anywhere. ![paper boat video](sandbox://workspace/your_files/paper_boat_rainy_gutter_5s.mp4)",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335750200,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 12,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1793335750000
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 212,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   }
+  ]
+ }
+}
