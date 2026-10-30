@@ -33,11 +33,13 @@ from flowkit import (
 from relay_core import frames
 from relay_core.net import UnsafeUrl
 from relay_core.providers import (
+    REFUSED_BY,
     Ambiguous,
     Completed,
     Cooldown,
     CreateRequest,
     Done,
+    Fail,
     Found,
     JobView,
     NotTaken,
@@ -57,7 +59,7 @@ from relay_flow import errors
 from relay_flow.engine import results as R
 from relay_flow.engine.captcha import CaptchaError
 from relay_flow.engine.http import Sessions
-from relay_flow.engine.submit import REASONS, submit
+from relay_flow.engine.submit import submit
 from relay_flow.spec import SPEC
 
 SUBMIT_FILE = "packages/provider-flow/src/relay_flow/engine/submit.py"
@@ -211,29 +213,53 @@ def test_a_7_refusal_made_nothing_and_is_tried_again_with_a_new_token_and_a_new_
     assert result.job.outputs[0].meta == {"batch": batches[-1]}
 
 
-TRAFFIC_STOP = "                if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here"
+TRAFFIC_STOP = ("                if code8 or reply.reason == MODEL_DENIED:      # no more tries here: the account "
+                "refused the job")
 TRAFFIC_REST = '    if code == TOO_MUCH_TRAFFIC and int(settings.get("flow.traffic_rest_s")) > gap:'
+REFUSED_OUTCOME = ("    outcome = account_refused(job, ctx.account.id, settings, not_taken=code, final=code, "
+                   "detail=detail,\n                              patch={\"refused_batches\": list(batches)})\n")
 
 
-@mutation(SUBMIT_FILE, TRAFFIC_STOP, "                if False:     # no more tries here", expect="hammered")
+@mutation(SUBMIT_FILE, TRAFFIC_STOP, "                if False:", expect="hammered")
 @mutation(SUBMIT_FILE, TRAFFIC_REST, "    if False:", expect="the traffic rest")
 def test_a_code_8_too_much_traffic_ends_the_tries_requeues_the_job_and_rests_the_account():
-    """Code 8 (RESOURCE_EXHAUSTED, ..._TOO_MUCH_TRAFFIC) may be a traffic cap: nothing was made, so the job goes back
-    to the queue for another account, and this one rests `flow.traffic_rest_s` instead of being tried again."""
+    """Code 8 (RESOURCE_EXHAUSTED, ..._TOO_MUCH_TRAFFIC) refuses the account: nothing was made, so the job goes back
+    to the queue for another account (`relay_core.refusals`: no attempt used, this account named in its
+    `refused_by`), and this one rests `flow.traffic_rest_s` instead of being tried again."""
     log = []
     flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, REFUSED_8, GOOD]}), Ctx(log)
     result = run_submit(flow, ctx)
     assert len(flow.calls("ogiZ0b")) == 2, "hammered after a code 8"
     batches = [args_of(p)[4][0] for p in flow.calls("ogiZ0b")]
-    assert result.job == NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches})
+    assert result.job == NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches, REFUSED_BY: ["acc-1"]})
+    assert "another account (flow.refusal_max_accounts)" in ctx.events[-1]
     assert rested(result) == [Rest(p, NOW + timedelta(seconds=1800), "flow said too much traffic (code 8)")
                               for p in ALL_POOLS], "the traffic rest: %s" % rested(result)
-    assert "code 8" in ctx.events[-1] and not any(isinstance(e, Success) for e in result.account)
+    assert "code 8" in ctx.events[-2] and not any(isinstance(e, Success) for e in result.account)
     # a pacing longer than the traffic rest is kept; a rest of 0 leaves the pacing alone
     for cfg, secs in ((settings(flow__account_min_gap_s=3600), 3600), (settings(flow__traffic_rest_s=0), 300)):
         log = []
         result = run_submit(Flow(log, rpc={"ogiZ0b": REFUSED_8}), Ctx(log), cfg=cfg)
         assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=secs)}, "the traffic rest"
+
+
+@mutation(SUBMIT_FILE, REFUSED_OUTCOME,
+          "    outcome = NotTaken(code, {\"refused_batches\": list(batches)})\n", expect="refunded")
+def test_the_refusal_on_the_last_account_the_setting_allows_fails_the_job_refunded():
+    """The job's `refused_by` list counts: on the account that reaches `flow.refusal_max_accounts` (2) the job fails
+    with the refusal's own code, a terminal rule with its full refund and no attempt counted."""
+    for answer, code in ((REFUSED_8, errors.TOO_MUCH_TRAFFIC), (DENIED, errors.MODEL_ACCESS_DENIED)):
+        log = []
+        flow, ctx = Flow(log, rpc={"ogiZ0b": answer}), Ctx(log)
+        result = run_submit(flow, ctx, the_job=job(state={REFUSED_BY: ["acc-0"]}))
+        assert isinstance(result.job, Fail) and result.job.code == code, "not failed refunded: %s" % (result.job,)
+        assert result.job.state_patch[REFUSED_BY] == ["acc-0", "acc-1"] and rested(result)
+        rule = SPEC.codes()[code]
+        assert rule.terminal and rule.refund and not rule.counts_attempt, "not refunded: %s" % (rule,)
+    log = []
+    result = run_submit(Flow(log, rpc={"ogiZ0b": REFUSED_8}), Ctx(log), cfg=settings(flow__refusal_max_accounts=3),
+                        the_job=job(state={REFUSED_BY: ["acc-0"]}))
+    assert isinstance(result.job, NotTaken), "flow.refusal_max_accounts is the live setting"
 
 
 RECORDED = ["wrb.fr", "ogiZ0b", None, None, None,
@@ -351,7 +377,8 @@ def test_any_other_reply_that_is_not_a_drawn_image_is_ambiguous_and_never_sent_a
 
 @mutation(SUBMIT_FILE, "            for attempt in range(tries):", "            for attempt in range(tries + 1):",
           expect="more tries than flow.captcha_max_tries")
-@mutation(SUBMIT_FILE, "            return _result(NotTaken(refused, {\"refused_batches\": batches}), *read,\n",
+@mutation(SUBMIT_FILE, "            return _result(NotTaken(errors.CAPTCHA_REFUSED, {\"refused_batches\": batches}), "
+          "*read,\n",
           "            return _result(Ambiguous(\"refused\"), *read,\n", expect="NotTaken")
 def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_the_account_rests():
     log = []
@@ -366,26 +393,35 @@ def test_when_every_try_is_refused_the_job_goes_back_to_the_queue_not_taken_and_
 DENIED = REFUSED_7.replace("PUBLIC_ERROR_UNUSUAL_ACTIVITY", "PUBLIC_ERROR_MODEL_ACCESS_DENIED")
 
 
-@mutation(SUBMIT_FILE, "                refused = REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)", "",
-          expect="model access")
+DENIED_REST = ('            rest = (*rest, Rest("image", now + timedelta(seconds=denied_s), detail))')
+
+
+@mutation(SUBMIT_FILE, TRAFFIC_STOP, "                if code8:", expect="model access")
+@mutation(SUBMIT_FILE, DENIED_REST, "            pass", expect="the image pool")
 @mutation(HTTP_FILE, "        reason = err[2][0][1][0]", "        reason = None", expect="the reason")
-def test_the_refusals_reason_names_the_code_when_the_tries_run_out_and_code_7_is_still_tried_again():
-    """flow2api (16/10): code 7 comes as PUBLIC_ERROR_UNUSUAL_ACTIVITY (the reCAPTCHA refusal) or as
-    PUBLIC_ERROR_MODEL_ACCESS_DENIED. Both are still retried with a new token; the last one names the code."""
+def test_a_model_refused_to_the_account_moves_the_job_at_once_and_rests_the_image_pool_long():
+    """flow2api (16/10): code 7 comes as PUBLIC_ERROR_UNUSUAL_ACTIVITY (the reCAPTCHA refusal, tried again with a new
+    token) or as PUBLIC_ERROR_MODEL_ACCESS_DENIED: the account's plan may not use the model, which no new token
+    changes. That one is an account refusal: no more tries, the job goes to another account, and this account's image
+    pool rests `flow.model_denied_rest_s` (the other pools only the pacing)."""
     from relay_flow.engine.http import read_reply
     assert read_reply(200, REFUSED_7, "ogiZ0b").reason == "PUBLIC_ERROR_UNUSUAL_ACTIVITY", "the reason"
     assert read_reply(200, DENIED, "ogiZ0b").reason == "PUBLIC_ERROR_MODEL_ACCESS_DENIED", "the reason"
     assert read_reply(200, REFUSED_8, "ogiZ0b").reason == "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC"
     assert read_reply(200, GOOD, "ogiZ0b").reason is None
-    for answers, code in (([REFUSED_7, DENIED], errors.MODEL_ACCESS_DENIED), ([DENIED, REFUSED_7],
-                                                                               errors.CAPTCHA_REFUSED)):
-        log = []
-        flow, ctx = Flow(log, rpc={"ogiZ0b": answers}), Ctx(log)
-        result = run_submit(flow, ctx, cfg=settings(flow__captcha_max_tries=2))
-        assert len(flow.calls("ogiZ0b")) == 2, "code 7 is tried again whatever its reason"
-        assert result.job.code == code, "model access: %s" % (result.job,)
-        assert "PUBLIC_ERROR_MODEL_ACCESS_DENIED" in " ".join(ctx.events), "the reason is in the job's events"
-    assert set(REASONS.values()) <= set(SPEC.codes())
+    log = []
+    flow, ctx = Flow(log, rpc={"ogiZ0b": [REFUSED_7, DENIED, GOOD]}), Ctx(log)
+    result = run_submit(flow, ctx)
+    batches = [args_of(p)[4][0] for p in flow.calls("ogiZ0b")]
+    assert len(batches) == 2 and result.job == NotTaken(
+        errors.MODEL_ACCESS_DENIED, {"refused_batches": batches, REFUSED_BY: ["acc-1"]}), \
+        "model access: %s" % (result.job,)
+    assert "PUBLIC_ERROR_MODEL_ACCESS_DENIED" in " ".join(ctx.events), "the reason is in the job's events"
+    until = {e.pool: e.until for e in rested(result) if e.until > NOW + timedelta(seconds=300)}
+    assert until == {"image": NOW + timedelta(seconds=21600)}, "the image pool: %s" % rested(result)
+    log = []
+    result = run_submit(Flow(log, rpc={"ogiZ0b": DENIED}), Ctx(log), cfg=settings(flow__model_denied_rest_s=0))
+    assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=300)}, "0 leaves only the pacing"
 
 
 @mutation(SUBMIT_FILE, "API_TIMEOUT_S > SUBMIT_TIMEOUT_S:", "API_TIMEOUT_S > 10**9:",

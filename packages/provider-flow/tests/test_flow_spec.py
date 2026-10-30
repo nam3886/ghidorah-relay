@@ -80,6 +80,8 @@ def test_flow_stays_drained_by_default_and_declares_its_tunables():
     assert (s["flow.captcha_max_tries"].default, s["flow.captcha_retry_gap_s"].default) == (5, 60)
     assert s["flow.account_min_gap_s"].default == 300 and s["flow.captcha_provider"].default == ["yescaptcha"]
     assert (s["flow.traffic_rest_s"].default, s["flow.traffic_rest_s"].min) == (1800, 0)
+    assert (s["flow.model_denied_rest_s"].default, s["flow.model_denied_rest_s"].min) == (21600, 0)
+    assert (s["flow.refusal_max_accounts"].default, s["flow.refusal_max_accounts"].min) == (2, 1)
     assert s["flow.prices"].default == FC.DEFAULT_PRICES and s["flow.costs"].default == FC.DEFAULT_COSTS
     assert set(s["flow.prices"].default) == set(s["flow.costs"].default) == set(FC.PRICE_KEYS)
     pools = s["flow.pools"]
@@ -157,8 +159,12 @@ def test_flow_registers_its_codes_on_load():
              "flow.model_access_denied", "flow.captcha_timeout", "flow.upload_failed", "flow.tier_required"}
     ours = {"flow.captcha_key_invalid", "flow.captcha_no_balance"}       # the solver's key or balance: ours to fix
     assert set(SPEC.codes()) == codes | ours and codes | ours <= set(errors.RULES)
+    refusals = {"flow.too_much_traffic", "flow.model_access_denied"}     # account refusals (relay_core.refusals)
     for code in codes | ours:   # before the send or nothing made: an attempt, refunded when they run out
         r = errors.rule(code)
+        if code in refusals:    # requeued with no attempt; the last account's ends the job, refunded
+            assert (r.terminal, r.refund, r.counts_attempt, errors.hidden(r)) == (True, True, False, False), code
+            continue
         counts = code != "flow.tier_required"      # not the order's fault: uses no attempt (a bounded few times)
         assert (r.terminal, r.refund, r.counts_attempt, errors.hidden(r)) == (False, counts, counts, code in ours), code
         assert r.public_code == (errors.INTERNAL_ERROR if code in ours else errors.GENERATION_FAILED

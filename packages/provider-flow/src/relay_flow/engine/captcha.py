@@ -16,9 +16,17 @@ like every other call. The keys are the secret settings `flow.<source>_key` (`co
 in the database and opened by the worker's settings at each reload, read at each solve. Neither a key, a
 token nor the proxy login is ever logged or put in an error text. A solver's fault (a bad key, no balance, no token
 in time) is a `CaptchaError` with its own code: the job is retried, the flow account is never blamed.
+
+The browser of the token (flow2api 30/10: a token scored for one UA and sent with another reads as unusual activity).
+Every solver answers the User-Agent of the browser that minted the token (`solution.userAgent`: YesCaptcha captured,
+`fixtures/flow/spike-261023/yes_001`; CapSolver's and Anti-Captcha's documented): the token is a `Token` that carries
+it, and the generate goes with that UA and its client hints (`Site.rpc(user_agent=...)`). A UA that is not a plain
+browser string is not used (the generate then goes as our own `USER_AGENT`). Our UA goes into the task only on
+YesCaptcha (flow2api sends it there); CapSolver and Anti-Captcha document no such task field.
 """
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 
@@ -35,6 +43,7 @@ from relay_flow.constants import (
     CAPTCHA_MIN_LEFT_S,
     CAPTCHA_URLS,
     RECAPTCHA_SITE_KEY,
+    USER_AGENT,
     YESCAPTCHA_TASK,
     captcha_sources,
 )
@@ -49,6 +58,27 @@ SOLVER_CODES = {
     "ERROR_TASK_TIMEOUT": errors.CAPTCHA_TIMEOUT,
     "ERROR_RECAPTCHA_TIMEOUT": errors.CAPTCHA_TIMEOUT,
 }
+
+
+_BROWSER_UA = re.compile(r"Mozilla/5\.0 \([\x20-\x7e]{1,400}")     # printable ASCII only: it becomes a header
+
+
+class Token(str):
+    """A token, and the User-Agent of the browser that minted it (None: the solver named none we can send)."""
+    user_agent: str | None = None
+
+
+def token_of(solution: dict) -> Token | None:
+    """The token of a ready `solution`, with its `userAgent` when that is a plain browser string; None without a
+    token."""
+    token = solution.get("gRecaptchaResponse")
+    if not (isinstance(token, str) and token):
+        return None
+    out = Token(token)
+    ua = solution.get("userAgent")
+    if isinstance(ua, str) and _BROWSER_UA.fullmatch(ua):
+        out.user_agent = ua
+    return out
 
 
 class CaptchaError(Exception):
@@ -117,8 +147,8 @@ class Tokens:
                         raise _refused("the solver failed the task", got)
                     if got.get("status") == "ready":
                         solution = got.get("solution")
-                        token = solution.get("gRecaptchaResponse") if isinstance(solution, dict) else None
-                        if isinstance(token, str) and token:
+                        token = token_of(solution) if isinstance(solution, dict) else None
+                        if token is not None:
                             return token
                         raise CaptchaError("the solver answered ready with no token")
         except httpx.TimeoutException as e:
@@ -131,7 +161,7 @@ class Tokens:
     def _task(self, source: str, action: str, page_url: str, proxy: Proxy | None) -> dict:
         base = {"websiteURL": page_url, "websiteKey": RECAPTCHA_SITE_KEY, "pageAction": action}
         if source == "yescaptcha":
-            return {"type": YESCAPTCHA_TASK, **base, "isEnterprise": True}
+            return {"type": YESCAPTCHA_TASK, **base, "isEnterprise": True, "userAgent": USER_AGENT}
         if source == "anticaptcha":
             return {"type": ANTICAPTCHA_TASK, **base, "isEnterprise": True,
                     "minScore": self.settings.get("flow.anticaptcha_min_score")}

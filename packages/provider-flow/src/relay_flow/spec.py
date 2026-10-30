@@ -21,6 +21,7 @@ from relay_core.providers import (
     Plan,
     PoolSpec,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Rule, Spec, disabled_models
 from relay_flow import catalog as C
 from relay_flow import errors as codes
@@ -148,9 +149,20 @@ _SETTINGS = dict((
              "Seconds between two tries of one job after flow refused a token (back-to-back tries kept being "
              "refused).", min=0, max=600),
     _setting("traffic_rest_s", int, 1800,
-             "Seconds a flow account rests after flow refused it with code 8 (too much traffic): an image goes back "
-             "to the queue at once instead of trying the account again. Seen once in 20 rapid tries (23/10), where "
-             "a 12-min pause was then accepted.", min=0, max=86400),
+             "Seconds a flow account rests after flow refused it with code 8 (too much traffic): the job (an image "
+             "or a video) goes to another account at once instead of trying this one again. Seen on images (23/10, "
+             "30/10) and on four video sends (26-30/10, none ever made).", min=0, max=86400),
+    _setting("model_denied_rest_s", int, 21600,
+             "Seconds a flow account's image pool rests after flow refused it a model "
+             "(PUBLIC_ERROR_MODEL_ACCESS_DENIED: the account's plan may not use it); the job goes to another account. "
+             "The pool holds every image model, so a long rest stops all images on that account. 0: only the pacing.",
+             min=0, max=604800),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one flow job may try when flow refuses the account: code 8 (too much traffic) on "
+        "an image or a video, or a model refused to the account. Each refusal rests that account and sends the job to "
+        "another one, using no attempt; the refusal on the last account ends the job failed, with its full refund. 1 "
+        "ends it at the first refusal. A reCAPTCHA refusal (code 7) is not counted: it is tried again with a new "
+        "token, and on a video it stays unknown."),
     _setting("account_min_gap_s", int, 300,
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),

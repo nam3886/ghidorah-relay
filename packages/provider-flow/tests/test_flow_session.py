@@ -29,7 +29,7 @@ from flowkit import (
 
 from relay_core.providers import Balance, Cooldown, Dead, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
-from relay_flow.constants import CAPTCHA_KEY_SETTINGS
+from relay_flow.constants import CAPTCHA_KEY_SETTINGS, USER_AGENT
 from relay_flow.credential import dump, jar_of
 from relay_flow.engine import FlowEngine, build_engine
 from relay_flow.engine import http as H
@@ -331,13 +331,16 @@ def task_of(transport) -> dict:
 NEVER_READY = [CREATED] + [WORKING] * 40      # more reads than the token's 120 s allow, 3 s apart
 
 
-@mutation(CAPTCHA_FILE, '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True}',
-          '"type": YESCAPTCHA_TASK, **base}', expect="enterprise")
-def test_yescaptcha_mints_an_enterprise_token_for_the_generate_action():
+@mutation(CAPTCHA_FILE, '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True, "userAgent": USER_AGENT}',
+          '"type": YESCAPTCHA_TASK, **base, "userAgent": USER_AGENT}', expect="enterprise")
+@mutation(CAPTCHA_FILE, '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True, "userAgent": USER_AGENT}',
+          '"type": YESCAPTCHA_TASK, **base, "isEnterprise": True}', expect="enterprise")
+def test_yescaptcha_mints_an_enterprise_token_for_the_generate_action_and_our_browser():
     transport = solver([{"errorId": 0, "taskId": "t-1"}, WORKING, READY])
     assert tokens(transport, proxy=ACCOUNT_PROXY) == "tok-abc"
     assert task_of(transport) == {"type": "RecaptchaV3TaskProxylessM1", "isEnterprise": True, "websiteURL": PAGE,
-                                  "websiteKey": SITE_KEY, "pageAction": "IMAGE_GENERATION"}, "enterprise"
+                                  "websiteKey": SITE_KEY, "pageAction": "IMAGE_GENERATION",
+                                  "userAgent": USER_AGENT}, "enterprise"
     assert [h for h, _, _ in transport.seen] == ["api.yescaptcha.com"] * 3
     assert transport.seen[0][2]["clientKey"] == YES_KEY
     assert transport.seen[2][1:] == ("/getTaskResult", {"clientKey": YES_KEY, "taskId": "t-1"})
@@ -450,8 +453,8 @@ def test_each_solver_fault_has_its_own_code_and_its_reason_never_holds_a_secret(
 
 
 @mutation(CAPTCHA_FILE, "        for source in order:\n", "        for source in order[:1]:\n", expect="no fallback")
-@mutation(CAPTCHA_FILE, 'solution.get("gRecaptchaResponse") if isinstance(solution, dict) else None',
-          '(solution or {}).get("gRecaptchaResponse")', expect="has no attribute 'get'")
+@mutation(CAPTCHA_FILE, 'token = token_of(solution) if isinstance(solution, dict) else None',
+          'token = token_of(solution or {})', expect="has no attribute 'get'")
 def test_an_order_of_sources_falls_back_to_the_next_and_names_every_reason_when_all_fail():
     cfg = settings(flow__captcha_provider="capsolver,yescaptcha")
     transport = solver([{"errorId": 1, "errorCode": "ERROR_ZERO_BALANCE"}, CREATED, READY])
@@ -661,3 +664,75 @@ def test_a_garbled_refill_stamp_never_fails_the_check_nor_names_a_cycle():
 def test_a_cycle_start_is_a_month_before_the_refill_clamped_to_the_months_length():
     assert month_before(date(2026, 3, 31)) == date(2026, 2, 28)
     assert month_before(date(2026, 1, 8)) == date(2025, 12, 8)
+
+
+# ---- the browser of every call ------------------------------------------------------------------------------------
+CHROME_141 = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/141.0.0.0 Safari/537.36")
+NAVIGATE_LINE = ("                                                                "
+                 "**NAVIGATE, **browser_headers(USER_AGENT)})")
+NAVIGATE_ONLY = "                                                                **NAVIGATE})"
+SOLVER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+             "Chrome/153.0.0.0 Safari/537.36")
+
+
+@mutation(HTTP_FILE, "_BRAND_ORDERS = ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0))",
+          "_BRAND_ORDERS = ((0, 1, 2),) * 6", expect="as Chrome sends it")
+@mutation(HTTP_FILE, "_GREASE_CHARS[(major + 1) % 11]", "_GREASE_CHARS[major % 11]", expect="as Chrome sends it")
+@mutation(HTTP_FILE, "_GREASE_VERSIONS[major % 3]", '"99"', expect="as Chrome sends it")
+def test_the_client_hints_are_the_ones_chrome_sends_with_its_user_agent():
+    """sec-ch-ua as real Chrome sent it (131 and 141, captured from those releases), built the same way for ours."""
+    assert H.chrome_brands(141) == '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"', \
+        "not as Chrome sends it"
+    assert H.chrome_brands(131) == '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"', \
+        "not as Chrome sends it"
+    assert H.browser_headers(CHROME_141) == {
+        "User-Agent": CHROME_141, "sec-ch-ua": H.chrome_brands(141), "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"'}
+    assert H.browser_headers(SOLVER_UA)["sec-ch-ua-platform"] == '"macOS"'
+    firefox = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+    assert H.browser_headers(firefox) == {"User-Agent": firefox}, "only Chromium sends client hints"
+    assert "Chrome/156.0.0.0" in USER_AGENT
+
+
+@mutation(HTTP_FILE, '                trust_env=False, headers={"Accept-Language": "en-US,en;q=0.9"})',
+          '                trust_env=False, headers={"Accept-Language": "en-US,en;q=0.9", "sec-ch-ua": "x"})',
+          expect="other browser")
+@mutation(HTTP_FILE, '"Accept": "*/*", **CORS, **browser_headers(user_agent or USER_AGENT)}',
+          '"Accept": "*/*", **CORS, **browser_headers(USER_AGENT)}', expect="the solver's browser")
+@mutation(HTTP_FILE, NAVIGATE_LINE, NAVIGATE_ONLY, expect="as one Chrome")
+def test_every_call_of_an_account_goes_as_one_chrome_and_a_call_given_the_solvers_browser_as_that_one():
+    log = []
+    flow, ctx = Flow(log), Ctx(log)
+
+    async def run():
+        async with Site(ctx, Sessions(), settings(), transport=flow.transport, clock=lambda: WALL) as site:
+            await site.load("/")
+            await site.rpc("nzlxg", [])
+            await site.rpc("nzlxg", [], user_agent=SOLVER_UA)
+            await site.rpc("nzlxg", [], user_agent="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Firefox/140.0")
+    asyncio.run(run())
+    rotate, page, rpc, solver_rpc, other = flow.seen
+    ours = H.browser_headers(USER_AGENT)
+    for request in (rotate, page, rpc):
+        assert {k: request.headers.get(k) for k in ours} == ours, "not as one Chrome: %s" % request.url
+    assert {k: solver_rpc.headers.get(k) for k in H.browser_headers(SOLVER_UA)} == H.browser_headers(SOLVER_UA), \
+        "the solver's browser was not used"
+    assert other.headers["User-Agent"].endswith("Firefox/140.0") and "sec-ch-ua" not in other.headers, \
+        "Chrome's client hints went with another browser"
+    assert page.headers["Sec-Fetch-Mode"] == "navigate" and page.headers["Sec-Fetch-Dest"] == "document"
+    for request in (rotate, rpc, solver_rpc):
+        assert (request.headers["Sec-Fetch-Mode"], request.headers["Sec-Fetch-Site"]) == ("cors", "same-origin")
+
+
+@mutation(CAPTCHA_FILE, "    if isinstance(ua, str) and _BROWSER_UA.fullmatch(ua):", "    if isinstance(ua, str):",
+          expect="not a browser string")
+@mutation(CAPTCHA_FILE, "        out.user_agent = ua", "        pass", expect="the solver's browser")
+def test_the_token_carries_the_browser_the_solver_minted_it_in_and_only_a_plain_browser_string():
+    ready = {"errorId": 0, "status": "ready", "solution": {"gRecaptchaResponse": "tok-abc", "userAgent": SOLVER_UA}}
+    token = tokens(solver([CREATED, ready]))
+    assert token == "tok-abc" and token.user_agent == SOLVER_UA, "the solver's browser was dropped"
+    for bad in ("Mozilla/5.0 (x)\r\nX-Evil: 1", "curl/8.0", "", 42, "Mozilla/5.0 (" + "x" * 500):
+        ready["solution"]["userAgent"] = bad
+        assert tokens(solver([CREATED, ready])).user_agent is None, "not a browser string: %r" % (bad,)
+    assert tokens(solver([CREATED, READY])).user_agent is None

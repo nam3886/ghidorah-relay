@@ -46,6 +46,16 @@ _AT = re.compile(r'"SNlM0e":"([^"]+)"')
 _FSID = re.compile(r'"FdrFJe":"(-?\d+)"')
 _BL = re.compile(r'"cfb2h":"([^"]+)"')
 _EMAIL = re.compile(r'"oPEP7c":"([^"@]+@[^"]+)"')
+_CHROME = re.compile(r"Chrome/(\d+)\.")
+# Chrome's GREASE brand (Chromium's user_agent_utils, seeded by the major version): the characters, the versions, and
+# the order of the three brands
+_GREASE_CHARS = (" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_")
+_GREASE_VERSIONS = ("8", "99", "24")
+_BRAND_ORDERS = ((0, 1, 2), (0, 2, 1), (1, 0, 2), (1, 2, 0), (2, 0, 1), (2, 1, 0))
+# what Chrome sends with a fetch() of the page (the RPCs; RotateCookies from accounts.google.com's own frame)
+CORS = {"Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Site": "same-origin"}
+NAVIGATE = {"Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1", "Upgrade-Insecure-Requests": "1"}
 
 
 def proxy_url(proxy: Proxy | None) -> str | None:
@@ -57,6 +67,33 @@ def proxy_url(proxy: Proxy | None) -> str | None:
         user, _, secret = proxy.auth.partition(":")
         auth = quote(user, safe="") + (":" + quote(secret, safe="") if secret else "") + "@"
     return "http://%s%s:%d" % (auth, proxy.host, proxy.port)
+
+
+def chrome_brands(major: int) -> str:
+    """`sec-ch-ua` of Google Chrome `major`, as Chrome builds it (141: "Google Chrome";v="141", "Not?A_Brand";v="8",
+    "Chromium";v="141", as Chrome 141 sends it)."""
+    grease = '"Not%sA%sBrand";v="%s"' % (_GREASE_CHARS[major % 11], _GREASE_CHARS[(major + 1) % 11],
+                                         _GREASE_VERSIONS[major % 3])
+    brands = [""] * 3
+    order = _BRAND_ORDERS[major % 6]
+    brands[order[0]], brands[order[1]], brands[order[2]] = (
+        grease, '"Chromium";v="%d"' % major, '"Google Chrome";v="%d"' % major)
+    return ", ".join(brands)
+
+
+def browser_headers(user_agent: str) -> dict[str, str]:
+    """The User-Agent and the client hints a browser with that UA sends: Chrome's three `sec-ch-ua` headers for a
+    Chrome UA (platform and mobile read from it), none for any other browser (only Chromium sends them)."""
+    out = {"User-Agent": user_agent}
+    m = _CHROME.search(user_agent)
+    if m is None or "Edg/" in user_agent or "OPR/" in user_agent:
+        return out
+    platform = ("Android" if "Android" in user_agent else "Windows" if "Windows" in user_agent
+                else "macOS" if "Macintosh" in user_agent else "Chrome OS" if "CrOS" in user_agent else "Linux")
+    out.update({"sec-ch-ua": chrome_brands(int(m.group(1))),
+                "sec-ch-ua-mobile": "?1" if "Mobile" in user_agent else "?0",
+                "sec-ch-ua-platform": '"%s"' % platform})
+    return out
 
 
 # ---- the jar ------------------------------------------------------------------------------------------------------
@@ -289,7 +326,7 @@ class Site:
             self._before = jar
             self.client = httpx.AsyncClient(
                 cookies=jar.client_cookies(), transport=inner, timeout=API_TIMEOUT_S, follow_redirects=False,
-                trust_env=False, headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"})
+                trust_env=False, headers={"Accept-Language": "en-US,en;q=0.9"})      # the browser per call
             try:
                 if self.clock() - jar.rotated_at >= int(self.settings.get("flow.rotate_interval_s")):
                     await self._rotate()
@@ -302,7 +339,8 @@ class Site:
         """RotateCookies (FINDINGS 1): 200 sets a new __Secure-1PSIDTS pair and the SIDCC trio. The rotated jar is
         written back before anything else happens, so a crash later cannot lose it."""
         resp = await self.client.post(ROTATE_URL, content=ROTATE_BODY, headers={
-            "Content-Type": "application/json", "Origin": "https://accounts.google.com"})
+            "Content-Type": "application/json", "Origin": "https://accounts.google.com", **CORS,
+            **browser_headers(USER_AGENT)})
         self.rotation = resp.status_code
         if resp.status_code != 200:
             return
@@ -334,12 +372,15 @@ class Site:
             await self.client.aclose()
 
     async def load(self, path: str = "/") -> Page:
-        resp = await self.client.get(BASE_URL + path, headers={"Accept": "text/html,application/xhtml+xml"})
+        resp = await self.client.get(BASE_URL + path, headers={"Accept": "text/html,application/xhtml+xml",
+                                                                **NAVIGATE, **browser_headers(USER_AGENT)})
         self.page = read_page(resp.status_code, resp.text if resp.status_code == 200 else "")
         return self.page
 
-    async def rpc(self, rpcid: str, args, path: str = "/", timeout: float = API_TIMEOUT_S) -> Reply:
-        """One batchexecute call; the page must be loaded (signed in). HTTP errors propagate."""
+    async def rpc(self, rpcid: str, args, path: str = "/", timeout: float = API_TIMEOUT_S,
+                  user_agent: str | None = None) -> Reply:
+        """One batchexecute call; the page must be loaded (signed in). HTTP errors propagate. `user_agent`: this call
+        goes as that browser (the solver's that minted the generate's token), with its own client hints."""
         page = self.page
         query = urlencode({"rpcids": rpcid, "source-path": path, "bl": page.bl or "", "f.sid": page.fsid or "",
                            "hl": "en", "_reqid": random.randint(10000, 99999), "rt": "c"})
@@ -349,7 +390,7 @@ class Site:
             "%s%s?%s" % (BASE_URL, RPC_PATH, query), content=urlencode({"f.req": freq, "at": page.at}) + "&",
             timeout=timeout, headers={"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                                       "Origin": BASE_URL, "Referer": BASE_URL + path, "X-Same-Domain": "1",
-                                      "Accept": "*/*"})
+                                      "Accept": "*/*", **CORS, **browser_headers(user_agent or USER_AGENT)})
         return read_reply(resp.status_code, resp.text, rpcid)      # the status is judged with the body, not instead
 
 

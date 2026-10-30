@@ -14,8 +14,10 @@ CAPTCHA_KEY_INVALID = "flow.captcha_key_invalid"    # before the send: the solve
 CAPTCHA_NO_BALANCE = "flow.captcha_no_balance"      # before the send: the solver account has no balance left
 CAPTCHA_TIMEOUT = "flow.captcha_timeout"            # before the send: the solver gave no token in time
 CAPTCHA_REFUSED = "flow.captcha_refused"    # flow refused every try at its reCAPTCHA check; nothing was made
-TOO_MUCH_TRAFFIC = "flow.too_much_traffic"  # flow refused a try with code 8 (too much traffic); nothing was made
-MODEL_ACCESS_DENIED = "flow.model_access_denied"    # flow refused every try: the account may not use the model
+# Account refusals (`relay_core.refusals`): the job goes to another account with the code (no attempt used) until
+# `flow.refusal_max_accounts` accounts refused it; the last refusal fails it with the same code, refunded.
+TOO_MUCH_TRAFFIC = "flow.too_much_traffic"  # flow refused the send with code 8 (too much traffic); nothing was made
+MODEL_ACCESS_DENIED = "flow.model_access_denied"    # flow refused the model for the account; nothing was made
 UPLOAD_FAILED = "flow.upload_failed"        # before the send: flow did not take an input image
 TIER_REQUIRED = "flow.tier_required"        # before the send: the account's plan has no such option
 
@@ -51,17 +53,19 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     Rule(CAPTCHA_TIMEOUT, 504, "api_error", True, False, True, True,
          "the security token for flow did not come in time; the order was not sent", public_code=_BUSY,
          public_text=_CHECK_TEXT),
-    # Sent, and refused before anything was made (an immediate 7 or 8 from flow, nothing listed, nothing charged): the
+    # Sent, and refused before anything was made (an immediate 7 from flow, nothing listed, nothing charged): the
     # job goes back to the queue as a new attempt.
     Rule(CAPTCHA_REFUSED, 503, "api_error", True, False, True, True,
          "flow refused the request at its security check; nothing was made", public_code=_BUSY,
          public_text=_CHECK_TEXT),
-    Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, False, True, True,
-         "flow said it had too much traffic from the account; nothing was made", public_code=_BUSY,
+    # Account refusals: requeued with no attempt used; the refusal on the last account flow.refusal_max_accounts
+    # allows (or of a pinned job) ends the job with its full refund.
+    Rule(TOO_MUCH_TRAFFIC, 503, "api_error", True, True, False, True,
+         "flow said it had too much traffic from the accounts the job tried; nothing was made", public_code=_BUSY,
          public_text="flow was too busy to take the order and nothing was made. Sending the request again later "
                      "may work."),
-    Rule(MODEL_ACCESS_DENIED, 503, "api_error", True, False, True, True,
-         "flow refused the model for the account; nothing was made", public_code=_BUSY,
+    Rule(MODEL_ACCESS_DENIED, 503, "api_error", True, True, False, True,
+         "flow refused the model for the accounts the job tried; nothing was made", public_code=_BUSY,
          public_text="flow refused this model for now and nothing was made. Sending the request again later may "
                      "work."),
 )}

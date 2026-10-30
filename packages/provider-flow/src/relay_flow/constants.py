@@ -55,9 +55,11 @@ def captcha_sources(value) -> tuple[str, ...]:
     return order
 
 
-# A desktop Chrome, as the web app is used.
+# A desktop Chrome, as the web app is used: the stable release of 30/10/2026 (156). Every call of an account sends it
+# with the client hints Chrome sends with it (`engine.http.browser_headers`); a generate whose token came with the
+# solver's own browser UA sends that one instead.
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-              "Chrome/141.0.0.0 Safari/537.36")
+              "Chrome/156.0.0.0 Safari/537.36")
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30              # one page load, read or cookie rotation over a proxy (reads took 0.3-1.5 s)
@@ -66,7 +68,8 @@ GENERATE_TIMEOUT_S = 150        # the image generate holds its reply until drawn
 CAPTCHA_MIN_LEFT_S = 5          # a fallback token source is not started with less of the token's time left
 SUBMIT_TIMEOUT_S = 900         # one submit (image or video), its spaced reCAPTCHA retries included
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool
-CHECK_INTERVAL_S = 300          # the account check: it also rotates the session, which ages out in about 20 min
+CHECK_INTERVAL_S = 300          # the account check: it is what rotates an idle account's session, which ages out in
+                                # about 20 min (rotating every 10 min is the longest gap measured safe, FINDINGS 1)
 SIGNED_OUT_REST_S = 600         # a signed-out read rests the account this long, then it is checked again
 SIGNED_OUT_GAP_S = 540          # a signed-out read this soon after the last counted strike adds none
 NETWORK_REST_S = 300            # a submit whose proxy could not reach flow rests the account this long

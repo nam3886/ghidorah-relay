@@ -21,16 +21,21 @@ Money rules that shape this file (each has a test and a mutation):
   Measured on images: such a refusal comes in 0.4 s, nothing is listed, nothing is charged, so a new try with a new
   token and a new batch id cannot make a second image. When the tries run out (or the next would not end inside the
   submit bound, or a token cannot be had after a refusal) the job goes back to the queue: `NotTaken`, nothing was made.
-  A video gets ONE try: a 7/8 envelope on `YhhmEf` was never captured, so it is no proof nothing was made (Flow could
-  take the video and still answer it): `Ambiguous`, reconciled by its batch, never re-sent (FINDINGS 24/10).
+  A video gets ONE try. Its code 8 refusal (exactly that shape) is proven to make nothing (FINDINGS 30/10: four live
+  sends, none ever listed) and is an account refusal like an image's; a 7 envelope on a video is still no such proof
+  (Flow could take the video and still answer it): `Ambiguous`, reconciled by its batch, never re-sent (FINDINGS 24/10).
 - Any other reply that is not a drawn image, or for a video not the recorded acceptance (our batch echoed, a media
   record of our project), is `Ambiguous`: the job becomes unknown and the reconciler looks for its batch ids; it is
   never sent again. A refusal or an out-of-credits answer to a video send was never captured, so it is ambiguous too:
   never listed, the render deadline ends it with its refund.
 - After every generate (taken, refused or unclear) the account's pools rest `flow.account_min_gap_s`: the pacing
   between two generates of one account. A code 8 (RESOURCE_EXHAUSTED, `PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC`)
-  makes it `flow.traffic_rest_s` instead, and an image refused so goes back to the queue at once (`NotTaken`
-  `flow.too_much_traffic`, nothing was made) rather than being tried again on the same account.
+  makes it `flow.traffic_rest_s` instead.
+- Account refusals (`relay_core.refusals.account_refused`): the exact refusal shape with code 8 (an image or a video),
+  or an image's `PUBLIC_ERROR_MODEL_ACCESS_DENIED` (the account's plan may not use the model; the image pool also rests
+  `flow.model_denied_rest_s`), refuses THIS account and made nothing: no more tries here, the job goes to another
+  account (`flow.too_much_traffic` / `flow.model_access_denied`, no attempt used) until `flow.refusal_max_accounts`
+  accounts refused it, and the last one fails it with the same code, refunded.
 
 Before the first `mark_sent` every failure is an ordinary retry: a signed-out page `pool.account_logged_out` with a
 spaced strike, too few Flow credits for a video `pool.account_out_of_points`, a proxy that cannot reach flow
@@ -48,6 +53,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -63,6 +69,7 @@ from relay_core.providers import (
     Success,
     Tier,
 )
+from relay_core.refusals import account_refused, max_accounts_key
 from relay_flow import errors
 from relay_flow.constants import (
     API_TIMEOUT_S,
@@ -101,14 +108,8 @@ LOGGED_OUT = "pool.account_logged_out"
 OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
 POOLS = ("image", "video", "video_pro", "video_ultra")
-# flow's ErrorInfo reason of a refused generate -> our code when the tries run out (or end at once, code 8). The
-# unusual-activity refusal is the reCAPTCHA one (`flow.captcha_refused`); an unknown reason keeps that code too.
-REASONS = {
-    "PUBLIC_ERROR_UNUSUAL_ACTIVITY": errors.CAPTCHA_REFUSED,
-    "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC": errors.TOO_MUCH_TRAFFIC,
-    "PUBLIC_ERROR_MODEL_ACCESS_DENIED": errors.MODEL_ACCESS_DENIED,
-}
 TOO_MUCH_TRAFFIC = 8         # RESOURCE_EXHAUSTED, PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC (FINDINGS 3)
+MODEL_DENIED = "PUBLIC_ERROR_MODEL_ACCESS_DENIED"     # flow2api 16/10: the account may not use the model
 MEDIA_PREFIX = "https://%s/image/" % MEDIA_HOSTS[0]
 
 
@@ -274,6 +275,23 @@ def video_answer(reply: Reply, batch: str, batches: list[str], project: str, set
     return _result(Accepted(batch, state, facts, taken=True), Success(), *left, *rest)
 
 
+def refused_here(ctx, job, settings, reply, batches: list[str], read: tuple, now: datetime) -> SubmitResult:
+    """An account refusal (see the module docstring): the job goes to another account or, on the last one
+    `flow.refusal_max_accounts` allows, fails refunded; this account rests (its pacing or traffic rest, and after a
+    model refusal the image pool `flow.model_denied_rest_s`)."""
+    rest = pacing(settings, now, reply.code)
+    if reply.code == TOO_MUCH_TRAFFIC:
+        code, detail = errors.TOO_MUCH_TRAFFIC, "flow said too much traffic (code 8)"
+    else:
+        code, detail = errors.MODEL_ACCESS_DENIED, "flow refused the model for the account (%s)" % MODEL_DENIED
+        denied_s = int(settings.get("flow.model_denied_rest_s"))
+        if denied_s > 0:
+            rest = (*rest, Rest("image", now + timedelta(seconds=denied_s), detail))
+    outcome = account_refused(job, ctx.account.id, settings, not_taken=code, final=code, detail=detail,
+                              patch={"refused_batches": list(batches)})
+    return _result(outcome, *read, *rest)
+
+
 async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., Awaitable[str]], *,
                  transport=None, now: Callable[[], datetime] = lambda: datetime.now(UTC),
                  clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time,
@@ -330,7 +348,6 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
             tries, gap = int(settings.get("flow.captcha_max_tries")), int(settings.get("flow.captcha_retry_gap_s"))
             captcha_s = int(settings.get("flow.captcha_timeout_s"))
             batches: list[str] = []
-            refused = errors.CAPTCHA_REFUSED      # the code of the last refusal's reason (`REASONS`)
             for attempt in range(tries):
                 if attempt:
                     if clock() - start + gap + captcha_s + GENERATE_TIMEOUT_S + API_TIMEOUT_S > SUBMIT_TIMEOUT_S:
@@ -362,21 +379,26 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     rpcid = GENERATE
                     args = generate_args(job.params, _text(job), project, token, batch, seed(), tuple(media))
                 try:
-                    reply = await site.rpc(rpcid, args, path, GENERATE_TIMEOUT_S)
+                    reply = await site.rpc(rpcid, args, path, GENERATE_TIMEOUT_S,
+                                           user_agent=getattr(token, "user_agent", None))
                 except httpx.HTTPError as e:
                     return _result(Ambiguous("the generate got no answer (%s)" % type(e).__name__),
                                    *pacing(settings, now()))
-                if video:      # a 7/8 envelope on YhhmEf was never captured: no proof nothing was made, never re-sent
+                code8 = reply.refused_before_anything and reply.code == TOO_MUCH_TRAFFIC
+                if video and not code8:     # only a video's code 8 is proven to make nothing; never re-sent
                     return video_answer(reply, batch, batches, project, settings, now(), balance)
                 if not reply.refused_before_anything:
                     return answer(reply, batch, settings, now())
                 await ctx.event("flow refused try %d at its reCAPTCHA check (code %s, %s); nothing was made"
                                 % (attempt + 1, reply.code, reply.reason or "no reason"), "submit", "upstream")
-                refused = REASONS.get(reply.reason, errors.CAPTCHA_REFUSED)
-                if reply.code == TOO_MUCH_TRAFFIC:     # no more tries here: the job goes on, this account rests
-                    return _result(NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": batches}), *read,
-                                   *pacing(settings, now(), reply.code))
-            return _result(NotTaken(refused, {"refused_batches": batches}), *read,
+                if code8 or reply.reason == MODEL_DENIED:      # no more tries here: the account refused the job
+                    result = refused_here(ctx, job, settings, reply, batches, read, now())
+                    if isinstance(result.job, NotTaken):
+                        await ctx.event("flow refused the job on %d account(s); it goes to another account (%s)"
+                                        % (len(result.job.state_patch[REFUSED_BY]), max_accounts_key("flow")),
+                                        "submit", "engine")
+                    return result
+            return _result(NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), *read,
                            *pacing(settings, now()))
     except httpx.HTTPError as e:
         why = "flow could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL

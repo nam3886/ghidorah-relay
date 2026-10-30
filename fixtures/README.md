@@ -402,6 +402,13 @@ frame, from references; Veo 3.1 Quality; Omni 1.1 Flash); `flow/live-261025b/REA
 - `flow/live-261025b/models_HTrJv.json`
 - `flow/live-261025b/upload_maseQ.json`
 
+## Google Flow code 8 on video sends (26-30/10/2026)
+
+The four production video sends flow answered with code 8 (too much traffic), from the relay's own job events: the
+envelope's shape, each batch, and the listing reads that never found it; `flow/live-261030/README.md` describes it.
+
+- `flow/live-261030/video_code8_sends.json`
+
 ## Gemini web spikes (23/10/2026)
 
 The signed-out probe (`gemini/spike-261023/`) and the live run with gemini's own session (`gemini/live-261023/`: t2i,

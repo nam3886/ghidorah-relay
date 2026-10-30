@@ -1,0 +1,232 @@
+{
+ "note": "Production's four flow video sends of 26-30/10 that flow answered with code 8, read from the relay's own job_events and provider_state (read-only, 30/10). The raw reply was not kept: the event says HTTP 200, exactly one reply item of the rpc id, envelope code 8 (its reason was written to the event as [redacted] by the relay's log redaction; code 8 is PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC everywhere it was read, live-261023/img6 and the 30/10 images). `envelope` is that item as flow sends it (the img6 item, rpc id YhhmEf): the shape the relay parsed. Each job's batch was written ahead and searched in the project's listing (Zzl0ze) five times over 15 min; none was ever listed, c10ffbe3 again on an admin re-check 1 h 40 min after its send. All four on one account and its project; no cookie, token, project id, proxy or email here.",
+ "envelope": [
+  "wrb.fr",
+  "YhhmEf",
+  null,
+  null,
+  null,
+  [
+   8,
+   null,
+   [
+    [
+     "type.googleapis.com/google.rpc.ErrorInfo",
+     [
+      "PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC"
+     ]
+    ]
+   ]
+  ],
+  "generic"
+ ],
+ "jobs": [
+  {
+   "job": "ddfc944c",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "070df31f-72a2-4251-8c51-e3ef08520d38",
+   "events": [
+    {
+     "at_utc": "2026-10-26 18:19:13Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-26 18:19:20Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 8, [redacted])"
+    },
+    {
+     "at_utc": "2026-10-26 18:20:24Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-26 18:21:27Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-26 18:23:29Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-26 18:27:32Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-26 18:34:28Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-26 18:34:55Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "9d617f23",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "32d471b7-46f6-4059-9c3a-5180b582fd75",
+   "events": [
+    {
+     "at_utc": "2026-10-27 02:50:58Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-27 02:51:06Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 8, [redacted])"
+    },
+    {
+     "at_utc": "2026-10-27 02:52:08Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-27 02:53:11Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-27 02:55:14Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-27 02:59:18Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-27 03:06:15Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-27 03:06:42Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "c10ffbe3",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "ff6eb24d-e5fb-4f66-87d5-4ddbc482b823",
+   "events": [
+    {
+     "at_utc": "2026-10-30 02:03:54Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-30 02:04:02Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 8, [redacted])"
+    },
+    {
+     "at_utc": "2026-10-30 02:05:06Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 02:06:10Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 02:08:12Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 02:12:15Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 02:19:18Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 02:19:45Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    },
+    {
+     "at_utc": "2026-10-30 03:43:15Z",
+     "stage": "recheck",
+     "text": "manual re-check: back to waiting, render clock reset - 10 refunded points charged again"
+    },
+    {
+     "at_utc": "2026-10-30 03:43:18Z",
+     "stage": "pending",
+     "text": "not listed yet"
+    },
+    {
+     "at_utc": "2026-10-30 03:58:49Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "f7c991a2",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "67fed156-ce4f-4c58-9081-a62bbb063ca8",
+   "events": [
+    {
+     "at_utc": "2026-10-30 03:39:03Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-30 03:39:11Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 8, [redacted])"
+    },
+    {
+     "at_utc": "2026-10-30 03:40:13Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 03:41:17Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 03:43:20Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 03:47:23Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 03:54:21Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-30 03:54:49Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  }
+ ]
+}

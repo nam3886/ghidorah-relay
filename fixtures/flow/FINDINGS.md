@@ -175,6 +175,17 @@ accepted). On a video it stays Ambiguous with the same rest. Code 7 is unchanged
 reason is now read: `PUBLIC_ERROR_MODEL_ACCESS_DENIED` as the last refusal fails the tries as
 `flow.model_access_denied` instead of `flow.captcha_refused`.
 
+## Code 8 on video 30/10
+Four production text-to-video sends (Veo 3.1 Lite, 26-30/10, one account) got the immediate code 8 envelope: HTTP
+200, one reply item, no result, code 8 (`live-261030/video_code8_sends.json`). Each batch was written ahead and looked
+up in the project listing five times over 15 min: never listed; one again 1 h 40 min after its send: still not
+listed. That is the batch-not-listed half of the proof the morning-proof plan asked for, and code 8 is an account rate
+answer: a video's code 8 (exactly the refusal shape) is now an account refusal like an image's (`NotTaken`
+`flow.too_much_traffic`, the account rests `flow.traffic_rest_s`, the job moves to another account until
+`flow.refusal_max_accounts` accounts refused it, then fails refunded). Code 7 on a video has only the credit half and
+stays Ambiguous. An image's `PUBLIC_ERROR_MODEL_ACCESS_DENIED` (never seen in production) is an account refusal too:
+no more tries on that account, its image pool rests `flow.model_denied_rest_s`.
+
 ## Inputs and the full catalog 25/10
 GetModels (`HTrJv`) read again on the AI Pro account (`live-261025b/models_HTrJv.json`). The request shape of each new
 mode was read from flow's web app (module `wO1vlb`; its JSPB messages put field N at index N-1) and proven by one live

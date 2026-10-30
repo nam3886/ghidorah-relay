@@ -16,7 +16,6 @@ from flowkit import (
     GENERATED,
     PROJECT,
     REFUSED_7,
-    REFUSED_8,
     STATUS_DONE,
     STATUS_RUNNING,
     VIDEO_BATCH,
@@ -36,6 +35,7 @@ from test_flow_jobs import ALL_POOLS, NOW, WALL, Clock, Tokens, rested
 
 from relay_core import frames
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -44,6 +44,7 @@ from relay_core.providers import (
     Facts,
     Found,
     JobView,
+    NotTaken,
     Pending,
     Rest,
     Retry,
@@ -96,11 +97,15 @@ WRITE_AHEAD = ("                await ctx.report_ref(batch, {BATCH_KEY: batch, B
 MARK_FIRST = ("                    await ctx.mark_sent()          # then marked sent, immediately before the POST\n"
               "                    sent = True\n")
 ACTION = "token = await tokens(VIDEO_ACTION if video else IMAGE_ACTION,"
-VIDEO_IF = ("                if video:      # a 7/8 envelope on YhhmEf was never captured: no proof nothing was made, "
+VIDEO_IF = ("                if video and not code8:     # only a video's code 8 is proven to make nothing; "
             "never re-sent\n")
-VIDEO_BRANCH = ("                if video:      # a 7/8 envelope on YhhmEf was never captured: "
-                "no proof nothing was made, never re-sent\n"
+VIDEO_BRANCH = ("                if video and not code8:     # only a video's code 8 is proven to make nothing; "
+                "never re-sent\n"
                 "                    return video_answer(reply, batch, batches, project, settings, now(), balance)\n")
+# the live code 8 of 26-30/10 (fixtures/flow/live-261030): its envelope, framed as flow frames a reply
+LIVE_CODE8 = json.loads((FIX / "live-261030" / "video_code8_sends.json").read_text(encoding="utf-8"))
+_ITEM = json.dumps([LIVE_CODE8["envelope"], ["di", 179]])
+CODE8_REPLY = ")]}'\n\n%d\n%s\n25\n[[\"e\",4,null,null,244]]\n" % (len(_ITEM), _ITEM)
 FLOW_COST = '    facts = Facts(before - balance, cost_source="balance_delta") if spent else Facts()'
 FLOW_SPENT = "    spent = balance is not None and before > balance"
 
@@ -216,21 +221,51 @@ def test_the_pre_send_read_is_reported_on_a_result_that_spent_nothing_and_not_on
 @mutation(SUBMIT_FILE, VIDEO_IF, "                if video and not reply.refused_before_anything:\n",
           expect="sent twice")
 @mutation(SUBMIT_FILE, VIDEO_BRANCH, "", expect="sent twice")
-@pytest.mark.parametrize("code", (7, 8))
-def test_a_7_or_8_envelope_to_a_video_send_is_ambiguous_and_never_sent_again(code):
-    """Codex review of d92c5f4, owner's ruling 24/10: the 7/8 refusal is proven on images only. On YhhmEf it is no
-    proof that nothing was made (Flow could take the video and still answer it), so it is reconciled, never re-sent."""
+@pytest.mark.parametrize("name", ("code 7", "code 8 with a result", "code 8 twice", "code 8 over HTTP 429"))
+def test_a_7_envelope_or_a_code_8_not_exactly_the_refusal_to_a_video_is_ambiguous_and_never_sent_again(name):
+    """Codex review of d92c5f4, owner's ruling 24/10: the 7 refusal is proven on images only. On a video it is no
+    proof that nothing was made (Flow could take the video and still answer it), so it is reconciled, never re-sent.
+    A code 8 counts as the refusal only in exactly the refusal's shape."""
+    seven = REFUSED_7.replace("ogiZ0b", "YhhmEf")
+    item = list(LIVE_CODE8["envelope"])
+    item[2] = "[[]]"
+    with_result = json.dumps([item])
+    answer = {"code 7": seven, "code 8 with a result": ")]}'\n\n%d\n%s\n" % (len(with_result), with_result),
+              "code 8 twice": CODE8_REPLY + CODE8_REPLY,
+              "code 8 over HTTP 429": httpx.Response(429, text=CODE8_REPLY)}[name]
     log = []
-    envelope = (REFUSED_7 if code == 7 else REFUSED_8).replace("ogiZ0b", "YhhmEf")
-    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [envelope, accepted_for]}), Ctx(log)
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [answer, accepted_for]}), Ctx(log)
     result = run(flow, ctx)
-    assert len(flow.calls("YhhmEf")) == 1 and log.count("mark_sent") == 1, "sent twice after a %d envelope" % code
-    assert isinstance(result.job, Ambiguous), "a %d envelope on a video must be Ambiguous: %s" % (code, result.job)
-    assert "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in result.job.note, "the reason is named in the unknown job's note"
+    assert len(flow.calls("YhhmEf")) == 1 and log.count("mark_sent") == 1, "sent twice after %s" % name
+    assert isinstance(result.job, Ambiguous), "%s on a video must be Ambiguous: %s" % (name, result.job)
     (batch, state), = ctx.refs
     assert state["batches"] == [batch] and rested(result)
-    assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=1800 if code == 8 else 300)}, \
-        "a code 8 to a video rests the account for flow.traffic_rest_s"
+    if name == "code 7":
+        assert "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in result.job.note, "the reason is named in the unknown job's note"
+        assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=300)}
+
+
+@mutation(SUBMIT_FILE, VIDEO_IF, "                if video:\n", expect="code 8 to a video")
+def test_the_live_code_8_to_a_video_made_nothing_and_moves_the_job_to_another_account():
+    """26-30/10 (fixtures/flow/live-261030): four video sends answered with exactly the code 8 refusal, none ever
+    listed in the project. Like an image's: nothing was made, no re-send on this account, the job goes to another
+    account (`flow.refusal_max_accounts`) and this one rests `flow.traffic_rest_s`; the credits read before the send
+    stand (nothing was spent)."""
+    assert [j["events"][1]["stage"] for j in LIVE_CODE8["jobs"]] == ["unknown"] * 4
+    assert all("code 8" in j["events"][1]["text"] and "reply item there" in j["events"][1]["text"]
+               for j in LIVE_CODE8["jobs"])
+    assert all(not any("found" in e["text"] or e["stage"] == "accepted" for e in j["events"])
+               for j in LIVE_CODE8["jobs"]), "a code 8 video was listed after all"
+    log = []
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [CODE8_REPLY, accepted_for]}), Ctx(log)
+    result = run(flow, ctx)
+    assert len(flow.calls("YhhmEf")) == 1 and log.count("mark_sent") == 1, "sent twice after a code 8"
+    (batch, state), = ctx.refs
+    assert result.job == NotTaken(errors.TOO_MUCH_TRAFFIC, {"refused_batches": [batch], REFUSED_BY: ["acc-1"]}), \
+        "the code 8 to a video was not an account refusal: %s" % (result.job,)
+    assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=1800)}, "the traffic rest"
+    assert any(isinstance(e, Balance) and e.left_n == 50 for e in result.account), "the read before the send"
+    assert not any(isinstance(e, Success) for e in result.account)
 
 
 TAKEN_MATCH = ("    if wf[3][5] != batch or wf[4] != project or media[1] != project or wf[3][4] != media[0] "
