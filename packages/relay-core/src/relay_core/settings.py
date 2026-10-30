@@ -354,22 +354,6 @@ class Settings:
         await self.reload()
         return changed
 
-    async def set_if_absent(self, key: str, value: Any, *, by: str | None = None) -> bool:
-        """Store the value only when no value is stored, in one statement under the key's lock: a value written
-        meanwhile (by the admin, say) is never replaced. True when it stored; the history row only then."""
-        spec = self._registry.spec(key)
-        value = self._sealed(spec, spec.validate(value))
-        async with tx(self._pool) as conn:
-            await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("settings_kv:" + key,))
-            stored = await (await conn.execute(
-                "INSERT INTO settings_kv (key, value, updated_by) VALUES (%s, %s::jsonb, %s) "
-                "ON CONFLICT (key) DO NOTHING RETURNING key", (key, json.dumps(value), by))).fetchone()
-            if stored is not None:
-                await self._history(conn, key, by, None, value)
-                await conn.execute(NOTIFY_SQL, (key,))
-        await self.reload()
-        return stored is not None
-
     async def delete(self, key: str, *, by: str | None = None) -> bool:
         """Drop the stored value: the default applies again. True when a value was stored."""
         self._registry.spec(key)

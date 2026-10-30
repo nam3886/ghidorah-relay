@@ -96,11 +96,6 @@ def sealing_key(blob: bytes, private_keys: Iterable[str]) -> str:
     raise CryptoError("no private key for %s" % wanted)
 
 
-def public_key_of(private_key: str) -> str:
-    """The public key (base64 text, not a secret) of a private key."""
-    return _b64(bytes(PrivateKey(_decode_key(private_key, "private")).public_key))
-
-
 def public_key_from_env(env: Mapping[str, str] = os.environ) -> str:
     key = env.get(PUBLIC_KEY_VAR, "").strip()
     if not key:
