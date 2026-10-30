@@ -102,7 +102,7 @@ class Ctx:
 
 
 def job(operation="text_to_image", sent_text="a red fox in fresh snow", external_ref=None, state=None,
-        inputs=(), **params):
+        inputs=(), pinned=None, **params):
     kind = "image" if operation == "text_to_image" else "video"
     params = {"kind": kind, **({"n": 1} if kind == "image" else {"duration": 5}), **params}
 
@@ -110,7 +110,7 @@ def job(operation="text_to_image", sent_text="a red fox in fresh snow", external
         return list(inputs)
     return SimpleNamespace(id="job-1", provider="muse", operation=operation, model="muse-" + kind, params=params,
                            prompt=sent_text, marker="", sent_text=sent_text, render_since=None, sent_at=None,
-                           external_ref=external_ref, provider_state=state or {}, inputs=load)
+                           external_ref=external_ref, provider_state=state or {}, inputs=load, source=pinned)
 
 
 IMAGE_REF = MediaRef(0, "jobs/job-1/input/0.webp", "image/webp", 6)
@@ -250,7 +250,7 @@ class VM:
 
 def vm_routes(histories=(), *, stream=None, files=None, overrides=None):
     """The VM's answers: the setup calls, `/chat/stream` acknowledged for the chat it names, the job's history from
-    `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404)."""
+    `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404), a chat delete."""
     reads = list(histories)
     files = files or {}
 
@@ -281,6 +281,8 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None):
             return (200, data) if data is not None else (404, {"ok": False, "error": {"code": "not_found"}})
         if req.path.startswith("/approvals/"):
             return 200, {"ok": True}
+        if req.path == "/session/delete":       # measured 30/10
+            return 200, {"ok": True, "result": {"deleted": True, "session_id": req.json()["session_id"]}}
         return 404, {"ok": False, "error": {"code": "not_found", "message": "route not found"}}
     return route
 

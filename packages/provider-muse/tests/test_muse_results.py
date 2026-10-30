@@ -6,7 +6,7 @@ from datetime import timedelta
 import pytest
 from musekit import NOW, Ctx, Site, history, job, settings, vm_routes
 
-from relay_core.providers import Done, Failed, Found, Output, OutputGone, Pending, StillUnknown
+from relay_core.providers import Done, Failed, Found, Output, OutputGone, Pending, Rest, StillUnknown
 from relay_core.testing.mutation import mutation
 from relay_muse.engine import results
 
@@ -51,6 +51,43 @@ def test_a_refusal_is_failed_only_when_two_polls_settle_apart():
     assert isinstance(again.outcome, Pending), "settled across two polls"
 
 
+NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
+POLL_NO_VIDEO = '        if kind == "video" and video_unavailable_here(reading.text):'
+POLL_DROP = "        await _drop_chat(ctx, settings, deps, session)\n"
+
+
+def deleted(site: Site) -> list[dict]:
+    return [r.json() for vm in site.vms for r in vm.requests if r.path == "/session/delete"]
+
+
+@mutation(RESULTS_FILE, POLL_NO_VIDEO, "        if False:", expect="the account's code")
+@mutation(RESULTS_FILE, POLL_DROP, "", expect="deleted after a verdict with no output")
+def test_a_poll_that_reads_muse_refusing_the_account_ends_the_job_rests_the_video_pool_and_deletes_the_chat():
+    words = history(NO_VIDEO_HERE, SID)
+    video = job("text_to_video", external_ref=SID, state={"session_id": SID})
+    first = poll(Site(vm_routes_=vm_routes([words])), video)
+    assert isinstance(first.outcome, Pending)
+    state = {"session_id": SID, **first.outcome.state_patch}
+    site = Site(vm_routes_=vm_routes([words]))
+    later = poll(site, job("text_to_video", external_ref=SID, state=state), NOW + timedelta(seconds=1))
+    assert isinstance(later.outcome, Failed) and later.outcome.code == "muse.video_unavailable_on_accounts", \
+        "the account's code: %s" % (later.outcome,)
+    assert later.outcome.state_patch == {"refused_by": ["acc-1"]}
+    (rest,) = later.effects
+    assert isinstance(rest, Rest) and rest.pool == "video" and rest.until == NOW + timedelta(seconds=1, days=7)
+    assert deleted(site) == [{"method": "/api/session/delete", "session_id": SID}], \
+        "deleted after a verdict with no output"
+    j07 = history("job_j07.json", SID)
+    seen = poll(Site(vm_routes_=vm_routes([j07])), taken()).outcome.state_patch
+    refused = Site(vm_routes_=vm_routes([j07]))
+    prompt = poll(refused, taken(state=dict(seen)), NOW + timedelta(seconds=1))
+    assert isinstance(prompt.outcome, Failed) and prompt.outcome.code == "muse.refused" and prompt.effects == ()
+    assert len(deleted(refused)) == 1
+    broken = Site(vm_routes_=vm_routes([words], overrides={"/session/delete": ("reset", "gone")}))
+    assert poll(broken, job("text_to_video", external_ref=SID, state=state),
+                NOW + timedelta(seconds=1)).outcome.code == "muse.video_unavailable_on_accounts"
+
+
 def test_a_poll_that_cannot_read_is_not_an_answer():
     site = Site({"GET /api/session": OSError("down")})
     result = poll(site, taken())
@@ -86,8 +123,8 @@ def fetch(site, ref=REF, mime="image/webp"):
     return asyncio.run(go())
 
 
-@mutation(RESULTS_FILE, "    if reply.status == 404:\n        raise OutputGone(",
-          "    if False:\n        raise OutputGone(", expect="answered 404")
+@mutation(RESULTS_FILE, "        if reply.status == 404:\n            raise OutputGone(",
+          "        if False:\n            raise OutputGone(", expect="answered 404")
 def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
     data = b"RIFF" + b"w" * 300_000
     site = Site(vm_routes_=vm_routes(files={REF: data}))
@@ -101,6 +138,40 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
     assert gone.value.code == "muse.output_missing"
     with pytest.raises(RuntimeError, match="500"):
         fetch(Site(vm_routes_=vm_routes(overrides={"/fs/raw/": (500, b"")})))
+
+
+FETCH_DELETE = "        if out.meta.get(LAST) and is_session(session):"
+
+
+def fetch_out(site, out, **over):
+    async def go():
+        return [chunk async for chunk in results.fetch(Ctx(), out, settings(**over), deps=site.deps())]
+    return asyncio.run(go())
+
+
+@mutation(RESULTS_FILE, FETCH_DELETE, "        if False:", expect="deleted once its last file is read")
+def test_the_side_chat_is_deleted_once_the_jobs_last_file_is_read_and_a_failed_delete_changes_nothing():
+    data = b"RIFF" + b"w" * 1000
+    first, last = Output(REF, "image/webp", 0, meta={"session_id": SID}), \
+        Output(REF, "image/webp", 1, meta={"session_id": SID, "last": True})
+    site = Site(vm_routes_=vm_routes(files={REF: data}))
+    assert fetch_out(site, first) == [data] and deleted(site) == [], "not before the last file"
+    site = Site(vm_routes_=vm_routes(files={REF: data}))
+    assert fetch_out(site, last) == [data]
+    assert site.vms[0].paths()[-2:] == ["/fs/raw/" + REF, "/session/delete"], "deleted once its last file is read"
+    assert deleted(site) == [{"method": "/api/session/delete", "session_id": SID}]
+    busy = (409, {"ok": False, "error": {"code": "conflict", "message": "session has an active message"}})
+    for answer, tries in ((busy, 2), ((500, {}), 1), (("reset", "gone"), 1), ("silent", 1)):
+        site = Site(vm_routes_=vm_routes(files={REF: data}, overrides={"/session/delete": answer}))
+        assert fetch_out(site, last, call_timeout_s=0.3) == [data], answer
+        assert len(deleted(site)) == tries, answer
+    missing = Site()
+    with pytest.raises(OutputGone):
+        fetch_out(missing, last)
+    assert deleted(missing) == [], "a file not read deletes nothing"
+    odd = Site(vm_routes_=vm_routes(files={REF: data}))
+    assert fetch_out(odd, Output(REF, "image/webp", 0, meta={"session_id": "../x", "last": True})) == [data]
+    assert deleted(odd) == []
 
 
 REF_CHECK = ('    return isinstance(ref, str) and pattern is not None and bool(pattern.fullmatch(ref))'

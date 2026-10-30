@@ -21,6 +21,7 @@ from relay_core.providers import (
     Plan,
     PoolSpec,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Spec, disabled_models
 from relay_muse import catalog as C
 from relay_muse import errors as codes
@@ -207,6 +208,15 @@ _SETTINGS = dict((
     _setting("scan_max_scripts", int, 400, "The most reads of the site's scripts one deployment's hunt for the "
              "Usage action may spend (the site loads about 190).", min=50, max=2000),
     _setting("scan_batch", int, 12, "Site scripts read at once while hunting the Usage action.", min=1, max=32),
+    _setting("video_region_rest_s", int, 7 * 86400,
+             "Seconds an account's video pool rests when muse answers a video job that video generation is not "
+             "available for the account in its country or region (a standing restriction, live 30/10); its image "
+             "pool goes on. The job goes to another account.", min=3600, max=30 * 86400),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one muse job may be refused on before it fails with its refund. A refusal of "
+        "the account is muse's answer that the account makes no video in its country or region (the last one ends "
+        "the job with muse.video_unavailable_on_accounts); a refusal of the prompt ends the job at once "
+        "(muse.refused)."),
     _setting("usage_stop_percent", int, 95,
              "The weekly Usage percentage at which an account is sent no more jobs until its reset (both pools read "
              "0). Below it, what is left of each pool's budget follows the percentage.", min=1, max=100),

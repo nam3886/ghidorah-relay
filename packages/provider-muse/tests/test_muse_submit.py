@@ -3,6 +3,7 @@ histories of fixtures/muse/spike-261026. Money rules first: the chat id before `
 
 import asyncio
 import json
+from datetime import timedelta
 
 import pytest
 from musekit import IMAGE_REF, NOW, SESSION_OK, Ctx, Site, history, job, settings, stream_bodies, vm_routes
@@ -16,6 +17,7 @@ from relay_core.providers import (
     Fail,
     NotTaken,
     ProxyBad,
+    Rest,
     Retry,
     Success,
     Suspect,
@@ -27,6 +29,7 @@ from relay_muse.engine.web import NetError
 
 SUBMIT_FILE = "packages/provider-muse/src/relay_muse/engine/submit.py"
 WEB_FILE = "packages/provider-muse/src/relay_muse/engine/web.py"
+CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
 REPORT_REF = "            await self._core(lambda: self.ctx.report_ref(self.session, {\"session_id\": self.session}))\n"
 LEASE_CALL = "        info = await lease_workspace(web)\n    vm, endpoint = workspace(info)"
 TOKEN_CHECK = "    if not isinstance(token, str) or not token or not isinstance(notary, str) or not notary.strip():"
@@ -67,7 +70,8 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     sid = chat_of(site)
     assert out.ref.startswith("workspace/imagine_media/media-generation-generate-one-image")
     assert out.mime == "image/webp"
-    assert out.meta == {"session_id": sid, "job_id": "job-1"}
+    assert out.meta == {"session_id": sid, "job_id": "job-1", "last": True}
+    assert "/session/delete" not in site.vms[0].paths(), "a done chat is deleted by the fetch of its last output"
     vm = site.vms[0]
     assert vm.paths()[:5] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
                               "/chat/subscribe", "/api/nodes/register", "/chat/stream"]
@@ -125,6 +129,74 @@ def test_an_answer_in_words_with_no_image_is_refused_and_refunded_once_settled()
     assert isinstance(result.job, Fail), result
     assert result.job.code == "muse.refused" and "Taylor Swift" in result.job.detail
     assert result.account == (Success(),)
+
+
+NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
+NO_VIDEO_BRANCH = '                    if self.kind == "video" and video_unavailable_here(reading.text):'
+KEEP_STRIKES = "        self.keep_strikes = True\n"
+DROP_REFUSED = "                    await self._drop_chat(tunnel, timeout)\n"
+DELETE_RETRY = "        if reply.status != 409 or final:"
+BUSY = (409, {"ok": False, "error": {"code": "conflict", "message": "session has an active message"}})
+
+
+def video_job(**kw):
+    return job("text_to_video", sent_text="a paper boat drifting down a rainy street", **kw)
+
+
+def deleted(site: Site) -> list[dict]:
+    return [r.json() for vm in site.vms for r in vm.requests if r.path == "/session/delete"]
+
+
+@mutation(SUBMIT_FILE, NO_VIDEO_BRANCH, "                    if False:", expect="another account")
+@mutation(SUBMIT_FILE, KEEP_STRIKES, "        self.keep_strikes = False\n", expect="no Success")
+@mutation(SUBMIT_FILE, DROP_REFUSED, "", expect="the chat is deleted")
+def test_muse_saying_the_account_makes_no_video_where_it_is_moves_the_job_and_rests_the_video_pool():
+    site = Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)]))
+    result, ctx = run(site, video_job())
+    assert result.job == NotTaken("pool.account_region_blocked", {"refused_by": ["acc-1"]}), "another account"
+    assert not any(isinstance(e, Success) for e in result.account), "no Success: %s" % (result.account,)
+    (rest,) = result.account
+    assert isinstance(rest, Rest) and rest.pool == "video" and rest.until == NOW + timedelta(days=7)
+    assert "country or region" in rest.reason
+    assert any("isn't available in your country or region" in text for _, text in ctx.events)
+    assert any("goes to another account" in text for _, text in ctx.events)
+    assert deleted(site) == [{"method": "/api/session/delete", "session_id": chat_of(site)}], "the chat is deleted"
+    assert len(stream_bodies(site)) == 1
+    later = run(Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)])), video_job(), video_region_rest_s=3600)[0]
+    assert later.account[0].until == NOW + timedelta(hours=1)
+
+
+def test_the_last_account_muse_refuses_or_a_pinned_job_ends_with_the_refund_and_a_prompt_refusal_moves_nothing():
+    site = Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)]))
+    result, _ = run(site, video_job(state={"refused_by": ["acc-0"]}))
+    assert isinstance(result.job, Fail) and result.job.code == "muse.video_unavailable_on_accounts", result.job
+    assert result.job.state_patch["refused_by"] == ["acc-0", "acc-1"] and "2 account(s)" in result.job.detail
+    assert [type(e) for e in result.account] == [Rest] and deleted(site)
+    for j, over in ((video_job(), {"refusal_max_accounts": 1}), (video_job(pinned="job-0"), {})):
+        result = run(Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)])), j, **over)[0]
+        assert isinstance(result.job, Fail) and result.job.code == "muse.video_unavailable_on_accounts"
+    image = run(Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)])))[0]     # an image job: not about videos
+    assert isinstance(image.job, Fail) and image.job.code == "muse.refused" and image.account == (Success(),)
+    words = run(Site(vm_routes_=vm_routes([answered("job_j07.json")])), video_job())[0]
+    assert isinstance(words.job, Fail) and words.job.code == "muse.refused" and words.account == (Success(),)
+
+
+@mutation(CHAT_FILE, DELETE_RETRY, "        if True:", expect="tried again")
+def test_a_delete_muse_refuses_or_never_answers_changes_nothing_and_a_busy_chat_is_tried_again():
+    tries = []
+
+    def busy_then_deleted(req):
+        tries.append(req.json())
+        return BUSY if len(tries) == 1 else (200, {"ok": True, "result": {"deleted": True}})
+    site = Site(vm_routes_=vm_routes([answered("job_j07.json")], overrides={"/session/delete": busy_then_deleted}))
+    result, _ = run(site)
+    assert isinstance(result.job, Fail) and result.job.code == "muse.refused"
+    assert len(tries) == 2, "tried again"
+    for answer in (BUSY, (500, {"ok": False}), (200, {"ok": False}), ("reset", "gone"), "silent"):
+        site = Site(vm_routes_=vm_routes([answered("job_j07.json")], overrides={"/session/delete": answer}))
+        result, _ = run(site)
+        assert isinstance(result.job, Fail) and result.job.code == "muse.refused", (answer, result)
+        assert len(deleted(site)) == (2 if answer == BUSY else 1)
 
 
 @mutation(SUBMIT_FILE, "                    seen, since = signature(reading), self.deps.clock()",

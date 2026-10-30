@@ -13,6 +13,7 @@ image or video, `payload.data.images[]` / `videos[]`, each with `variants.origin
 import base64
 import logging
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any, NamedTuple
 
@@ -251,9 +252,93 @@ def verdict(r: Reading, want: int, settled: bool) -> str | None:
 
 def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, ...]:
     """The first `want` results (what was paid for: more are never delivered). `paid` (the job id, a video's
-    duration and ratio) rides on each output's meta, so the fetch can compare the file with it."""
-    return tuple(Output(m.ref, m.mime, i, meta={"session_id": session, **paid})
-                 for i, m in enumerate(r.media[:want]))
+    duration and ratio) rides on each output's meta, so the fetch can compare the file with it; the last one is
+    marked `LAST`: once its file is read the side chat is deleted (the core fetches the outputs in order)."""
+    kept = r.media[:want]
+    return tuple(Output(m.ref, m.mime, i, meta={"session_id": session, **paid,
+                                                **({LAST: True} if i == len(kept) - 1 else {})})
+                 for i, m in enumerate(kept))
+
+
+# ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------
+# Live 30/10 (muse-acc1, five jobs): "Video generation isn't available for your account in your country or region",
+# "Video bị giới hạn ở khu vực tài khoản này", "tính năng tạo video hiện không khả dụng ở khu vực của bạn". muse answers
+# in the prompt's language and its history carries no code for it, only these words; so an answer is that refusal
+# when it names a video, a country or region, and its unavailability, each in any of these languages.
+# ponytail: word lists; an answer they miss stays a plain muse.refused (failed and refunded, as before 30/10).
+_VIDEO_WORDS = ("video", "vídeo", "vidéo", "видео", "视频", "視頻", "影片", "動画", "ビデオ", "동영상", "비디오",
+                "영상", "วิดีโอ")
+_REGION_WORDS = ("country", "countries", "region", "khu vực", "quốc gia", "地区", "地區", "区域", "區域", "国家",
+                 "國家", "地域", "지역", "국가", "país", "paises", "países", "región", "região", "pays", "région",
+                 "paese", "negara", "wilayah", "kawasan", "стран", "регион", "ประเทศ", "ภูมิภาค", "ülke", "bölge")
+_UNAVAILABLE_WORDS = (
+    "not available", "isn't available", "unavailable", "not supported", "isn't supported", "restricted",
+    "restriction", "blocked", "không khả dụng", "giới hạn", "hạn chế", "không hỗ trợ", "chưa hỗ trợ", "không có sẵn",
+    "不可用", "不支持", "不支援", "无法使用", "無法使用", "受限", "限制", "不提供", "利用できません", "利用できない",
+    "ご利用いただけません", "対応していません", "提供されていません", "制限", "사용할 수 없", "이용할 수 없",
+    "지원되지 않", "제공되지 않", "제한", "no está disponible", "no disponible", "restringid", "no es compatible",
+    "não está disponível", "indisponível", "não disponível", "restrit", "pas disponible", "indisponible",
+    "restreint", "pas pris en charge", "nicht verfügbar", "eingeschränkt", "nicht unterstützt", "gesperrt",
+    "non è disponibile", "non disponibile", "limitat", "tidak tersedia", "dibatasi", "недоступ", "не поддерж",
+    "ограничен", "ไม่พร้อมใช้งาน", "ไม่สามารถใช้", "ไม่รองรับ", "kullanılamıyor", "kısıtlı", "desteklenmiyor")
+
+
+def _bounded(word: str) -> bool:
+    """A word of a script with spaces between words (Latin, Cyrillic): matched only at the start of a word."""
+    first = word[0]
+    return first.isascii() or any(s in unicodedata.name(first, "") for s in ("LATIN", "CYRILLIC"))
+
+
+def _any_of(words: Sequence[str]) -> re.Pattern:
+    alts = []
+    for word in (unicodedata.normalize("NFC", w) for w in words):
+        spaced = r"\s+".join(map(re.escape, word.split()))
+        alts.append(r"(?<!\w)" + spaced if _bounded(word) else spaced)
+    return re.compile("|".join(alts))
+
+
+_ACCOUNT_NO_VIDEO = tuple(map(_any_of, (_VIDEO_WORDS, _REGION_WORDS, _UNAVAILABLE_WORDS)))
+
+
+def video_unavailable_here(text: str) -> bool:
+    """muse's answer says video generation is not available for the account where it is (its country or region): a
+    standing restriction of the ACCOUNT, not a refusal of the prompt."""
+    said = unicodedata.normalize("NFC", text or "").lower().replace("’", "'")
+    return all(p.search(said) for p in _ACCOUNT_NO_VIDEO)
+
+
+# ---- the side chat's end --------------------------------------------------------------------------------------------
+LAST = "last"       # the output meta key of a job's last output: its fetch deletes the side chat
+DELETE_PATH = "/session/delete"
+
+
+async def delete_chat(tunnel: Tunnel, session: str, timeout: float, retry_after: float = 0.0) -> bool:
+    """Delete a job's side chat once its verdict is in and its outputs are read (measured 30/10: 200 {ok, result:
+    {deleted}}; the files stay readable, the history is gone). A chat still working answers 409 ("session has an
+    active message"): tried once more after `retry_after` seconds (0: not), then left. Best effort: never raises, and
+    a chat that stays changes nothing for the job. True when muse said it is deleted."""
+    for final in (not retry_after, True):
+        try:
+            reply = await tunnel.call("POST", DELETE_PATH, {"method": "/api/session/delete", "session_id": session},
+                                      timeout=timeout)
+        except Exception as e:      # noqa: BLE001 - the delete never changes the job
+            log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
+            return False
+        body = reply.json() if reply.status == 200 else None
+        result = body.get("result") if isinstance(body, dict) and body.get("ok") else None
+        if isinstance(result, dict) and result.get("deleted"):
+            log.info("muse side chat %s deleted", session)
+            return True
+        if reply.status != 409 or final:
+            log.warning("muse side chat %s not deleted: muse answered %d", session, reply.status)
+            return False
+        log.info("muse side chat %s still has an active message: deleted again in %.0f s", session, retry_after)
+        try:
+            await tunnel.listen(retry_after)
+        except Exception as e:      # noqa: BLE001
+            log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
+            return False
+    return False
 
 
 def paid_of(job) -> dict[str, Any]:

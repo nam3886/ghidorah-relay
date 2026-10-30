@@ -1,0 +1,106 @@
+{
+ "answers": [
+  {
+   "job": "b1707964",
+   "language": "vi",
+   "text": "Video không tạo được — hệ thống báo tính năng tạo video hiện không khả dụng ở khu vực của bạn, và thử lại cũng không giúp ích. Nếu muốn, mình có thể vẽ một ảnh tĩnh 16:9 cảnh cáo bay trong bão tuyết thay thế."
+  },
+  {
+   "job": "7233a0bf",
+   "language": "en",
+   "text": "Video generation isn't available in your country or region, so I can't make that 10-second clip — retrying won't change it, it's a standing restriction on the account. Want me to make a 16:9 still image of the paper boat drifting down the rainy street instead?"
+  },
+  {
+   "job": "bf3c4091",
+   "language": "vi",
+   "text": "Video bị giới hạn ở khu vực tài khoản này, nên mình không tạo được video nào, kể cả thử lại hay dùng công cụ khác cũng không giúp được. Nếu bạn muốn, mình có thể vẽ một ảnh tĩnh con cáo bay trong bão tuyết với khổ 16:9 để bạn xem trước khung hình."
+  },
+  {
+   "job": "b3d8bfec",
+   "language": "en",
+   "text": "I can't generate the video — video generation isn't available for your account in your country or region, and it's a lasting restriction, not something that'll clear up with a retry. Want me to make a cinematic 16:9 still image of the hot air balloon over green hills at sunrise instead?"
+  },
+  {
+   "job": "8c9e094b",
+   "language": "en",
+   "text": "I can't make the 5-second video — video generation isn't available for your account in your country or region, and it's a lasting restriction, not something a retry will fix. I made a 16:9 still of the scene instead, kept private to this chat."
+  }
+ ],
+ "ok": true,
+ "result": {
+  "channel": "main",
+  "has_more": false,
+  "transcript_revision": 212,
+  "chat_events": [
+   {
+    "event_name": "message.user",
+    "role": "user",
+    "display_text": "Generate exactly one 10-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+    "occurred_at_ms": 1793335494000,
+    "payload": {
+     "chat_event_seq": 205,
+     "content": "Generate exactly one 10-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text": "Generate exactly one 10-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\na paper boat drifting down a rainy street\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335494000,
+     "is_thread": true,
+     "message_id": "<uuid>",
+     "metadata": {
+      "client_app_id": "hatch-web",
+      "client_chat_context": {
+       "chat_id": "<uuid>",
+       "chat_kind": "direct",
+       "device_id": "<uuid>",
+       "event_kind": "message",
+       "origin_provider": "main",
+       "require_mention": false
+      },
+      "client_device_id": "<uuid>",
+      "client_timezone": "UTC",
+      "context_seq": 1,
+      "message_kind": "message",
+      "thoughtful_follow_through": true,
+      "timestamp_timezone": "UTC"
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "user",
+     "seq": 205,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   },
+   {
+    "event_name": "message.assistant",
+    "role": "assistant",
+    "display_text": "Video generation isn't available in your country or region, so I can't make that 10-second clip — retrying won't change it, it's a standing restriction on the account. Want me to make a 16:9 still image of the paper boat drifting down the rainy street instead?",
+    "occurred_at_ms": 1793338260000,
+    "payload": {
+     "chat_event_seq": 207,
+     "content": "Video generation isn't available in your country or region, so I can't make that 10-second clip — retrying won't change it, it's a standing restriction on the account. Want me to make a 16:9 still image of the paper boat drifting down the rainy street instead?",
+     "display_text": "Video generation isn't available in your country or region, so I can't make that 10-second clip — retrying won't change it, it's a standing restriction on the account. Want me to make a 16:9 still image of the paper boat drifting down the rainy street instead?",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335750200,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 12,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1793335750000
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 207,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   }
+  ]
+ }
+}

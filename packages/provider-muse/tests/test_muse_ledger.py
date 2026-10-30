@@ -50,10 +50,10 @@ async def sent_job(p, key_id):
     return created.job_id, claimed
 
 
-REFUSED = "                    return _result(Fail(errors.REFUSED, why), Success())"
+REFUSED = "                        outcome = _result(Fail(errors.REFUSED, why), Success())"
 
 
-@mutation(SUBMIT_FILE, REFUSED, "                    return _result(Ambiguous(why), Success())",
+@mutation(SUBMIT_FILE, REFUSED, "                        outcome = _result(Ambiguous(why), Success())",
           expect="refunded exactly once")
 def test_an_answer_with_no_media_fails_and_refunds_exactly_once_and_a_later_read_changes_nothing(db):
     key_id, _ = jobkit.key(db), jobkit.account(db)

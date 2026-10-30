@@ -36,12 +36,34 @@ def test_the_spec_registers_and_its_codes_are_sound():
     registry.register(SPEC)
     assert registry.resolve("muse-image")[0] is SPEC and registry.resolve("muse-video")[0] is SPEC
     assert not core_errors.violations({**core_errors.RULES, **CODES})
-    assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing"}
+    assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing",
+                          "muse.video_unavailable_on_accounts"}
+    region = CODES["muse.video_unavailable_on_accounts"]
+    assert region.terminal and region.refund and region.public_code == core_errors.TEMPORARILY_UNAVAILABLE
     assert all(core_errors.RULES[c] is r for c, r in CODES.items())
     for rule in CODES.values():         # the reference's sentence
         assert rule.public_text.endswith(".") and "again" in rule.public_text and rule.public_code != rule.code
     assert SPEC.caps.execution == "http" and SPEC.caps.account_slots == 1 and SPEC.caps.has_reconcile
     assert SPEC.ref_is_conversation and SPEC.frames.verbatim
+
+
+REFUSAL_SETTING = "    refusal_max_accounts_setting(\n        PROVIDER, \"How many accounts one muse job"
+REGION_REST = '    _setting("video_region_rest_s", int, 7 * 86400,'
+
+
+@mutation(SPEC_FILE, REFUSAL_SETTING,
+          "    (lambda *a: _setting(\"unused\", int, 1, \"x\"))(\n        PROVIDER, \"How many accounts one muse job",
+          expect="muse.refusal_max_accounts")
+@mutation(SPEC_FILE, REGION_REST, '    _setting("video_region_rest_s", int, 86400,', expect="a week")
+def test_the_account_refusal_settings_are_declared_with_their_bounds():
+    settings = SPEC.settings()
+    assert "muse.refusal_max_accounts" in settings, "muse.refusal_max_accounts"
+    cap = settings["muse.refusal_max_accounts"]
+    assert (cap.type, cap.default, cap.min, cap.max) == (int, 2, 1, 9)
+    assert "muse.video_unavailable_on_accounts" in cap.description
+    rest = settings["muse.video_region_rest_s"]
+    assert (rest.type, rest.default) == (int, 7 * 86400), "a week"
+    assert rest.min == 3600 and rest.max == 30 * 86400
 
 
 @mutation(CAT_FILE, "DEFAULT_COSTS = {**{image_key(n): n for n", "DEFAULT_COSTS = {**{image_key(n): 1 for n",

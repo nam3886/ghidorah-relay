@@ -12,6 +12,12 @@ Money rules (each has a test and a mutation):
   is `NotTaken` (muse refused the request itself, nothing was made), and once muse acknowledged the send the order is
   taken whatever follows: past the hold, or on a broken tunnel, it is `Accepted` and the poll reads the chat;
 - results: any is a full charge (Q4); the first n are delivered and never more; none is a failure with its refund;
+- muse's answer that the account makes no video where it is (`chat.video_unavailable_here`), once the chat is settled
+  with no video (the verdict "refused": nothing was made), is a refusal of the ACCOUNT (`relay_core.refusals`): the
+  video pool rests `muse.video_region_rest_s`, the strikes are left as they are, and the job goes to another account
+  until `muse.refusal_max_accounts` answered so; any other answer in words fails the job at once (`muse.refused`);
+- a chat with a final verdict and no output is deleted before the run ends (best effort, never a change of outcome);
+  a done chat is deleted by the fetch of its last output;
 - an approval or a publish request the agent raises is denied, never granted.
 """
 
@@ -22,6 +28,7 @@ from dataclasses import replace
 from datetime import timedelta
 
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Completed,
@@ -29,17 +36,20 @@ from relay_core.providers import (
     Fail,
     NotTaken,
     ProxyBad,
+    Rest,
     Retry,
     SubmitResult,
     Success,
     Suspect,
 )
 from relay_core.redact import redact_text
+from relay_core.refusals import account_refused
 from relay_muse import errors
 from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_muse.engine.chat import (
     SetupError,
     compose,
+    delete_chat,
     deny_approvals,
     history_events,
     history_path,
@@ -51,6 +61,7 @@ from relay_muse.engine.chat import (
     signature,
     stream_body,
     verdict,
+    video_unavailable_here,
     want_of,
 )
 from relay_muse.engine.link import Deps, opened
@@ -70,6 +81,7 @@ log = logging.getLogger("relay_muse.submit")
 
 POOL_LOGGED_OUT = "pool.account_logged_out"
 POOL_PROXY_FAILED = "pool.proxy_failed"
+POOL_REGION_BLOCKED = "pool.account_region_blocked"
 HOLD_MARGIN_S = 15        # the run ends this long before the core's submit timeout, so its verdict is always written
 FAULT_REST_S = 300        # a proxy failure before the send rests the account this long
 VM_REST_S = 300           # a workspace that did not wake rests the account this long
@@ -110,6 +122,7 @@ class _Run:
         self.signed_in = False    # the session read worked: the strike count is cleared
         self.sent = False         # from the moment `mark_sent` returned: muse may have the order
         self.acked = False        # muse acknowledged the send: the order is taken
+        self.keep_strikes = False  # muse refused the account: no Success for it
 
     async def _say(self, text: str, stage: str = "submit") -> None:
         try:
@@ -190,15 +203,41 @@ class _Run:
                                    Success(), *meter_effects(self.ctx.account, self.settings, self.kind,
                                                              len(reading.media)))
                 if found == "refused":
-                    why = "muse answered with no %s: %s" % (self.kind, " ".join(reading.text.split())[:300])
-                    await self._say(why, "submit_error")
-                    return _result(Fail(errors.REFUSED, why), Success())
+                    words = " ".join(reading.text.split())[:300]
+                    if self.kind == "video" and video_unavailable_here(reading.text):
+                        outcome = await self._no_video_here(words)
+                    else:
+                        why = "muse answered with no %s: %s" % (self.kind, words)
+                        await self._say(why, "submit_error")
+                        outcome = _result(Fail(errors.REFUSED, why), Success())
+                    await self._drop_chat(tunnel, timeout)
+                    return outcome
                 for aid in await deny_approvals(tunnel, [*tunnel.events, *events], denied, timeout):
                     await self._say("muse asked an approval (%s): denied" % aid)
             left = self.deadline - self.deps.clock()
             if left <= 0:
                 return self._accepted()
             await tunnel.listen(min(poll_s, left))
+
+    async def _no_video_here(self, words: str) -> SubmitResult:
+        """muse answered that this account makes no video where it is: the account's refusal, nothing made."""
+        why = "muse answered that this account makes no video in its country or region: %s" % words
+        await self._say(why, "submit_error")
+        until = self.deps.now() + timedelta(seconds=self.settings.get("muse.video_region_rest_s"))
+        outcome = account_refused(self.job, self.ctx.account.id, self.settings, not_taken=POOL_REGION_BLOCKED,
+                                  final=errors.VIDEO_UNAVAILABLE_ON_ACCOUNTS, detail=why)
+        if isinstance(outcome, NotTaken):
+            await self._say("the job goes to another account (refused on %d of muse.refusal_max_accounts)"
+                            % len(outcome.state_patch[REFUSED_BY]))
+        self.keep_strikes = True
+        return _result(outcome, Rest("video", until, "muse makes no video for this account in its country or region"))
+
+    async def _drop_chat(self, tunnel, timeout: float) -> None:
+        """Delete the chat of a final verdict with no output, inside what is left of the hold (so the run's bound never
+        cuts it: that would turn the verdict into a taken order)."""
+        step = min(timeout, (self.deadline - self.deps.clock()) / 3)
+        if step > 0:
+            await delete_chat(tunnel, self.session, step, retry_after=step)
 
     def _accepted(self) -> SubmitResult:
         """Taken and not finished: the poll reads the chat from here."""
@@ -235,8 +274,9 @@ class _Run:
         return _result(Retry(errors.HTTP_ERROR))
 
     def finish(self, outcome: SubmitResult) -> SubmitResult:
-        """A run that read the session signed in clears the account's strikes, whatever it ends as."""
-        if not self.signed_in or any(isinstance(e, Success) for e in outcome.account):
+        """A run that read the session signed in clears the account's strikes, whatever it ends as, but for muse's
+        refusal of the account."""
+        if not self.signed_in or self.keep_strikes or any(isinstance(e, Success) for e in outcome.account):
             return outcome
         return replace(outcome, account=(Success(), *outcome.account))
 

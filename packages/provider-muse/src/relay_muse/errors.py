@@ -12,6 +12,9 @@ HTTP_ERROR = "muse.http_error"          # muse answered a step before (or the se
 VM_NOT_READY = "muse.vm_not_ready"      # the account's cloud VM did not wake (or has none): nothing was sent
 REFUSED = "muse.refused"                # muse answered the order in words with no image or video
 OUTPUT_MISSING = "muse.output_missing"  # muse has no file for a result it showed
+# muse answered that THIS account makes no video (its country or region): the job went to another account until
+# `muse.refusal_max_accounts` accounts answered so; the last one ends it with this code (`relay_core.refusals`)
+VIDEO_UNAVAILABLE_ON_ACCOUNTS = "muse.video_unavailable_on_accounts"
 
 CODES: dict[str, Rule] = {r.code: r for r in (
     # A failure that may pass: one attempt is used, and the job fails (refunded) when they run out.
@@ -32,6 +35,12 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          public_code=core_errors.CONTENT_REFUSED,
          public_text="muse refused to make this. Sending the same request again will not help; change the prompt or "
                      "the image."),
+    # The accounts', not the order's: every account the job may try answered that it makes no video where it is.
+    Rule(VIDEO_UNAVAILABLE_ON_ACCOUNTS, 503, "api_error", True, True, False, True,
+         "muse answered on the most accounts a job may try that the account makes no video in its country or "
+         "region; nothing was made and the charge is returned", public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="muse could not make videos for now and nothing was made. Sending the request again later may "
+                     "work."),
     Rule(OUTPUT_MISSING, 502, "api_error", True, True, False, True,
          "muse has no file for this result; the charge is returned", public_code=core_errors.GENERATION_FAILED,
          public_text="muse had no file for the result. Sending the request again may work."),

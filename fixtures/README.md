@@ -517,3 +517,14 @@ with another file name) and the answer in the words of production job fba992d9, 
 `sandbox://workspace/your_files/...` link and the relay failed as `muse.refused`. No cookie or token is in it.
 
 - `muse/ref-spike-301030/history_your_files.json`
+
+## muse.ai: video not available for the account (30/10/2026)
+
+On 30/10 muse-acc1 answered every text to video job in words: video generation is not available for the account in
+its country or region, a standing restriction (production jobs b1707964, 7233a0bf, bf3c4091, b3d8bfec, 8c9e094b, read
+from `relay.jobs.error`; muse answers in the prompt's language). `history_video_unavailable.json`: `answers` holds the
+five answers word for word (two in Vietnamese); `result` is one history answer built from the live shapes of
+`history_your_files.json` and redacted the same way: the user's message as the relay sends it for job 7233a0bf and
+muse's complete answer to it, with no result card. No cookie, token or account id is in it.
+
+- `muse/region-301030/history_video_unavailable.json`

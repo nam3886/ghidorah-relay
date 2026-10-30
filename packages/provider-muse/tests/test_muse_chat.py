@@ -3,7 +3,7 @@
 import base64
 from types import SimpleNamespace
 
-from musekit import history
+from musekit import history, spike
 
 from relay_core.testing.mutation import mutation
 from relay_muse.engine.chat import (
@@ -14,6 +14,7 @@ from relay_muse.engine.chat import (
     read_history,
     stream_body,
     verdict,
+    video_unavailable_here,
 )
 
 CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
@@ -108,13 +109,15 @@ def test_the_verdict_waits_for_all_asked_or_a_settled_chat():
     assert verdict(empty, 1, settled=True) is None
 
 
-@mutation(CHAT_FILE, "for i, m in enumerate(r.media[:want]))", "for i, m in enumerate(r.media))",
-          expect="never more than paid")
+@mutation(CHAT_FILE, "    kept = r.media[:want]\n", "    kept = r.media\n", expect="never more than paid")
+@mutation(CHAT_FILE, "**({LAST: True} if i == len(kept) - 1 else {})", "**({LAST: True} if i == 0 else {})",
+          expect="the last output deletes the chat")
 def test_no_more_outputs_than_paid_are_delivered():
     four = reading("job_j11.json")
     outs = outputs(four, 2, SID)
     assert [o.idx for o in outs] == [0, 1], "never more than paid"
-    assert outs[0].ref == four.media[0].ref and outs[0].meta == {"session_id": SID}
+    assert outs[0].ref == four.media[0].ref and outs[0].meta == {"session_id": SID}, "the last output deletes the chat"
+    assert outs[1].meta == {"session_id": SID, "last": True}
 
 
 @mutation(CHAT_FILE, '                    if of == kind and found.mime.startswith(kind + "/"):',
@@ -215,3 +218,51 @@ def test_more_or_fewer_results_than_paid_are_noted_with_the_job_id(caplog):
         assert "fewer" not in made_note(four, 5, "image", "job-9") and "made 4 of the 5" in made_note(
             four, 5, "image", "job-9")
     assert [r.getMessage()[:14] for r in caplog.records] == ["muse job job-9"] * 3
+
+
+NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
+# muse answers in the prompt's language: the same answer as muse would write it in other languages (not seen live)
+NO_VIDEO_HERE_ELSEWHERE = (
+    "视频生成在你所在的国家或地区不可用，这是账号的长期限制，重试也没有用。",
+    "お住まいの国や地域では動画生成をご利用いただけません。再試行しても変わりません。",
+    "La generación de video no está disponible en tu país o región, y reintentarlo no cambiará nada.",
+    "La génération de vidéo n’est pas disponible dans votre pays ou région.",
+    "Die Videoerstellung ist in deinem Land oder deiner Region nicht verfügbar.",
+    "해당 국가 또는 지역에서는 동영상 생성을 사용할 수 없습니다.",
+    "Создание видео недоступно в вашей стране или регионе.",
+    "A geração de vídeo não está disponível no seu país ou região.",
+    "Pembuatan video tidak tersedia di negara atau wilayah Anda.",
+    "I can’t make the video — video generation isn’t available for your account in your country or region.",
+)
+# answers that are NOT the account's restriction: a refusal of the prompt, a done video, a question
+NOT_THE_ACCOUNT = (
+    "I can't make a video of real public figures like that. Want a stylised version instead?",
+    "Done — one 5-second video at 16:9 (1280×720), not published or shared.",
+    "Video không tạo được vì nội dung vi phạm chính sách. Bạn có muốn đổi mô tả không?",
+    "Which region of the coast should the video show: the north or the south?",
+    "I can't generate that — it isn't available for this prompt in any region of my tools.",
+    "Video về các quốc gia châu Âu đã xong.",
+)
+
+
+@mutation(CHAT_FILE, "    return all(p.search(said) for p in _ACCOUNT_NO_VIDEO)",
+          "    return any(p.search(said) for p in _ACCOUNT_NO_VIDEO)", expect="not the account's restriction")
+@mutation(CHAT_FILE, '        alts.append(r"(?<!\\w)" + spaced if _bounded(word) else spaced)',
+          "        alts.append(spaced)", expect="inside a word")
+def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refusal_of_the_prompt():
+    live = spike(NO_VIDEO_HERE)["answers"]
+    assert len(live) == 5 and {a["language"] for a in live} == {"en", "vi"}
+    for answer in live:
+        assert video_unavailable_here(answer["text"]), answer["job"]
+    for text in NO_VIDEO_HERE_ELSEWHERE:
+        assert video_unavailable_here(text), text
+        assert video_unavailable_here(text.upper()), text
+    for text in NOT_THE_ACCOUNT:
+        assert not video_unavailable_here(text), "not the account's restriction: %s" % text
+    assert not video_unavailable_here(reading("job_j07.json").text)
+    assert not video_unavailable_here(reading(YOUR_FILES, "video").text)
+    assert not video_unavailable_here("")
+    assert not video_unavailable_here("The videos of this subregion are unblockedish."), "inside a word"
+    r = reading(NO_VIDEO_HERE, "video")
+    assert (r.media, r.other, r.answered, r.busy, r.user) == ((), 0, True, False, True)
+    assert verdict(r, 1, settled=True) == "refused" and video_unavailable_here(r.text), "nothing was made"
