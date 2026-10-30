@@ -474,13 +474,13 @@ PLAIN_REFUSAL = ('data: {"error_code": 710022002, "error_msg": "The request   co
                  'data: [DONE]\n\n')
 # Another account refused this job before: this account's refusal is the last one the default (2) allows.
 BEFORE = ["acct-0"]
-CAP_REACHED = "        return refused, len(refused) >= cap\n"
-CAP_PASSED = "        return refused, len(refused) > cap\n"
-NOT_LAST = "        if not last:\n            await self._say(\"dola refused the order on %d account(s)"
-COUNT_READ = "        refused = [*(before if isinstance(before, list) else ()), self.ctx.account.id]\n"
-CAP_SETTING = "        cap = self.settings.get(REFUSAL_MAX_ACCOUNTS) if self.settings is not None else None\n"
-DEFAULT_CAP = ('    _setting("refusal_max_accounts", int, 2,\n')
-SPEC_FILE = "packages/provider-dola/src/relay_dola/spec.py"
+# The bound is the core's (`relay_core.refusals`), the one every provider uses.
+REFUSALS_FILE = "packages/relay-core/src/relay_core/refusals.py"
+CAP_REACHED = "    if len(refused) < max_accounts(settings, job.provider):\n"
+CAP_PASSED = "    if len(refused) <= max_accounts(settings, job.provider):\n"
+COUNT_READ = "    return before if account_id in before else [*before, account_id]\n"
+CAP_SETTING = "        cap = settings.get(max_accounts_key(provider)) if settings is not None else None\n"
+DEFAULT_CAP = "DEFAULT_MAX_ACCOUNTS = 2 "
 THROTTLE_COUNTED = ("        return await self._refusal_outcome(POOL_THROTTLED, errors.REFUSED_ON_ACCOUNTS, "
                     "\"dola throttled (%d)\" % code,\n")
 
@@ -518,7 +518,7 @@ REFUSALS = {
 KINDS = pytest.mark.parametrize("kind", list(REFUSALS))
 
 
-@mutation(SUB, NOT_LAST, "        if False:\n            await self._say(\"dola refused the order on %d account(s)",
+@mutation(REFUSALS_FILE, CAP_REACHED, "    if False:\n",
           expect="the first refusal did not send the job to a second account")
 @mutation(SUB, THROTTLE_COUNTED, "        return _outcome(NotTaken(POOL_THROTTLED), Cooldown(\"dola throttled (%d)\" % "
           "code, until))\n        (\"dola throttled (%d)\" % code,\n",
@@ -539,10 +539,10 @@ async def test_the_first_refusal_rests_the_account_and_sends_the_job_to_a_second
     assert scene.log.count("send") == 1
 
 
-@mutation(SUB, CAP_REACHED, CAP_PASSED, expect="the refusal on the last account did not end the job")
-@mutation(SUB, COUNT_READ, "        refused = [self.ctx.account.id]\n",
+@mutation(REFUSALS_FILE, CAP_REACHED, CAP_PASSED, expect="the refusal on the last account did not end the job")
+@mutation(REFUSALS_FILE, COUNT_READ, "    return [account_id]\n",
           expect="the refusal on the last account did not end the job")
-@mutation(SPEC_FILE, DEFAULT_CAP, '    _setting("refusal_max_accounts", int, 3,\n',
+@mutation(REFUSALS_FILE, DEFAULT_CAP, "DEFAULT_MAX_ACCOUNTS = 3 ",
           expect="the refusal on the last account did not end the job")
 @KINDS
 @sync
@@ -561,7 +561,8 @@ async def test_the_refusal_on_the_last_account_ends_the_job_failed_with_its_refu
     assert scene.log.count("send") == 1
 
 
-@mutation(SUB, CAP_SETTING, "        cap = None\n", expect="the setting at 1 did not end the job at the first refusal")
+@mutation(REFUSALS_FILE, CAP_SETTING, "        cap = None\n",
+          expect="the setting at 1 did not end the job at the first refusal")
 @KINDS
 @sync
 async def test_with_the_setting_at_1_the_first_refusal_ends_the_job(kind):

@@ -212,8 +212,8 @@ class Completed:
 
 
 # The one `provider_state` key every requeue keeps (`jobs.apply`): the ids of the accounts upstream refused this order
-# on, oldest first. A provider that caps how many accounts a refused job may try appends the account and sends the
-# whole list back in its patch; a patch that names it replaces it.
+# on, oldest first. `relay_core.refusals.account_refused` appends the account and sends the whole list back in its
+# patch (a patch that names it replaces it); the claim never gives the job to an account in it.
 REFUSED_BY = "refused_by"
 
 

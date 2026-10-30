@@ -127,6 +127,9 @@ NOT_SHOWN = {
              "relay_vibes.catalog.DEFAULT_COSTS", "relay_flow.catalog.DEFAULT_COSTS",
              "relay_gemini.catalog.DEFAULT_COSTS", "relay_qwen.catalog.DEFAULT_COSTS",
              "relay_muse.catalog.DEFAULT_COSTS"),
+    **excuse("the default and the upper bound of every provider's refusal_max_accounts setting, which the settings "
+             "page already shows with its allowed range",
+             "refusals.DEFAULT_MAX_ACCOUNTS", "refusals.MAX_ACCOUNTS_CEILING"),
     **excuse("an upstream fact: qwen's own credit price of a video, the default of qwen.costs",
              "relay_qwen.catalog.VIDEO_CREDITS"),
     **excuse("an upstream fact: flow's own credit price of a video (GetModels), the default of flow.costs",

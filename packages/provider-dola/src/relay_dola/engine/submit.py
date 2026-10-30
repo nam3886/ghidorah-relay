@@ -54,6 +54,7 @@ from relay_core.providers import (
     Warning,
 )
 from relay_core.redact import redact_text
+from relay_core.refusals import account_refused, max_accounts_key, refused_accounts
 from relay_dola import classify, constants, errors
 from relay_dola.catalog import DEFAULT_RATIO
 from relay_dola.credential import IDENTITY_COOKIE_NAMES, jar_from_blob
@@ -75,7 +76,6 @@ from relay_dola.engine.verify import (
     login_state,
     lost_identity_cookies,
 )
-from relay_dola.spec import SPEC
 
 log = logging.getLogger("relay_dola.submit")
 SINGLE_PATH = "/im/chain/single"
@@ -89,7 +89,7 @@ REGION_CODE = 710022003                     # blocked by region for this endpoin
 # accounts, so it answers the prompt, not the account. Owner's ruling 25/10 (replacing 23/10's "end at once"): like
 # every refusal, the account rests and the job goes to another one until `dola.refusal_max_accounts` refused it.
 REFUSED_CODE = 710022002
-REFUSAL_MAX_ACCOUNTS = "dola.refusal_max_accounts"
+REFUSAL_MAX_ACCOUNTS = max_accounts_key(constants.PROVIDER)
 SSE_MESSAGE_CHARS = 200
 # Events of a `/chat/completion` stream that deliver nothing: a heartbeat and the acknowledgement of the send.
 QUIET_EVENTS = frozenset({"SSE_HEARTBEAT", "SSE_ACK"})
@@ -1441,24 +1441,13 @@ class _Run:
         await self._say(why, "submit_error", "engine")
         return _outcome(NotTaken(code), *effects)
 
-    def _refused_on_account(self) -> tuple[list, bool]:
-        """dola refused this order on this account (710022002 or a throttle code).
-        Owner's ruling 25/10: a job may be tried on at most `dola.refusal_max_accounts` accounts when dola refuses it;
-        22-23/10 single jobs went round all 9 accounts within minutes and 6 were logged out by dola's risk system right
-        after. The count is the job's `REFUSED_BY` list, which the core keeps across every requeue, so neither a fault
-        requeue in between nor a restart resets it. Returns the list with this account appended and whether this
-        refusal ends the job (the cap is reached)."""
-        before = self.job.provider_state.get(REFUSED_BY)
-        refused = [*(before if isinstance(before, list) else ()), self.ctx.account.id]
-        cap = self.settings.get(REFUSAL_MAX_ACCOUNTS) if self.settings is not None else None
-        if not isinstance(cap, int):          # the spec's own default, not a copy of it
-            cap = SPEC.settings()[REFUSAL_MAX_ACCOUNTS].default
-        return refused, len(refused) >= cap
-
     async def _refusal_outcome(self, not_taken: str, final: str, detail: str, effects, patch=None,
                                conversation: str | None = None) -> SubmitResult:
         """A refusal on this account: the job goes to another one (`not_taken`), or, when this was the last account
-        `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded). A refusal that
+        `dola.refusal_max_accounts` allows, fails with `final` (a refusal rule: terminal, refunded): the core's
+        `account_refused`, which counts the job's `REFUSED_BY` list (kept across every requeue, so neither a fault
+        requeue in between nor a restart resets it; 22-23/10 single jobs went round all 9 accounts within minutes and
+        6 were logged out by dola's risk system right after). A refusal that
         came after dola made a `conversation` always ends the job: dola may still deliver there (refuse-then-deliver,
         ~25 min), and an order sent to another account would be a second upstream order (no re-send once dola may
         have taken it). The account `effects` (its rest) are the same either way. A page that reads as a guest after
@@ -1468,17 +1457,17 @@ class _Run:
         if guest is not None:
             await self._say("after dola's refusal the page read %s" % guest[0], "submit", "engine")
             effects = (*effects, *guest[2])
-        refused, last = self._refused_on_account()
         if conversation is not None:
             return _outcome(Fail(final, "%s (after dola made conversation %s: not sent to another account)"
-                                 % (detail, conversation), {**(patch or {}), REFUSED_BY: refused}), *effects)
-        if not last:
+                                 % (detail, conversation),
+                                 {**(patch or {}), REFUSED_BY: refused_accounts(self.job, self.ctx.account.id)}),
+                            *effects)
+        outcome = account_refused(self.job, self.ctx.account.id, self.settings, not_taken=not_taken, final=final,
+                                  detail=detail, patch=patch)
+        if isinstance(outcome, NotTaken):
             await self._say("dola refused the order on %d account(s); the job goes to another account (%s)"
-                            % (len(refused), REFUSAL_MAX_ACCOUNTS), "submit", "engine")
-            return _outcome(NotTaken(not_taken, {REFUSED_BY: refused}), *effects)
-        return _outcome(Fail(final, "%s (refused on %d account(s), the most %s allows)"
-                             % (detail, len(refused), REFUSAL_MAX_ACCOUNTS), {**(patch or {}), REFUSED_BY: refused}),
-                        *effects)
+                            % (len(outcome.state_patch[REFUSED_BY]), REFUSAL_MAX_ACCOUNTS), "submit", "engine")
+        return _outcome(outcome, *effects)
 
     async def _refused_by_code(self, stream: str, conversation: str | None) -> SubmitResult:
         """dola's stream answered the send with REFUSED_CODE: dola will not take this order. A refusal like any other

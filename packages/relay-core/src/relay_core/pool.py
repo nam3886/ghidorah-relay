@@ -649,9 +649,9 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
     - `Balance` records the pool's reported balance and the refill with the window it names; a balance of 0 rests the
       pool until the refill the upstream named, else the pool's next window boundary (`REST_REASON`). A balance above
       0 ends only that rest, the one the balance rule set: any other rest of the pool (a provider's `Rest` for a
-      refusal, a throttle, a pacing gap) is no statement about the balance and stays until its own end (live: flow's code 8
-      rested every pool 1800 s, and the next account check's video credits ended the video rest at once). A shorter rest a `REST_REASON` rest absorbed
-      (GREATEST) ends with it.
+      refusal, a throttle, a pacing gap) is no statement about the balance and stays until its own end (live: flow's
+      code 8 rested every pool 1800 s, and the next account check's video credits ended the video rest at once). A
+      shorter rest that a `REST_REASON` rest absorbed (GREATEST) ends with it.
       A reported balance far from the computed one raises a `pool_drift` alert (`_drift_alert`).
     - `Tier` writes the account's tier, marks it read now, and its cycle start when named (else the stored one stays).
     The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a

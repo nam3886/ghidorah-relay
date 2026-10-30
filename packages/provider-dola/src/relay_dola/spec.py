@@ -22,6 +22,7 @@ from relay_core.providers import (
     RateAlert,
     Warning,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Rule, Spec, disabled_models
 from relay_dola import catalog as C
 from relay_dola import errors as codes
@@ -142,12 +143,12 @@ _SETTINGS = dict((
     _setting("signer_alarm_window_s", int, 900,
              "HTTP send only: the window of dola.signer_alarm_accounts, and how long HTTP sends pause after it trips.",
              min=60),
-    _setting("refusal_max_accounts", int, 2,
-             "How many accounts one job may try when dola refuses to take it (710022002 or the throttle 710022004, "
-             "before dola made a conversation). Each refusal rests that account and sends the job to another one; "
-             "the refusal on the last account ends the job failed, with its full refund. 1 ends it at the first "
-             "refusal. A refusal after dola made a conversation ends the job at once; a proxy, login or page failure "
-             "is not a refusal and is not counted.", min=1, max=9),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one job may try when dola refuses to take it (710022002 or the throttle "
+        "710022004, before dola made a conversation). Each refusal rests that account and sends the job to another "
+        "one; the refusal on the last account ends the job failed, with its full refund. 1 ends it at the first "
+        "refusal. A refusal after dola made a conversation ends the job at once; a proxy, login or page failure is "
+        "not a refusal and is not counted."),
     _setting("browser_slots", int, 4,
              "Browser sessions at once (live). Lowering retires idle slots.",
              min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX, basic=True),

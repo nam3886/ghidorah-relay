@@ -6,9 +6,10 @@ account that is available, checked, not cooling, not resting in the pool, has a 
 (`left_n - reserved >= account_cost`, unknown allows). Affordability is decided before any browser token is taken, so
 a head that no account can pay for never stalls the cheaper jobs behind it. A candidate's account row is locked first,
 `SKIP LOCKED` (one another transaction holds is skipped), then its pool row, so a claim never waits for anyone.
-The oldest queued job the winner can afford is claimed with `FOR UPDATE SKIP LOCKED` and its lease is inserted in the
-same transaction. The job lease's hard bound is `submit_timeout_s + APPLY_MARGIN_S`: the engine's timeout cuts the
-submit, and the margin keeps the lease alive for the fenced apply of a result that arrived just before it.
+The oldest queued job the winner can afford and has not refused (`relay_core.refusals`) is claimed with
+`FOR UPDATE SKIP LOCKED` and its lease is inserted in the same transaction. The job lease's hard bound is
+`submit_timeout_s + APPLY_MARGIN_S`: the engine's timeout cuts the submit, and the margin keeps the lease alive for the
+fenced apply of a result that arrived just before it.
 
 A pinned job (it works on an output of an earlier job, `pin_account_id`) is never a head of its `account_cost` group
 and never picked for another account: each one is a head of its own whose only candidate is its account, and the
@@ -30,7 +31,7 @@ from relay_core.budget import Token
 from relay_core.db import lock_account, tx
 from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
 from relay_core.jobs.create import Settings
-from relay_core.providers import Caps
+from relay_core.providers import REFUSED_BY, Caps
 from relay_core.settings import SettingsError
 from relay_core.txguard import require_tx
 
@@ -92,9 +93,13 @@ SELECT id, account_cost, submit_timeout_s, tried FROM jobs
    AND created_at > clock_timestamp() - make_interval(secs => %(deadline)s)
    AND (next_poll_at IS NULL OR next_poll_at <= clock_timestamp())
    AND (%(afford)s::int IS NULL OR account_cost <= %(afford)s)
+   AND NOT COALESCE(provider_state -> '""" + REFUSED_BY + """' @> jsonb_build_array(%(account)s::text), false)
    AND pin_account_id IS NULL
  ORDER BY created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
 """
+# A job the account already refused (`refusals`: its id in the job's `provider_state.refused_by`) is never picked for
+# it again, even once its rest is over: the next job it can take is. The candidates of a head are not filtered by it,
+# so a head refused by one account never holds back the jobs behind it from that account.
 
 # A pinned head is claimed alone; the only account it reaches here is its own (its candidate list is that account).
 _PICK_PINNED = """
@@ -179,8 +184,9 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
 
 async def _take(conn, account_id, scope, afford, caps, owner, ttl_s, token, pinned) -> Claim | None:
     """Claim the oldest queued job the account can afford, or, for a pinned head (`pinned` = its id), that job alone."""
-    job = await (await conn.execute(_PICK, {**scope, "afford": afford}) if pinned is None else
-                 await conn.execute(_PICK_PINNED, {"job": pinned})).fetchone()
+    pick = (conn.execute(_PICK, {**scope, "afford": afford, "account": str(account_id)}) if pinned is None else
+            conn.execute(_PICK_PINNED, {"job": pinned}))
+    job = await (await pick).fetchone()
     if job is None:
         return None
     job_id, cost, timeout_s, tried = job
