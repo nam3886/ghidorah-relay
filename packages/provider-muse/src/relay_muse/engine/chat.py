@@ -268,15 +268,31 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
 
 # ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------
 # Live 30/10 (muse-acc1, five jobs): "Video generation isn't available for your account in your country or region",
-# "Video bị giới hạn ở khu vực tài khoản này", "tính năng tạo video hiện không khả dụng ở khu vực của bạn". muse answers
-# in the prompt's language and its history carries no code for it, only these words; so an answer is that refusal
-# when it names a video, a country or region, and its unavailability, each in any of these languages.
+# "Video bị giới hạn ở khu vực tài khoản này, nên mình không tạo được video nào", "tính năng tạo video hiện không khả
+# dụng ở khu vực của bạn". muse answers in the prompt's language and its history carries no code for it, only these
+# words. So an answer is that refusal only when it says all three, each in any of these languages: the video
+# GENERATION (the feature, not a video's subject), the ACCOUNT or the user's own country or region, and that it is
+# unavailable or restricted. "This video is blocked in your country" or "a video of that country's flag" is not it.
 # ponytail: word lists; an answer they miss stays a plain muse.refused (failed and refunded, as before 30/10).
-_VIDEO_WORDS = ("video", "vídeo", "vidéo", "видео", "视频", "視頻", "影片", "動画", "ビデオ", "동영상", "비디오",
-                "영상", "วิดีโอ")
-_REGION_WORDS = ("country", "countries", "region", "khu vực", "quốc gia", "地区", "地區", "区域", "區域", "国家",
-                 "國家", "地域", "지역", "국가", "país", "paises", "países", "región", "região", "pays", "région",
-                 "paese", "negara", "wilayah", "kawasan", "стран", "регион", "ประเทศ", "ภูมิภาค", "ülke", "bölge")
+_GENERATION_WORDS = (
+    "video generation", "generate video", "generate videos", "generating video", "video creation", "create video",
+    "create videos", "creating video", "video feature", "tạo video", "tạo được video", "tính năng video", "视频生成",
+    "生成视频", "影片生成", "生成影片", "視頻生成", "動画生成", "動画の生成", "動画を生成", "동영상 생성",
+    "비디오 생성", "영상 생성", "generación de video", "generación de vídeo", "generar video", "generar vídeo",
+    "creación de video", "geração de vídeo", "geração de video", "gerar vídeo", "génération de vidéo",
+    "génération vidéo", "générer des vidéos", "générer une vidéo", "videoerstellung", "videogenerierung",
+    "videos zu erstellen", "generazione video", "generazione di video", "pembuatan video", "membuat video",
+    "создание видео", "генерация видео", "การสร้างวิดีโอ", "video oluşturma")
+_SCOPE_WORDS = (
+    "your account", "this account", "the account", "your country", "your region", "your location", "tài khoản",
+    "khu vực của bạn", "quốc gia của bạn", "vùng của bạn", "你所在的国家", "你所在的地区", "您所在的国家",
+    "您所在的地区", "所在国家", "所在地区", "所在地區", "账号", "账户", "帳號", "帳戶", "お住まいの国",
+    "お住まいの地域", "アカウント", "해당 국가", "해당 지역", "귀하의 국가", "귀하의 지역", "계정", "tu país",
+    "tu región", "su país", "su región", "tu cuenta", "su cuenta", "seu país", "sua região", "sua conta",
+    "votre pays", "votre région", "votre compte", "ton pays", "deinem land", "deiner region", "ihrem land",
+    "ihrer region", "dein konto", "ihr konto", "tuo paese", "tua regione", "tuo account", "negara anda",
+    "wilayah anda", "akun anda", "вашей стране", "вашем регионе", "вашего региона", "вашей страны", "аккаунт",
+    "ประเทศของคุณ", "ภูมิภาคของคุณ", "บัญชี", "ülkenizde", "bölgenizde", "hesabınız")
 _UNAVAILABLE_WORDS = (
     "not available", "isn't available", "unavailable", "not supported", "isn't supported", "restricted",
     "restriction", "blocked", "không khả dụng", "giới hạn", "hạn chế", "không hỗ trợ", "chưa hỗ trợ", "không có sẵn",
@@ -303,12 +319,12 @@ def _any_of(words: Sequence[str]) -> re.Pattern:
     return re.compile("|".join(alts))
 
 
-_ACCOUNT_NO_VIDEO = tuple(map(_any_of, (_VIDEO_WORDS, _REGION_WORDS, _UNAVAILABLE_WORDS)))
+_ACCOUNT_NO_VIDEO = tuple(map(_any_of, (_GENERATION_WORDS, _SCOPE_WORDS, _UNAVAILABLE_WORDS)))
 
 
 def video_unavailable_here(text: str) -> bool:
-    """muse's answer says video generation is not available for the account where it is (its country or region): a
-    standing restriction of the ACCOUNT, not a refusal of the prompt."""
+    """muse's answer says video GENERATION is not available for the account or where it is (the user's own country or
+    region): a standing restriction of the ACCOUNT, not a refusal of the prompt."""
     said = unicodedata.normalize("NFC", text or "").lower().replace("’", "'")
     return all(p.search(said) for p in _ACCOUNT_NO_VIDEO)
 
@@ -323,27 +339,22 @@ async def delete_chat(tunnel: Tunnel, session: str, timeout: float, retry_after:
     {deleted}}; the files stay readable, the history is gone). A chat still working answers 409 ("session has an
     active message"): tried once more after `retry_after` seconds (0: not), then left. Best effort: never raises, and
     a chat that stays changes nothing for the job. True when muse said it is deleted."""
-    for final in (not retry_after, True):
-        try:
+    try:
+        for final in (not retry_after, True):
             reply = await tunnel.call("POST", DELETE_PATH, {"method": "/api/session/delete", "session_id": session},
                                       timeout=timeout)
-        except Exception as e:      # noqa: BLE001 - the delete never changes the job
-            log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
-            return False
-        body = reply.json() if reply.status == 200 else None
-        result = body.get("result") if isinstance(body, dict) and body.get("ok") else None
-        if isinstance(result, dict) and result.get("deleted"):
-            log.info("muse side chat %s deleted", session)
-            return True
-        if reply.status != 409 or final:
-            log.warning("muse side chat %s not deleted: muse answered %d", session, reply.status)
-            return False
-        log.info("muse side chat %s still has an active message: deleted again in %.0f s", session, retry_after)
-        try:
+            body = reply.json() if reply.status == 200 else None
+            result = body.get("result") if isinstance(body, dict) and body.get("ok") else None
+            if isinstance(result, dict) and result.get("deleted"):
+                log.info("muse side chat %s deleted", session)
+                return True
+            if reply.status != 409 or final:
+                log.warning("muse side chat %s not deleted: muse answered %d", session, reply.status)
+                return False
+            log.info("muse side chat %s still has an active message: deleted again in %.0f s", session, retry_after)
             await tunnel.listen(retry_after)
-        except Exception as e:      # noqa: BLE001
-            log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
-            return False
+    except Exception as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job
+        log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
     return False
 
 

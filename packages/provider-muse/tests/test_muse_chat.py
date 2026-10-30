@@ -274,12 +274,30 @@ NOT_THE_ACCOUNT = (
     "I can't generate that — it isn't available for this prompt in any region of my tools.",
     "Video về các quốc gia châu Âu đã xong.",
 )
+# refusals of the CONTENT that name a video, a country or region and a restriction: the generation is not what is
+# unavailable, or the place is not the user's own (Codex 30/10)
+CONTENT_REFUSALS = (
+    "This video is blocked in your country.",
+    "I can't make a video of that country's flag.",
+    "A video of real people isn't allowed in your region.",
+    "I can't generate videos of this country's leader; it's restricted content.",
+    "Video generation of real people is restricted.",
+    "Video này bị chặn ở quốc gia của bạn, nên mình không gửi được.",
+    "Mình không thể tạo video về lá cờ của quốc gia đó vì nội dung bị hạn chế.",
+    "该视频在你所在的国家被限制播放。",
+)
+GENERATION = '    "video generation", "generate video", "generate videos",'
+SCOPE = '    "your account", "this account", "the account", "your country", "your region",'
 
 
 @mutation(CHAT_FILE, "    return all(p.search(said) for p in _ACCOUNT_NO_VIDEO)",
           "    return any(p.search(said) for p in _ACCOUNT_NO_VIDEO)", expect="not the account's restriction")
 @mutation(CHAT_FILE, '        alts.append(r"(?<!\\w)" + spaced if _bounded(word) else spaced)',
           "        alts.append(spaced)", expect="inside a word")
+@mutation(CHAT_FILE, GENERATION, '    "video", "视频", "video generation", "generate video", "generate videos",',
+          expect="a content refusal")
+@mutation(CHAT_FILE, SCOPE, '    "country", "region", "quốc gia", "the account", "your country", "your region",',
+          expect="a content refusal")
 def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refusal_of_the_prompt():
     live = spike(NO_VIDEO_HERE)["answers"]
     assert len(live) == 5 and {a["language"] for a in live} == {"en", "vi"}
@@ -293,7 +311,9 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
     assert not video_unavailable_here(reading("job_j07.json").text)
     assert not video_unavailable_here(reading(YOUR_FILES, "video").text)
     assert not video_unavailable_here("")
-    assert not video_unavailable_here("The videos of this subregion are unblockedish."), "inside a word"
+    for text in CONTENT_REFUSALS:
+        assert not video_unavailable_here(text), "a content refusal: %s" % text
+    assert not video_unavailable_here("Video generation in your country is unrestricted."), "inside a word"
     r = reading(NO_VIDEO_HERE, "video")
     assert (r.media, r.other, r.answered, r.busy, r.user) == ((), 0, True, False, True)
     assert verdict(r, 1, settled=True) == "refused" and video_unavailable_here(r.text), "nothing was made"

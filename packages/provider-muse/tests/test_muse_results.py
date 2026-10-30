@@ -141,12 +141,29 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
 
 
 FETCH_DELETE = "        if out.meta.get(LAST) and is_session(session):"
+CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
+BEST_EFFORT = "    except Exception as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
+NARROW = "    except ValueError as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
 
 
 def fetch_out(site, out, **over):
     async def go():
         return [chunk async for chunk in results.fetch(Ctx(), out, settings(**over), deps=site.deps())]
     return asyncio.run(go())
+
+
+@mutation(CHAT_FILE, BEST_EFFORT, NARROW, expect="malformed delete answer")
+def test_a_malformed_answer_to_the_delete_after_the_last_file_changes_nothing():
+    data = b"RIFF" + b"w" * 1000
+    last = Output(REF, "image/webp", 0, meta={"session_id": SID, "last": True})
+    for body in (b"not json", b"[" * 100_000):      # a malformed 200 (the second too deep to decode)
+        site = Site(vm_routes_=vm_routes(files={REF: data}, overrides={"/session/delete": (200, body)}))
+        try:
+            got = fetch_out(site, last)
+        except Exception as e:      # noqa: BLE001 - the failure is the finding
+            got = e
+        assert got == [data], "malformed delete answer: %r" % (got,)
+        assert len(deleted(site)) == 1
 
 
 @mutation(RESULTS_FILE, FETCH_DELETE, "        if False:", expect="deleted once its last file is read")

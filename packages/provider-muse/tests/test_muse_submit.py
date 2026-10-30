@@ -137,7 +137,9 @@ NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
 NO_VIDEO_BRANCH = '                    if self.kind == "video" and video_unavailable_here(reading.text):'
 KEEP_STRIKES = "        self.keep_strikes = True\n"
 DROP_REFUSED = "                    await self._drop_chat(tunnel, timeout)\n"
-DELETE_RETRY = "        if reply.status != 409 or final:"
+DELETE_RETRY = "            if reply.status != 409 or final:"
+BEST_EFFORT = "    except Exception as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
+NARROW = "    except ValueError as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
 BUSY = (409, {"ok": False, "error": {"code": "conflict", "message": "session has an active message"}})
 
 
@@ -183,7 +185,7 @@ def test_the_last_account_muse_refuses_or_a_pinned_job_ends_with_the_refund_and_
     assert isinstance(words.job, Fail) and words.job.code == "muse.refused" and words.account == (Success(),)
 
 
-@mutation(CHAT_FILE, DELETE_RETRY, "        if True:", expect="tried again")
+@mutation(CHAT_FILE, DELETE_RETRY, "            if True:", expect="tried again")
 def test_a_delete_muse_refuses_or_never_answers_changes_nothing_and_a_busy_chat_is_tried_again():
     tries = []
 
@@ -199,6 +201,15 @@ def test_a_delete_muse_refuses_or_never_answers_changes_nothing_and_a_busy_chat_
         result, _ = run(site)
         assert isinstance(result.job, Fail) and result.job.code == "muse.refused", (answer, result)
         assert len(deleted(site)) == (2 if answer == BUSY else 1)
+
+
+@mutation(CHAT_FILE, BEST_EFFORT, NARROW, expect="malformed")
+def test_a_malformed_answer_to_the_delete_changes_nothing():
+    for body in (b"not json", b"[" * 100_000, b'{"ok": true, "result": [1]}'):     # the second: too deep to decode
+        site = Site(vm_routes_=vm_routes([answered("job_j07.json")], overrides={"/session/delete": (200, body)}))
+        result, _ = run(site)
+        assert isinstance(result.job, Fail) and result.job.code == "muse.refused", "malformed: %s" % (result,)
+        assert result.account == (Success(),) and len(deleted(site)) == 1
 
 
 @mutation(SUBMIT_FILE, "                    seen, since = signature(reading), self.deps.clock()",
