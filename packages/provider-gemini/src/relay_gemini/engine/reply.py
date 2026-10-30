@@ -164,6 +164,20 @@ def generating(node) -> bool:
     return any(n == GENERATING_MARK for n in _walk(node))
 
 
+GENERATING_FAILED = 4    # the item's status once gemini gave the video up (the upgrade answer, 23/10: 1, then 4)
+
+
+def generating_status(node) -> int | None:
+    """The status of the LAST "generating" item in `node` (`["video_generation", [...], status, ...]`, in answer
+    order): 1 while it renders, `GENERATING_FAILED` once gemini gave it up; None: no item with a status. `node` may be
+    `Answer.payloads`, a tuple (`_walk` descends lists and dicts only)."""
+    last = None
+    for n in _walk(list(node) if isinstance(node, tuple) else node):
+        if isinstance(n, list) and len(n) > 2 and n[0] == GENERATING_MARK and type(n[2]) is int:
+            last = n[2]
+    return last
+
+
 def _candidate_texts(node) -> list[str]:
     """The text of every candidate `[rcid, [text, ...], ...]` in `node`."""
     out = []

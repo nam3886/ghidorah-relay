@@ -21,13 +21,15 @@ Money rules that shape this file (each has a test and a mutation):
   Complete with a final text and no media: gemini answered for good, the job fails with its refund
   (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
   videos for you today", `gemini.limit_reached` for a refusal that empties a pool (below), `gemini.refused`
-  otherwise, the text kept in the detail). The first three refuse the ACCOUNT, not the order, and the complete answer
-  proves nothing was made (no media; the upgrade answer's "generating" item ends failed, "User is out of video
-  generation quota", FINDINGS 7): the job goes to another account (`relay_core.refusals.account_refused`, no attempt
-  used) and fails with that code, refunded, on the `gemini.refusal_max_accounts`-th account; the not-entitled account's
-  pool for the job rests `gemini.not_entitled_rest_s`. `gemini.refused` (the prompt) fails at once. The one exception:
-  a final text saying something went wrong on gemini's side and asking to try again, or Google's fixed "I seem to be
-  encountering an error" answer (`is_temporary_failure`), is `NotTaken`
+  otherwise, the text kept in the detail). The first three refuse the ACCOUNT, not the order, and a complete answer
+  with no media and no "generating" item, or one whose item ended failed (the upgrade answer's, "User is out of video
+  generation quota", FINDINGS 7), proves nothing was made: the job goes to another account
+  (`relay_core.refusals.account_refused`, no attempt used) and fails with that code, refunded, on the
+  `gemini.refusal_max_accounts`-th account; the not-entitled account's pool for the job rests
+  `gemini.not_entitled_rest_s`. Beside an item in any other state the video may still render: the job fails, never
+  moved (`nothing_rendering`). `gemini.refused` (the prompt) fails at once. The one exception: a final text saying
+  something went wrong on gemini's side and asking to try again, or Google's fixed "I seem to be encountering an
+  error" answer (`is_temporary_failure`), is `NotTaken`
   (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
   core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
   one, or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage
@@ -99,7 +101,7 @@ from relay_gemini.engine.check import (
     signed_out_why,
 )
 from relay_gemini.engine.http import Sessions, Site
-from relay_gemini.engine.reply import Answer, Image, Video, read_answer
+from relay_gemini.engine.reply import GENERATING_FAILED, Answer, Image, Video, generating_status, read_answer
 from relay_gemini.templates import ASSET_BASE, MUSIC_TEMPLATES, VIDEO_TEMPLATES
 
 REQUEST_KEY = "request"      # provider_state: the request id of the send (also the job's external_ref until the chat)
@@ -369,6 +371,12 @@ def video_room_short(settings, room: tuple[int, datetime | None] | None) -> bool
 ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.VIDEO_LIMIT, errors.LIMIT_REACHED)
 
 
+def nothing_rendering(answer: Answer) -> bool:
+    """May the job go to another account: the answer carries no "generating" item, or its last status is the given-up
+    one (the upgrade answer, 23/10)? A video that may still render is never sent again (send once): it fails."""
+    return not answer.generating or generating_status(answer.payloads) == GENERATING_FAILED
+
+
 def answer_result(status: int, answer: Answer | None, settings, now: datetime, job, account_id: str, *,
                   video: bool = False, music: bool = False, rid: str | None = None,
                   spent: Balance | None = None) -> SubmitResult:
@@ -392,7 +400,7 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, j
         code, text = what
         effects = limit_effects(settings, now, code, text, video, spent)
         code, detail = refusal_code(code, effects), "gemini answered: %s" % text[:300]
-        if code not in ACCOUNT_REFUSALS:
+        if code not in ACCOUNT_REFUSALS or not nothing_rendering(answer):
             return _result(Fail(code, detail, {CHAT_KEY: answer.cid}), Success(), *rest, *effects)
         if code == errors.NOT_ENTITLED:     # the plan lacks it: the pool's other jobs would be refused alike
             until = now + timedelta(seconds=int(settings.get("gemini.not_entitled_rest_s")))

@@ -57,7 +57,7 @@ from relay_core.testing.mutation import mutation
 from relay_gemini import errors
 from relay_gemini.engine import results as R
 from relay_gemini.engine.http import Sessions
-from relay_gemini.engine.reply import Turn, read_answer, turns
+from relay_gemini.engine.reply import Turn, generating_status, read_answer, turns
 from relay_gemini.engine.submit import judge, submit
 
 SUBMIT_FILE = "packages/provider-gemini/src/relay_gemini/engine/submit.py"
@@ -711,7 +711,7 @@ def test_a_video_still_generating_on_a_used_up_window_fails_as_the_limit_after_t
 
 # ---- a refusal of the account moves the job (relay_core.refusals, owner's ruling 25/10) ---------------------------
 OUT_OF_POINTS = "pool.account_out_of_points"
-ACCOUNT_MOVE = "        if code not in ACCOUNT_REFUSALS:\n"
+ACCOUNT_MOVE = "        if code not in ACCOUNT_REFUSALS or not nothing_rendering(answer):\n"
 ACCOUNT_CODES = "ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.VIDEO_LIMIT, errors.LIMIT_REACHED)"
 ENTITLED_REST = "        if code == errors.NOT_ENTITLED:     # the plan lacks it"
 CHAT_ON_FAIL = "{**outcome.state_patch, CHAT_KEY: answer.cid}"
@@ -723,6 +723,8 @@ NOT_ENTITLED_REASON = "gemini: the account's plan does not include this"
           expect="moved to another account")
 @mutation(SUBMIT_FILE, ENTITLED_REST, "        if False:     # the plan lacks it", expect="did not rest")
 @mutation(SUBMIT_FILE, CHAT_ON_FAIL, "outcome.state_patch", expect="the chat")
+@mutation(REPLY_FILE, "            last = n[2]\n", "            last = n[2] if last is None else last\n",
+          expect="moved to another account")
 def test_the_upgrade_answer_moves_the_job_to_another_account_and_fails_refunded_on_the_last_one():
     """The recorded free-plan answer ("If you upgrade your subscription, ..."): complete, no video, its "generating"
     item ended failed ("User is out of video generation quota"): nothing was made, and what is refused is the
@@ -773,3 +775,32 @@ def test_the_video_limit_and_a_refusal_on_a_used_up_pool_move_the_job_and_a_refu
     result = run(pro_site(log, send=answer("I can't make videos of real people.")), pro_ctx(log), video_job())
     assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
     assert REFUSED_BY not in result.job.state_patch, "a refusal of the prompt went to another account"
+
+
+RENDERING_GUARD = "    return not answer.generating or generating_status(answer.payloads) == GENERATING_FAILED"
+
+
+@mutation(SUBMIT_FILE, RENDERING_GUARD, "    return True", expect="may still render")
+@mutation(SUBMIT_FILE, RENDERING_GUARD, "    return not answer.generating", expect="the recorded upgrade answer")
+def test_a_refusal_of_the_account_beside_a_generating_item_not_given_up_fails_and_is_never_moved():
+    """Send once: beside a "generating" item whose last status is not the given-up one (4) the video may still render,
+    so the limit or the upgrade answer fails the job (refunded, as before the move) and never sends it to another
+    account; the not-entitled rest is not set either."""
+    log = []
+    result = run(pro_site(log, send=generating_answer("I can't create more videos for you today.")), pro_ctx(log),
+                 video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
+        "a video that may still render was moved: %s" % (result.job,)
+    assert REFUSED_BY not in result.job.state_patch, "a video that may still render was moved"
+    rendering = NOT_ENTITLED.replace('.svg\\"],4,[', '.svg\\"],1,[')
+    assert rendering != NOT_ENTITLED and generating_status(read_answer(rendering).payloads) == 1
+    log = []
+    result = run(pro_site(log, send=rendering), pro_ctx(log), video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.NOT_ENTITLED, \
+        "an upgrade answer that may still render was moved: %s" % (result.job,)
+    assert REFUSED_BY not in result.job.state_patch, "an upgrade answer that may still render was moved"
+    assert not any(isinstance(e, Rest) and e.reason == NOT_ENTITLED_REASON for e in result.account)
+    assert generating_status(read_answer(NOT_ENTITLED).payloads) == 4, "the recorded upgrade answer ended failed"
+    log = []
+    moved = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log), video_job()).job
+    assert isinstance(moved, NotTaken), "the recorded upgrade answer was not moved: %s" % (moved,)
