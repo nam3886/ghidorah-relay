@@ -486,3 +486,78 @@ def test_concurrent_claims_never_double_book_a_job_or_an_account(db):
     got = run(db, scenario)
     assert len(got) == 3 and len({c.job_id for c in got}) == 3 and len({c.account_id for c in got}) == 3
     assert db.one("SELECT count(*) FROM jobs WHERE status = 'queued'")[0] == 3
+
+
+# ---- one job per account (muse: a job's results are what is new on the account since its send) ------------------
+ONE = dataclasses.replace(FakeSpec().caps, one_job_per_account=True)
+ONE_TWO_SLOTS = dataclasses.replace(TWO_SLOTS, one_job_per_account=True)
+IN_FLIGHT = "   AND (NOT %(single)s OR NOT EXISTS ("
+IN_FLIGHT_OFF = "   AND (TRUE OR NOT EXISTS ("
+IN_FLIGHT_STATES = "f.status IN ('submitting', 'unknown', 'waiting', 'fetching')"
+SINGLE_ARG = '"single": caps.one_job_per_account,'
+
+
+def in_flight(db, k, acct, status):
+    """A job of `acct` claimed earlier and not final, holding no lease (taken past its hold, followed by polls)."""
+    db.run("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, completion,"
+           " after_sent, submit_timeout_s, price_key, price, account_id, next_poll_at, sent_at, external_ref) VALUES "
+           "(gen_random_uuid(), %s, %s, 'generate', 'video', 'm', 'x', 'm', %s, 'detach', 'reconcile', 60, "
+           "'fake-video', 0, %s, clock_timestamp() + interval '1 hour', clock_timestamp(), 'chat-1')",
+           PROVIDER, k, status, acct)
+
+
+@pytest.mark.parametrize("status", ["waiting", "unknown", "fetching"])
+@mutation(K, IN_FLIGHT, IN_FLIGHT_OFF, expect="an account with a job in flight took another")
+@mutation(K, SINGLE_ARG, '"single": False,', expect="an account with a job in flight took another")
+@mutation(K, IN_FLIGHT_STATES, "f.status IN ('submitting', 'unknown', 'fetching')", expect="waiting:")
+@mutation(K, IN_FLIGHT_STATES, "f.status IN ('submitting', 'waiting', 'fetching')", expect="unknown:")
+@mutation(K, IN_FLIGHT_STATES, "f.status IN ('submitting', 'unknown', 'waiting')", expect="fetching:")
+def test_one_job_per_account_skips_an_account_with_any_job_in_flight_and_the_flag_off_does_not(db, status):
+    k = key(db)
+    busy, free = account(db), account(db, used_ago_s=50)        # LRU: `busy` would go first
+    in_flight(db, k, busy, status)
+
+    async def scenario(p):
+        for i in range(3):
+            await create(p, k, str(i))
+        first = await claim(p, caps=ONE)
+        second = await claim(p, caps=ONE)        # `free` now holds a submitting job, `busy` the one in flight
+        return first, second, await claim(p)     # flag off: `busy` is taken (it holds no lease)
+
+    first, second, off = run(db, scenario)
+    assert first is not None and first.account_id == free, \
+        "%s: an account with a job in flight took another: %r" % (status, first)
+    assert second is None, "%s: an account with a job in flight took another: %r" % (status, second)
+    assert off is not None and off.account_id == busy
+
+
+@mutation(K, IN_FLIGHT_STATES, "f.status IN ('unknown', 'waiting', 'fetching')", expect="two jobs on one account")
+def test_one_job_per_account_holds_when_another_claim_committed_after_the_list_was_read(db):
+    k = key(db)
+    acct = account(db)
+
+    async def scenario(p):
+        await create(p, k, "x")
+        await create(p, k, "y")
+        reached, gate, paused = asyncio.Event(), asyncio.Event(), []
+
+        async def pause():
+            if not paused:
+                paused.append(True)
+                reached.set()
+                await gate.wait()
+
+        failpoints.arm("claim.candidates_read", pause)
+        try:
+            first = asyncio.create_task(claim(p, owner="w1", caps=ONE_TWO_SLOTS))
+            await asyncio.wait_for(reached.wait(), 5)
+            second = await claim(p, owner="w2", caps=ONE_TWO_SLOTS)    # takes the account, commits
+            gate.set()
+            return second, await first
+        finally:
+            failpoints.disarm("claim.candidates_read")
+            gate.set()
+
+    second, first = run(db, scenario)
+    assert second is not None and second.account_id == acct
+    assert first is None, "a stale candidate list put two jobs on one account: %r" % (first,)

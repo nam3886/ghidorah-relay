@@ -392,6 +392,9 @@ class Caps:
     catalog_refresh_s: int | None = None
     proxy_rest_s: int = 1800           # a failed proxy probe rests the account on every pool this long
     check_interval_s: int = 21600      # the account check cadence; the retry stays an env value
+    # an account takes no new job while any job is in flight on it (submitting, unknown, waiting, fetching), not only
+    # while one holds a lease: for a provider whose results are found by what is new on the account after the send
+    one_job_per_account: bool = False
 
     def __post_init__(self):
         if self.execution not in ("http", "browser"):

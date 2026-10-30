@@ -264,3 +264,11 @@ def test_the_media_folders_are_a_setting_of_workspace_folders_only():
         with pytest.raises(SettingsError):
             spec.validate(bad)
             pytest.fail("outside the workspace: %r" % bad)
+
+
+@mutation(SPEC_FILE, "        one_job_per_account=True)", "        one_job_per_account=False)",
+          expect="one job in flight per account")
+def test_an_account_takes_no_job_while_another_is_in_flight_on_it():
+    """A job's results are the files new on its account since the send: no other job may write there meanwhile."""
+    assert SPEC.caps.one_job_per_account is True, "one job in flight per account"
+    assert SPEC.caps.account_slots == 1

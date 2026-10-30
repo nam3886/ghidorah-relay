@@ -277,10 +277,9 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
 # as sandbox://... (job 1c7ddda2). Both were refunded while muse had spent its quota. So the media folders are listed
 # before the send (`since`: the newest time of anything there, by the VM's clock) and again at a verdict: a file of
 # the job's kind written after `since` is the job's. A file that was there before the send never is, so one customer's
-# file is never another's; when a folder cannot be listed, the chat's cards are taken as before.
-# ponytail: muse may still be writing an earlier job of the same account (taken past its hold, then followed by polls)
-# while the next one is read: a file of the first that lands then is new for both. Upgrade: no send on an account while
-# another of its jobs is followed by polls.
+# file is never another's; when a folder cannot be listed, the chat's cards are taken as before. No other job of the
+# account can write there meanwhile: muse's caps set `one_job_per_account`, so the claim (relay_core.jobs.claim) gives
+# an account no job while another is in flight on it (submitting, unknown, waiting or fetching), past its hold too.
 class File(NamedTuple):
     ref: str
     mime: str

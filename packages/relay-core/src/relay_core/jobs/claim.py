@@ -66,7 +66,9 @@ SELECT id, account_cost, tried, created_at, pin_account_id FROM (
 # `next_poll_at` on a queued job is its not-before time: a requeue after Retry or NotTaken pauses the job (apply.py).
 
 # Never-checked accounts are not claimable; a pool at rest, a cooling account, a full account, an account claimed less
-# than the send gap ago and (browser only) an account with an unknown job due for a browser reconcile are skipped.
+# than the send gap ago, (browser only) an account with an unknown job due for a browser reconcile and
+# (`one_job_per_account`) an account with any job in flight on it (submitting, unknown, waiting, fetching: claimed and
+# not final, with or without a lease) are skipped.
 # Untried-for-this-head first, then LRU.
 _CANDIDATES = """
 SELECT a.id FROM accounts a
@@ -81,6 +83,9 @@ SELECT a.id FROM accounts a
    AND (NOT %(browser)s OR NOT EXISTS (
         SELECT 1 FROM jobs u WHERE u.account_id = a.id AND u.status = 'unknown'
            AND (u.next_poll_at IS NULL OR u.next_poll_at <= clock_timestamp())))
+   AND (NOT %(single)s OR NOT EXISTS (
+        SELECT 1 FROM jobs f
+         WHERE f.account_id = a.id AND f.status IN ('submitting', 'unknown', 'waiting', 'fetching')))
    AND (%(only)s::uuid IS NULL OR a.id = %(only)s::uuid)
  ORDER BY a.id = ANY(%(tried)s::uuid[]), a.last_used_at NULLS FIRST, a.id
 """
@@ -144,6 +149,7 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
     heads.sort(key=lambda h: (h[0], h[1]))
     for _created, head_id, name, cfg, cost, head_tried, scope, pin in heads:
         args = {**scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
+                "single": caps.one_job_per_account,
                 "tried": list(head_tried), "only": pin}       # a pinned head's one candidate is its account
         candidates = await (await conn.execute(_CANDIDATES, args)).fetchall()
         await failpoints.hit("claim.candidates_read")
