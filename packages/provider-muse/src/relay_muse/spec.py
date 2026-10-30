@@ -212,11 +212,21 @@ _SETTINGS = dict((
     _setting("fetch_timeout_s", int, 120, "Seconds one result file may take to come through the tunnel.",
              min=30, max=600),
     _setting("media_dirs", list, list(MEDIA_DIRS),
-             "The workspace folders a muse result may come from. They are listed before the send; once muse has "
-             "answered, a file of the job's kind there that is new or changed since is the job's result, shown in the "
-             "chat or not (the first n are delivered). A file that was there before the send is never taken. When a "
-             "folder cannot be listed, only the files muse shows in the chat are taken.",
+             "The workspace folders a muse result may come from. They are listed before the send and the names of "
+             "their images and videos kept; once muse has answered, a file of the job's kind there whose name was not "
+             "there before is the job's result, shown in the chat or not (the first n are delivered). A name that was "
+             "there before is never taken, even rewritten since. A folder that cannot be listed before the send sends "
+             "nothing (the job goes back to the queue); one that cannot be listed at the verdict gives no verdict "
+             "on that read.",
              rule=Rule("1 to 8 different folders, each workspace/<name>/", _media_dirs)),
+    _setting("media_max_files", int, 5000,
+             "The most images and videos the media folders of one account may hold for a send: their names are kept "
+             "on the job. An account holding more sends nothing (as when the folders cannot be listed).",
+             min=100, max=50000),
+    _setting("files_grace_s", int, 60,
+             "Seconds a settled chat must keep showing no new file of the job's kind, read again and again, before "
+             "the job is failed as refused (refunded): muse may save the result just after its answer (a cut video "
+             "after the raw one is removed).", min=0, max=600),
     _setting("media_max_mb", int, 64, "The largest result file taken, in MiB (a 10 s video was under 6 MiB).",
              min=1, max=512),
     _setting("usage_budget_s", int, 90, "Seconds an account check may spend on the weekly Usage figure, the hunt "

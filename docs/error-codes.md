@@ -157,6 +157,7 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `muse.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | muse answered in words without making the image or video; the charge is returned |
 | `muse.video_unavailable_on_accounts` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | muse answered on the most accounts a job may try that the account makes no video in its country or region; nothing was made and the charge is returned |
 | `muse.vm_not_ready` | `temporarily_unavailable` | 503 | api_error | no | no | no | 3 | yes | the muse workspace did not wake (or could not be leased); the order was not sent |
+| `muse.workspace_unlisted` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | the muse workspace's media folders could not be listed; the order was not sent |
 
 ## `pool.*`
 

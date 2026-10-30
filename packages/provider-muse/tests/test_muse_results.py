@@ -23,7 +23,17 @@ def poll(site, j, now=NOW, **over):
 
 
 def taken(n=1, state=None, **kw):
-    return job(external_ref=SID, state={"session_id": SID, **(state or {})}, n=n, **kw)
+    return job(external_ref=SID, state={"session_id": SID, "before": [], **(state or {})}, n=n, **kw)
+
+
+def refused_after_grace(routes, make_job, state, at):
+    """Two polls of a settled chat with no new file: the first records the empty read (`empty_at`), the second, past
+    `muse.files_grace_s`, refuses. (the result, the last poll's site)"""
+    first = poll(Site(vm_routes_=routes()), make_job(state), at)
+    assert isinstance(first.outcome, Pending), "no refusal on the first empty read: %s" % (first.outcome,)
+    assert first.outcome.state_patch["empty_at"] == at.isoformat()
+    site = Site(vm_routes_=routes())
+    return poll(site, make_job({**state, **first.outcome.state_patch}), at + timedelta(seconds=1)), site
 
 
 def test_a_poll_delivers_the_results_with_no_send():
@@ -32,23 +42,29 @@ def test_a_poll_delivers_the_results_with_no_send():
     assert isinstance(result.outcome, Done) and len(result.outcome.outputs) == 4
     vm = site.vms[0]
     assert vm.paths() == ["/client/register-capabilities",
-                          "/chat/history?limit=40&transcript_mode=messages&session_id=" + SID]
+                          "/chat/history?limit=40&transcript_mode=messages&session_id=" + SID,
+                          "/fs/list", "/fs/list"]
 
 
-@mutation(RESULTS_FILE, '    if state.get("seen") != seen:\n', "    if False:\n", expect="settled across two polls")
+SETTLED = '    since = _at(state.get("seen_at")) if state.get("seen") == seen else None\n'
+
+
+@mutation(RESULTS_FILE, SETTLED, '    since = _at(state.get("seen_at"))\n', expect="settled across two polls")
 def test_a_refusal_is_failed_only_when_two_polls_settle_apart():
     words = history("job_j07.json", SID)
     first = poll(Site(vm_routes_=vm_routes([words])), taken())
     assert isinstance(first.outcome, Pending) and first.outcome.answered
     patch = dict(first.outcome.state_patch)
-    assert patch == {"seen": [0, 0, True, False, len(words)], "seen_at": NOW.isoformat()}
+    assert patch == {"seen": [0, 0, True, False, len(words)], "seen_at": NOW.isoformat(), "empty_at": None}
     too_soon = poll(Site(vm_routes_=vm_routes([words])), taken(state=patch), NOW + timedelta(seconds=0.01))
     assert isinstance(too_soon.outcome, Pending) and too_soon.outcome.state_patch["seen_at"] == NOW.isoformat()
-    later = poll(Site(vm_routes_=vm_routes([words])), taken(state=patch), NOW + timedelta(seconds=1))
+    later, _ = refused_after_grace(lambda: vm_routes([words]), lambda st: taken(state=st), patch,
+                                   NOW + timedelta(seconds=1))
     assert isinstance(later.outcome, Failed) and later.outcome.code == "muse.refused"
     changed = {"seen": [0, 0, True, False, 1], "seen_at": NOW.isoformat()}
     again = poll(Site(vm_routes_=vm_routes([words])), taken(state=changed), NOW + timedelta(seconds=1))
-    assert isinstance(again.outcome, Pending), "settled across two polls"
+    assert isinstance(again.outcome, Pending) and again.outcome.state_patch["empty_at"] is None, \
+        "settled across two polls"
 
 
 NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
@@ -64,28 +80,31 @@ def deleted(site: Site) -> list[dict]:
 @mutation(RESULTS_FILE, POLL_DROP, "", expect="deleted after a verdict with no output")
 def test_a_poll_that_reads_muse_refusing_the_account_ends_the_job_rests_the_video_pool_and_deletes_the_chat():
     words = history(NO_VIDEO_HERE, SID)
-    video = job("text_to_video", external_ref=SID, state={"session_id": SID})
+    video = job("text_to_video", external_ref=SID, state={"session_id": SID, "before": []})
     first = poll(Site(vm_routes_=vm_routes([words])), video)
     assert isinstance(first.outcome, Pending)
-    state = {"session_id": SID, **first.outcome.state_patch}
-    site = Site(vm_routes_=vm_routes([words]))
-    later = poll(site, job("text_to_video", external_ref=SID, state=state), NOW + timedelta(seconds=1))
+    state = {"session_id": SID, "before": [], **first.outcome.state_patch}
+
+    def video_job(st):
+        return job("text_to_video", external_ref=SID, state=st)
+    later, site = refused_after_grace(lambda: vm_routes([words]), video_job, state, NOW + timedelta(seconds=1))
     assert isinstance(later.outcome, Failed) and later.outcome.code == "muse.video_unavailable_on_accounts", \
         "the account's code: %s" % (later.outcome,)
     assert later.outcome.state_patch == {"refused_by": ["acc-1"]}
     (rest,) = later.effects
-    assert isinstance(rest, Rest) and rest.pool == "video" and rest.until == NOW + timedelta(seconds=1, days=7)
+    assert isinstance(rest, Rest) and rest.pool == "video" and rest.until == NOW + timedelta(seconds=2, days=7)
     assert deleted(site) == [{"method": "/api/session/delete", "session_id": SID}], \
         "deleted after a verdict with no output"
     j07 = history("job_j07.json", SID)
     seen = poll(Site(vm_routes_=vm_routes([j07])), taken()).outcome.state_patch
-    refused = Site(vm_routes_=vm_routes([j07]))
-    prompt = poll(refused, taken(state=dict(seen)), NOW + timedelta(seconds=1))
+    prompt, refused = refused_after_grace(lambda: vm_routes([j07]), lambda st: taken(state=st), dict(seen),
+                                          NOW + timedelta(seconds=1))
     assert isinstance(prompt.outcome, Failed) and prompt.outcome.code == "muse.refused" and prompt.effects == ()
     assert len(deleted(refused)) == 1
-    broken = Site(vm_routes_=vm_routes([words], overrides={"/session/delete": ("reset", "gone")}))
-    assert poll(broken, job("text_to_video", external_ref=SID, state=state),
-                NOW + timedelta(seconds=1)).outcome.code == "muse.video_unavailable_on_accounts"
+    broken, _ = refused_after_grace(
+        lambda: vm_routes([words], overrides={"/session/delete": ("reset", "gone")}), video_job, state,
+        NOW + timedelta(seconds=1))
+    assert broken.outcome.code == "muse.video_unavailable_on_accounts"
 
 
 def test_a_poll_that_cannot_read_is_not_an_answer():
@@ -243,25 +262,64 @@ def test_a_video_off_its_paid_length_or_ratio_is_delivered_and_noted(monkeypatch
     assert any("not what was paid" in text for _, text in ctx.events)
 
 
-POLL_SINCE = '    before = state.get("since") if type(state.get("since")) is int else None\n'
+BEFORE_OF = '    before, most = before_of(state), settings.get("muse.media_max_files")\n'
+POLL_GRACE = '        if first is None or (now - first).total_seconds() < settings.get("muse.files_grace_s"):\n'
 EDITED = "workspace/your_files/media-generation-fox-snow-watercolor-9x16-0-d74ae617-0900-46fb-aef2-46d9edd0add4.webp"
 
 
-@mutation(RESULTS_FILE, POLL_SINCE, "    before = None\n", expect="the poll takes the unshown image")
-def test_a_poll_takes_only_the_files_new_since_the_send():
-    """A job past its hold: the listing before the send rides on `provider_state.since`."""
+def names(listing):
+    return sorted(f + "/" + e["name"] for f, entries in listing.items() for e in entries if e["type"] == "file")
+
+
+@mutation(RESULTS_FILE, BEFORE_OF, '    before, most = frozenset(), settings.get("muse.media_max_files")\n',
+          expect="a name from before the send")
+@mutation(RESULTS_FILE, POLL_GRACE, "        if first is None:\n", expect="within the grace")
+def test_a_poll_takes_only_files_whose_names_were_not_there_before_the_send_and_waits_out_the_grace():
+    """A job past its hold: the names listed before the send ride on `provider_state.before`."""
+    words = history("new-files-301030/history_unlinked_image.json", SID)
+    before, after = folders()
+    settled = {"seen": [0, 0, True, False, len(words)], "seen_at": NOW.isoformat()}
+    later = NOW + timedelta(seconds=1)
+
+    def edit(state):
+        return taken(state={**settled, **state}, operation="image_to_image")
+    result = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), edit({"before": names(before)}), later)
+    assert isinstance(result.outcome, Done), "the poll takes the unshown image: %s" % (result.outcome,)
+    assert [(o.ref, o.mime) for o in result.outcome.outputs] == [(EDITED, "image/webp")]
+    first_old = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), edit({"before": names(after)}),
+                     later)
+    assert isinstance(first_old.outcome, Pending), "a name from before the send: %s" % (first_old.outcome,)
+    old, _ = refused_after_grace(lambda: vm_routes([words], folders=(after, after)),
+                                 lambda st: edit(st), {"before": names(after)}, later)
+    assert isinstance(old.outcome, Failed) and old.outcome.code == "muse.refused", "a name from before the send"
+    # an empty read, then the file lands within the grace: delivered
+    first = poll(Site(vm_routes_=vm_routes([words], folders=(before, before))), edit({"before": names(before)}), later)
+    assert isinstance(first.outcome, Pending) and first.outcome.state_patch["empty_at"] == later.isoformat()
+    state = {"before": names(before), **first.outcome.state_patch}
+    landed = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), edit(state),
+                  later + timedelta(seconds=0.01), files_grace_s=60)
+    assert isinstance(landed.outcome, Done), "a file that lands within the grace: %s" % (landed.outcome,)
+    still = poll(Site(vm_routes_=vm_routes([words], folders=(before, before))), edit(state),
+                 later + timedelta(seconds=0.01), files_grace_s=60)
+    assert isinstance(still.outcome, Pending), "nothing yet, within the grace: %s" % (still.outcome,)
+    assert still.outcome.state_patch["empty_at"] == later.isoformat()
+
+
+VERDICT_UNLISTED = "    if listed is None:\n        return r, None\n"
+
+
+@mutation(CHAT_FILE, VERDICT_UNLISTED, "    if listed is None:\n        return r, found\n",
+          expect="no listing at the verdict")
+def test_a_poll_with_no_names_from_before_the_send_or_no_listing_now_gives_no_verdict():
     words = history("new-files-301030/history_unlinked_image.json", SID)
     _, after = folders()
     settled = {"seen": [0, 0, True, False, len(words)], "seen_at": NOW.isoformat()}
     later = NOW + timedelta(seconds=1)
-    j = taken(state={**settled, "since": 1793342693022}, operation="image_to_image")
-    result = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), j, later)
-    assert isinstance(result.outcome, Done), "the poll takes the unshown image: %s" % (result.outcome,)
-    assert [(o.ref, o.mime) for o in result.outcome.outputs] == [(EDITED, "image/webp")]
-    everything_old = taken(state={**settled, "since": 1893456000000}, operation="image_to_image")
-    result = poll(Site(vm_routes_=vm_routes([words], folders=(after, after))), everything_old, later)
-    assert isinstance(result.outcome, Failed) and result.outcome.code == "muse.refused"
-    no_listing = taken(state=settled, operation="image_to_image")
+    no_names = job("image_to_image", external_ref=SID, state={"session_id": SID, **settled})
     site = Site(vm_routes_=vm_routes([words], folders=(after, after)))
-    assert isinstance(poll(site, no_listing, later).outcome, Failed)
-    assert "/fs/list" not in site.vms[0].paths(), "no listing before the send: the cards only"
+    assert isinstance(poll(site, no_names, later).outcome, Pending), "no names kept: never a verdict"
+    unlisted = Site(vm_routes_=vm_routes([words], folders=({}, {})))
+    result = poll(unlisted, taken(state={**settled, "empty_at": NOW.isoformat()}, operation="image_to_image"),
+                  later + timedelta(seconds=60))
+    assert isinstance(result.outcome, Pending) and result.outcome.state_patch["empty_at"] is None, \
+        "no listing at the verdict: no verdict on this read"

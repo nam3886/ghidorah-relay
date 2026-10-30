@@ -48,7 +48,7 @@ def settings(**over) -> "Settings":
     # every wait short; a submit holds 2 s past its margin, so a mutant that never decides still ends
     fast = {"muse.history_poll_s": 0.01, "muse.settle_s": 0.05, "muse.send_ack_timeout_s": 0.3,
             "muse.wake_poll_s": 0, "muse.wake_timeout_s": 0.2, "muse.image_submit_timeout_s": 17,
-            "muse.video_submit_timeout_s": 17}
+            "muse.video_submit_timeout_s": 17, "muse.files_grace_s": 0.05}
     s.update(fast)
     s.update({"muse." + k: v for k, v in over.items()})
     return s
@@ -252,7 +252,7 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=
     """The VM's answers: the setup calls, `/chat/stream` acknowledged for the chat it names, the job's history from
     `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404), a chat delete, and
     the folder listings of `folders` (before the send, after it): each {folder: entries}, a folder it lacks 404 (with
-    no `folders`, every listing is 404)."""
+    no `folders`, every folder is listed empty)."""
     reads = list(histories)
     files = files or {}
     sent = []
@@ -260,9 +260,9 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=
     def route(req):
         if req.path == "/chat/stream":
             sent.append(True)
-        if req.path == "/fs/list" and folders is not None:
+        if req.path == "/fs/list" and not any(req.path.startswith(p) for p in overrides or {}):
             path = req.json()["path"]
-            entries = folders[1 if sent else 0].get(path)
+            entries = [] if folders is None else folders[1 if sent else 0].get(path)
             if entries is None:
                 return 404, {"ok": False, "error": {"code": "not_found", "message": "path not found"}}
             return 200, {"path": path, "entries": entries}

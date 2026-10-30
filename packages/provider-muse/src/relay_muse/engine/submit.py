@@ -12,9 +12,11 @@ Money rules (each has a test and a mutation):
   is `NotTaken` (muse refused the request itself, nothing was made), and once muse acknowledged the send the order is
   taken whatever follows: past the hold, or on a broken tunnel, it is `Accepted` and the poll reads the chat;
 - results: any is a full charge (Q4); the first n are delivered and never more; none is a failure with its refund;
-- results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (their newest time
-  kept as `provider_state.since`) and at the verdict, and only a file written after that counts, shown in the chat or
-  not (`chat.decide`); with no listing before the send, the chat's cards are taken as they are;
+- results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (the names of
+  their images and videos kept as `provider_state.before`) and at the verdict, and only a file whose name was not
+  there counts, shown in the chat or not (`chat.decide`). No listing before the send: nothing is sent, the job goes
+  back to the queue (`muse.workspace_unlisted`: no attempt, no strike). No listing at the verdict: no verdict on that
+  read. A settled chat with no new file is refused only once that held `muse.files_grace_s`;
 - muse's answer that the account makes no video where it is (`chat.video_unavailable_here`), once the chat is settled
   with no video (the verdict "refused": nothing was made), is a refusal of the ACCOUNT (`relay_core.refusals`): the
   video pool rests `muse.video_region_rest_s`, the strikes are left as they are, and the job goes to another account
@@ -52,6 +54,7 @@ from relay_muse.catalog import MAX_REFS
 from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_muse.engine.chat import (
     SetupError,
+    Unlisted,
     compose,
     decide,
     delete_chat,
@@ -130,7 +133,8 @@ class _Run:
         self.acked = False        # muse acknowledged the send: the order is taken
         self.keep_strikes = False  # muse refused the account: no Success for it
         self.dirs = settings.get("muse.media_dirs")
-        self.since: int | None = None   # the newest time in the media folders before the send (None: not listed)
+        self.most = settings.get("muse.media_max_files")
+        self.before: frozenset[str] = frozenset()   # the media files' names before the send
 
     async def _say(self, text: str, stage: str = "submit") -> None:
         try:
@@ -175,9 +179,11 @@ class _Run:
             self.signed_in = True
             message = compose(self.job.operation, self.job.params, self.job.sent_text, len(images))
             body = stream_body(message, self.node, self.session, images)
-            listed = await list_media(tunnel, self.dirs, timeout)
-            self.since = None if listed is None else listed[0]
-            state = {"session_id": self.session, **({} if self.since is None else {"since": self.since})}
+            listed = await list_media(tunnel, self.dirs, timeout, self.most)
+            if listed is None:
+                raise Unlisted("muse's media folders could not be listed before the send")
+            self.before = frozenset(f.ref for f in listed)
+            state = {"session_id": self.session, "before": sorted(self.before)}
             await self._core(lambda: self.ctx.report_ref(self.session, state))
             await self._core(self.ctx.mark_sent)
             self.sent = True
@@ -201,7 +207,8 @@ class _Run:
     async def _hold(self, tunnel, timeout: float) -> SubmitResult:
         """Read the chat until a verdict or the hold's end. Nothing here sends the order again."""
         denied: set[str] = set()
-        seen, since = None, self.deps.clock()
+        seen, since, empty = None, self.deps.clock(), None
+        grace = self.settings.get("muse.files_grace_s")
         settle_s, poll_s = self.settings.get("muse.settle_s"), self.settings.get("muse.history_poll_s")
         while True:
             events = history_events(await tunnel.call("GET", history_path(self.session), timeout=timeout))
@@ -210,7 +217,12 @@ class _Run:
                 if signature(reading) != seen:
                     seen, since = signature(reading), self.deps.clock()
                 reading, found = await decide(tunnel, reading, self.want, self.deps.clock() - since >= settle_s,
-                                              self.since, self.kind, self.dirs, timeout)
+                                              self.before, self.kind, self.dirs, timeout, self.most)
+                if found != "refused":
+                    empty = None
+                elif empty is None or self.deps.clock() - empty < grace:
+                    empty = self.deps.clock() if empty is None else empty
+                    found = None        # no new file yet: refused only once that held `muse.files_grace_s`
                 if found == "done":
                     await self._say(made_note(reading, self.want, self.kind, self.job.id))
                     return _result(Completed(outputs(reading, self.want, self.session, **paid_of(self.job))),
@@ -277,13 +289,16 @@ class _Run:
             return _result(Retry(errors.VM_NOT_READY), lease_effect(exc, self.settings, now))
         if isinstance(exc, Unavailable):
             return _result(Retry(errors.VM_NOT_READY), unavailable_effect(exc, self.settings, now))
+        if isinstance(exc, Unlisted):
+            return _result(Retry(errors.UNLISTED), Cooldown("muse media folders not listed",
+                                                            now + timedelta(seconds=VM_REST_S)))
         if isinstance(exc, VmNotReady):
             return _result(Retry(errors.VM_NOT_READY), Cooldown("muse workspace not ready",
                                                                 now + timedelta(seconds=VM_REST_S)))
         if isinstance(exc, NetError) and exc.proxy:
             return _result(Retry(POOL_PROXY_FAILED), ProxyBad("the proxy could not reach muse"),
                            Cooldown("proxy failed", now + timedelta(seconds=FAULT_REST_S)))
-        if not isinstance(exc, NetError | SiteError | TunnelError | SetupError | TimeoutError):
+        if not isinstance(exc, NetError | SiteError | TunnelError | SetupError | TimeoutError | Unlisted):
             log.warning("muse submit broke before the send: %s", type(exc).__name__)
         return _result(Retry(errors.HTTP_ERROR))
 

@@ -37,7 +37,7 @@ def test_the_spec_registers_and_its_codes_are_sound():
     assert registry.resolve("muse-image")[0] is SPEC and registry.resolve("muse-video")[0] is SPEC
     assert not core_errors.violations({**core_errors.RULES, **CODES})
     assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing",
-                          "muse.video_unavailable_on_accounts"}
+                          "muse.video_unavailable_on_accounts", "muse.workspace_unlisted"}
     region = CODES["muse.video_unavailable_on_accounts"]
     assert region.terminal and region.refund and region.public_code == core_errors.TEMPORARILY_UNAVAILABLE
     assert all(core_errors.RULES[c] is r for c, r in CODES.items())

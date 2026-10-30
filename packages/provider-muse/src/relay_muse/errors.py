@@ -10,6 +10,7 @@ from relay_core.errors import Rule
 
 HTTP_ERROR = "muse.http_error"          # muse answered a step before (or the send itself) with an error: not taken
 VM_NOT_READY = "muse.vm_not_ready"      # the account's cloud VM did not wake (or has none): nothing was sent
+UNLISTED = "muse.workspace_unlisted"    # the media folders could not be listed before the send: nothing was sent
 REFUSED = "muse.refused"                # muse answered the order in words with no image or video
 OUTPUT_MISSING = "muse.output_missing"  # muse has no file for a result it showed
 # muse answered that THIS account makes no video (its country or region): the job went to another account until
@@ -26,6 +27,13 @@ CODES: dict[str, Rule] = {r.code: r for r in (
     # The account's state, not the order's: back to the queue with no attempt used for the first three.
     Rule(VM_NOT_READY, 503, "api_error", False, False, False, True,
          "the muse workspace did not wake (or could not be leased); the order was not sent", free_retries=3,
+         public_code=core_errors.TEMPORARILY_UNAVAILABLE,
+         public_text="muse could not start the work in time and nothing was made. Sending the request again later "
+                     "may work."),
+    # The account's media folders could not be listed before the send (what is new after it could not be told): back
+    # to the queue, nothing sent, no attempt used and no strike; the render deadline refunds a job that never goes.
+    Rule(UNLISTED, 503, "api_error", False, False, False, True,
+         "the muse workspace's media folders could not be listed; the order was not sent",
          public_code=core_errors.TEMPORARILY_UNAVAILABLE,
          public_text="muse could not start the work in time and nothing was made. Sending the request again later "
                      "may work."),

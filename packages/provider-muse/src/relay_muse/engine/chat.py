@@ -275,29 +275,33 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
 # Live 30/10: muse may save a result and never show it in the chat: an edit's image in your_files, answered "Done — one
 # 9:16 watercolor version, kept private in your workspace." (job aae305b4), or a video named only in the answer's words
 # as sandbox://... (job 1c7ddda2). Both were refunded while muse had spent its quota. So the media folders are listed
-# before the send (`since`: the newest time of anything there, by the VM's clock) and again at a verdict: a file of
-# the job's kind written after `since` is the job's. A file that was there before the send never is, so one customer's
-# file is never another's; when a folder cannot be listed, the chat's cards are taken as before. No other job of the
-# account can write there meanwhile: muse's caps set `one_job_per_account`, so the claim (relay_core.jobs.claim) gives
-# an account no job while another is in flight on it (submitting, unknown, waiting or fetching), past its hold too.
+# before the send and the names of their image and video files kept on the job (`provider_state.before`); at a verdict
+# they are listed again, and a result is a file whose name was not there before the send, shown in a card or not.
+# A name that was there never is, even rewritten since, so one customer's file is never another's (muse's agent has a
+# memory and may show an earlier file in a new chat). Fail closed: no listing before the send, no send; no listing at
+# the verdict, no verdict on that read. No other job of the account writes there meanwhile: muse's caps set
+# `one_job_per_account`, so the claim (relay_core.jobs.claim) gives an account no job while another is in flight on it.
 class File(NamedTuple):
     ref: str
     mime: str
-    ms: int         # modifiedAt, ms since the epoch, the VM's clock
+    ms: int         # modifiedAt, ms since the epoch (the VM's clock; 0 when absent): only orders the new files
 
 
-def _ms(entry: Mapping) -> int | None:
+class Unlisted(Exception):
+    """The media folders could not be listed before the send (or hold more names than are kept): nothing was sent."""
+
+
+def _ms(entry: Mapping) -> int:
     try:
-        at = datetime.fromisoformat(entry["modifiedAt"])
+        return int(datetime.fromisoformat(entry["modifiedAt"]).timestamp() * 1000)
     except (KeyError, TypeError, ValueError):
-        return None
-    return int(at.timestamp() * 1000) if at.tzinfo is not None else None
+        return 0
 
 
-async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float) -> tuple[int, list[File]] | None:
-    """(the newest time of any entry, the image and video files) of the media folders `dirs`; None when one cannot
-    be listed: an answer other than 200 with entries (a folder not made yet included), a broken tunnel."""
-    newest, files = 0, []
+async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float, most: int) -> list[File] | None:
+    """The image and video files of the media folders `dirs`; None when one cannot be listed (an answer other than
+    200 with entries, a folder not made yet included, a broken tunnel) or they hold more than `most` of them."""
+    files = []
     try:
         for folder in dirs:
             reply = await tunnel.call("POST", LIST_PATH, {"path": folder.rstrip("/")}, timeout=timeout)
@@ -306,43 +310,49 @@ async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float) -> tup
             if not isinstance(entries, list):
                 return None
             for e in entries:
-                ms = _ms(e) if isinstance(e, Mapping) else None
-                if ms is None:          # no time: never newer than anything
+                if not isinstance(e, Mapping) or e.get("type") != "file" or not isinstance(e.get("name"), str):
                     continue
-                newest = max(newest, ms)
-                ref = folder + e["name"] if isinstance(e.get("name"), str) else ""
-                if e.get("type") == "file" and is_media_ref(ref, _mime(ref), dirs):
-                    files.append(File(ref, _mime(ref), ms))
+                ref = folder + e["name"]
+                if is_media_ref(ref, _mime(ref), dirs):
+                    files.append(File(ref, _mime(ref), _ms(e)))
     except TunnelError as e:
         log.info("muse media folders not listed: %s", e)
         return None
-    return newest, files
+    if len(files) > most:
+        log.warning("muse media folders hold %d files, more than the %d kept", len(files), most)
+        return None
+    return files
 
 
-def fresh(r: Reading, files: Sequence[File], since: int, kind: str, settled: bool) -> Reading:
-    """The reading with its results limited to files of `kind` written after `since`: the chat's cards first, then,
-    once the chat is settled with every message complete, the new files it does not show, newest first (muse writes
-    a raw video, then the cut one, and may remove the raw)."""
-    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
-    refs = {f.ref for f in new}
-    cards = [m for m in r.media if m.ref in refs]
+def fresh(r: Reading, files: Sequence[File], before: frozenset[str], kind: str, settled: bool) -> Reading:
+    """The reading with its results limited to files of `kind` whose names were not there before the send: the chat's
+    cards first, then, once the chat is settled with every message complete, the new files it does not show, newest
+    first (muse writes a raw video, then the cut one, and may remove the raw)."""
+    cards = [m for m in r.media if m.ref not in before]
     shown = {m.ref for m in cards}
+    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
     rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []
     return r._replace(media=tuple(cards + rest))
 
 
-async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, since: int | None, kind: str,
-                 dirs: Sequence[str], timeout: float) -> tuple[Reading, str | None]:
-    """The verdict on a reading (`verdict`), its results checked against the files once there is one: with `since`
-    (the listing before the send) and a listing now, only new files count (`fresh`); without either, the cards."""
+async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, before: frozenset[str] | None, kind: str,
+                 dirs: Sequence[str], timeout: float, most: int) -> tuple[Reading, str | None]:
+    """The verdict on a reading (`verdict`), its results checked against a listing made now (`fresh`). None (no verdict
+    on this read) without the names from before the send or without a listing now."""
     found = verdict(r, want, settled)
-    if found is None or since is None:
-        return r, found
-    listed = await list_media(tunnel, dirs, timeout)
+    if found is None or before is None:
+        return r, None
+    listed = await list_media(tunnel, dirs, timeout, most)
     if listed is None:
-        return r, found
-    r = fresh(r, listed[1], since, kind, settled)
+        return r, None
+    r = fresh(r, listed, before, kind, settled)
     return r, verdict(r, want, settled)
+
+
+def before_of(state: Mapping) -> frozenset[str] | None:
+    """The names kept before the send (`provider_state.before`); None when the job has none."""
+    names = state.get("before")
+    return frozenset(n for n in names if isinstance(n, str)) if isinstance(names, list) else None
 
 
 # ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------

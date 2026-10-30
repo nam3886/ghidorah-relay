@@ -321,32 +321,37 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
     assert verdict(r, 1, settled=True) == "refused" and video_unavailable_here(r.text), "nothing was made"
 
 
-# ---- only files new since the send ---------------------------------------------------------------------------------
-NEW_ONLY = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+# ---- only files whose names were not there before the send ---------------------------------------------------------
+OLD_CARD = "    cards = [m for m in r.media if m.ref not in before]"
+NEW_ONLY = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
             "key=lambda f: -f.ms)")
-ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")), "
-            "key=lambda f: -f.ms)")
-OLDEST_FIRST = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+BY_TIME = ("    new = sorted((f for f in files if f.ms > 250 and f.mime.startswith(kind + \"/\")), "
+           "key=lambda f: -f.ms)")
+OLDEST_FIRST = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
                 "key=lambda f: f.ms)")
 UNSHOWN = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []"
 UNSHOWN_ALWAYS = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown]"
 
 
-@mutation(CHAT_FILE, NEW_ONLY, ANY_TIME, expect="a file from before the send")
+@mutation(CHAT_FILE, OLD_CARD, "    cards = list(r.media)", expect="an old file shown in a card")
+@mutation(CHAT_FILE, NEW_ONLY, BY_TIME, expect="an old file rewritten since")
 @mutation(CHAT_FILE, NEW_ONLY, OLDEST_FIRST, expect="newest first")
 @mutation(CHAT_FILE, UNSHOWN, UNSHOWN_ALWAYS, expect="only once settled")
-def test_only_files_written_after_the_send_count_cards_first_then_the_unshown_newest_first():
+def test_only_files_whose_names_were_not_there_count_cards_first_then_the_unshown_newest_first():
     old = File("workspace/your_files/ocean_waves_beach_5s.mp4", "video/mp4", 100)
     raw = File("workspace/your_files/media-generation-boat-0-1a2b.mp4", "video/mp4", 300)
     cut = File("workspace/your_files/paper_boat_5s.mp4", "video/mp4", 400)
     image = File("workspace/your_files/a-fox-0-1a2b.webp", "image/webp", 500)
     shown = reading(YOUR_FILES, "video")          # a card for ocean_waves_beach_5s.mp4
-    got = fresh(shown, [old, raw, cut, image], 200, "video", True).media
-    assert old.ref not in [m.ref for m in got], "a file from before the send"
-    assert got[0].ref == cut.ref, "newest first"
-    assert [m.ref for m in got] == [cut.ref, raw.ref] and all(m.mime == "video/mp4" for m in got)
-    new_card = fresh(shown, [old._replace(ms=250), cut], 200, "video", True).media
+    before = frozenset({old.ref})
+    got = fresh(shown, [old, raw, cut, image], before, "video", True).media
+    assert old.ref not in [m.ref for m in got], "an old file shown in a card is never a result"
+    assert [m.ref for m in got] == [cut.ref, raw.ref], "newest first"
+    assert all(m.mime == "video/mp4" for m in got)
+    rewritten = fresh(shown, [old._replace(ms=900), cut], before, "video", True).media
+    assert [m.ref for m in rewritten] == [cut.ref], "an old file rewritten since the send is never a result"
+    new_card = fresh(shown, [old, cut], frozenset(), "video", True).media
     assert [m.ref for m in new_card] == [old.ref, cut.ref], "the card first"
-    assert fresh(shown, [old, cut], 200, "video", False).media == (), "only once settled"
-    assert fresh(shown._replace(busy=True), [old, cut], 200, "video", True).media == (), "only once settled"
-    assert fresh(shown, [old._replace(ms=250), cut], 200, "video", False).media == (Media(old.ref, "video/mp4"),)
+    assert fresh(shown, [old, cut], before, "video", False).media == (), "only once settled"
+    assert fresh(shown._replace(busy=True), [old, cut], before, "video", True).media == (), "only once settled"
+    assert fresh(shown, [cut], frozenset(), "video", False).media == (Media(old.ref, "video/mp4"),)

@@ -1215,11 +1215,15 @@ with the job id); more images than paid are never delivered. Then the chat's his
   sends again; the render deadline fails it with its refund. A 4xx answer to the send is `muse.http_error` (nothing
   was made, tried again). The files are read in the tunnel (`/fs/raw/<folder><file>`): there is no public link.
 - only files new since the send are results: the media folders (`muse.media_dirs`) are listed (`POST /fs/list`) just
-  before the send, their newest time kept on the job (`provider_state.since`), and again at a verdict. A file of the
-  job's kind written after that time is the job's, whether the chat shows it or not (live 30/10: an edit's image saved
-  in `your_files` with no card, a video named only by a `sandbox://` link in the answer; both had been refunded). A
-  card of a file that was there before is not a result. When a folder cannot be listed before the send, the chat's
-  cards are taken as before and nothing else.
+  before the send, the names of their images and videos kept on the job (`provider_state.before`, at most
+  `muse.media_max_files`), and again at a verdict. A file of the job's kind whose name was not there is the job's,
+  whether the chat shows it or not (live 30/10: an edit's image saved in `your_files` with no card, a video named only
+  by a `sandbox://` link in the answer; both had been refunded). A name that was there is never a result, shown in a
+  card or rewritten since. Fail closed: when the folders cannot be listed before the send (or hold more names than
+  are kept), nothing is sent and the job goes back to the queue (`muse.workspace_unlisted`: no attempt, no strike, the
+  account rests 5 minutes); when they cannot be listed at the verdict, that read gives no verdict. A settled chat with
+  no new file is refused only once that held `muse.files_grace_s` over later reads (a file may land just after the
+  answer).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1229,6 +1233,8 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.settle_s` | 45 | an unchanged, complete chat this long delivers fewer results than asked, or fails an answer in words |
 | `muse.poll_interval_s` | 30 | between two reads of a job that outlived its submit |
 | `muse.media_dirs` | `workspace/imagine_media/`, `workspace/your_files/` | the folders a result may come from, listed before the send and at the verdict |
+| `muse.media_max_files` | 5000 | the most image and video names kept for a send; more sends nothing |
+| `muse.files_grace_s` | 60 | how long a settled chat with no new file is read again before it is refused |
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
 | `muse.lease_timeout_s` | 30 | how long muse may take to lease a new account's first workspace |

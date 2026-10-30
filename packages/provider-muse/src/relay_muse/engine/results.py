@@ -4,8 +4,9 @@ All three read only. The job's side chat id was persisted before the send (`exte
 - reconcile reads that chat: any event in it (the job's own message first) proves the order is there, `Found`, and
   the poll follows it. An empty or unknown chat proves nothing (muse may still be writing it): `StillUnknown`,
   answered; `NotSent` is never returned, so a lost send is never sent twice; the render deadline refunds it;
-- the poll reads the chat with the submit's rules (`chat.decide`: only files new since the send's listing,
-  `provider_state.since`, count); "settled" is the same reading on two polls at least `muse.settle_s` apart (kept in
+- the poll reads the chat with the submit's rules (`chat.decide`: only files whose names were not in the send's
+  listing, `provider_state.before`, count; a settled chat with none is refused once that held `muse.files_grace_s`,
+  from `provider_state.empty_at`); "settled" is the same reading on two polls at least `muse.settle_s` apart (kept in
   `provider_state.seen`);
 - the fetch reads `GET /fs/raw/<ref>` in the tunnel (there is no public URL): 404 is gone for good.
 
@@ -24,6 +25,7 @@ from relay_core.refusals import refused_accounts
 from relay_muse import errors
 from relay_muse.engine.chat import (
     LAST,
+    before_of,
     decide,
     delete_chat,
     history_events,
@@ -64,14 +66,17 @@ async def _say(ctx, text: str) -> None:
         log.warning("event not recorded: %s", type(e).__name__)
 
 
-def _settled(state, seen: list, now: datetime, settle_s: float) -> bool:
-    if state.get("seen") != seen:
-        return False
+def _at(value) -> datetime | None:
     try:
-        since = datetime.fromisoformat(str(state.get("seen_at")))
+        at = datetime.fromisoformat(str(value))
     except ValueError:
-        return False
-    return since.tzinfo is not None and (now - since).total_seconds() >= settle_s
+        return None
+    return at if at.tzinfo is not None else None
+
+
+def _settled(state, seen: list, now: datetime, settle_s: float) -> bool:
+    since = _at(state.get("seen_at")) if state.get("seen") == seen else None
+    return since is not None and (now - since).total_seconds() >= settle_s
 
 
 async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
@@ -82,7 +87,7 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
         return PollResult(Pending("the job names no muse chat", next_in_s=interval, answered=False))
     kind, state, now = job.params.get("kind"), job.provider_state or {}, deps.now()
     dirs, timeout = settings.get("muse.media_dirs"), settings.get("muse.call_timeout_s")
-    before = state.get("since") if type(state.get("since")) is int else None
+    before, most = before_of(state), settings.get("muse.media_max_files")
     try:
         async with opened(ctx, settings, deps, chat=False) as (_web, tunnel):
             reply = await tunnel.call("GET", history_path(session), timeout=timeout)
@@ -92,12 +97,17 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
                 seen = signature(reading)
                 reading, found = await decide(tunnel, reading, want_of(job.params),
                                               _settled(state, seen, now, settings.get("muse.settle_s")), before,
-                                              kind, dirs, timeout)
+                                              kind, dirs, timeout, most)
     except Exception as e:      # noqa: BLE001 - a failed read: polled again, never a verdict
         return PollResult(Pending("the chat could not be read (%s)" % type(e).__name__, next_in_s=interval,
                                   answered=False))
     if events is None:
         return PollResult(Pending("muse gave no history for the chat", next_in_s=interval, answered=False))
+    empty_at = None
+    if found == "refused":
+        first = _at(state.get("empty_at"))
+        if first is None or (now - first).total_seconds() < settings.get("muse.files_grace_s"):
+            empty_at, found = (first or now).isoformat(), None     # refused only once no new file held the grace
     if found == "done":
         await _say(ctx, made_note(reading, want_of(job.params), kind, job.id))
         return PollResult(Done(outputs(reading, want_of(job.params), session, **paid_of(job))),
@@ -117,7 +127,7 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
         return PollResult(Failed(errors.REFUSED, "muse answered with no %s: %s" % (kind, words)))
     since = state.get("seen_at") if state.get("seen") == seen else now.isoformat()
     return PollResult(Pending("muse is still working", next_in_s=interval,
-                              state_patch={"seen": seen, "seen_at": since}))
+                              state_patch={"seen": seen, "seen_at": since, "empty_at": empty_at}))
 
 
 async def _drop_chat(ctx, settings, deps: Deps, session: str) -> None:

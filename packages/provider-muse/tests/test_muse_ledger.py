@@ -136,7 +136,7 @@ def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
     assert account_charges(db, job_id) == [(1, False)]
 
 
-NEW_ONLY = ("    new = sorted((f for f in files if f.ms > since and f.mime.startswith(kind + \"/\")), "
+NEW_ONLY = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
             "key=lambda f: -f.ms)")
 ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")), "
             "key=lambda f: -f.ms)")
@@ -179,7 +179,8 @@ def test_a_lost_send_found_later_is_charged_once_whatever_reads_follow(db):
         job_id, claimed = await sent_job(p, key_id)
         await store.apply_submit(p, claimed, submit_mod.SubmitResult(submit_mod.Ambiguous("no answer to the send")),
                                  caps=jobkit.CAPS, pools=jobkit.POOLS)
-        view = dataclasses.replace(await store.job_view(p, job_id), external_ref=sid, params={"kind": "image", "n": 1})
+        view = dataclasses.replace(await store.job_view(p, job_id), external_ref=sid, params={"kind": "image", "n": 1},
+                                   provider_state={"session_id": sid, "before": []})
         site = Site(vm_routes_=answered("job_j01.json"))
         found = await results.reconcile(Ctx(), view, settings(), deps=site.deps())
         first = await store.apply_reconciled(p, job_id, found, read_started_at=await _now(p), caps=jobkit.CAPS,
