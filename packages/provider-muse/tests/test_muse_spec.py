@@ -272,3 +272,5 @@ def test_an_account_takes_no_job_while_another_is_in_flight_on_it():
     """A job's results are the files new on its account since the send: no other job may write there meanwhile."""
     assert SPEC.caps.one_job_per_account is True, "one job in flight per account"
     assert SPEC.caps.account_slots == 1
+    quiet = SPEC.settings()["muse.quiet_after_fail_s"]
+    assert quiet.default == 1200 and quiet.type is int, "quiet after a failed sent job, past the slowest render"

@@ -1223,7 +1223,8 @@ with the job id); more images than paid are never delivered. Then the chat's his
   are kept), nothing is sent and the job goes back to the queue (`muse.workspace_unlisted`: no attempt, no strike, the
   account rests 5 minutes); when they cannot be listed at the verdict, that read gives no verdict. A settled chat with
   no new file is refused only once that held `muse.files_grace_s` over later reads (a file may land just after the
-  answer).
+  answer). A sent job that ends with no output has its chat cancelled (`POST /chat/cancel {session_id}`, best effort)
+  before the delete.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1235,6 +1236,7 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.media_dirs` | `workspace/imagine_media/`, `workspace/your_files/` | the folders a result may come from, listed before the send and at the verdict |
 | `muse.media_max_files` | 5000 | the most image and video names kept for a send; more sends nothing |
 | `muse.files_grace_s` | 60 | how long a settled chat with no new file is read again before it is refused |
+| `muse.quiet_after_fail_s` | 1200 | an account takes no job this long after one of its sent jobs failed: muse may still be making it (with `one_job_per_account`, no job either while another is in flight on the account) |
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |
 | `muse.lease_timeout_s` | 30 | how long muse may take to lease a new account's first workspace |

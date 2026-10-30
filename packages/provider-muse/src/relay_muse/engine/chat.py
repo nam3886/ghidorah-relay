@@ -421,6 +421,22 @@ def video_unavailable_here(text: str) -> bool:
 # ---- the side chat's end --------------------------------------------------------------------------------------------
 LAST = "last"       # the output meta key of a job's last output: its fetch deletes the side chat
 DELETE_PATH = "/session/delete"
+CANCEL_PATH = "/chat/cancel"    # the web app's `chat.cancel` ({session_id} of a side chat), answered {cancelled}
+
+
+async def cancel_chat(tunnel: Tunnel, session: str, timeout: float) -> bool:
+    """Stop whatever muse is still doing in a job's side chat that ends with no output, so no late file lands on the
+    account (the next job's results are its new files). Best effort: never raises; True when muse said it cancelled."""
+    try:
+        reply = await tunnel.call("POST", CANCEL_PATH, {"session_id": session}, timeout=timeout)
+        body = reply.json() if reply.status == 200 else None
+        result = body.get("result") if isinstance(body, dict) else None
+        cancelled = any(isinstance(b, dict) and b.get("cancelled") is True for b in (body, result))
+        log.info("muse side chat %s cancel: %d%s", session, reply.status, " (cancelled)" if cancelled else "")
+        return cancelled
+    except Exception as e:      # noqa: BLE001 - whatever muse answers, the cancel never changes the job
+        log.warning("muse side chat %s not cancelled: %s", session, type(e).__name__)
+        return False
 
 
 async def delete_chat(tunnel: Tunnel, session: str, timeout: float, retry_after: float = 0.0) -> bool:

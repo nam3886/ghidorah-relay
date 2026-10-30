@@ -22,7 +22,7 @@ from relay_core.providers import (
     PoolSpec,
 )
 from relay_core.refusals import refusal_max_accounts_setting
-from relay_core.settings import Rule, Spec, disabled_models
+from relay_core.settings import Rule, Spec, disabled_models, quiet_after_fail_setting
 from relay_muse import catalog as C
 from relay_muse import errors as codes
 from relay_muse.constants import (
@@ -244,6 +244,10 @@ _SETTINGS = dict((
         "the account is muse's answer that the account makes no video in its country or region (the last one ends "
         "the job with muse.video_unavailable_on_accounts); a refusal of the prompt ends the job at once "
         "(muse.refused)."),
+    quiet_after_fail_setting(
+        PROVIDER, 1200, "Seconds an account takes no new job after one of its sent jobs failed (a refusal, a render "
+        "deadline): muse may still be making that job, and a result is a file new on the account since the send, so a "
+        "late file must not land while the next job is read. Longer than the slowest render seen (about 15 min)."),
     _setting("usage_stop_percent", int, 95,
              "The weekly Usage percentage at which an account is sent no more jobs until its reset (both pools read "
              "0). Below it, what is left of each pool's budget follows the percentage.", min=1, max=100),

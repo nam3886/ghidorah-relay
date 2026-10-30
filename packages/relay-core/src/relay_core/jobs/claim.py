@@ -32,7 +32,7 @@ from relay_core.db import lock_account, tx
 from relay_core.jobs.apply import RECONCILE_CLAIM_STOP_S, RENDER_BACKSTOP_S, StartupGrace
 from relay_core.jobs.create import Settings
 from relay_core.providers import REFUSED_BY, Caps
-from relay_core.settings import SettingsError
+from relay_core.settings import QUIET_AFTER_FAIL, SettingsError
 from relay_core.txguard import require_tx
 
 log = logging.getLogger(__name__)
@@ -68,7 +68,8 @@ SELECT id, account_cost, tried, created_at, pin_account_id FROM (
 # Never-checked accounts are not claimable; a pool at rest, a cooling account, a full account, an account claimed less
 # than the send gap ago, (browser only) an account with an unknown job due for a browser reconcile and
 # (`one_job_per_account`) an account with any job in flight on it (submitting, unknown, waiting, fetching: claimed and
-# not final, with or without a lease) are skipped.
+# not final, with or without a lease) or with a job that was sent and failed less than `<provider>.quiet_after_fail_s`
+# ago (upstream may still be making it, past the job's end) are skipped.
 # Untried-for-this-head first, then LRU.
 _CANDIDATES = """
 SELECT a.id FROM accounts a
@@ -86,6 +87,10 @@ SELECT a.id FROM accounts a
    AND (NOT %(single)s OR NOT EXISTS (
         SELECT 1 FROM jobs f
          WHERE f.account_id = a.id AND f.status IN ('submitting', 'unknown', 'waiting', 'fetching')))
+   AND (NOT %(single)s OR NOT EXISTS (
+        SELECT 1 FROM jobs q
+         WHERE q.account_id = a.id AND q.status = 'failed' AND q.sent_at IS NOT NULL
+           AND q.finished_at > clock_timestamp() - make_interval(secs => %(quiet)s)))
    AND (%(only)s::uuid IS NULL OR a.id = %(only)s::uuid)
  ORDER BY a.id = ANY(%(tried)s::uuid[]), a.last_used_at NULLS FIRST, a.id
 """
@@ -136,7 +141,7 @@ NO_TOKEN = _NoToken()
 
 
 async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfgs: dict[str, pool.PoolConfig],
-                        deadline_s: float, owner: str, ttl_s: float, gap_s: float,
+                        deadline_s: float, owner: str, ttl_s: float, gap_s: float, quiet_s: float = 0,
                         take_token: Callable[[], Token | None] | None) -> Claim | _NoToken | None:
     require_tx(conn)
     heads = []
@@ -149,7 +154,7 @@ async def _claim_oldest(conn: AsyncConnection, *, provider: str, caps: Caps, cfg
     heads.sort(key=lambda h: (h[0], h[1]))
     for _created, head_id, name, cfg, cost, head_tried, scope, pin in heads:
         args = {**scope, "gap": gap_s, "slots": caps.account_slots, "browser": caps.execution == "browser",
-                "single": caps.one_job_per_account,
+                "single": caps.one_job_per_account, "quiet": quiet_s,
                 "tried": list(head_tried), "only": pin}       # a pinned head's one candidate is its account
         candidates = await (await conn.execute(_CANDIDATES, args)).fetchall()
         await failpoints.hit("claim.candidates_read")
@@ -228,6 +233,7 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
 
     `settings` supplies `<provider>.claims_enabled` (drain mode, I9: a drained provider claims nothing),
     `unsent_deadline_s`, the pool windows (`<provider>.pools`) and, when the provider declares it,
+    `<provider>.quiet_after_fail_s` for a provider with `one_job_per_account`, and
     `<provider>.send_gap_s`: an account claimed (its `last_used_at`) less than that many seconds ago is not claimed
     again, so an upstream that puts a bot checkpoint in front of a busy account sees its sends spaced.
     `take_token` is the browser semaphore's
@@ -239,11 +245,13 @@ async def claim_one(db: AsyncConnectionPool, *, provider: str, caps: Caps, setti
     cfgs = pool.pool_configs(provider, caps, settings.get)
     deadline_s = settings.get("unsent_deadline_s")
     gap_s = send_gap_s(settings, provider)
+    quiet_s = settings.get(provider + QUIET_AFTER_FAIL) if caps.one_job_per_account else 0
     claim: Claim | None = None
     try:
         async with tx(db) as conn:
             found = await _claim_oldest(conn, provider=provider, caps=caps, cfgs=cfgs, deadline_s=deadline_s,
-                                        owner=owner, ttl_s=ttl_s, gap_s=gap_s, take_token=take_token)
+                                        owner=owner, ttl_s=ttl_s, gap_s=gap_s, quiet_s=quiet_s,
+                                        take_token=take_token)
             if isinstance(found, Claim):
                 claim = found
     except BaseException:

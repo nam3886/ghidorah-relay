@@ -139,13 +139,22 @@ def test_every_call_goes_through_the_accounts_proxy_and_rotated_cookies_are_kept
     assert no_proxy.made == [None]
 
 
+CANCEL = "            await cancel_chat(tunnel, self.session, step)\n"
+
+
 @mutation(SUBMIT_FILE, "                if found == \"refused\":", "                if False:", expect="Fail")
+@mutation(SUBMIT_FILE, CANCEL, "", expect="cancelled before the delete")
 def test_an_answer_in_words_with_no_image_is_refused_and_refunded_once_settled():
     site = Site(vm_routes_=vm_routes([answered("job_j07.json")]))
     result, _ = run(site)
     assert isinstance(result.job, Fail), result
     assert result.job.code == "muse.refused" and "Taylor Swift" in result.job.detail
     assert result.account == (Success(),)
+    ends = [(r.path, r.json()) for r in site.vms[0].requests if r.path in ("/chat/cancel", "/session/delete")]
+    sid = chat_of(site)
+    assert ends[:2] == [("/chat/cancel", {"session_id": sid}),
+                        ("/session/delete", {"method": "/api/session/delete", "session_id": sid})], \
+        "cancelled before the delete: %s" % ends
 
 
 NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
@@ -261,7 +270,50 @@ def test_past_the_hold_a_taken_order_is_accepted_for_the_poll():
     result, _ = run(site, image_submit_timeout_s=submit_mod.HOLD_MARGIN_S + 0.3)
     assert isinstance(result.job, Accepted), "taken: %s" % (result.job,)
     sid = chat_of(site)
-    assert result.job.ref == sid and result.job.taken and dict(result.job.provider_state) == {"session_id": sid}
+    assert result.job.ref == sid and result.job.taken
+    state = dict(result.job.provider_state)
+    assert state["session_id"] == sid and state["seen"] == [0, 0, False, False, 0] and "empty_at" not in state
+
+
+HANDOFF = '            state["empty_at"] = self._wall(self.empty)\n'
+SEEN_HANDOFF = '            state["seen"], state["seen_at"] = self.settling[0], self._wall(self.settling[1])\n'
+
+
+@mutation(SUBMIT_FILE, HANDOFF, "            pass\n", expect="the grace goes on in the poll")
+@mutation(SUBMIT_FILE, SEEN_HANDOFF, "            pass\n", expect="the grace goes on in the poll")
+def test_past_the_hold_the_grace_goes_on_in_the_poll_from_its_first_empty_read():
+    """A settled chat with no new file at the end of the hold: the poll refuses at the grace's original end."""
+    import time
+    from datetime import datetime
+
+    from relay_core.providers import Failed, Pending
+    from relay_muse.engine import results
+    start = time.monotonic()
+
+    def now():
+        return NOW + timedelta(seconds=time.monotonic() - start)
+    same = folders("2099-01-01T00:00:00.000Z")
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=same))
+    over = {"image_submit_timeout_s": submit_mod.HOLD_MARGIN_S + 0.6, "files_grace_s": 30}
+    result = asyncio.run(submit_mod.submit(Ctx(), edit_job(), settings(**over),
+                                           deps=site.deps(read_media=_media, now=now)))
+    assert isinstance(result.job, Accepted), result.job
+    handed = dict(result.job.provider_state)
+    empty_at = datetime.fromisoformat(handed.get("empty_at", "2000-01-01T00:00:00+00:00"))
+    assert NOW <= empty_at <= now(), "the grace goes on in the poll: %s" % (handed,)
+    state = {**handed, "before": names(same[0])}
+
+    def poll(at, st):
+        polled = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=same))
+        taken = job("image_to_image", external_ref=result.job.ref, state=st)
+        return asyncio.run(results.poll(Ctx(), taken, settings(files_grace_s=30),
+                                        deps=polled.deps(now=lambda: at))).outcome
+    within = poll(empty_at + timedelta(seconds=10), state)
+    assert isinstance(within, Pending), "the grace goes on in the poll: %s" % (within,)
+    state = {**state, **within.state_patch}
+    at_end = poll(empty_at + timedelta(seconds=31), state)
+    assert isinstance(at_end, Failed) and at_end.code == "muse.refused", \
+        "the grace goes on in the poll: refused at its original end, %s" % (at_end,)
 
 
 def test_a_tunnel_that_breaks_after_the_acknowledgement_leaves_the_order_taken():
@@ -476,7 +528,7 @@ KEPT = "            self.before = frozenset(f.ref for f in listed)\n"
 NOT_SENT = "            if listed is None:\n                raise Unlisted("
 LIST_FAILED = "            if not isinstance(entries, list):\n                return None\n"
 TOO_MANY = "    if len(files) > most:\n"
-GRACE = "                elif empty is None or self.deps.clock() - empty < grace:\n"
+GRACE = "                elif self.empty is None or self.deps.clock() - self.empty < grace:\n"
 MEDIA_EXT = (".webp", ".png", ".jpg", ".jpeg", ".mp4")
 
 

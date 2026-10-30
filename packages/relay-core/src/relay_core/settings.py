@@ -186,6 +186,17 @@ def _networks(v: list) -> None:
             raise ValueError("not an IP address or CIDR network: %r" % str(item)[:60]) from None
 
 
+QUIET_AFTER_FAIL = ".quiet_after_fail_s"
+
+
+def quiet_after_fail_setting(provider: str, default: int, description: str) -> tuple[str, Spec]:
+    """`<provider>.quiet_after_fail_s` as a `settings()` entry, for a provider with `Caps.one_job_per_account`: an
+    account whose sent job failed less than that long ago takes no job (the claim). The provider says why in
+    `description` and picks the default (longer than its slowest render)."""
+    key = provider + QUIET_AFTER_FAIL
+    return key, Spec(key, int, default, description, min=0, max=86400)
+
+
 def disabled_models(provider: str, model_ids: Iterable[str]) -> Spec:
     """`<provider>.disabled_models`: the public model ids (catalog ids, not aliases) the door refuses with
     `model.disabled` before any charge. Jobs already accepted run on. An id outside `model_ids` is refused."""

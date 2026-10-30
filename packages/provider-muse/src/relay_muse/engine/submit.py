@@ -55,6 +55,7 @@ from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_
 from relay_muse.engine.chat import (
     SetupError,
     Unlisted,
+    cancel_chat,
     compose,
     decide,
     delete_chat,
@@ -135,6 +136,8 @@ class _Run:
         self.dirs = settings.get("muse.media_dirs")
         self.most = settings.get("muse.media_max_files")
         self.before: frozenset[str] = frozenset()   # the media files' names before the send
+        self.empty: float | None = None   # (deps.clock) the first read of a settled chat with no new file
+        self.settling: tuple[list, float] | None = None     # the last reading's signature, unchanged since (clock)
 
     async def _say(self, text: str, stage: str = "submit") -> None:
         try:
@@ -207,7 +210,7 @@ class _Run:
     async def _hold(self, tunnel, timeout: float) -> SubmitResult:
         """Read the chat until a verdict or the hold's end. Nothing here sends the order again."""
         denied: set[str] = set()
-        seen, since, empty = None, self.deps.clock(), None
+        seen, since = None, self.deps.clock()
         grace = self.settings.get("muse.files_grace_s")
         settle_s, poll_s = self.settings.get("muse.settle_s"), self.settings.get("muse.history_poll_s")
         while True:
@@ -216,12 +219,13 @@ class _Run:
                 reading = read_history(events, self.kind, self.dirs)
                 if signature(reading) != seen:
                     seen, since = signature(reading), self.deps.clock()
+                self.settling = (seen, since)
                 reading, found = await decide(tunnel, reading, self.want, self.deps.clock() - since >= settle_s,
                                               self.before, self.kind, self.dirs, timeout, self.most)
                 if found != "refused":
-                    empty = None
-                elif empty is None or self.deps.clock() - empty < grace:
-                    empty = self.deps.clock() if empty is None else empty
+                    self.empty = None
+                elif self.empty is None or self.deps.clock() - self.empty < grace:
+                    self.empty = self.deps.clock() if self.empty is None else self.empty
                     found = None        # no new file yet: refused only once that held `muse.files_grace_s`
                 if found == "done":
                     await self._say(made_note(reading, self.want, self.kind, self.job.id))
@@ -261,13 +265,25 @@ class _Run:
     async def _drop_chat(self, tunnel, timeout: float) -> None:
         """Delete the chat of a final verdict with no output, inside what is left of the hold (so the run's bound never
         cuts it: that would turn the verdict into a taken order)."""
-        step = min(timeout, (self.deadline - self.deps.clock()) / 3)
+        step = min(timeout, (self.deadline - self.deps.clock()) / 4)
         if step > 0:
+            await cancel_chat(tunnel, self.session, step)
             await delete_chat(tunnel, self.session, step, retry_after=step)
 
     def _accepted(self) -> SubmitResult:
-        """Taken and not finished: the poll reads the chat from here."""
-        return _result(Accepted(self.session, {"session_id": self.session}), Success())
+        """Taken and not finished: the poll reads the chat from here, and goes on where the hold stopped: the reading
+        it saw and since when (`seen`, `seen_at`), and the first read of a settled chat with no new file (`empty_at`),
+        in the poll's clock and format, so neither the settle nor the grace starts again."""
+        state: dict = {"session_id": self.session}
+        if self.settling is not None:
+            state["seen"], state["seen_at"] = self.settling[0], self._wall(self.settling[1])
+        if self.empty is not None:
+            state["empty_at"] = self._wall(self.empty)
+        return _result(Accepted(self.session, state), Success())
+
+    def _wall(self, at: float) -> str:
+        """A `deps.clock` time as the poll's: an ISO time by `deps.now`."""
+        return (self.deps.now() - timedelta(seconds=self.deps.clock() - at)).isoformat()
 
     async def _unknown(self, why: str) -> SubmitResult:
         await self._say(why, "submit_error")

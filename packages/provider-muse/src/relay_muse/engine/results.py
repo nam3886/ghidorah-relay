@@ -26,6 +26,7 @@ from relay_muse import errors
 from relay_muse.engine.chat import (
     LAST,
     before_of,
+    cancel_chat,
     decide,
     delete_chat,
     history_events,
@@ -135,6 +136,7 @@ async def _drop_chat(ctx, settings, deps: Deps, session: str) -> None:
     timeout = settings.get("muse.call_timeout_s")
     try:
         async with opened(ctx, settings, deps, chat=False) as (_web, tunnel):
+            await cancel_chat(tunnel, session, timeout)
             await delete_chat(tunnel, session, timeout, retry_after=settings.get("muse.history_poll_s"))
     except Exception as e:      # noqa: BLE001 - the delete never changes the job
         log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)

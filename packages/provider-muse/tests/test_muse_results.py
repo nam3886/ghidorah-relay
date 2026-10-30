@@ -70,6 +70,7 @@ def test_a_refusal_is_failed_only_when_two_polls_settle_apart():
 NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
 POLL_NO_VIDEO = '        if kind == "video" and video_unavailable_here(reading.text):'
 POLL_DROP = "        await _drop_chat(ctx, settings, deps, session)\n"
+POLL_CANCEL = "            await cancel_chat(tunnel, session, timeout)\n"
 
 
 def deleted(site: Site) -> list[dict]:
@@ -78,6 +79,7 @@ def deleted(site: Site) -> list[dict]:
 
 @mutation(RESULTS_FILE, POLL_NO_VIDEO, "        if False:", expect="the account's code")
 @mutation(RESULTS_FILE, POLL_DROP, "", expect="deleted after a verdict with no output")
+@mutation(RESULTS_FILE, POLL_CANCEL, "", expect="cancelled before the delete")
 def test_a_poll_that_reads_muse_refusing_the_account_ends_the_job_rests_the_video_pool_and_deletes_the_chat():
     words = history(NO_VIDEO_HERE, SID)
     video = job("text_to_video", external_ref=SID, state={"session_id": SID, "before": []})
@@ -95,6 +97,8 @@ def test_a_poll_that_reads_muse_refusing_the_account_ends_the_job_rests_the_vide
     assert isinstance(rest, Rest) and rest.pool == "video" and rest.until == NOW + timedelta(seconds=2, days=7)
     assert deleted(site) == [{"method": "/api/session/delete", "session_id": SID}], \
         "deleted after a verdict with no output"
+    ends = [r.path for vm in site.vms for r in vm.requests if r.path in ("/chat/cancel", "/session/delete")]
+    assert ends == ["/chat/cancel", "/session/delete"], "cancelled before the delete: %s" % ends
     j07 = history("job_j07.json", SID)
     seen = poll(Site(vm_routes_=vm_routes([j07])), taken()).outcome.state_patch
     prompt, refused = refused_after_grace(lambda: vm_routes([j07]), lambda st: taken(state=st), dict(seen),
