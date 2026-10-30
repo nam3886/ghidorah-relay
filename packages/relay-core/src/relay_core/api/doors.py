@@ -323,23 +323,27 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
         raise ApiError(refused.code, "model") from None
 
 
-# The tiers of the provider's live accounts (not dead, not disabled), whether checked yet or not.
-_LIVE_TIERS = "SELECT tier FROM accounts WHERE provider = %s AND state = 'available'"
+# The provider's live accounts (not dead, not disabled), whether checked yet or not: each one's tier and the balance
+# the upstream last reported in the job's pool (NULL: none).
+_LIVE_ACCOUNTS = ("SELECT a.tier, p.reported_left FROM accounts a LEFT JOIN account_pools p "
+                  "ON p.account_id = a.id AND p.pool = %s WHERE a.provider = %s AND a.state = 'available'")
 
 
 async def _check_servable(gate: Gate, spec: ProviderSpec, plan: Plan) -> None:
-    """403 `model.unavailable` when the provider has live accounts and none of their tiers can ever pay the job in its
-    pool (a pro-only option with only free accounts): refused before the charge instead of waiting queued until
-    `queue.never_started`. Only the tier's budget is read, never a rest, today's spend or a cooldown: those pass and
-    the job waits. No live account at all answers as before (the job waits for one). A read outside the creation
-    transaction: advisory, the claim stays the judge."""
+    """403 `model.unavailable` when the provider has live accounts and none of them can ever pay the job in its pool:
+    neither its tier's budget nor a balance the upstream reported covers the cost (a pro-only option with only free
+    accounts). Refused before the charge instead of waiting queued until `queue.never_started`. Never a rest, today's
+    spend or a cooldown: those pass and the job waits; a reported balance counts whatever its refill, so the check only
+    refuses when it is sure. No live account at all answers as before (the job waits for one). A read outside the
+    creation transaction: advisory, the claim stays the judge."""
     cfg = None if plan.pool is None else pool_configs(spec.name, spec.caps, gate.settings.get).get(plan.pool)
     if cfg is None:
         return
     async with gate.pool.connection() as conn:
-        tiers = [t for (t,) in await (await conn.execute(_LIVE_TIERS, (spec.name,))).fetchall()]
-    assert plan.account_cost is not None          # priced by plan_job
-    if tiers and not any(tier_can_hold(cfg, t, plan.account_cost) for t in tiers):
+        live = await (await conn.execute(_LIVE_ACCOUNTS, (plan.pool, spec.name))).fetchall()
+    cost = plan.account_cost
+    assert cost is not None                       # priced by plan_job
+    if live and not any(tier_can_hold(cfg, tier, cost) or (left is not None and left >= cost) for tier, left in live):
         raise ApiError("model.unavailable", "model")
 
 
