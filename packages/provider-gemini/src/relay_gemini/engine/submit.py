@@ -15,14 +15,19 @@ Money rules that shape this file (each has a test and a mutation):
   with the time its send started and gives the sent text back (FINDINGS 4). No id we send is echoed, and a tracking
   code typed into the prompt is drawn into the image, so the text goes verbatim and the reconciler matches it.
 - One send per job, never a second: nothing after `mark_sent` returns `Retry`, nor `NotTaken` but for gemini's own
-  "something went wrong, try again" final answer (below).
+  "something went wrong, try again" final answer and a refusal of the account (below), both complete with nothing made.
 - Only a complete answer is a verdict: clean (every line read) and closed by gemini's end item (`Answer.ended`).
   Complete with the job's media: `Completed`. A video send complete with the "generating" item and a chat: `Accepted`.
   Complete with a final text and no media: gemini answered for good, the job fails with its refund
   (`gemini.not_entitled` for the "upgrade your subscription" answer, `gemini.video_limit` for "I can't create more
   videos for you today", `gemini.limit_reached` for a refusal that empties a pool (below), `gemini.refused`
-  otherwise, the text kept in the detail). The one exception: a final text
-  saying something went wrong on gemini's side and asking to try again (`is_temporary_failure`) is `NotTaken`
+  otherwise, the text kept in the detail). The first three refuse the ACCOUNT, not the order, and the complete answer
+  proves nothing was made (no media; the upgrade answer's "generating" item ends failed, "User is out of video
+  generation quota", FINDINGS 7): the job goes to another account (`relay_core.refusals.account_refused`, no attempt
+  used) and fails with that code, refunded, on the `gemini.refusal_max_accounts`-th account; the not-entitled account's
+  pool for the job rests `gemini.not_entitled_rest_s`. `gemini.refused` (the prompt) fails at once. The one exception:
+  a final text saying something went wrong on gemini's side and asking to try again, or Google's fixed "I seem to be
+  encountering an error" answer (`is_temporary_failure`), is `NotTaken`
   (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
   core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
   one, or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage
@@ -65,6 +70,7 @@ from relay_core.providers import (
     SubmitResult,
     Success,
 )
+from relay_core.refusals import account_refused
 from relay_gemini import catalog as C
 from relay_gemini import errors
 from relay_gemini.constants import (
@@ -76,6 +82,7 @@ from relay_gemini.constants import (
     NOT_ENTITLED_LINK,
     QUOTA_WORDS,
     REFUSAL_WORDS,
+    TEMPORARY_FAILURE_ANSWERS,
     TEMPORARY_FAILURE_PHRASES,
     TRY_AGAIN_PHRASES,
     VIDEO_LIMIT_PHRASES,
@@ -282,8 +289,11 @@ def plain(text: str) -> str:
 
 def is_temporary_failure(text: str) -> bool:
     """Is it gemini's "something went wrong on our end, try again" answer: a failure on its side, not a refusal? A
-    refusal word (a policy, another prompt, "can't create", ...) wins over both phrases."""
+    refusal word (a policy, another prompt, "can't create", ...) wins over both phrases. A whole answer that is one of
+    Google's fixed failure answers (`TEMPORARY_FAILURE_ANSWERS`) is one too."""
     t = plain(text)
+    if t in TEMPORARY_FAILURE_ANSWERS:
+        return True
     if any(w in t for w in REFUSAL_WORDS):
         return False
     return any(p in t for p in TEMPORARY_FAILURE_PHRASES) and any(p in t for p in TRY_AGAIN_PHRASES)
@@ -355,9 +365,15 @@ def video_room_short(settings, room: tuple[int, datetime | None] | None) -> bool
     return room is not None and room[0] < int(settings.get("gemini.video_usage_units"))
 
 
-def answer_result(status: int, answer: Answer | None, settings, now: datetime, *, video: bool = False,
-                  music: bool = False, rid: str | None = None, spent: Balance | None = None) -> SubmitResult:
-    """A send's verdict. Never `Retry`, and `NotTaken` only for a complete "something went wrong, try again" answer.
+# the refusals of the account, not of the order: the job moves to another account (`answer_result`)
+ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.VIDEO_LIMIT, errors.LIMIT_REACHED)
+
+
+def answer_result(status: int, answer: Answer | None, settings, now: datetime, job, account_id: str, *,
+                  video: bool = False, music: bool = False, rid: str | None = None,
+                  spent: Balance | None = None) -> SubmitResult:
+    """A send's verdict. Never `Retry`; `NotTaken` only for a complete "something went wrong, try again" answer and
+    for a refusal of the account (`ACCOUNT_REFUSALS`) while `gemini.refusal_max_accounts` allows another account.
     `spent`: what the usage read right after a refusal gave the job's pool (`usage_spent`)."""
     rest = pacing(settings, now)
     verdict, what = judge(status, answer, video=video, music=music)
@@ -375,8 +391,16 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, *
     if verdict == "refused":
         code, text = what
         effects = limit_effects(settings, now, code, text, video, spent)
-        return _result(Fail(refusal_code(code, effects), "gemini answered: %s" % text[:300], {CHAT_KEY: answer.cid}),
-                       Success(), *rest, *effects)
+        code, detail = refusal_code(code, effects), "gemini answered: %s" % text[:300]
+        if code not in ACCOUNT_REFUSALS:
+            return _result(Fail(code, detail, {CHAT_KEY: answer.cid}), Success(), *rest, *effects)
+        if code == errors.NOT_ENTITLED:     # the plan lacks it: the pool's other jobs would be refused alike
+            until = now + timedelta(seconds=int(settings.get("gemini.not_entitled_rest_s")))
+            effects += (Rest(job_pool(job), until, "gemini: the account's plan does not include this"),)
+        outcome = account_refused(job, account_id, settings, not_taken=OUT_OF_POINTS, final=code, detail=detail)
+        if isinstance(outcome, Fail):       # the chat is kept on the failed job only: a requeue's state outlives it
+            outcome = Fail(outcome.code, outcome.detail, {**outcome.state_patch, CHAT_KEY: answer.cid})
+        return _result(outcome, Success(), *rest, *effects)
     return _result(Ambiguous(what), *rest)
 
 
@@ -431,7 +455,8 @@ async def submit(ctx, job, settings, sessions: Sessions, *, transport=None,
             verdict, what = judge(status, answer, video=video, music=music)
             pool = limit_read_pool(*what, job_pool(job)) if verdict == "refused" else None
             spent = await usage_spent(site, pool, settings) if pool else None
-            return answer_result(status, answer, settings, now(), video=video, music=music, rid=rid, spent=spent)
+            return answer_result(status, answer, settings, now(), job, ctx.account.id, video=video, music=music,
+                                 rid=rid, spent=spent)
     except httpx.HTTPError as e:
         why = "gemini could not be reached (%s)" % type(e).__name__     # the text may carry the proxy URL
         if sent:       # never reached: the send's own errors are caught above. Kept as the money guard.

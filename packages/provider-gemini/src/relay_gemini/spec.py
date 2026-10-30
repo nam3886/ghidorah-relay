@@ -21,6 +21,7 @@ from relay_core.providers import (
     Plan,
     PoolSpec,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Spec, disabled_models
 from relay_gemini import catalog as C
 from relay_gemini import errors as codes
@@ -108,6 +109,16 @@ _SETTINGS = dict((
     _setting("video_limit_rest_s", int, 18000,
              "Seconds an account's video pool reads 0 (and rests) after gemini answers it can make no more videos for "
              "now, when the usage read names no reset (the short usage window is 5 h).", min=600, max=7 * 86400),
+    _setting("not_entitled_rest_s", int, 86400,
+             "Seconds an account's pool rests after gemini answers that the account's plan does not include the job "
+             "(\"upgrade your subscription\"): its other jobs of that kind would be refused alike.", min=600,
+             max=30 * 86400),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one job may try when gemini refuses the account, not the order: the plan does "
+        "not include it (gemini.not_entitled), the video limit (gemini.video_limit) or a refusal on a used-up pool "
+        "(gemini.limit_reached), each a complete answer with nothing made. The job goes to another account, no "
+        "attempt used; the refusal on the last account ends it failed with that code and its full refund. 1 ends it "
+        "at the first refusal. A refusal of the prompt (gemini.refused) ends the job at once."),
     _setting("video_usage_units", int, 470,
              "Units of the 5-hour usage window one video takes (measured 25/10: about 470 of 2400). A video is not "
              "sent to an account whose window holds fewer: gemini takes it and never renders it.", min=1, max=100000),

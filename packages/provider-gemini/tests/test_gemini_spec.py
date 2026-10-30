@@ -69,6 +69,8 @@ def test_the_caps_say_an_http_provider_with_an_image_and_a_video_pool_checked_ev
 
 @mutation(SPEC_FILE, '    _setting("claims_enabled", bool, False,', '    _setting("claims_enabled", bool, True,',
           expect="gemini must stay drained")
+@mutation(SPEC_FILE, '    _setting("not_entitled_rest_s", int, 86400,',
+          '    _setting("not_entitled_rest_s", int, 3600,', expect="rests the pool a day")
 def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["gemini.claims_enabled"].default is False, "gemini must stay drained until the owner turns it on"
@@ -88,6 +90,9 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
         {"free": 100, "pro": None}, {"pro": 750}, {"pro": 15120}]
     assert pools.default["image_pro"] == day_pool({"free": 0, "pro": 100, "ultra": 1000})
     assert s["gemini.video_limit_rest_s"].default == 5 * 3600
+    assert s["gemini.not_entitled_rest_s"].default == 86400, "a plan without the option rests the pool a day"
+    refusals = s["gemini.refusal_max_accounts"]
+    assert (refusals.default, refusals.min, refusals.max) == (2, 1, 9), "a second account, then the refund"
     assert all(s[k].description for k in s) and _problems(SPEC) == []
 
 

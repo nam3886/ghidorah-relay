@@ -35,6 +35,7 @@ from geminikit import (
 from relay_core import errors as core_errors
 from relay_core.net import FetchFailed
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -43,8 +44,10 @@ from relay_core.providers import (
     Done,
     Fail,
     Failed,
+    NotTaken,
     Output,
     Pending,
+    Rest,
     Retry,
     Success,
 )
@@ -69,6 +72,7 @@ PRO = {"authuser": 4, "mode": MODE_FLASH_LITE}      # what the check keeps for t
 EMAIL = "owner.pro@example.com"
 T2V_CHAT = "c_000000000000a000"                     # the redacted ids of the recorded chats
 I2V_CHAT = "c_000000000000a002"
+LAST = {REFUSED_BY: ["acc-0"]}      # a job another account refused: this refusal is the last the default (2) allows
 
 
 async def media(ref) -> bytes:
@@ -193,7 +197,7 @@ LIMIT_REST = ("        return (spent,) if spent is not None and spent.refill_at 
 def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_video_pool():
     text = "I can't create more videos for you today, but I can still find videos from the web."
     log = []
-    result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+    result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job(state=LAST))
     assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
         "the video limit answer became %s" % (result.job,)
     assert errors.CODES[errors.VIDEO_LIMIT].refund and errors.CODES[errors.VIDEO_LIMIT].terminal
@@ -203,7 +207,7 @@ def test_the_video_limit_answer_fails_with_its_refund_and_rests_the_accounts_vid
     log = []
     assert run(pro_site(log, send=answer(text)), pro_ctx(log), job()).job.code == errors.REFUSED
     log = []
-    upgrade = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log), video_job()).job
+    upgrade = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log), video_job(state=LAST)).job
     assert isinstance(upgrade, Fail) and upgrade.code == errors.NOT_ENTITLED, \
         "the upgrade answer became %s" % (upgrade,)
 
@@ -483,7 +487,7 @@ def test_a_generating_answer_with_any_other_text_is_accepted_never_refunded_and_
             "a generating answer with text became %s" % (result.job,)
     log = []
     result = run(pro_site(log, send=generating_answer("I can't create more videos for you today.")), pro_ctx(log),
-                 video_job())
+                 video_job(state=LAST))
     assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
         "the limit beside the generating item became %s" % (result.job,)
     # a chat read with text beside the item stays pending
@@ -511,12 +515,12 @@ def test_the_limit_answer_is_known_in_its_variants_and_a_quota_like_refusal_in_a
                  "Sorry, I cannot create more videos right now.", "You've reached your daily video limit!",
                  "I can't   create\nmore videos, sorry."):
         log = []
-        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job(state=LAST))
         assert result.job.code == errors.VIDEO_LIMIT, "a variant of the limit became %s: %r" % (result.job, text)
     for text in ("Hôm nay tôi không thể tạo thêm video cho bạn.", "Has alcanzado el límite de videos.",
                  "I can't make any more of these until tomorrow."):
         log = []
-        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+        result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job(state=LAST))
         assert isinstance(result.job, Fail) and result.job.code == errors.LIMIT_REACHED, \
             "a quota-like answer is the limit, not a content refusal: %r" % text
         assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] \
@@ -533,7 +537,7 @@ def test_the_limit_resets_answer_is_the_limit_and_a_hard_time_answer_with_no_tas
     refusal (rephrasing helps): refunded, nothing rested; with the generating item it is a taken video."""
     log = []
     result = run(pro_site(log, send=answer("I can create more videos as soon as your limit resets.")), pro_ctx(log),
-                 video_job())
+                 video_job(state=LAST))
     assert isinstance(result.job, Fail) and result.job.code == errors.VIDEO_LIMIT, \
         "the limit resets answer became %s" % (result.job,)
     assert [e.pool for e in result.account if isinstance(e, Balance) and e.left_n == 0] == ["video"]
@@ -615,7 +619,7 @@ def test_a_limit_empties_the_pool_until_the_reset_the_usage_read_names_and_an_im
     log = []
     text = "I can't create more videos for you today, but I can still find videos from the web."
     result = run(pro_site(log, send=answer(text), rpc={"jSf9Qc": [usage(2400), usage(0)]}), pro_ctx(log),
-                 video_job())
+                 video_job(state=LAST))
     assert result.job.code == errors.VIDEO_LIMIT
     assert Balance("video", 0, RESET, "5h") in result.account, "not the usage read's reset: %s" % (result.account,)
     # an image refusal, however it is worded, empties nothing while the usage read shows units left
@@ -629,7 +633,7 @@ def test_a_limit_empties_the_pool_until_the_reset_the_usage_read_names_and_an_im
     # ... and empties the image pool until the reset when the read shows a used-up window
     log = []
     result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), pro_ctx(log),
-                 job())
+                 job(state=LAST))
     assert result.job.code == errors.LIMIT_REACHED, "a refusal on a used-up window is the limit: %s" % (result.job,)
     limit, refused = core_errors.RULES[errors.LIMIT_REACHED], core_errors.RULES[errors.REFUSED]
     assert (limit.refund, limit.terminal, limit.counts_attempt, limit.free_retries) == (
@@ -703,3 +707,69 @@ def test_a_video_still_generating_on_a_used_up_window_fails_as_the_limit_after_t
     assert isinstance(got.outcome, Pending), "given up too soon: %s" % (got.outcome,)
     got = poll(pro_site([], rpc={"hNvQHb": T2V_PENDING, "jSf9Qc": usage(2400)}), old)
     assert isinstance(got.outcome, Pending), "a window with room: the render is waited for"
+
+
+# ---- a refusal of the account moves the job (relay_core.refusals, owner's ruling 25/10) ---------------------------
+OUT_OF_POINTS = "pool.account_out_of_points"
+ACCOUNT_MOVE = "        if code not in ACCOUNT_REFUSALS:\n"
+ACCOUNT_CODES = "ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.VIDEO_LIMIT, errors.LIMIT_REACHED)"
+ENTITLED_REST = "        if code == errors.NOT_ENTITLED:     # the plan lacks it"
+CHAT_ON_FAIL = "{**outcome.state_patch, CHAT_KEY: answer.cid}"
+NOT_ENTITLED_REASON = "gemini: the account's plan does not include this"
+
+
+@mutation(SUBMIT_FILE, ACCOUNT_MOVE, "        if True:\n", expect="moved to another account")
+@mutation(SUBMIT_FILE, ACCOUNT_CODES, "ACCOUNT_REFUSALS = (errors.VIDEO_LIMIT, errors.LIMIT_REACHED)",
+          expect="moved to another account")
+@mutation(SUBMIT_FILE, ENTITLED_REST, "        if False:     # the plan lacks it", expect="did not rest")
+@mutation(SUBMIT_FILE, CHAT_ON_FAIL, "outcome.state_patch", expect="the chat")
+def test_the_upgrade_answer_moves_the_job_to_another_account_and_fails_refunded_on_the_last_one():
+    """The recorded free-plan answer ("If you upgrade your subscription, ..."): complete, no video, its "generating"
+    item ended failed ("User is out of video generation quota"): nothing was made, and what is refused is the
+    account's plan, not the order. The job goes to another account with no attempt used and the account's video pool
+    rests `gemini.not_entitled_rest_s` (a day); the refusal on the `gemini.refusal_max_accounts`-th account (2) fails
+    it `gemini.not_entitled`, refunded, its public code unchanged, the chat kept on the failed job only."""
+    log = []
+    first = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log, account_id="acc-1"), video_job())
+    assert first.job == NotTaken(OUT_OF_POINTS, {REFUSED_BY: ["acc-1"]}), \
+        "the upgrade answer was not moved to another account: %s" % (first.job,)
+    assert Rest("video", NOW + timedelta(days=1), NOT_ENTITLED_REASON) in first.account, \
+        "the video pool did not rest: %s" % (first.account,)
+    assert log.count("SEND") == 1
+    assert not core_errors.RULES[OUT_OF_POINTS].counts_attempt and not core_errors.RULES[OUT_OF_POINTS].terminal
+    log = []
+    last = run(pro_site(log, send=NOT_ENTITLED), pro_ctx(log, account_id="acc-2"),
+               video_job(state=first.job.state_patch))
+    assert isinstance(last.job, Fail) and last.job.code == errors.NOT_ENTITLED, \
+        "the last account's refusal moved to another account: %s" % (last.job,)
+    assert last.job.state_patch == {REFUSED_BY: ["acc-1", "acc-2"], "chat": cid_of(NOT_ENTITLED)}, \
+        "the chat is not on the failed job: %s" % (last.job.state_patch,)
+    assert Rest("video", NOW + timedelta(days=1), NOT_ENTITLED_REASON) in last.account, "did not rest"
+    rule = errors.CODES[errors.NOT_ENTITLED]
+    assert rule.refund and rule.terminal and core_errors.shown(errors.NOT_ENTITLED)[0] == "invalid_input"
+
+
+@mutation(SUBMIT_FILE, ACCOUNT_CODES, "ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.VIDEO_LIMIT)",
+          expect="a refusal on a used-up pool was not moved")
+@mutation(SUBMIT_FILE, ACCOUNT_CODES, "ACCOUNT_REFUSALS = (errors.NOT_ENTITLED, errors.LIMIT_REACHED)",
+          expect="the video limit was not moved")
+def test_the_video_limit_and_a_refusal_on_a_used_up_pool_move_the_job_and_a_refusal_of_the_prompt_fails_at_once():
+    """The video limit and a refusal while the usage read shows the job's pool used up refuse the account: complete
+    answers with nothing made, the pool emptied as before, and the job goes to another account. A refusal of the
+    prompt fails on the first account."""
+    log = []
+    text = "I can't create more videos for you today, but I can still find videos from the web."
+    result = run(pro_site(log, send=answer(text)), pro_ctx(log), video_job())
+    assert result.job == NotTaken(OUT_OF_POINTS, {REFUSED_BY: ["acc-1"]}), \
+        "the video limit was not moved to another account: %s" % (result.job,)
+    assert Balance("video", 0, NOW + timedelta(seconds=5 * 3600)) in result.account
+    log = []
+    result = run(pro_site(log, send=answer("I can't help with that."), rpc={"jSf9Qc": usage(0)}), pro_ctx(log),
+                 job())
+    assert result.job == NotTaken(OUT_OF_POINTS, {REFUSED_BY: ["acc-1"]}), \
+        "a refusal on a used-up pool was not moved to another account: %s" % (result.job,)
+    assert Balance("image", 0, RESET, "5h") in result.account
+    log = []
+    result = run(pro_site(log, send=answer("I can't make videos of real people.")), pro_ctx(log), video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
+    assert REFUSED_BY not in result.job.state_patch, "a refusal of the prompt went to another account"

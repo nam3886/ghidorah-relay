@@ -51,6 +51,10 @@ VIDEO_LIMIT_PHRASES = ("can't create more videos", "can't make more videos", "ca
 # policy refusal may well ask to "try again" with another prompt, but never says something went wrong). English only.
 TEMPORARY_FAILURE_PHRASES = ("something went wrong", "went wrong on our end")
 TRY_AGAIN_PHRASES = ("try again", "try requesting it again", "try your request again")
+# Google's fixed failure answers, in `submit.plain` form, matched as the WHOLE final text (a temporary failure like the
+# phrases above): "I seem to be encountering an error. Can I try something else for you?", sent in 1-2 s when a
+# model fails on Google's side (xwteam/gemini2api b1df2d9, 26/10; it switches accounts on it).
+TEMPORARY_FAILURE_ANSWERS = ("i seem to be encountering an error can i try something else for you",)
 # Words of a refusal: an answer holding one is a refusal even with both phrases above ("Something went wrong with that
 # request. Please try again with a different prompt that follows our guidelines.").
 REFUSAL_WORDS = ("polic", "guideline", "different prompt", "another prompt", "new prompt", "rephras", "reword",

@@ -224,13 +224,11 @@ def test_an_answer_with_no_image_record_or_with_an_error_item_is_unknown_unless_
         assert isinstance(run(Gemini(log, send=text), Ctx(log)).job, Ambiguous), why
 
 
-NOT_ENTITLED_LINE = "    if NOT_ENTITLED_LINK in final:\n"
-
-
-@mutation(SUBMIT_FILE, NOT_ENTITLED_LINE, "    if False:\n", expect="not_entitled")
 @mutation(SUBMIT_FILE, '    return "refused", (errors.REFUSED, final)', '    return "unknown", final',
           expect="a refusal")
 def test_a_complete_answer_with_a_final_text_and_no_image_fails_with_its_refund_and_is_never_sent_again():
+    """A refusal of the prompt is the order's, not the account's: it fails on the first account, never moved (no
+    `refused_by`). The account refusals that move the job are in test_gemini_video.py."""
     log = []
     result = run(Gemini(log, send=answer("I can't create images of that person.")), Ctx(log))
     assert isinstance(result.job, Fail), "a refusal became %s" % result.job
@@ -238,10 +236,6 @@ def test_a_complete_answer_with_a_final_text_and_no_image_fails_with_its_refund_
     assert result.job.state_patch == {"chat": "c_00000000000000f1"} and sent(log) == 1
     rule = errors.CODES[errors.REFUSED]
     assert rule.refund and rule.terminal
-    log = []
-    result = run(Gemini(log, send=NOT_ENTITLED), Ctx(log))      # the recorded "upgrade your subscription" answer
-    assert result.job.code == errors.NOT_ENTITLED, "not_entitled: %s" % result.job
-    assert errors.CODES[errors.NOT_ENTITLED].refund and sent(log) == 1
 
 
 # the final texts of two song sends gemini failed on its side (25/10 c5a71c28, and the engine smoke's)
@@ -271,6 +265,26 @@ def test_a_final_something_went_wrong_try_again_answer_is_not_taken_with_a_count
             assert any(isinstance(e, Rest) for e in result.account), "no pacing after a send"
     rule = errors.CODES[errors.UPSTREAM_FAILED]
     assert not rule.terminal and rule.counts_attempt and rule.refund
+
+
+FIXED_ANSWER = "    if t in TEMPORARY_FAILURE_ANSWERS:\n        return True\n"
+ENCOUNTERING = "I seem to be encountering an error. Can I try something else for you?"
+
+
+@mutation(SUBMIT_FILE, FIXED_ANSWER, "", expect="encountering an error")
+def test_googles_fixed_encountering_an_error_answer_is_a_temporary_failure_only_as_the_whole_answer():
+    """Google's fixed failure answer (xwteam/gemini2api b1df2d9, 26/10) is gemini failing on its side, like "something
+    went wrong, try again": `NotTaken(gemini.upstream_failed)`. Only the whole answer: inside a longer one it is not."""
+    for model in ("gemini-music", "gemini-nano-banana-2"):
+        for text in (ENCOUNTERING, "  i seem to be encountering an error... can I try something else for you"):
+            log = []
+            result = run(Gemini(log, send=answer(text)), Ctx(log), j=job(model=model))
+            assert result.job == NotTaken(errors.UPSTREAM_FAILED), \
+                "encountering an error became %s: %r" % (result.job, text)
+            assert sent(log) == 1
+    log = []
+    result = run(Gemini(log, send=answer(ENCOUNTERING + " Here is a poem instead.")), Ctx(log))
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
 
 
 @mutation(SUBMIT_FILE, BOTH_PHRASES, EITHER_PHRASE, expect="a policy refusal")
