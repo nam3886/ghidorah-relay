@@ -27,7 +27,8 @@ PRESENTATIONS = ["file", "image", "video", "audio", "text_with_button", "generic
                  "external_link"]
 TIMEZONE = "UTC"
 HISTORY_LIMIT = 40
-_REF = re.compile(r"(?:%s)[A-Za-z0-9][A-Za-z0-9._-]{0,200}" % "|".join(map(re.escape, MEDIA_DIRS)))
+_REF = {kind: re.compile(r"(?:%s)[A-Za-z0-9][A-Za-z0-9._-]{0,200}" % "|".join(map(re.escape, dirs)))
+        for kind, dirs in MEDIA_DIRS.items()}
 _SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _APPROVAL_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _EXT_MIME = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -45,9 +46,11 @@ def is_session(value: object) -> bool:
     return isinstance(value, str) and bool(_SESSION.fullmatch(value))
 
 
-def is_media_ref(ref: object) -> bool:
-    """A file of one of muse's media folders, and nothing that could reach outside it."""
-    return isinstance(ref, str) and bool(_REF.fullmatch(ref)) and ".." not in ref
+def is_media_ref(ref: object, mime: str) -> bool:
+    """A file of a media folder of its kind (`mime`'s type: a video may be in your_files, an image may not), and
+    nothing that could reach outside it."""
+    pattern = _REF.get(mime.split("/", 1)[0])
+    return isinstance(ref, str) and pattern is not None and bool(pattern.fullmatch(ref)) and ".." not in ref
 
 
 # ---- what is said ---------------------------------------------------------------------------------------------------
@@ -197,11 +200,9 @@ def _media(item: Mapping) -> Media | None:
     if not isinstance(original, str) or "/raw/" not in original or item.get("missing"):
         return None
     ref = original.split("?", 1)[0].split("/raw/", 1)[1]
-    if not is_media_ref(ref):
-        return None
     ext = ref[ref.rfind("."):].lower()
     mime = item.get("mime") if isinstance(item.get("mime"), str) and "/" in item["mime"] else _EXT_MIME.get(ext, "")
-    return Media(ref, mime) if mime else None
+    return Media(ref, mime) if is_media_ref(ref, mime) else None
 
 
 def read_history(events: Sequence[Mapping], kind: str) -> Reading:

@@ -109,7 +109,7 @@ async def reconcile(ctx, job, settings, *, deps: Deps | None = None):
 
 async def fetch(ctx, out, settings, *, deps: Deps | None = None):
     """The bytes of one result, read through the tunnel. An async generator, as the core expects."""
-    if not is_media_ref(out.ref):
+    if not is_media_ref(out.ref, out.mime):
         raise OutputGone(errors.OUTPUT_MISSING, "the result is not a file of muse's media folder")
     async with opened(ctx, settings, deps or Deps(), chat=False) as (_web, tunnel):
         reply = await tunnel.call("GET", "/fs/raw/" + out.ref, timeout=settings.get("muse.fetch_timeout_s"))

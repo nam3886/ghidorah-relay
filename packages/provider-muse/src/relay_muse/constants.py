@@ -33,9 +33,11 @@ SEC_FETCH = {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fet
 NOISE_URL = "wss://hatch.metaaivm.com/v1/noise"
 APP_ID = "hatch-web"
 VM_HOST_SUFFIX = ".metaaivm.com"      # endpoint_url is wss://<vm_id>.metaaivm.com/ (no public DNS: never fetched)
-# A result is fetched as GET /fs/raw/<dir><file> in the tunnel. Images land in imagine_media; videos (text and image to
-# video) land in your_files since 30/10 (live job fba992d9: a your_files video judged refused and refunded).
-MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")
+# A result is fetched as GET /fs/raw/<dir><file> in the tunnel; the folders a result of each kind may come from.
+# Images land in imagine_media; videos landed there on 26/10 and land in your_files since 30/10 (live job fba992d9: a
+# your_files video judged refused and refunded). your_files holds a video only: an image there is not a result.
+MEDIA_DIRS = {"image": ("workspace/imagine_media/",),
+              "video": ("workspace/imagine_media/", "workspace/your_files/")}
 # The Usage figure: a Next.js server action found in the site's JS by its export name (its id changes per deploy).
 USAGE_ACTION = "fetchSubscriptionAction"
 QUOTA_OK = "SUFFICIENT"

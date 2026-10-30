@@ -79,9 +79,9 @@ def test_reconcile_finds_a_chat_with_our_message_and_never_says_not_sent():
 REF = "workspace/imagine_media/media-generation-a-fox-0-1a2b.webp"
 
 
-def fetch(site, ref=REF):
+def fetch(site, ref=REF, mime="image/webp"):
     async def go():
-        out = Output(ref, "image/webp", 0)
+        out = Output(ref, mime, 0)
         return [chunk async for chunk in results.fetch(Ctx(), out, settings(), deps=site.deps())]
     return asyncio.run(go())
 
@@ -95,7 +95,7 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
     assert site.vms[0].paths()[-1] == "/fs/raw/" + REF
     video = "workspace/your_files/ocean_waves_beach_5s.mp4"       # muse's videos since 30/10
     site = Site(vm_routes_=vm_routes(files={video: data}))
-    assert b"".join(fetch(site, video)) == data and site.vms[0].paths()[-1] == "/fs/raw/" + video
+    assert b"".join(fetch(site, video, "video/mp4")) == data and site.vms[0].paths()[-1] == "/fs/raw/" + video
     with pytest.raises(OutputGone) as gone:
         fetch(Site())
     assert gone.value.code == "muse.output_missing"
@@ -103,15 +103,19 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
         fetch(Site(vm_routes_=vm_routes(overrides={"/fs/raw/": (500, b"")})))
 
 
-@mutation("packages/provider-muse/src/relay_muse/engine/chat.py",
-          '    return isinstance(ref, str) and bool(_REF.fullmatch(ref)) and ".." not in ref',
-          "    return isinstance(ref, str)", expect="never leaves the media folder")
+REF_CHECK = ('    return isinstance(ref, str) and pattern is not None and bool(pattern.fullmatch(ref))'
+             ' and ".." not in ref')
+
+
+@mutation("packages/provider-muse/src/relay_muse/engine/chat.py", REF_CHECK, "    return isinstance(ref, str)",
+          expect="never leaves the media folder")
 def test_a_ref_outside_the_media_folder_is_never_read():
-    for ref in ("workspace/imagine_media/../secrets.txt", "/etc/passwd", "workspace/other/a.webp",
-                "workspace/your_files/../secrets.txt", "workspace/your_files/a/b.mp4"):
+    for ref, mime in (("workspace/imagine_media/../secrets.txt", "image/webp"), ("/etc/passwd", "image/webp"),
+                      ("workspace/other/a.webp", "image/webp"), ("workspace/your_files/../secrets.txt", "video/mp4"),
+                      ("workspace/your_files/a/b.mp4", "video/mp4"), ("workspace/your_files/a.webp", "image/webp")):
         site = Site()
         with pytest.raises(OutputGone):
-            fetch(site, ref)
+            fetch(site, ref, mime)
         assert site.calls == [], "never leaves the media folder"
 
 

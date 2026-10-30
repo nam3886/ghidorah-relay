@@ -113,11 +113,11 @@ def test_a_partial_result_is_a_full_charge_with_no_refund(db):
     assert late is None
 
 
-MEDIA_DIRS = 'MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")'
+VIDEO_DIRS = '              "video": ("workspace/imagine_media/", "workspace/your_files/")}'
 
 
-@mutation("packages/provider-muse/src/relay_muse/constants.py", MEDIA_DIRS,
-          'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="a your_files video is delivered")
+@mutation("packages/provider-muse/src/relay_muse/constants.py", VIDEO_DIRS,
+          '              "video": ("workspace/imagine_media/",)}', expect="a your_files video is delivered")
 def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
     """Live 30/10 (job fba992d9): muse saved the video in workspace/your_files; read as no media, it was refunded."""
     key_id, _ = jobkit.key(db), jobkit.account(db)
