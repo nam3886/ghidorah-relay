@@ -103,7 +103,7 @@ class Ctx:
 
 def job(operation="text_to_image", sent_text="a red fox in fresh snow", external_ref=None, state=None,
         inputs=(), pinned=None, **params):
-    kind = "image" if operation == "text_to_image" else "video"
+    kind = "image" if operation in ("text_to_image", "image_to_image") else "video"
     params = {"kind": kind, **({"n": 1} if kind == "image" else {"duration": 5}), **params}
 
     async def load():

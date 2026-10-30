@@ -29,6 +29,7 @@ from relay_muse.constants import (
     CHECK_INTERVAL_S,
     INPUT_MAX_BYTES,
     INPUT_MIMES,
+    INPUT_TOTAL_MAX_BYTES,
     LIMITS,
     MAX_ATTEMPTS,
     PROMPT_MAX_CHARS,
@@ -244,6 +245,9 @@ class MuseSpec:
                    "far above a real muse.ai jar; a longer list is not a cookie export", "cookies"),
         FixedLimit("relay_muse.catalog.MAX_N", C.MAX_N,
                    "most images (n) one muse-image job asks in its one chat, priced per image", "images"),
+        FixedLimit("relay_muse.catalog.MAX_REFS", C.MAX_REFS,
+                   "most reference images one muse-image edit attaches (1-2 followed well, 3-4 best effort, 30/10)",
+                   "images"),
     )
 
     def catalog(self) -> list[ModelSpec]:
@@ -269,25 +273,34 @@ class MuseSpec:
 
     def plan(self, req: CreateRequest, settings: Any, snapshots: Mapping[str, Mapping]) -> Plan:
         """Validate and normalise. Raises `InputError`. An image job draws `n` images (1 to `MAX_N`) from text alone,
-        in one of `IMAGE_RATIOS` or muse's own shape. A video is 5 or 10 s, from text (16:9 or 9:16, default 16:9) or
-        from one input image (its own shape, no ratio; the text is optional). A prompt that writes out another ratio,
-        length or count than the paid one is refused: muse's agent would follow the words."""
+        or ONE image from 1 to `MAX_REFS` reference images (an edit, priced as one image), in one of `IMAGE_RATIOS` or
+        muse's own shape. A video is 5 or 10 s, from text (16:9 or 9:16, default 16:9) or from one input image (its own
+        shape, no ratio; the text is optional). Input images are JPEG, PNG or WebP, each at most `INPUT_MAX_BYTES`,
+        together at most `INPUT_TOTAL_MAX_BYTES`. A prompt that writes out another ratio, length or count than the
+        paid one is refused: muse's agent would follow the words."""
         kind = C.KIND.get(req.model)
         if kind is None:
             raise _refuse("input.bad_model", "muse's models are %s" % ", ".join(C.KIND), "model")
-        if len(req.images) > (1 if kind == "video" else 0):
-            raise _refuse("input.too_many_images", "%s takes %s" % (
-                req.model, "at most one input image" if kind == "video" else "no input image"), "images")
+        if len(req.images) > (1 if kind == "video" else C.MAX_REFS):
+            raise _refuse("input.too_many_images", "%s takes at most %d input image(s)" % (
+                req.model, 1 if kind == "video" else C.MAX_REFS), "images")
         for image in req.images:
             if image.mime not in INPUT_MIMES or image.size > INPUT_MAX_BYTES:
-                raise _refuse("input.invalid", "the input image must be a JPEG, PNG or WebP of at most %d bytes"
+                raise _refuse("input.invalid", "an input image must be a JPEG, PNG or WebP of at most %d bytes"
                               % INPUT_MAX_BYTES, "images")
+        if sum(image.size for image in req.images) > INPUT_TOTAL_MAX_BYTES:
+            raise _refuse("input.invalid", "the input images together must be at most %d bytes"
+                          % INPUT_TOTAL_MAX_BYTES, "images")
+        edit = kind == "image" and bool(req.images)
         if (kind == "image" or not req.images) and C.is_blank_prompt(req.prompt):
             raise _refuse("input.empty_prompt", "the prompt shows no visible characters", "prompt")
         n = 1 if req.n is None else req.n
-        if (kind == "video" and n != 1) or not 1 <= n <= C.MAX_N:
-            raise _refuse("input.invalid", "n is 1 to %d images; a video job makes one video" % C.MAX_N, "n")
-        if prompt_counts(req.prompt, kind) - {n}:
+        if ((kind == "video" or edit) and n != 1) or not 1 <= n <= C.MAX_N:
+            raise _refuse("input.invalid", "n is 1 to %d images from text alone; an edit makes one image and a video "
+                          "one video" % C.MAX_N, "n")
+        # an edit's text names its references ("put the cat of image 1 into these 2 photos"): no count is read in it;
+        # the engine asks for one image and delivers at most one
+        if not edit and prompt_counts(req.prompt, kind) - {n}:
             raise _refuse("input.invalid", "the prompt asks for %s %s(s) but the job makes %d: set n and leave the "
                           "count out of the prompt" % (" / ".join(map(str, sorted(prompt_counts(req.prompt, kind)))),
                                                        kind, n), "prompt")
@@ -317,7 +330,8 @@ class MuseSpec:
                               "it from the prompt" % duration)
             params["duration"] = duration
             price_key = C.video_key(duration)
-        operation = {"image": "text_to_image", "video": "image_to_video" if req.images else "text_to_video"}[kind]
+        operation = {"image": "image_to_image" if req.images else "text_to_image",
+                     "video": "image_to_video" if req.images else "text_to_video"}[kind]
         return Plan(
             operation=operation, media_type=kind, model=req.model, params=params,
             completion=Completion.HOLD, after_sent=AfterSent.RECONCILE, price_key=price_key, pool=kind,

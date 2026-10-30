@@ -1,10 +1,10 @@
-"""Submit for `muse-image` (text to image) and `muse-video` (text to video, or one image animated), held in the run
-until muse's answer, or handed to the poll when it is slower than the hold.
+"""Submit for `muse-image` (text to image, or one image from 1 to 4 references) and `muse-video` (text to video, or one
+image animated), held in the run until muse's answer, or handed to the poll when it is slower than the hold.
 
 One side chat per job: open the tunnel (session, waking the workspace if needed, tokens, handshake, client register,
-subscribe, node register), persist the new chat's id with `report_ref`, then `mark_sent` and ONE `/chat/stream` (an
-input image inline in it). Then read the chat's history every `muse.history_poll_s`: the job is done once its results
-are there (`chat.verdict`), refused once a settled chat holds an answer in words and no result.
+subscribe, node register), persist the new chat's id with `report_ref`, then `mark_sent` and ONE `/chat/stream` (the
+input images inline in it, before the text). Then read the chat's history every `muse.history_poll_s`: the job is
+done once its results are there (`chat.verdict`), refused once a settled chat holds an answer in words and no result.
 
 Money rules (each has a test and a mutation):
 - the chat id is persisted BEFORE `mark_sent`, so a send whose answer was lost is looked up, never sent again;
@@ -45,6 +45,7 @@ from relay_core.providers import (
 from relay_core.redact import redact_text
 from relay_core.refusals import account_refused
 from relay_muse import errors
+from relay_muse.catalog import MAX_REFS
 from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_muse.engine.chat import (
     SetupError,
@@ -85,7 +86,8 @@ POOL_REGION_BLOCKED = "pool.account_region_blocked"
 HOLD_MARGIN_S = 15        # the run ends this long before the core's submit timeout, so its verdict is always written
 FAULT_REST_S = 300        # a proxy failure before the send rests the account this long
 VM_REST_S = 300           # a workspace that did not wake rests the account this long
-OPERATIONS = {"text_to_image": "image", "text_to_video": "video", "image_to_video": "video"}
+OPERATIONS = {"text_to_image": "image", "image_to_image": "image", "text_to_video": "video", "image_to_video": "video"}
+INPUT_COUNT = {"image_to_image": MAX_REFS, "image_to_video": 1}     # the most input images each takes
 
 
 def signed_out_effects(now) -> tuple[Suspect, Cooldown]:
@@ -136,20 +138,22 @@ class _Run:
         except Exception as exc:
             raise _CoreVerdict(exc) from exc
 
-    async def _input(self) -> tuple[bytes, str] | None:
-        if self.job.operation != "image_to_video":
-            return None
+    async def _input(self) -> list[tuple[bytes, str]]:
+        """The job's input images in the order sent: one for a video from an image, 1 to `MAX_REFS` for an edit."""
+        most = INPUT_COUNT.get(self.job.operation)
+        if most is None:
+            return []
         refs = await self.job.inputs()
-        if len(refs) != 1 or refs[0].mime not in INPUT_MIMES:
-            raise ValueError("a muse video from an image takes one JPEG, PNG or WebP")
-        return await self.deps.read_media(refs[0]), refs[0].mime
+        if not 1 <= len(refs) <= most or any(r.mime not in INPUT_MIMES for r in refs):
+            raise ValueError("a muse %s takes 1 to %d JPEG, PNG or WebP images" % (self.job.operation, most))
+        return [(await self.deps.read_media(r), r.mime) for r in refs]
 
     async def run(self) -> SubmitResult:
-        image = await self._input()       # read before anything is opened
+        images = await self._input()       # read before anything is opened
         bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()) + HOLD_MARGIN_S / 2)
         try:
             async with bound:
-                return await self._steps(image)
+                return await self._steps(images)
         except _CoreVerdict:
             raise
         except TimeoutError:
@@ -159,12 +163,12 @@ class _Run:
         except Exception as exc:      # noqa: BLE001 - mapped by `_failed`; cancellation is not an Exception
             return await self._failed(exc)
 
-    async def _steps(self, image: tuple[bytes, str] | None) -> SubmitResult:
+    async def _steps(self, images: list[tuple[bytes, str]]) -> SubmitResult:
         timeout = self.settings.get("muse.call_timeout_s")
         async with opened(self.ctx, self.settings, self.deps, chat=True, node=self.node) as (_web, tunnel):
             self.signed_in = True
-            message = compose(self.job.operation, self.job.params, self.job.sent_text)
-            body = stream_body(message, self.node, self.session, image)
+            message = compose(self.job.operation, self.job.params, self.job.sent_text, len(images))
+            body = stream_body(message, self.node, self.session, images)
             await self._core(lambda: self.ctx.report_ref(self.session, {"session_id": self.session}))
             await self._core(self.ctx.mark_sent)
             self.sent = True

@@ -78,7 +78,8 @@ def test_every_output_costs_one_use_and_sells_at_one_point():
     assert image.price_keys == {"n=1": "muse-image", "n=2": "muse-image@n2", "n=3": "muse-image@n3",
                                 "n=4": "muse-image@n4"}
     assert video.price_keys == {"5s": "muse-video@5s", "10s": "muse-video@10s"}
-    assert image.limits["max_images"] == 0 and video.limits["max_images"] == 1
+    assert image.limits["max_images"] == 4 and video.limits["max_images"] == 1
+    assert image.operations == ("text_to_image", "image_to_image")
 
 
 def test_the_pools_count_outputs_in_a_week_from_muses_reset():
@@ -109,25 +110,63 @@ def test_a_video_plans_its_length_and_its_ratio():
     assert (p.operation, dict(p.params)) == ("image_to_video", {"kind": "video", "duration": 5})
 
 
-@mutation(SPEC_FILE, "        if (kind == \"video\" and n != 1) or not 1 <= n <= C.MAX_N:",
+@mutation(SPEC_FILE, "        if ((kind == \"video\" or edit) and n != 1) or not 1 <= n <= C.MAX_N:",
           "        if False:", expect="n out of range")
 def test_the_plan_refuses_what_muse_cannot_make():
     assert refused(model="nope") == "input.bad_model"
     assert refused(n=5) == refused(n=0) == "input.invalid", "n out of range"
     assert refused(model="muse-video", prompt="x", n=2) == "input.invalid", "n out of range"
-    assert refused(images=(WEBP,)) == "input.too_many_images"
+    assert refused(images=(WEBP,) * 5) == "input.too_many_images"
     assert refused(model="muse-video", images=(WEBP, WEBP)) == "input.too_many_images"
     assert refused(prompt="   ") == "input.empty_prompt"
     assert refused(model="muse-video", prompt="​") == "input.empty_prompt"
     assert refused(ratio="21:9") == refused(model="muse-video", ratio="1:1") == "input.bad_ratio"
     assert refused(model="muse-video", prompt="", images=(WEBP,), ratio="16:9") == "input.bad_ratio"
     assert refused(duration=5) == refused(model="muse-video", duration=15) == "input.bad_duration"
-    big = MediaIn("a" * 64, "image/webp", 8 * 2**20 + 1)
+    big = MediaIn("a" * 64, "image/webp", 10 * 2**20 + 1)
     gif = MediaIn("a" * 64, "image/gif", 100)
     assert refused(model="muse-video", images=(big,)) == refused(model="muse-video", images=(gif,)) == "input.invalid"
 
 
-@mutation(SPEC_FILE, "        if prompt_counts(req.prompt, kind) - {n}:", "        if False:",
+EDIT_N = "        if ((kind == \"video\" or edit) and n != 1) or not 1 <= n <= C.MAX_N:"
+MOST_REFS = "        if len(req.images) > (1 if kind == \"video\" else C.MAX_REFS):"
+TOTAL = "        if sum(image.size for image in req.images) > INPUT_TOTAL_MAX_BYTES:"
+EDIT_OP = "        operation = {\"image\": \"image_to_image\" if req.images else \"text_to_image\","
+EDIT_COUNTS = "        if not edit and prompt_counts(req.prompt, kind) - {n}:"
+
+
+@mutation(SPEC_FILE, EDIT_N, "        if (kind == \"video\" and n != 1) or not 1 <= n <= C.MAX_N:",
+          expect="an edit makes one image")
+@mutation(SPEC_FILE, MOST_REFS, "        if len(req.images) > (1 if kind == \"video\" else 9):", expect="at most four")
+@mutation(SPEC_FILE, TOTAL, "        if False:", expect="24 MiB together")
+@mutation(SPEC_FILE, EDIT_OP, "        operation = {\"image\": \"text_to_image\",", expect="image_to_image")
+@mutation(SPEC_FILE, EDIT_COUNTS, "        if prompt_counts(req.prompt, kind) - {n}:", expect="names its references")
+@mutation("packages/provider-muse/src/relay_muse/constants.py", "INPUT_MAX_BYTES = 10 * 2**20 ",
+          "INPUT_MAX_BYTES = 12 * 2**20 ", expect="10 MiB each")
+def test_an_edit_takes_one_to_four_references_and_is_priced_as_one_image():
+    jpeg, png = MediaIn("b" * 64, "image/jpeg", 171550), MediaIn("c" * 64, "image/png", 2**20)
+    p = plan(prompt="Put the object from image 1 into the scene of image 2.", images=(jpeg, WEBP))
+    assert (p.operation, p.media_type, p.pool) == ("image_to_image", "image", "image"), "image_to_image"
+    assert p.price_key == "muse-image" == plan().price_key and dict(p.params) == {"kind": "image", "n": 1}
+    assert p.submit_timeout_s == 240 and p.completion == "hold"
+    assert dict(plan(images=(jpeg, png, WEBP, WEBP), ratio="1:1").params) == {"kind": "image", "ratio": "1:1", "n": 1}
+    assert refused(images=(WEBP,) * 5) == "input.too_many_images", "at most four"
+    assert refused(images=(WEBP,), n=2) == refused(images=(WEBP,), n=4) == "input.invalid", "an edit makes one image"
+    assert plan(images=(WEBP,), n=1).price_key == "muse-image"
+    nine = MediaIn("d" * 64, "image/png", 9 * 2**20)
+    assert plan(images=(nine, nine)).operation == "image_to_image"
+    assert refused(images=(nine, nine, nine)) == "input.invalid", "24 MiB together"
+    assert plan(images=(MediaIn("e" * 64, "image/png", 10 * 2**20),)).operation == "image_to_image"
+    assert refused(images=(MediaIn("e" * 64, "image/png", 10 * 2**20 + 1),)) == "input.invalid", "10 MiB each"
+    assert refused(images=(WEBP, MediaIn("f" * 64, "image/gif", 100))) == "input.invalid"
+    assert refused(images=(WEBP,), prompt=" ") == "input.empty_prompt"
+    assert refused(prompt="merge these 2 images into one photo", images=(WEBP, WEBP)) is None, \
+        "an edit's text names its references"
+    assert refused(prompt="a cat, 9:16", images=(WEBP,), ratio="16:9") == "input.prompt_ratio_conflict"
+    assert refused(images=(WEBP,), duration=5) == "input.bad_duration"
+
+
+@mutation(SPEC_FILE, "        if not edit and prompt_counts(req.prompt, kind) - {n}:", "        if False:",
           expect="a count in the prompt")
 @mutation(SPEC_FILE, "        if other:\n", "        if False:\n", expect="a ratio in the prompt")
 @mutation(SPEC_FILE, "            if prompt_seconds(req.prompt) - {duration}:",

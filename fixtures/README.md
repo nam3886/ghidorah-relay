@@ -522,7 +522,13 @@ of a text to video job, built from the live shapes and redacted the spike's way 
 `<redacted len=36>`): the user's message as the relay sends it, the result card of the spike's B3 video (its fields,
 with another file name) and the answer in the words of production job fba992d9, which muse wrote with a
 `sandbox://workspace/your_files/...` link and the relay failed as `muse.refused`. No cookie or token is in it.
+`history_edit_two_refs.json`: one history answer of an image edit from two references (the spike's A2: the object of
+image 1 put into the scene of image 2, 42 s, one 1920x1280 WebP of 785446 bytes in `workspace/imagine_media/`),
+derived from the shapes of `spike-261026/history_j02.json` (the spike kept no raw history of A2): the user's message
+as the relay sends an edit, A2's answer word for word and its result card (size and label), redacted the same way.
+The user event's attachment fields are not captured. No cookie or token is in it.
 
+- `muse/ref-spike-301030/history_edit_two_refs.json`
 - `muse/ref-spike-301030/history_your_files.json`
 
 ## muse.ai: video not available for the account (30/10/2026)

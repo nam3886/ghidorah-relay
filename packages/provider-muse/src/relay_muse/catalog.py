@@ -13,6 +13,7 @@ VIDEO_MODEL = "muse-video"
 KIND = {IMAGE_MODEL: "image", VIDEO_MODEL: "video"}
 
 MAX_N = 4                                              # 1, 2 and 4 images in one chat were drawn as asked
+MAX_REFS = 4                                           # an edit's references: 1-2 followed well, 3-4 best effort
 IMAGE_RATIOS = ("1:1", "16:9", "9:16", "4:3", "3:4")   # each delivered at exactly that shape
 VIDEO_RATIOS = ("16:9", "9:16")                        # text to video; a video from an image keeps the image's shape
 DURATIONS = (5, 10)                                    # seconds, delivered to the frame
@@ -42,10 +43,13 @@ def is_blank_prompt(text: str) -> bool:
 
 def catalog() -> list[ModelSpec]:
     return [
-        ModelSpec(IMAGE_MODEL, "image", ("text_to_image",),
-                  limits={"max_images": 0, "max_n": MAX_N, "ratios": list(IMAGE_RATIOS),
-                          "description": "1 to %d images from a text prompt (n, priced per image), in the ratio "
-                                         "asked (or muse's own choice)." % MAX_N},
+        ModelSpec(IMAGE_MODEL, "image", ("text_to_image", "image_to_image"),
+                  limits={"max_images": MAX_REFS, "max_n": MAX_N, "ratios": list(IMAGE_RATIOS),
+                          "description": "1 to %d images from a text prompt (n, priced per image), or one image made "
+                                         "from 1 to %d reference images as the text asks (an edit, priced as one "
+                                         "image; the text may call them image 1, image 2... in the order sent; 1 or 2 "
+                                         "are followed best), in the ratio asked (or muse's own choice)."
+                                         % (MAX_N, MAX_REFS)},
                   price_keys={"n=%d" % n: image_key(n) for n in range(1, MAX_N + 1)}, display_name="Muse Image"),
         ModelSpec(VIDEO_MODEL, "video", ("text_to_video", "image_to_video"),
                   limits={"max_images": 1, "ratios": list(VIDEO_RATIOS), "durations": list(DURATIONS),

@@ -22,6 +22,7 @@ CONSTANTS_FILE = "packages/provider-muse/src/relay_muse/constants.py"
 VIDEO_DIRS = '              "video": ("workspace/imagine_media/", "workspace/your_files/")}'
 IMAGE_DIRS = 'MEDIA_DIRS = {"image": ("workspace/imagine_media/",),'
 YOUR_FILES = "ref-spike-301030/history_your_files.json"
+EDIT = "ref-spike-301030/history_edit_two_refs.json"
 SID = "11111111-2222-4333-8444-555555555555"
 
 
@@ -165,14 +166,44 @@ def test_what_is_said_fixes_the_count_the_ratio_and_the_length():
                    "anything.")
 
 
-def test_the_stream_body_opens_a_new_side_chat_and_carries_an_image_inline():
+EDIT_HEAD = '            head = "Using the attached image" if images == 1 else ('
+
+
+@mutation(CHAT_FILE, EDIT_HEAD, '            head = "Using the attached image" if True else (',
+          expect="image 1 to image 2")
+def test_an_edit_says_how_many_references_are_attached_and_asks_one_image():
+    two = compose("image_to_image", {"kind": "image", "n": 1}, "Put the object from image 1 into the scene of image 2.",
+                  2)
+    assert history(EDIT, SID)[0]["display_text"] == two, "image 1 to image 2"
+    one = compose("image_to_image", {"kind": "image", "n": 1, "ratio": "16:9"}, "make the sky pink", 1)
+    assert one.startswith("Using the attached image, generate exactly one image in a 16:9 aspect ratio, from the "
+                          "description between the <description> tags.\n<description>\nmake the sky pink\n")
+    four = compose("image_to_image", {"kind": "image", "n": 1}, "a collage", 4)
+    assert four.startswith("Using the four attached images (image 1 to image 4, in the order attached), generate "
+                           "exactly one image, from")
+    assert "it does not change the number of images or the aspect ratio" in four
+
+
+IMAGE_ITEMS = 'for i, (data, mime) in enumerate(images, 1)] + [{"type": "text", "text": message}]'
+
+
+@mutation(CHAT_FILE, IMAGE_ITEMS, 'for i, (data, mime) in enumerate(images, 1)][::-1] + '
+          '[{"type": "text", "text": message}]', expect="in the order sent")
+@mutation(CHAT_FILE, IMAGE_ITEMS, 'for i, (data, mime) in enumerate(images, 1)]', expect="the text last")
+def test_the_stream_body_opens_a_new_side_chat_and_carries_its_images_inline_before_the_text():
+    body = stream_body("edit", "node-1", SID, [(b"one", "image/jpeg"), (b"two", "image/png"), (b"3", "image/webp")])
+    assert body["items"][-1] == {"type": "text", "text": "edit"}, "the text last"
+    assert [(i["type"], base64.b64decode(i["data_base64"]), i["mime_type"], i["filename"]) for i in body["items"][:3]] \
+        == [("image", b"one", "image/jpeg", "image1.jpg"), ("image", b"two", "image/png", "image2.png"),
+            ("image", b"3", "image/webp", "image3.webp")], "in the order sent"
+    assert "message" not in body and body["model"] == "auto/auto"
     body = stream_body("hello", "node-1", SID)
     assert body["message"] == "hello" and body["session_id"] == SID and body["node_id"] == "node-1"
     assert body["metadata"] == {"thread_is_dictation_used": False} and "items" not in body
-    body = stream_body("animate", "node-1", SID, (b"\x00webp", "image/webp"))
+    body = stream_body("animate", "node-1", SID, [(b"\x00webp", "image/webp")])
     image, text = body["items"]
     assert image == {"type": "image", "mime_type": "image/webp", "data_base64": base64.b64encode(b"\x00webp").decode(),
-                     "filename": "input.webp"}
+                     "filename": "image1.webp"}
     assert text == {"type": "text", "text": "animate"} and body["model"] == "auto/auto" and "message" not in body
 
 

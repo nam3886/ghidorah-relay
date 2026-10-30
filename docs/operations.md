@@ -1152,7 +1152,11 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 ## The muse provider (`relay worker --provider muse`)
 
 muse.ai (Meta's agent app) over plain HTTP and a Noise tunnel, no browser. Models:
-- `muse-image` (1 to 4 images from text, `n` priced per image; ratios 1:1, 16:9, 9:16, 4:3, 3:4, or none: muse picks);
+- `muse-image` (1 to 4 images from text, `n` priced per image; ratios 1:1, 16:9, 9:16, 4:3, 3:4, or none: muse picks;
+  or an edit, `image_to_image`: one image (`n` 1, the price of `muse-image`) from 1 to 4 reference images in `images`,
+  sent inline as image 1 to N in that order before the text; JPEG, PNG or WebP, each at most 10 MiB, together at most
+  24 MiB; 1 or 2 references are followed well, 3 or 4 best effort, spike of 30/10 in
+  `plans/muse-ref-spike-301030/REPORT.md`);
 - `muse-video` (a 5 or 10 s video with sound: from text, 16:9 default or 9:16, or one input image animated in its own
   shape, the text optional).
 The protocol and the spike of 26/10 are in `plans/muse-spike-261026.md` and `fixtures/muse/README.md`.

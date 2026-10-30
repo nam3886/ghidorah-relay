@@ -44,7 +44,8 @@ QUOTA_OK = "SUFFICIENT"
 
 # ---- requests ---------------------------------------------------------------------------------------------------
 PROMPT_MAX_CHARS = 4000            # not measured on muse: a cap well inside what a chat message takes
-INPUT_MAX_BYTES = 8 * 2**20        # an input image is sent inline (base64) in the chat body; 0.5 MB measured
+INPUT_MAX_BYTES = 10 * 2**20       # an input image is sent inline (base64) in the chat body; 0.5 MB measured
+INPUT_TOTAL_MAX_BYTES = 24 * 2**20  # one job's input images together (the largest body sent 30/10: 3.35 MB)
 INPUT_MIMES = ("image/jpeg", "image/png", "image/webp")
 
 # ---- timing -----------------------------------------------------------------------------------------------------
@@ -61,8 +62,11 @@ SIGNED_OUT_GAP_S = 540             # a signed-out read this soon after the last 
 
 LIMITS = (
     FixedLimit("relay_muse.constants.INPUT_MAX_BYTES", INPUT_MAX_BYTES,
-               "the largest input image a muse video takes: it travels inline in the chat body (not measured "
+               "the largest input image a muse job takes: it travels inline in the chat body (not measured "
                "above 0.5 MB)", "bytes"),
+    FixedLimit("relay_muse.constants.INPUT_TOTAL_MAX_BYTES", INPUT_TOTAL_MAX_BYTES,
+               "the most bytes of input images one muse job takes together: they travel inline in one chat body "
+               "(the largest measured 3.35 MB)", "bytes"),
     FixedLimit("relay_muse.constants.SIGNED_OUT_REST_S", SIGNED_OUT_REST_S,
                "a signed-out read rests the account this long, then it is checked again", "s"),
     FixedLimit("relay_muse.constants.SIGNED_OUT_GAP_S", SIGNED_OUT_GAP_S,

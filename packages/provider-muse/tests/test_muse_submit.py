@@ -2,6 +2,7 @@
 histories of fixtures/muse/spike-261026. Money rules first: the chat id before `mark_sent`, one send, no re-send."""
 
 import asyncio
+import base64
 import json
 from datetime import timedelta
 
@@ -15,6 +16,7 @@ from relay_core.providers import (
     Cooldown,
     Dead,
     Fail,
+    MediaRef,
     NotTaken,
     ProxyBad,
     Rest,
@@ -340,6 +342,46 @@ def test_an_image_to_video_carries_its_image_inline():
     body = stream_bodies(site)[0]
     assert body["items"][0]["data_base64"] == "UklGRndlYnA=" and body["items"][0]["mime_type"] == "image/webp"
     assert body["items"][1]["text"].startswith("Animate the attached image into exactly one 5-second video")
+    assert body["items"][0]["filename"] == "image1.webp"
+
+
+EDIT_INPUTS = '_COUNT = {"image_to_image": MAX_REFS, "image_to_video": 1}'
+
+
+@mutation(SUBMIT_FILE, EDIT_INPUTS, '_COUNT = {"image_to_video": 1}', expect="sent inline, in order")
+def test_an_edit_sends_its_references_in_order_before_the_text_and_delivers_one_image():
+    """The spike's A2 (30/10): two references, the object of image 1 put into the scene of image 2, one WebP."""
+    site = Site(vm_routes_=vm_routes([answered("ref-spike-301030/history_edit_two_refs.json", after=1)]))
+    refs = (MediaRef(0, "jobs/job-1/input/0.jpg", "image/jpeg", 4), MediaRef(1, "jobs/job-1/input/1.webp",
+                                                                            "image/webp", 4))
+    read = {r.object_key: data for r, data in zip(refs, (b"fox!", b"tower"), strict=True)}
+
+    async def media(ref):
+        return read[ref.object_key]
+
+    j = job("image_to_image", sent_text="Put the object from image 1 into the scene of image 2.", inputs=refs)
+    result = asyncio.run(submit_mod.submit(Ctx(), j, settings(), deps=site.deps(read_media=media, now=lambda: NOW)))
+    bodies = stream_bodies(site)
+    assert len(bodies) == 1 and [i["type"] for i in bodies[0].get("items", ())] == ["image", "image", "text"], \
+        "sent inline, in order"
+    body = bodies[0]
+    assert [(base64.b64decode(i["data_base64"]), i["mime_type"], i["filename"]) for i in body["items"][:2]] == [
+        (b"fox!", "image/jpeg", "image1.jpg"), (b"tower", "image/webp", "image2.webp")]
+    assert body["items"][2]["text"].startswith("Using the two attached images (image 1 to image 2, in the order "
+                                               "attached), generate exactly one image")
+    assert isinstance(result.job, Completed) and result.account == (Success(),)
+    (out,) = result.job.outputs
+    assert out.ref.startswith("workspace/imagine_media/media-generation-put-the-object-from-image-1-into-0-")
+    assert out.mime == "image/webp" and out.meta == {"session_id": chat_of(site), "job_id": "job-1", "last": True}
+    assert len(stream_bodies(site)) == 1
+
+
+def test_an_edit_whose_references_are_missing_or_not_images_sends_nothing():
+    for inputs in ((), (IMAGE_REF,) * 5, (MediaRef(0, "jobs/job-1/input/0.gif", "image/gif", 4),)):
+        site = Site(vm_routes_=vm_routes([answered("ref-spike-301030/history_edit_two_refs.json")]))
+        with pytest.raises(ValueError, match="takes 1 to 4"):
+            run(site, job("image_to_image", inputs=inputs))
+        assert stream_bodies(site) == []
 
 
 @mutation("packages/provider-muse/src/relay_muse/engine/chat.py", '            "approval_id": aid, "decision": "deny",',

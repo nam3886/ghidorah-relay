@@ -55,15 +55,21 @@ def is_media_ref(ref: object, mime: str) -> bool:
 
 
 # ---- what is said ---------------------------------------------------------------------------------------------------
-def compose(operation: str, params: Mapping[str, Any], text: str) -> str:
+def compose(operation: str, params: Mapping[str, Any], text: str, images: int = 0) -> str:
     """The message of one job. The customer's (framed) text sits between <description> tags, a tag of its own removed,
     under instructions that fix what was paid for: the count, the ratio, the length. muse's agent follows them
-    exactly (11/11 jobs, 26/10); the plan has refused a prompt that writes out another count, ratio or length."""
+    exactly (11/11 jobs, 26/10); the plan has refused a prompt that writes out another count, ratio or length. An edit
+    (`images` references) names them image 1 to N in the order attached, as muse does (30/10 spike)."""
     words = " ".join(_TAG.sub(" ", text or "").split())
     ratio = params.get("ratio")
-    if operation == "text_to_image":
+    if operation in ("text_to_image", "image_to_image"):
         n = int(params.get("n") or 1)
-        head = "Generate exactly %s separate image%s" % (_COUNT[n], "s" if n > 1 else "")
+        if operation == "image_to_image":
+            head = "Using the attached image" if images == 1 else (
+                "Using the %s attached images (image 1 to image %d, in the order attached)" % (_COUNT[images], images))
+            head += ", generate exactly one image"
+        else:
+            head = "Generate exactly %s separate image%s" % (_COUNT[n], "s" if n > 1 else "")
         if ratio:
             head += (", each in a %s aspect ratio" if n > 1 else " in a %s aspect ratio") % ratio
         what = "the number of images or the aspect ratio"
@@ -85,17 +91,17 @@ def compose(operation: str, params: Mapping[str, Any], text: str) -> str:
             "questions, and do not publish or share anything." % (head, words, what))
 
 
-def stream_body(message: str, node: str, session: str, image: tuple[bytes, str] | None = None) -> dict:
-    """The `/chat/stream` body: a new side chat (`session_id`) per job; an input image inline, before the text."""
+def stream_body(message: str, node: str, session: str, images: Sequence[tuple[bytes, str]] = ()) -> dict:
+    """The `/chat/stream` body: a new side chat (`session_id`) per job; the input images inline, in order, as
+    image1, image2... (muse calls them image 1, 2... in that order, 30/10), then the text last."""
     body: dict[str, Any] = {"node_id": node, "capabilities": CAPABILITIES, "timezone": TIMEZONE,
                             "session_id": session, "metadata": {"thread_is_dictation_used": False}}
-    if image is None:
+    if not images:
         body["message"] = message
     else:
-        data, mime = image
         body["items"] = [{"type": "image", "mime_type": mime, "data_base64": base64.b64encode(data).decode(),
-                          "filename": "input.%s" % FILE_EXT.get(mime, "jpg")},
-                         {"type": "text", "text": message}]
+                          "filename": "image%d.%s" % (i, FILE_EXT.get(mime, "jpg"))}
+                         for i, (data, mime) in enumerate(images, 1)] + [{"type": "text", "text": message}]
         body["model"] = "auto/auto"
     return body
 
