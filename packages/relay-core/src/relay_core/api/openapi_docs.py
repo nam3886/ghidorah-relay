@@ -208,6 +208,9 @@ send the request (and make a job) a second time.
 from.
 
 ## Changes
+- **2026-10-30, 2026.10.30**: a model option the service cannot serve at all for now (an option of a paid plan while
+  the service runs none) is refused at once, 403 `model.unavailable`, nothing charged, instead of waiting queued until
+  it fails `temporarily_unavailable`.
 - **2026-10-26, 2026.10.26.2**: error codes are neutral. A failed job, and a failed held or streamed facade request,
   now give one of six codes that say what it means for you, not which part of the service failed:
   `content_refused` (send it changed), `generation_failed` (sending again may work), `temporarily_unavailable` (send it
@@ -220,7 +223,7 @@ from.
 """
 
 API_TITLE = "Ghidorah Relay API"
-API_VERSION = "2026.10.26.2"    # bumped by hand with each entry of ## Changes above
+API_VERSION = "2026.10.30"    # bumped by hand with each entry of ## Changes above
 
 # Request-time refusals, by operation. The HTTP status of each code is its rule's (`relay_core.errors`).
 _KEY = ("auth.invalid_key", "auth.key_disabled")
@@ -228,8 +231,8 @@ _FACADE_CREATE = _KEY + (
     "input.invalid", "input.empty_prompt", "input.prompt_too_long", "input.too_many_images", "input.image_unreadable",
     "input.bad_model", "input.bad_duration", "input.bad_ratio", "input.bad_style", "input.unsupported",
     "input.prompt_ratio_conflict", "input.prompt_duration_conflict", "input.too_costly", "auth.model_forbidden",
-    "model.disabled", "model.unpriced", "model.uncosted", "input.idempotency_conflict", "quota.key_exceeded",
-    "quota.too_many_queued", "auth.permission_unknown")
+    "model.disabled", "model.unpriced", "model.uncosted", "model.unavailable", "input.idempotency_conflict",
+    "quota.key_exceeded", "quota.too_many_queued", "auth.permission_unknown")
 _NATIVE_CREATE = _FACADE_CREATE + ("input.bad_source", "input.source_unsupported")
 _NOT_FOUND = _KEY + ("resource.not_found",)
 _ERRORS: dict[tuple[str, str], tuple[str, ...]] = {

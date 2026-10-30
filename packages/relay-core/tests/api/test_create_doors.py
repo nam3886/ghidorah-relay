@@ -21,10 +21,12 @@ from doorkit import (
     png_uri,
     used,
 )
+from jobkit import account
 
 from relay_core import errors
 from relay_core.api import doors
 from relay_core.api import facade_common as fc
+from relay_core.pool import day_pool
 from relay_core.providers import ProviderRegistry
 from relay_core.testing.fake_provider import FAKE_MAX_PROMPT_CHARS, FakeSpec
 from relay_core.testing.mutation import mutation
@@ -663,6 +665,39 @@ def test_the_door_charges_the_settings_price_and_records_the_settings_cost_never
     assert r.status_code == 200, "the settings price it: %s" % r.text
     assert db.one("SELECT price, account_cost FROM jobs WHERE id = %s", r.json()["id"]) == (7, 3), (
         "the settings price it, the options never do")
+
+
+SERVABLE = "    await _check_servable(gate, spec, plan)\n"
+LIVE = "WHERE provider = %s AND state = 'available'\""
+
+
+@mutation(DOORS, SERVABLE, "", expect="only free accounts live")
+@mutation(DOORS, LIVE, "WHERE provider = %s AND state <> 'disabled'\"", expect="only free accounts live")
+def test_an_option_no_live_account_can_ever_take_is_refused_uncharged_and_a_spent_pool_still_waits(db):
+    """A paid-only pool (free 0) whose live accounts are all free is refused 403 model.unavailable before the charge;
+    a dead or disabled pro account does not count. A live pro account takes it even while its pool is spent and resting
+    and the account cools down: those pass, the job waits. No live account at all queues it as before."""
+    async def scenario(env):
+        key = await env.new_key()
+        await env.settings.set("fake.pools", {"video": day_pool({"free": 0, "pro": 4})})
+        no_account = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        account(db)
+        db.run("UPDATE accounts SET tier = 'pro' WHERE id IN (%s, %s)", account(db, state="dead"),
+               account(db, state="disabled"))
+        refused = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        unbound = await env.client.post(IMAGE_PATH, json={"model": IMAGE, "prompt": "a cat"}, headers=key.headers)
+        pro = account(db, left=0, cooldown_s=3600)
+        db.run("UPDATE accounts SET tier = 'pro' WHERE id = %s", pro)
+        db.run("UPDATE account_pools SET rest_until = clock_timestamp() + interval '1 hour' WHERE account_id = %s", pro)
+        waits = await env.client.post(VIDEO_PATH, json=video(), headers=key.headers)
+        return key, no_account, refused, unbound, waits
+
+    key, no_account, refused, unbound, waits = run_app(db, scenario)
+    assert no_account.status_code == 200, "no live account: queued as before: %s" % no_account.text
+    assert error_of(refused) == (403, "model.unavailable", "model"), "only free accounts live: %s" % refused.text
+    assert unbound.status_code == 200, "a pool with no budget for the tier is unknown: it allows: %s" % unbound.text
+    assert waits.status_code == 200, "a spent, resting, cooling pro account still takes it: %s" % waits.text
+    assert len(jobs(db, key.id)) == 3 and charges(db, key_id=key.id) == 3, nothing_made(db, key)
 
 
 # ---- status --------------------------------------------------------------------------------------------------------

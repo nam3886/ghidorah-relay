@@ -74,9 +74,9 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `flow.captcha_refused` | `temporarily_unavailable` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the request at its security check; nothing was made |
 | `flow.captcha_timeout` | `temporarily_unavailable` | 504 | api_error | no | yes | yes | 0 | yes | the security token for flow did not come in time; the order was not sent |
 | `flow.http_error` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | flow answered with an error before the order was sent |
-| `flow.model_access_denied` | `temporarily_unavailable` | 503 | api_error | no | yes | yes | 0 | yes | flow refused the model for the account; nothing was made |
+| `flow.model_access_denied` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | flow refused the model for the accounts the job tried; nothing was made |
 | `flow.tier_required` | `temporarily_unavailable` | 503 | api_error | no | no | no | 5 | yes | no flow account of a plan that offers this option took the order; it was not sent |
-| `flow.too_much_traffic` | `temporarily_unavailable` | 503 | api_error | no | yes | yes | 0 | yes | flow said it had too much traffic from the account; nothing was made |
+| `flow.too_much_traffic` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | flow said it had too much traffic from the accounts the job tried; nothing was made |
 | `flow.upload_failed` | `generation_failed` | 502 | api_error | no | yes | yes | 0 | yes | flow did not take an input image; the order was not sent |
 
 ## `gemini.*`
@@ -144,6 +144,7 @@ The internal reference: a client never sees these codes nor their messages. It s
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|---|
 | `model.disabled` | itself | 403 | permission_error | yes | no | no | 0 | no | this model is paused |
+| `model.unavailable` | itself | 403 | permission_error | yes | no | no | 0 | no | this model option cannot be served yet |
 | `model.uncosted` | itself | 403 | permission_error | yes | no | no | 0 | no | this model option cannot be ordered yet |
 | `model.unpriced` | itself | 403 | permission_error | yes | no | no | 0 | no | this model option has no price yet |
 
@@ -154,6 +155,7 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `muse.http_error` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | muse answered with an error before the order was taken |
 | `muse.output_missing` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | muse has no file for this result; the charge is returned |
 | `muse.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | muse answered in words without making the image or video; the charge is returned |
+| `muse.video_unavailable_on_accounts` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | muse answered on the most accounts a job may try that the account makes no video in its country or region; nothing was made and the charge is returned |
 | `muse.vm_not_ready` | `temporarily_unavailable` | 503 | api_error | no | no | no | 3 | yes | the muse workspace did not wake (or could not be leased); the order was not sent |
 
 ## `pool.*`

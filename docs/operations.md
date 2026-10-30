@@ -605,6 +605,11 @@ admin Regenerate is refused the same way, and an idempotent replay of a job made
 may not use), `GET /models/<id>` answers 404, and `/v1/providers/<p>/options` answers 404 once every model of the
 provider the key may use is paused. Live: the next request reads the new value.
 
+A request whose option no live account (not dead, not disabled) can ever take is refused the same way, 403
+`model.unavailable` ("this model option cannot be served yet"): every such account's tier has a budget in the job's
+pool (`<p>.pools`) below the job's cost, as a paid-only pool on free accounts. A pool resting, spent for today or an
+account cooling down does not refuse: the job waits. A provider with no live account at all still queues the job.
+
 ### Pinned jobs (`source_job_id`)
 
 A request to a model whose catalog entry names `limits.source` (`video` or `image`: vibes' extend, video edit and image
@@ -1102,8 +1107,9 @@ Qwen Chat (chat.qwen.ai) over plain HTTP; Chrome only mints the anti-bot pair. M
   web app's picker: offered, not yet confirmed live.
 
 The pro image model and HappyHorse 1080P are for paid qwen plans: they draw on the pools `image_pro` and `video_pro`,
-which hold nothing for a free account, so only an account whose plan read says `pro` is picked. The protocol is in
-`fixtures/qwen/FINDINGS.md`.
+which hold nothing for a free account, so only an account whose plan read says `pro` is picked. While every live
+(not dead, not disabled) qwen account is free, a request for one is refused at once, 403 `model.unavailable`, nothing
+charged (see "Paused models"). The protocol is in `fixtures/qwen/FINDINGS.md`.
 
 **What the worker needs.** The browser image (`worker-qwen`, target `browser`, profiles on `profiles-qwen`) and
 `deploy/worker-qwen.env` with the usual worker variables. No key of its own.

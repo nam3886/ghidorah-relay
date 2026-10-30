@@ -312,6 +312,13 @@ def ceiling(cfg: PoolConfig) -> int | None:
     return max(totals) if totals else None
 
 
+def tier_can_hold(cfg: PoolConfig, tier: str | None, cost: int) -> bool:
+    """Can an account of `tier` ever pay `cost` in this pool: its windows' total covers it, or no window binds the
+    tier (unknown allows). A pool that is resting or spent for today still can; a pro-only pool on a free tier never."""
+    total = _total(cfg, _tier_budgets(cfg, tier or DEFAULT_TIER))
+    return total is None or total >= cost
+
+
 @dataclass(frozen=True)
 class WindowState:
     name: str

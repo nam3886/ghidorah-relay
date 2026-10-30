@@ -4,6 +4,7 @@
       -> `DoorRequest`
       -> `plan_job`: resolve the model, the key's allow-list, the paused models, the provider's snapshots,
          `spec.plan()`, the prompt frame, the core's price and upstream cost (`relay_core.pricing`)
+      -> `_check_servable`: some live account of the provider can ever take the job's pool (`model.unavailable`)
       -> input checks and media uploads (all foreign I/O, before any transaction)
       -> `store.create_job`: idempotency, cap, charge, job row, input rows, `queued` event (one transaction)
 
@@ -47,6 +48,7 @@ from relay_core.jobs.create import (
 )
 from relay_core.jobs.titles import SHOWN_TITLE
 from relay_core.keys import ApiKey
+from relay_core.pool import pool_configs, tier_can_hold
 from relay_core.providers import (
     CreateRequest,
     FrameUse,
@@ -321,6 +323,26 @@ async def plan_job(gate: Gate, allowed_models: Sequence[str], creq: CreateReques
         raise ApiError(refused.code, "model") from None
 
 
+# The tiers of the provider's live accounts (not dead, not disabled), whether checked yet or not.
+_LIVE_TIERS = "SELECT tier FROM accounts WHERE provider = %s AND state = 'available'"
+
+
+async def _check_servable(gate: Gate, spec: ProviderSpec, plan: Plan) -> None:
+    """403 `model.unavailable` when the provider has live accounts and none of their tiers can ever pay the job in its
+    pool (a pro-only option with only free accounts): refused before the charge instead of waiting queued until
+    `queue.never_started`. Only the tier's budget is read, never a rest, today's spend or a cooldown: those pass and
+    the job waits. No live account at all answers as before (the job waits for one). A read outside the creation
+    transaction: advisory, the claim stays the judge."""
+    cfg = None if plan.pool is None else pool_configs(spec.name, spec.caps, gate.settings.get).get(plan.pool)
+    if cfg is None:
+        return
+    async with gate.pool.connection() as conn:
+        tiers = [t for (t,) in await (await conn.execute(_LIVE_TIERS, (spec.name,))).fetchall()]
+    assert plan.account_cost is not None          # priced by plan_job
+    if tiers and not any(tier_can_hold(cfg, t, plan.account_cost) for t in tiers):
+        raise ApiError("model.unavailable", "model")
+
+
 # The source of a pinned job: a finished job of the same key that ran on an account. The provider, the plan and the
 # creation transaction judge the rest (same provider, a mode that takes a source, still finished at the charge).
 _SOURCE = ("SELECT provider, model, media_type, operation FROM jobs j WHERE id = %s AND key_id = %s "
@@ -483,6 +505,7 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
     spec, plan = await plan_job(gate, key.models, creq)
     if req.media_type is not None and plan.media_type != req.media_type:
         raise ApiError("input.bad_model", "model")     # an image model on the video door, or the other way round
+    await _check_servable(gate, spec, plan)
 
     job_id = uuid.uuid4()
     inputs = []

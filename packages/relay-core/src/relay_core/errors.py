@@ -189,6 +189,9 @@ RULES: dict[str, Rule] = {r.code: r for r in (
     # refused at the door, nothing charged (no fallback price, no guessed cost).
     _r("model.unpriced", 403, "permission_error", message="this model option has no price yet", **_pre),
     _r("model.uncosted", 403, "permission_error", message="this model option cannot be ordered yet", **_pre),
+    # No live account of the provider can ever take the option (a paid-only option with only free accounts): refused at
+    # the door, nothing charged, instead of waiting queued until it never starts.
+    _r("model.unavailable", 403, "permission_error", message="this model option cannot be served yet", **_pre),
     _r("auth.forbidden", 403, "permission_error", message="the request is not allowed", **_pre),
     # The admin door: a wrong login, and a request without a live admin session.
     _r("auth.invalid_login", 401, "authentication_error", message="the username or password is wrong", **_pre),
