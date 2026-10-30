@@ -23,7 +23,10 @@ Money rules (each has a test and a mutation):
 - a job from images is sent only once meta answered every upload (`{media_id}`) and the composer shows exactly as
   many attached images, read again right before `mark_sent`: never the text without its images;
 - `mark_sent` runs immediately before the single Enter, and nothing presses Enter again: after `mark_sent` the engine
-  never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send;
+  never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send. One answer goes back to the
+  queue: meta's limit words in a DONE answer with no media at all (no final link, no preview, nothing of the other
+  kind), which proves nothing was made in that chat; the core's `account_refused` moves the job to another account
+  (a new chat there) or, on the last one `meta.refusal_max_accounts` allows, fails it refunded;
 - only the hydrated composer (the Lexical contenteditable) is typed into, never the placeholder textarea rendered
   before hydration (it ignores input for 7-12 s on a cold load);
 - Vercel's browser checkpoint sends nothing: `Retry(meta.checkpoint)` with a rest and a recheck, no strike, never a
@@ -58,11 +61,13 @@ from relay_browser.session import BrowserLaunchError, BrowserRefused, open_sessi
 from relay_browser.ui import inject_cookies
 from relay_core.net import host_allowed
 from relay_core.providers import (
+    REFUSED_BY,
     Ambiguous,
     Balance,
     Completed,
     Cooldown,
     Fail,
+    NotTaken,
     Output,
     ProxyBad,
     Retry,
@@ -70,6 +75,7 @@ from relay_core.providers import (
     Success,
 )
 from relay_core.redact import redact_text
+from relay_core.refusals import account_refused
 from relay_meta import errors
 from relay_meta.constants import (
     CHAT_PATH,
@@ -100,6 +106,7 @@ log = logging.getLogger("relay_meta.submit")
 # The platform's pool codes (the platform owns them; the engine only names them).
 POOL_LOGGED_OUT = "pool.account_logged_out"
 POOL_PROXY_FAILED = "pool.proxy_failed"
+POOL_OUT_OF_POINTS = "pool.account_out_of_points"
 NETWORK_MARK = "net::err"        # Playwright's network failures: the browser could not reach meta (the proxy)
 
 COMPOSER_WAIT_S = 30.0    # the contenteditable hydrates 7-12 s after a cold load (0.1 s warm)
@@ -616,11 +623,18 @@ class _Run:
         why = "meta finished its answer with no %s" % self.kind
         await self._say(why, "submit")
         self._evidence("no-media")
-        fail = Fail(errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO, why)
+        code = errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO
         if is_limit(answer_text(self.answer_html)):
-            # the same failure and refund; the account is not sent another job of this kind until the rest ends
-            return _result(fail, limit_balance(self.settings, self.deps.now(), self.kind))
-        return _result(fail)
+            # meta's limit on THIS account, in a done answer with no media: nothing was made, so the job goes to
+            # another account in a new chat (no attempt used) until `meta.refusal_max_accounts` refused it, then fails
+            # with `code` and its refund; either way the account gets no job of this kind until the rest ends
+            outcome = account_refused(self.job, self.ctx.account.id, self.settings, not_taken=POOL_OUT_OF_POINTS,
+                                      final=code, detail=why)
+            if isinstance(outcome, NotTaken):
+                await self._say("meta's limit on %d account(s); the job goes to another account"
+                                % len(outcome.state_patch[REFUSED_BY]), "submit")
+            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))
+        return _result(Fail(code, why))
 
     async def _receipt(self) -> str | None:
         waited = 0.0

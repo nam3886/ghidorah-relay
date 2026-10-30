@@ -21,6 +21,7 @@ from relay_core import errors, frames
 from relay_core.net import FetchFailed, UnsafeUrl
 from relay_core.pool import RepeatRest
 from relay_core.providers import (
+    REFUSED_BY,
     Ambiguous,
     Balance,
     Completed,
@@ -28,6 +29,7 @@ from relay_core.providers import (
     Dead,
     Fail,
     MediaRef,
+    NotTaken,
     Proxy,
     Retry,
     Success,
@@ -298,7 +300,7 @@ DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
 
 
 def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
-        sent=None, real_time=None, n=None, images=None, **settings):
+        sent=None, real_time=None, n=None, images=None, state=None, source=None, **settings):
     """`real_time` = (close_s, bound_s, deps): a real clock, a browser close of `close_s` and the core's own bound
     (`asyncio.timeout`, the kind's submit timeout) of `bound_s` around the submit."""
     log = page.log if log is None else log
@@ -333,7 +335,8 @@ def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "
                   upload_wait_s=0, attached_wait_s=1, evidence_wait_s=0.5)
     params = {"kind": kind, **({"ratio": ratio} if ratio else {}), **({"n": n} if n else {})}
     sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
-    job = SimpleNamespace(params=params, operation=op, sent_text=sent, inputs=inputs)
+    job = SimpleNamespace(provider="meta", params=params, operation=op, sent_text=sent, inputs=inputs,
+                          provider_state=state or {}, source=source)
     if real_time is None:
         return asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps)), ctx
     _, bound_s, more = real_time
@@ -465,21 +468,69 @@ def test_a_done_answer_without_an_image_fails_refunded_and_previews_only_stay_un
     assert isinstance(result.job, Ambiguous), "a preview is never delivered"
 
 
+LIMIT_ANSWER = ('<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true">'
+                "<p>You’ve reached your limit for creating images today. Please come back later.</p></div>")
+LIMIT_MOVES = "            outcome = account_refused(self.job, self.ctx.account.id, self.settings, "
+LIMIT_REST = "            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))\n"
+
+
 @mutation(SUBMIT_FILE, "        if is_limit(answer_text(self.answer_html)):\n", "        if False:\n",
-          expect="the pool was not emptied")
+          expect="the job did not go to another account")
 @mutation(SUBMIT_FILE, "    def handle_data(self, data) -> None:\n        self.words.append(data)\n",
-          "    def handle_data(self, data) -> None:\n        pass\n", expect="the pool was not emptied")
-def test_a_limit_answer_with_no_media_fails_refunded_as_before_and_empties_the_kinds_pool():
+          "    def handle_data(self, data) -> None:\n        pass\n", expect="the job did not go to another account")
+@mutation(SUBMIT_FILE, LIMIT_REST, "            return _result(outcome)\n", expect="the pool was not emptied")
+@mutation(SUBMIT_FILE, "not_taken=POOL_OUT_OF_POINTS,", "not_taken=errors.NO_IMAGE,",
+          expect="the job did not go to another account")
+def test_a_limit_answer_with_no_media_moves_the_job_to_another_account_and_empties_the_kinds_pool():
+    """meta's limit words in a DONE answer with no media: nothing was made in that chat, the limit is the account's.
+    The job goes back to the queue with no attempt used (a new chat on another account); the pool of its kind reads 0
+    for meta.limit_rest_s. A plain answer with no media stays a failure of the order, refunded at once."""
     cap = capture("image-1-acc1")
-    limit = ('<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true">'
-             "<p>You’ve reached your limit for creating images today. Please come back later.</p></div>")
-    result, _ = run(Page([], cap, answers=[limit]), cap)
-    assert result.job == Fail("meta.no_image", "meta finished its answer with no image"), "the outcome is unchanged"
+    page = Page([], cap, answers=[LIMIT_ANSWER])
+    result, ctx = run(page, cap)
+    assert result.job == NotTaken("pool.account_out_of_points", {REFUSED_BY: ["acct-meta-1"]}), \
+        "the job did not go to another account: %r" % (result.job,)
+    assert page.log.count("Enter") == 1
+    r = errors.rule("pool.account_out_of_points")
+    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False)
     assert Balance("image", 0, NOW + timedelta(hours=4)) in result.account, \
         "the pool was not emptied: %s" % (result.account,)
+    assert any("another account" in text for text, _, _ in ctx.events)
     bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    assert not any(isinstance(e, Balance) for e in run(Page([], cap, answers=[bare]), cap)[0].account), \
-        "a plain refusal empties no pool"
+    plain = run(Page([], cap, answers=[bare]), cap)[0]
+    assert plain.job == Fail("meta.no_image", "meta finished its answer with no image")
+    assert not any(isinstance(e, Balance) for e in plain.account), "a plain refusal empties no pool"
+
+
+@mutation(SUBMIT_FILE, LIMIT_MOVES,
+          "            outcome = (lambda *a, **k: NotTaken(POOL_OUT_OF_POINTS, {REFUSED_BY: []}))(self.job, "
+          "self.ctx.account.id, self.settings, ", expect="the last account's limit did not end the job")
+def test_the_limit_on_the_last_account_or_on_a_pinned_job_fails_it_refunded_with_todays_code():
+    cap = capture("image-1-acc1")
+    second = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, state={REFUSED_BY: ["acct-meta-0"]})[0]
+    assert isinstance(second.job, Fail) and second.job.code == "meta.no_image", \
+        "the last account's limit did not end the job: %r" % (second.job,)
+    assert second.job.detail == ("meta finished its answer with no image (refused on 2 account(s), the most "
+                                 "meta.refusal_max_accounts allows)")
+    assert second.job.state_patch == {REFUSED_BY: ["acct-meta-0", "acct-meta-1"]}
+    assert Balance("image", 0, NOW + timedelta(hours=4)) in second.account
+    r = errors.rule("meta.no_image")
+    assert (r.terminal, r.refund) == (True, True)
+    wider = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, state={REFUSED_BY: ["acct-meta-0"]},
+                meta__refusal_max_accounts=3)[0]
+    assert isinstance(wider.job, NotTaken), "at 3 the second limit goes to a third account"
+    pinned = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, source=SimpleNamespace(job_id="src", idx=0))[0]
+    assert isinstance(pinned.job, Fail) and pinned.job.code == "meta.no_image", "a pinned job runs on one account"
+    vcap = capture(VIDEO)
+    video = run(Page([], vcap, answers=[LIMIT_ANSWER]), vcap, kind="video", state={REFUSED_BY: ["acct-meta-0"]})[0]
+    assert isinstance(video.job, Fail) and video.job.code == "meta.no_video"
+    assert Balance("video", 0, NOW + timedelta(hours=4)) in video.account
+
+
+def test_meta_refusal_max_accounts_is_a_live_setting_from_1_to_9_defaulting_to_2():
+    s = SPEC.settings()["meta.refusal_max_accounts"]
+    assert (s.type, s.default, s.min, s.max) == (int, 2, 1, 9)
+    assert "limit" in s.description and "refund" in s.description
 
 
 @mutation(SUBMIT_FILE, "        if answer.previews:\n            # a part delivery",

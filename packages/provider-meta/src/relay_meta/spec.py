@@ -22,6 +22,7 @@ from relay_core.providers import (
     Plan,
     PoolSpec,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Spec, disabled_models
 from relay_meta import catalog as C
 from relay_meta import errors as codes
@@ -112,8 +113,14 @@ _SETTINGS = dict((
              "never more than half of unsent_deadline_s.", min=0, max=3600),
     _setting("limit_rest_s", int, 4 * 3600,
              "Seconds an account's image or video pool reads 0 (and rests) after meta answers with its limit or quota "
-             "words and no media (meta names no reset time). The job still fails and is refunded.",
+             "words and no media (meta names no reset time). The job goes to another account (see "
+             "meta.refusal_max_accounts).",
              min=600, max=7 * 86400),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one job may try when meta answers with its limit or quota words and no media "
+        "(nothing was made). Each such answer empties that account's image or video pool for meta.limit_rest_s and "
+        "sends the job to another account; the answer on the last one ends the job failed, with its full refund. 1 "
+        "ends it at the first. An answer with no media and no limit words fails the job at once."),
     (PROVIDER + ".disabled_models", disabled_models(PROVIDER, (m.id for m in C.catalog()))),
 ))
 
