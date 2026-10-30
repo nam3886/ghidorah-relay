@@ -93,6 +93,9 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
     site = Site(vm_routes_=vm_routes(files={REF: data}))
     assert b"".join(fetch(site)) == data
     assert site.vms[0].paths()[-1] == "/fs/raw/" + REF
+    video = "workspace/your_files/ocean_waves_beach_5s.mp4"       # muse's videos since 30/10
+    site = Site(vm_routes_=vm_routes(files={video: data}))
+    assert b"".join(fetch(site, video)) == data and site.vms[0].paths()[-1] == "/fs/raw/" + video
     with pytest.raises(OutputGone) as gone:
         fetch(Site())
     assert gone.value.code == "muse.output_missing"
@@ -104,7 +107,8 @@ def test_the_fetch_reads_the_file_in_the_tunnel_and_a_missing_one_is_gone():
           '    return isinstance(ref, str) and bool(_REF.fullmatch(ref)) and ".." not in ref',
           "    return isinstance(ref, str)", expect="never leaves the media folder")
 def test_a_ref_outside_the_media_folder_is_never_read():
-    for ref in ("workspace/imagine_media/../secrets.txt", "/etc/passwd", "workspace/other/a.webp"):
+    for ref in ("workspace/imagine_media/../secrets.txt", "/etc/passwd", "workspace/other/a.webp",
+                "workspace/your_files/../secrets.txt", "workspace/your_files/a/b.mp4"):
         site = Site()
         with pytest.raises(OutputGone):
             fetch(site, ref)

@@ -17,6 +17,9 @@ from relay_muse.engine.chat import (
 )
 
 CHAT_FILE = "packages/provider-muse/src/relay_muse/engine/chat.py"
+CONSTANTS_FILE = "packages/provider-muse/src/relay_muse/constants.py"
+MEDIA_DIRS = 'MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")'
+YOUR_FILES = "ref-spike-301030/history_your_files.json"
 SID = "11111111-2222-4333-8444-555555555555"
 
 
@@ -36,6 +39,18 @@ def test_the_recorded_answers_read_as_their_media():
     assert len(two.media) == 2, "two images, one card each"
     i2v = reading("job_j10.json", "video")
     assert len(i2v.media) == 1 and i2v.media[0].ref.endswith(".mp4")
+
+
+@mutation(CONSTANTS_FILE, MEDIA_DIRS, 'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="a your_files video")
+def test_a_video_muse_saved_in_your_files_is_its_result_not_a_refusal():
+    r = reading(YOUR_FILES, "video")
+    assert [m.ref for m in r.media] == ["workspace/your_files/ocean_waves_beach_5s.mp4"], "a your_files video"
+    assert r.media[0].mime == "video/mp4" and r.other == 0 and r.answered and "sandbox://" in r.text
+    assert verdict(r, 1, settled=True) == "done"
+    (out,) = outputs(r, 1, SID, job_id="job-1", duration=5, ratio="16:9")
+    assert out.ref == "workspace/your_files/ocean_waves_beach_5s.mp4" and out.mime == "video/mp4"
+    as_image = reading(YOUR_FILES, "image")
+    assert as_image.media == () and as_image.other == 1, "a video is never an image's result"
 
 
 def test_the_refusal_is_an_answer_in_words_with_no_media():
@@ -99,11 +114,18 @@ def test_media_of_the_other_kind_a_missing_file_or_a_strange_path_is_never_deliv
     assert read_history(image_card, "image").media == ()
     item["missing"] = False
     for bad in ("https://x.metaaivm.com/media/raw/workspace/imagine_media/../../etc/passwd",
+                "https://x.metaaivm.com/media/raw/workspace/your_files/../../etc/passwd",
                 "https://x.metaaivm.com/media/raw/workspace/other/a.webp", "https://x.metaaivm.com/no-raw/a.webp"):
         item["variants"]["original"] = bad
         assert read_history(image_card, "image").media == ()
     assert is_media_ref("workspace/imagine_media/a-1.webp") and not is_media_ref("workspace/imagine_media/a/b.webp")
     assert not is_media_ref("workspace/imagine_media/..webp") and not is_media_ref(None)
+    assert is_media_ref("workspace/your_files/fox_flies_snow_5s.mp4")
+    for bad in ("workspace/your_files/../imagine_media/a.mp4", "workspace/your_files/a/b.mp4",
+                "workspace/your_files/..mp4", "workspace/your_files/.hidden.mp4", "workspace/your_files/",
+                "workspace/your_filesX/a.mp4", "/workspace/your_files/a.mp4", "workspace/other_files/a.mp4",
+                "x/workspace/your_files/a.mp4", "workspace/your_files/a b.mp4"):
+        assert not is_media_ref(bad), bad
 
 
 def test_what_is_said_fixes_the_count_the_ratio_and_the_length():

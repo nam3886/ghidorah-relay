@@ -5,9 +5,9 @@ Pure, but for `setup` and `deny_approvals`, which talk through a `Tunnel`. Shape
 assistant's messages (`message.assistant`, `payload.status` "completed" once whole, `metadata.message_kind`
 "commentary" for a progress line, "message" for an answer) and the result cards (`delta.presentation`, `payload.kind`
 image or video, `payload.data.images[]` / `videos[]`, each with `variants.original` =
-`https://<vm>.metaaivm.com/media/raw/workspace/imagine_media/<file>`, fetched as `/fs/raw/workspace/...`). Several
-images may come in one card or one card each (2 images: two cards, 26/10). No live event is needed: the history is the
-record.
+`https://<vm>.metaaivm.com/media/raw/workspace/imagine_media/<file>`, a video `.../workspace/your_files/<file>` since
+30/10, fetched as `/fs/raw/workspace/...`). Several images may come in one card or one card each (2 images: two cards,
+26/10). No live event is needed: the history is the record.
 """
 
 import base64
@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, NamedTuple
 
 from relay_core.providers import Balance, Output
-from relay_muse.constants import MEDIA_DIR
+from relay_muse.constants import MEDIA_DIRS
 from relay_muse.engine import noise
 from relay_muse.engine.tunnel import Reply, Tunnel
 
@@ -27,7 +27,7 @@ PRESENTATIONS = ["file", "image", "video", "audio", "text_with_button", "generic
                  "external_link"]
 TIMEZONE = "UTC"
 HISTORY_LIMIT = 40
-_REF = re.compile(r"%s[A-Za-z0-9][A-Za-z0-9._-]{0,200}" % re.escape(MEDIA_DIR))
+_REF = re.compile(r"(?:%s)[A-Za-z0-9][A-Za-z0-9._-]{0,200}" % "|".join(map(re.escape, MEDIA_DIRS)))
 _SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _APPROVAL_ID = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _EXT_MIME = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -46,7 +46,7 @@ def is_session(value: object) -> bool:
 
 
 def is_media_ref(ref: object) -> bool:
-    """A file of muse's media folder, and nothing that could reach outside it."""
+    """A file of one of muse's media folders, and nothing that could reach outside it."""
     return isinstance(ref, str) and bool(_REF.fullmatch(ref)) and ".." not in ref
 
 
@@ -178,7 +178,7 @@ def history_events(reply: Reply) -> list[dict] | None:
 
 
 class Media(NamedTuple):
-    ref: str        # workspace/imagine_media/<file>
+    ref: str        # workspace/imagine_media/<file> or workspace/your_files/<file>
     mime: str
 
 

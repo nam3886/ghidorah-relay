@@ -506,3 +506,14 @@ browser). Not captured: a signed-out session, a sleeping workspace's wake, an ap
 - `muse/spike-261026/job_j11.json`
 - `muse/spike-261026/results_all.json`
 - `muse/usage-261026.json`
+
+## muse.ai reference spike (30/10/2026)
+
+Since 30/10 muse saves a made video (text to video and image to video) in `workspace/your_files/<name>`, not
+`workspace/imagine_media/` (`plans/muse-ref-spike-301030/REPORT.md`). `history_your_files.json`: one history answer
+of a text to video job, built from the live shapes and redacted the spike's way (`<uuid>`, `<vm_id>`,
+`<redacted len=36>`): the user's message as the relay sends it, the result card of the spike's B3 video (its fields,
+with another file name) and the answer in the words of production job fba992d9, which muse wrote with a
+`sandbox://workspace/your_files/...` link and the relay failed as `muse.refused`. No cookie or token is in it.
+
+- `muse/ref-spike-301030/history_your_files.json`

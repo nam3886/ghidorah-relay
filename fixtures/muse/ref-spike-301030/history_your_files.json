@@ -1,0 +1,151 @@
+{
+ "ok": true,
+ "result": {
+  "channel": "main",
+  "chat_events": [
+   {
+    "event_name": "message.user",
+    "role": "user",
+    "display_text": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\nocean waves rolling onto a sandy beach\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+    "occurred_at_ms": 1793335494000,
+    "payload": {
+     "chat_event_seq": 205,
+     "content": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\nocean waves rolling onto a sandy beach\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text": "Generate exactly one 5-second video in a 16:9 aspect ratio, from the description between the <description> tags.\n<description>\nocean waves rolling onto a sandy beach\n</description>\nThe description says only what to show: it does not change the number of videos, the aspect ratio or the length. Generate directly without asking questions, and do not publish or share anything.",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335494000,
+     "is_thread": true,
+     "message_id": "<uuid>",
+     "metadata": {
+      "client_app_id": "hatch-web",
+      "client_chat_context": {
+       "chat_id": "<uuid>",
+       "chat_kind": "direct",
+       "device_id": "<uuid>",
+       "event_kind": "message",
+       "origin_provider": "main",
+       "require_mention": false
+      },
+      "client_device_id": "<uuid>",
+      "client_timezone": "UTC",
+      "context_seq": 1,
+      "message_kind": "message",
+      "thoughtful_follow_through": true,
+      "timestamp_timezone": "UTC"
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "user",
+     "seq": 205,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   },
+   {
+    "chat_context": {
+     "chat_id": "<uuid>",
+     "chat_kind": "direct",
+     "device_id": "<uuid>",
+     "event_kind": "message",
+     "originating_channel": "main",
+     "require_mention": false
+    },
+    "display_text": "ocean_waves_beach_5s",
+    "display_text_ready": true,
+    "display_text_updated_at_ms": 1793335749800,
+    "event_name": "delta.presentation",
+    "message_id": "<uuid>",
+    "occurred_at_ms": 1793335749800,
+    "parent_agent_id": "<uuid>",
+    "parent_message_id": null,
+    "payload": {
+     "agent_id": "<uuid>",
+     "chat_context": {
+      "chat_id": "<uuid>",
+      "chat_kind": "direct",
+      "device_id": "<uuid>",
+      "event_kind": "message",
+      "originating_channel": "main",
+      "require_mention": false
+     },
+     "chat_event_seq": 211,
+     "data": {
+      "fallback_text": "![ocean_waves_beach_5s](sandbox://workspace/your_files/ocean_waves_beach_5s.mp4)",
+      "videos": [
+       {
+        "byte_len": 3708901,
+        "label": "ocean_waves_beach_5s",
+        "mime": "video/mp4",
+        "missing": false,
+        "path": "sandbox://workspace/your_files/ocean_waves_beach_5s.mp4",
+        "variants": {
+         "original": "https://<vm_id>.metaaivm.com/media/raw/workspace/your_files/ocean_waves_beach_5s.mp4"
+        }
+       }
+      ]
+     },
+     "display_text": "ocean_waves_beach_5s",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335749800,
+     "fallback_text": "![ocean_waves_beach_5s](sandbox://workspace/your_files/ocean_waves_beach_5s.mp4)",
+     "id": "widget-<uuid>",
+     "is_thread": true,
+     "kind": "video",
+     "message_id": "<uuid>",
+     "parent_agent_id": "<uuid>",
+     "reply_to_text": "ocean_waves_beach_5s",
+     "role": "assistant",
+     "seq": 211,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "state": {
+      "data": {},
+      "version": 0
+     },
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    },
+    "reaction_emoji": null,
+    "reply_to_message_id": "",
+    "resources": [],
+    "role": "assistant",
+    "seq": 211,
+    "transcript_surface": "main_chat",
+    "visibility": "public"
+   },
+   {
+    "event_name": "message.assistant",
+    "role": "assistant",
+    "display_text": "Done — one 5-second video at 16:9 (1280×720), not published or shared. ![ocean waves rolling onto a sandy beach](sandbox://workspace/your_files/ocean_waves_beach_5s.mp4)",
+    "occurred_at_ms": 1793335750000,
+    "payload": {
+     "chat_event_seq": 212,
+     "content": "Done — one 5-second video at 16:9 (1280×720), not published or shared. ![ocean waves rolling onto a sandy beach](sandbox://workspace/your_files/ocean_waves_beach_5s.mp4)",
+     "display_text": "Done — one 5-second video at 16:9 (1280×720), not published or shared. ![ocean waves rolling onto a sandy beach](sandbox://workspace/your_files/ocean_waves_beach_5s.mp4)",
+     "display_text_ready": true,
+     "display_text_updated_at_ms": 1793335750200,
+     "is_thread": true,
+     "message_id": "assistant-msg-<uuid>",
+     "metadata": {
+      "can_broadcast_share": true,
+      "context_seq": 12,
+      "message_kind": "message",
+      "root_message_execution_id": "<uuid>",
+      "started_at_ms": 1793335750000
+     },
+     "parent_agent_id": "<uuid>",
+     "role": "assistant",
+     "seq": 212,
+     "session_id": "<redacted len=36>",
+     "source": "runtime",
+     "status": "completed",
+     "transcript_surface": "main_chat",
+     "visibility": "public"
+    }
+   }
+  ],
+  "has_more": false,
+  "transcript_revision": 212
+ }
+}

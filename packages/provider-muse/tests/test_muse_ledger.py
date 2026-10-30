@@ -113,6 +113,29 @@ def test_a_partial_result_is_a_full_charge_with_no_refund(db):
     assert late is None
 
 
+MEDIA_DIRS = 'MEDIA_DIRS = ("workspace/imagine_media/", "workspace/your_files/")'
+
+
+@mutation("packages/provider-muse/src/relay_muse/constants.py", MEDIA_DIRS,
+          'MEDIA_DIRS = ("workspace/imagine_media/",)', expect="a your_files video is delivered")
+def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
+    """Live 30/10 (job fba992d9): muse saved the video in workspace/your_files; read as no media, it was refunded."""
+    key_id, _ = jobkit.key(db), jobkit.account(db)
+
+    async def scenario(p):
+        job_id, claimed = await sent_job(p, key_id)
+        result = await muse_submit("ref-spike-301030/history_your_files.json", operation="text_to_video",
+                                   ratio="16:9")
+        status = await store.apply_submit(p, claimed, result, caps=jobkit.CAPS, pools=jobkit.POOLS)
+        return job_id, status, getattr(result.job, "outputs", ())
+
+    job_id, status, outs = jobkit.run(db, scenario)
+    assert status == "fetching" and [o.ref for o in outs] == ["workspace/your_files/ocean_waves_beach_5s.mp4"], \
+        "a your_files video is delivered: %s" % status
+    assert ledger(db, key_id) == [("charge", PRICE)], "charged in full, never refunded"
+    assert account_charges(db, job_id) == [(1, False)]
+
+
 FOUND = '        return Found(session, {"session_id": session})'
 
 

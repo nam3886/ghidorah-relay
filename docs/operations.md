@@ -1203,8 +1203,8 @@ with the job id); more images than paid are never delivered. Then the chat's his
 - no verdict by the end of the submit's hold: the order is taken, the poll reads the chat every `muse.poll_interval_s`
   with the same rules. No answer to the send itself is unknown: the reconciler reads the chat (any event: found), never
   sends again; the render deadline fails it with its refund. A 4xx answer to the send is `muse.http_error` (nothing
-  was made, tried again). The files are read in the tunnel (`/fs/raw/workspace/imagine_media/<file>`): there is no
-  public link.
+  was made, tried again). The files are read in the tunnel (`/fs/raw/workspace/imagine_media/<file>`, a video
+  `/fs/raw/workspace/your_files/<file>` since 30/10): there is no public link.
 
 | Setting | Default | Meaning |
 |---|---|---|

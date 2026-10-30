@@ -24,7 +24,8 @@ NOW = datetime(2026, 10, 26, 8, 0, tzinfo=UTC)
 
 
 def spike(name: str) -> dict:
-    return json.loads((SPIKE / name).read_text(encoding="utf-8"))
+    """A capture of the 26/10 spike by its file name, or any muse fixture by its path under fixtures/muse."""
+    return json.loads(((FIXTURES if "/" in name else SPIKE) / name).read_text(encoding="utf-8"))
 
 
 def _fill(obj, session: str):
@@ -36,7 +37,7 @@ def _fill(obj, session: str):
 
 
 def history(name: str, session: str) -> list[dict]:
-    """The final chat events of a recorded job (`job_jNN.json`) or a recorded history answer (`history_jNN.json`)."""
+    """The final chat events of a recorded job (`job_jNN.json`) or a recorded history answer (`history_*.json`)."""
     data = spike(name)
     events = data["final_history_events"] if "final_history_events" in data else data["result"]["chat_events"]
     return _fill(events, session)
