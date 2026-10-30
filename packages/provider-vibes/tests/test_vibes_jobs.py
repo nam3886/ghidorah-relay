@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from relay_core import errors as core_errors
 from relay_core import frames
 from relay_core.providers import (
     Accepted,
@@ -229,6 +230,41 @@ def test_no_answer_after_the_send_ever_puts_the_job_back_in_the_queue():
         assert len(fake.sent("generate")) == 1
     assert result.account == (Cooldown("vibes security checkpoint", NOW + timedelta(seconds=600), recheck=True),)
     assert rests.left_s("acc-1") == 600, "the checkpoint on the generate rests the account"
+
+
+RATE_LIMIT_REST = '                       *self._rate_limit(resp, "generate"))\n'
+
+
+@mutation(SUBMIT_FILE, RATE_LIMIT_REST, "                       )\n", expect="the rate-limited account did not rest")
+@mutation(SUBMIT_FILE, "        if resp.status_code != RATE_LIMITED:\n            return ()\n", "",
+          expect="a 500 rested the account")
+def test_a_429_to_the_generate_stays_unknown_one_post_and_rests_the_account():
+    """A 429 does not prove the generate was not taken (unknown, its batch read later, never sent again), but the
+    account is rate limited: it rests vibes.rate_limit_rest_s so the claim gives it no job meanwhile."""
+    fake = Vibes([], generate=httpx.Response(429, json={"error": "slow down"}))
+    result, _ = run_submit(fake, job())
+    assert isinstance(result.job, Ambiguous) and len(fake.sent("generate")) == 1, result.job
+    assert result.account == (Cooldown("vibes rate limited the generate (429)", NOW + timedelta(seconds=600)),), \
+        "the rate-limited account did not rest: %s" % (result.account,)
+    other = run_submit(Vibes([], generate=httpx.Response(500, json={"error": "Internal"})), job())[0]
+    assert isinstance(other.job, Ambiguous) and other.account == (), "a 500 rested the account: %s" % (other.account,)
+    slower = FakeSettings(SPEC, vibes__account_min_gap_s=0, vibes__rate_limit_rest_s=900)
+    out = asyncio.run(submit(Ctx([]), job(), slower, Rests(lambda: NOW), transport=Vibes(
+        [], generate=httpx.Response(429, json={"error": "slow down"})).transport, now=lambda: NOW))
+    assert out.account[0].until == NOW + timedelta(seconds=900), "the rest is the live setting"
+
+
+@mutation(SUBMIT_FILE, "        if resp.status_code == RATE_LIMITED:        # the account's limit",
+          "        if False:        # the account's limit", expect="pool.account_throttled")
+def test_a_429_before_the_send_is_a_free_retry_that_rests_the_account_and_sends_nothing():
+    log: list = []
+    fake = Vibes(log, create=httpx.Response(429, json={"error": "slow down"}))
+    result, _ = run_submit(fake, job())
+    assert "mark_sent" not in log and "generate" not in log, log
+    assert result.job == Retry("pool.account_throttled"), result.job
+    assert result.account == (Cooldown("vibes rate limited the batch create (429)", NOW + timedelta(seconds=600)),)
+    rule = core_errors.rule("pool.account_throttled")
+    assert not rule.counts_attempt and not rule.terminal, "the account's limit is not the job's fault"
 
 
 def test_an_explicit_refusal_of_the_generate_fails_the_job_with_its_refund():

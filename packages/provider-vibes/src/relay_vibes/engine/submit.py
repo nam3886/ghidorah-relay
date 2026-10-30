@@ -19,11 +19,13 @@ Money rules that shape this file (each has a test and a mutation):
   also strikes and rests the account at once, so no other job is claimed onto a dead session. Only a 200
   `success: true` is taken; only an explicit refusal from vibes' app (a 4xx JSON other than 401/403/429, or
   `success: false`) fails the job, and so does a finished image batch whose item vibes refused
-  (`success: true`, but the item has an `error` or no media).
+  (`success: true`, but the item has an `error` or no media). A 429 is `Ambiguous` too (it does not prove the
+  generate was not taken), and the account rests `vibes.rate_limit_rest_s` so it gets no job meanwhile.
 
 Before `mark_sent` every failure is an ordinary retry: the checkpoint `pool.account_throttled` with the account's
-rest, a signed-out answer `pool.account_logged_out` with a spaced strike, a proxy that cannot reach vibes
-`pool.proxy_failed`, any other error answer `vibes.http_error`.
+rest, a 429 `pool.account_throttled` with a rest of `vibes.rate_limit_rest_s`, a signed-out answer
+`pool.account_logged_out` with a spaced strike, a proxy that cannot reach vibes `pool.proxy_failed`, any other error
+answer `vibes.http_error`.
 
 The three modes that work on the customer's own earlier job (`job.source`, a pinned job on the account that made it):
 - extend and video edit read the source's batch first (the video URL is signed and short-lived, so it is read, never
@@ -84,7 +86,8 @@ from relay_vibes.engine.http import Resting, Rests, client_for, is_checkpoint, j
 THROTTLED = "pool.account_throttled"
 LOGGED_OUT = "pool.account_logged_out"
 PROXY_FAILED = "pool.proxy_failed"
-NOT_A_REFUSAL = (*SIGNED_OUT_STATUSES, 429)     # 4xx answers that do not say vibes' app refused the order
+RATE_LIMITED = 429
+NOT_A_REFUSAL = (*SIGNED_OUT_STATUSES, RATE_LIMITED)     # 4xx answers that do not say vibes' app refused the order
 VIDEO_SOURCE_OPS = ("extend_video", "video_to_video")     # the pinned video modes (their source is a video job)
 
 _store = None
@@ -129,6 +132,14 @@ class _Run:
         self.ctx, self.job, self.settings, self.rests, self.client, self.now = ctx, job, settings, rests, client, now
         self.kind = job.params["kind"]
 
+    def _rate_limit(self, resp: httpx.Response, what: str) -> tuple[Cooldown, ...]:
+        """vibes' 429 to a call of this account: the account rests `vibes.rate_limit_rest_s`, so the claim gives it no
+        job meanwhile. () for any other answer."""
+        if resp.status_code != RATE_LIMITED:
+            return ()
+        rest_s = int(self.settings.get("vibes.rate_limit_rest_s"))
+        return (Cooldown("vibes rate limited the %s (429)" % what, self.now() + timedelta(seconds=rest_s)),)
+
     def _before_send(self, resp: httpx.Response, what: str) -> None:
         """A step before the send that vibes did not answer with 200 raises `_Stop` with its retry."""
         if resp.status_code == 200:
@@ -136,6 +147,8 @@ class _Run:
         if is_checkpoint(resp):
             _, cooldown = checkpoint_rest(self.ctx, self.settings, self.rests, "vibes security checkpoint")
             raise _Stop(_result(Retry(THROTTLED), cooldown))
+        if resp.status_code == RATE_LIMITED:        # the account's limit, not the order's: no attempt used
+            raise _Stop(_result(Retry(THROTTLED), *self._rate_limit(resp, what)))
         if resp.status_code in SIGNED_OUT_STATUSES:
             raise _Stop(_result(Retry(LOGGED_OUT), *doubt_effects(
                 "not signed in: vibes answered %d to the %s" % (resp.status_code, what), self.now())))
@@ -264,7 +277,8 @@ class _Run:
                 return _result(Fail(errors.SESSION_EXPIRED, "vibes answered %d to the image edit: the session is "
                                     "gone" % resp.status_code), *doubt)
             return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code), *doubt)
-        return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code))
+        return _result(Ambiguous("vibes answered %d to the image edit" % resp.status_code),
+                       *self._rate_limit(resp, "image edit"))
 
     def generate_body(self, batch: str, prompt: str, config: dict, frame: dict | None) -> dict:
         if self.kind == "image":
@@ -303,7 +317,9 @@ class _Run:
             said = body.get("error") or body.get("message") or "no reason given"
             return _result(Fail(errors.GENERATE_REFUSED, "vibes refused the order (%d): %s"
                                 % (resp.status_code, str(said)[:300]), {BATCH_KEY: batch}))
-        return _result(Ambiguous("vibes answered %d to the generate" % resp.status_code))
+        # a 429 is not proof the generate was not taken: unknown, but the account rests
+        return _result(Ambiguous("vibes answered %d to the generate" % resp.status_code),
+                       *self._rate_limit(resp, "generate"))
 
 
 async def submit(ctx, job, settings, rests: Rests, *, transport=None,

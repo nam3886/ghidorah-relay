@@ -80,6 +80,11 @@ _SETTINGS = dict((
              "The longest rest a repeated security checkpoint gives a vibes account (the rest doubles per repeat); "
              "below checkpoint_rest_s it counts as checkpoint_rest_s.",
              min=60, max=86400),
+    _setting("rate_limit_rest_s", int, 600,
+             "Seconds a vibes account gets no job after vibes answered one of its calls with 429 (rate limited). "
+             "Before the send the job goes to another account with no attempt used; a 429 to the generate itself "
+             "leaves the job unknown (vibes may have taken it) and its batch is read again.",
+             min=60, max=86400),
     _setting("send_gap_s", int, 300,
              "Least seconds between two jobs one vibes account takes. 15 images 32 s apart and then 5 more 90 s "
              "apart each ended in vibes' security checkpoint (25/10). 0 = no gap; "

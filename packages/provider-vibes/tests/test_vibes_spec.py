@@ -79,6 +79,7 @@ def test_vibes_stays_drained_by_default_and_declares_the_settings_the_core_reads
     assert (s["vibes.poll_interval_s"].default, s["vibes.poll_interval_s"].min) == (20, 10), "slower than 2-6 s"
     assert s["vibes.checkpoint_rest_s"].default == 600 and s["vibes.checkpoint_rest_s"].min == 60
     assert s["vibes.checkpoint_rest_max_s"].default == 7200, "a repeated checkpoint rests at most 2 h"
+    assert (s["vibes.rate_limit_rest_s"].default, s["vibes.rate_limit_rest_s"].min) == (600, 60)
     gap = s["vibes.send_gap_s"]
     assert (gap.type, gap.default, gap.min) == (int, 300, 0), "a vibes account takes a job at most every 5 min"
     assert all(s[k].description for k in s)
