@@ -1,4 +1,4 @@
-"""`relay serve | worker | migrate | admin | keygen | key | provider | seed-settings | jobs | e2e`.
+"""`relay serve | worker | migrate | admin | keygen | key | provider | jobs | e2e`.
 
 Imports happen per subcommand, because they are the process boundary: `serve` loads relay_core and
 every provider's spec and never an engine; `worker --provider X` loads X's engine, and so pulls in
@@ -394,55 +394,6 @@ def provider_mode(specs: list[Any], provider: str, drain: bool) -> int:
     return asyncio.run(with_pool(run))
 
 
-# ponytail: a one-off path from the environment to the settings (owner, 25/10); remove this command and its table
-# once production is seeded and the variables are gone from the box's env files.
-SEED_FROM_ENV = {"public_address": "PUBLIC_BASE_URL", "trusted_proxies": "TRUSTED_PROXIES"}
-
-
-def seed_settings(specs: list[Any], env: Mapping[str, str] = os.environ) -> int:
-    """One-off, after the deploy that made these values settings: each setting below that has no stored value takes
-    its old environment variable. `public_address` <- PUBLIC_BASE_URL and `trusted_proxies` <- TRUSTED_PROXIES (comma
-    separated) are in the api's env; every secret setting `<p>.<name>` <- `<P>_<NAME>` (each of flow's three solver
-    keys) is in that provider's worker env, and is stored sealed. Run it in each container whose env
-    holds them: a variable that is empty here is skipped. A stored value is never replaced. Prints the outcome per
-    setting, never a value."""
-    from relay_core import crypto
-    from relay_core.settings import Settings, SettingsError
-
-    seeds = dict(SEED_FROM_ENV)
-    for spec in specs:
-        seeds.update({k: k.upper().replace(".", "_") for k, s in spec.settings().items() if s.secret})
-    if not env.get(crypto.PUBLIC_KEY_VAR, "").strip():
-        try:                                        # a worker holds the private key: its public half seals
-            os.environ[crypto.PUBLIC_KEY_VAR] = crypto.public_key_of(crypto.private_keys_from_env(env)[0])
-        except crypto.CryptoError:
-            pass                                    # no key at all: a secret with a value is refused below
-
-    async def run(pool) -> int:
-        settings = Settings(pool, os.environ["DATABASE_URL"], registry=settings_registry(specs))
-        await settings.reload()
-        counts = {"stored": 0, "already set": 0, "empty": 0}
-        for key, var in seeds.items():
-            text = env.get(var, "").strip()
-            if not text:
-                outcome = "already set" if settings.source(key) == "db" else "empty"
-            else:
-                value = [n.strip() for n in text.split(",") if n.strip()] if key == "trusted_proxies" else text
-                try:      # one insert-if-absent under the key's lock: a value stored meanwhile is never replaced
-                    stored = await settings.set_if_absent(key, value, by="relay seed-settings")
-                except (SettingsError, crypto.CryptoError) as e:
-                    reason = "no seal key in this container" if isinstance(e, crypto.CryptoError) else "refused"
-                    raise CliError("%s from %s: %s (the value is not shown)" % (key, var, reason)) from None
-                outcome = "stored" if stored else "already set"
-            counts[outcome] += 1
-            print("%s: %s" % (key, {"stored": "stored from %s" % var, "already set": "already set, left as it is",
-                                     "empty": "%s is empty here, nothing stored" % var}[outcome]))
-        print("stored %(stored)d, already set %(already set)d, empty %(empty)d" % counts)
-        return EXIT_OK
-
-    return asyncio.run(with_pool(run))
-
-
 def restore_mark(dump_time: str) -> int:
     """After a restore, with NO worker running (runbook): jobs that may have been sent after the dump
     become `unknown`. Refuses while a worker heartbeat is fresh."""
@@ -507,9 +458,6 @@ def build_parser() -> argparse.ArgumentParser:
     provider = sub.add_parser("provider", help="drain or resume a provider").add_subparsers(dest="mode", required=True)
     provider.add_parser("drain", help="stop claiming new work; open jobs still finish").add_argument("name")
     provider.add_parser("resume", help="claim again").add_argument("name")
-    sub.add_parser("seed-settings", help="one-off: store each unset setting that was an env variable (the public "
-                   "address, the trusted proxies, every secret <p>.<name> from <P>_<NAME>, sealed) from this "
-                   "container's env; prints outcomes only")
     jobs = sub.add_parser("jobs", help="job operations").add_subparsers(dest="jobs_cmd", required=True)
     jobs.add_parser("restore-mark", help="after a restore, with no worker running").add_argument(
         "--dump-time", required=True, help="ISO 8601 time of the dump, with an offset")
@@ -544,8 +492,6 @@ def main(argv: list[str] | None = None) -> int:
             return key_disable(args.key_id)
         elif args.cmd == "provider":
             return provider_mode(built_specs(load_specs()), args.name, args.mode == "drain")
-        elif args.cmd == "seed-settings":
-            return seed_settings(built_specs(load_specs()))
         elif args.cmd == "jobs":
             return restore_mark(args.dump_time)
     except CliError as e:

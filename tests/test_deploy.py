@@ -127,7 +127,6 @@ def test_the_browser_workers_keep_warm_profiles_on_their_volume_and_no_service_n
 GONE = ("PORT", "PUBLIC_BASE_URL", "TRUSTED_PROXIES", "BILLING_TZ", "WORKER_ID", "WORKER_GRACE_S",
         "RELAY_PROFILE_ROOT", "RELAY_CHROME_PATH", "RELAY_BROWSER_HEADLESS", "FLOW_YESCAPTCHA_KEY",
         "FLOW_CAPSOLVER_KEY", "FLOW_ANTICAPTCHA_KEY")
-SEED_TABLE = "apps/relay/src/relay_cli/main.py"      # the one-off `relay seed-settings` names two of them
 
 
 def test_no_template_service_or_source_names_a_variable_that_is_gone():
@@ -136,12 +135,9 @@ def test_no_template_service_or_source_names_a_variable_that_is_gone():
     named.update({svc: sorted(set(guards._service_env_names(s)) & set(GONE)) for svc, s in COMPOSE.items()})
     assert not any(named.values()), named
     pattern = re.compile(r"\b(%s)\b" % "|".join(GONE))
-    found = []
-    for path in [*root.glob("packages/*/src/**/*.py"), *root.glob("apps/relay/src/**/*.py")]:
-        rel = path.relative_to(root).as_posix()
-        for hit in pattern.findall(path.read_text(encoding="utf-8")):
-            if not (rel == SEED_TABLE and hit in ("PUBLIC_BASE_URL", "TRUSTED_PROXIES")):
-                found.append((rel, hit))
+    found = [(path.relative_to(root).as_posix(), hit)
+             for path in [*root.glob("packages/*/src/**/*.py"), *root.glob("apps/relay/src/**/*.py")]
+             for hit in pattern.findall(path.read_text(encoding="utf-8"))]
     allowed = {("packages/relay-core/src/relay_core/admin/routes_settings.py", "BILLING_TZ")}   # the pin's row name
     assert set(found) <= allowed, sorted(set(found) - allowed)
 

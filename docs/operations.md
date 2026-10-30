@@ -384,7 +384,6 @@ no trace and no secret.
 | `relay key create`, `relay key disable ID` | API keys |
 | `relay provider drain\|resume X` | drain mode (above) |
 | `relay jobs restore-mark --dump-time T` | the restore runbook |
-| `relay seed-settings` | one-off (25/10): stores each unset setting that was a variable from this container's env (below) |
 | `relay e2e --provider X` | live end-to-end run of one provider |
 
 **`relay admin create-user USERNAME`.** The password is read twice without echo on a terminal, or as one line from a
@@ -392,16 +391,6 @@ pipe; it is never an argument. A password under 10 or over 256 characters, or an
 examples), is refused with exit 2, and so
 is a user that already exists. Run it for the first admin after `relay migrate`:
 `printf '%s\n' "$PW" | docker compose ... run --rm api relay admin create-user alice`.
-
-**`relay seed-settings`** (one-off, 25/10; `ponytail:` it goes once production is seeded). Each setting that was an
-environment variable and has no stored value takes that variable from the env of the container it runs in:
-`public_address` <- `PUBLIC_BASE_URL` and `trusted_proxies` <- `TRUSTED_PROXIES` (comma-separated) from the api's,
-flow's three solver keys `flow.<source>_key` <- `FLOW_<SOURCE>_KEY` from worker-flow's (sealed with the public half of
-its private key). A stored value is never replaced (one insert-if-absent under the key's lock, so a value the admin stores meanwhile wins);
-an empty variable stores nothing. It prints one line per setting
-(stored, already set, or empty) and never a value. After the deploy:
-`docker compose -p relay --profile app exec api relay seed-settings` and
-`docker compose -p relay --profile flow exec worker-flow relay seed-settings`; then the old lines go from the env files.
 
 **`relay keygen`.** Prints the key id, `CREDENTIAL_SEAL_PUBLIC_KEY=...` (for `api.env` and the admin's import tool)
 and `CREDENTIAL_SEAL_PRIVATE_KEY=...` (the worker env files only). It is printed once and stored nowhere: keep a copy

@@ -1,6 +1,6 @@
 """The `relay` commands (I20, I29): `serve` and its refusals, wallet backfill at start,
 shutdown order, `admin create-user`, `keygen`, `key create|disable`, `provider drain|resume`, `jobs restore-mark`,
-`seed-settings`, `e2e`.
+`e2e`.
 Each command is run through `main(argv)` against the real database, as the role its URL names."""
 
 import asyncio
@@ -20,7 +20,6 @@ from relay_core import crypto, keys
 from relay_core.admin import users
 from relay_core.api import runners
 from relay_core.db import open_pool, tx
-from relay_core.settings import Spec, open_secret
 from relay_core.testing.fake_provider import FAKE_FRAMES, FakeSpec
 from relay_core.testing.mutation import mutation
 
@@ -737,45 +736,3 @@ def test_an_exception_argument_of_an_access_record_is_redacted():
     shown = record.getMessage()
     assert RAW_KEY_TEXT not in shown, "a key reached the exception argument: %s" % shown.replace(RAW_KEY_TEXT, "<key>")
     assert record.args[1] == 7
-
-
-# ---- seed-settings -------------------------------------------------------------------------------------------------
-class SecretFake(FakeSpec):
-    def settings(self):
-        return {**super().settings(), "fake.solver_key": Spec("fake.solver_key", str, "", "A key.", secret=True)}
-
-
-PLANTED = "PLANTED-solver-key-0123456789"
-@mutation(M, "stored = await settings.set_if_absent(key, value,", "stored = True; await settings.set(key, value,",
-          expect="a stored value was replaced")
-def test_seed_settings_stores_each_unset_value_from_the_old_env_once_and_never_prints_one(db, monkeypatch, capsys):
-    """Owner 25/10: the one-off path from env to settings. In a worker container (the private key only) a secret is
-    sealed with its public half; a value already stored is never replaced; an empty variable stores nothing."""
-    pair = crypto.generate_keypair()
-    monkeypatch.setattr(cli, "load_specs", lambda: {"fake": SimpleNamespace(SPEC=SecretFake("fake"))})
-    monkeypatch.setenv(crypto.PUBLIC_KEY_VAR, "")          # restored after: the command sets it for its own process
-    for name, value in {"DATABASE_URL": db.api_dsn, crypto.PRIVATE_KEY_VAR: pair.private, "FAKE_SOLVER_KEY": PLANTED,
-                        "PUBLIC_BASE_URL": "https://relay.example.com", "TRUSTED_PROXIES": "172.16.0.0/12, 10.0.0.1"
-                        }.items():
-        monkeypatch.setenv(name, value)
-    stored = lambda key: db.one("SELECT value FROM settings_kv WHERE key = %s", key)[0]  # noqa: E731
-    assert cli.main(["seed-settings"]) == 0
-    first = capsys.readouterr().out
-    assert stored("public_address") == "https://relay.example.com"
-    assert stored("trusted_proxies") == ["172.16.0.0/12", "10.0.0.1"]
-    sealed = stored("fake.solver_key")
-    assert PLANTED not in str(sealed) and open_secret(sealed, [pair.private]) == PLANTED
-    assert PLANTED not in first and "relay.example.com" not in first, first
-    assert "stored 3, already set 0, empty 0" in first
-    monkeypatch.setenv("FAKE_SOLVER_KEY", "PLANTED-another-key-000000000")
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://other.example.com")
-    assert cli.main(["seed-settings"]) == 0
-    assert stored("public_address") == "https://relay.example.com", "a stored value was replaced"
-    assert open_secret(stored("fake.solver_key"), [pair.private]) == PLANTED, "a stored value was replaced"
-    assert "stored 0, already set 3, empty 0" in capsys.readouterr().out
-    db.run("DELETE FROM settings_kv")
-    for name in ("FAKE_SOLVER_KEY", "PUBLIC_BASE_URL", "TRUSTED_PROXIES"):
-        monkeypatch.delenv(name)
-    assert cli.main(["seed-settings"]) == 0
-    assert "stored 0, already set 0, empty 3" in capsys.readouterr().out
-    assert db.one("SELECT count(*) FROM settings_kv")[0] == 0
