@@ -646,9 +646,12 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
       time of the last counted strike. A `Cooldown` writes its reason to `last_error`, except beside a `Suspect` or a
       `ProxyBad`: their reason is kept.
     - `Dead` and `Revive` never change a `disabled` account: a person's decision wins over a check.
-    - `Balance` records the pool's reported balance and the refill with the window it names; a balance above 0 ends
-      that pool's rest, a balance of 0 rests the pool until the refill the upstream named, else the pool's next window
-      boundary.
+    - `Balance` records the pool's reported balance and the refill with the window it names; a balance of 0 rests the
+      pool until the refill the upstream named, else the pool's next window boundary (`REST_REASON`). A balance above
+      0 ends only that rest, the one the balance rule set: any other rest of the pool (a provider's `Rest` for a
+      refusal, a throttle, a pacing gap) is no statement about the balance and stays until its own end (live: flow's code 8
+      rested every pool 1800 s, and the next account check's video credits ended the video rest at once). A shorter rest a `REST_REASON` rest absorbed
+      (GREATEST) ends with it.
       A reported balance far from the computed one raises a `pool_drift` alert (`_drift_alert`).
     - `Tier` writes the account's tier, marks it read now, and its cycle start when named (else the stored one stays).
     The account row is locked first, whatever the effects touch. The result's error (a strike's, a bad proxy's or a
@@ -681,9 +684,10 @@ async def apply_effects(conn: AsyncConnection, account_id, effects: Iterable[Acc
             await conn.execute(
                 "UPDATE account_pools SET reported_left = %(n)s, reported_at = clock_timestamp(), refill_at = %(r)s, "
                 "refill_window = %(w)s, "
-                "rest_reason = CASE WHEN %(n)s > 0 THEN NULL WHEN %(u)s > COALESCE(rest_until, '-infinity') "
-                "THEN %(why)s ELSE rest_reason END, "
-                "rest_until = CASE WHEN %(n)s > 0 THEN NULL ELSE GREATEST(rest_until, %(u)s) END "
+                "rest_reason = CASE WHEN %(n)s > 0 AND rest_reason = %(why)s THEN NULL WHEN %(n)s > 0 THEN rest_reason "
+                "WHEN %(u)s > COALESCE(rest_until, '-infinity') THEN %(why)s ELSE rest_reason END, "
+                "rest_until = CASE WHEN %(n)s > 0 AND rest_reason = %(why)s THEN NULL WHEN %(n)s > 0 THEN rest_until "
+                "ELSE GREATEST(rest_until, %(u)s) END "
                 "WHERE account_id = %(a)s AND pool = %(p)s",
                 {"n": e.left_n, "r": refill, "w": window, "u": until, "why": REST_REASON, "a": account_id,
                  "p": e.pool})

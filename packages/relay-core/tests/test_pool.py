@@ -1073,14 +1073,19 @@ def test_a_zero_balance_with_an_unbelievable_refill_rests_until_the_pools_window
         "a reset just past reopened the pool"
 
 
-@mutation(P, "rest_until = CASE WHEN %(n)s > 0 THEN NULL ELSE GREATEST(rest_until, %(u)s) END ",
-          "rest_until = CASE WHEN %(n)s > 0 THEN rest_until ELSE GREATEST(rest_until, %(u)s) END ",
+BALANCE_WAKES = ("rest_until = CASE WHEN %(n)s > 0 AND rest_reason = %(why)s THEN NULL WHEN %(n)s > 0 THEN rest_until "
+                 "\"\n")
+BALANCE_KEEPS = ("rest_until = CASE WHEN %(n)s > 0 AND rest_reason = %(why)s THEN NULL WHEN %(n)s > 0 THEN NULL "
+                 "\"\n")
+
+
+@mutation(P, BALANCE_WAKES, "rest_until = CASE WHEN false THEN NULL WHEN %(n)s > 0 THEN rest_until \"\n",
           expect="[0] is None")
-def test_a_reported_positive_balance_wakes_a_resting_pool_and_a_zero_one_does_not(db):
+def test_a_reported_positive_balance_wakes_a_pool_its_zero_rested_and_a_zero_one_does_not(db):
     a = account(db)
 
     async def scenario(p):
-        await effects(p, a, Rest("video", FUTURE, "out of credit"), Balance("video", 0))
+        await effects(p, a, Balance("video", 0))
         assert db.one("SELECT rest_until IS NOT NULL FROM account_pools "
                       "WHERE account_id = %s AND pool = 'video'", a)[0]
         await effects(p, a, Balance("video", 5))
@@ -1088,6 +1093,29 @@ def test_a_reported_positive_balance_wakes_a_resting_pool_and_a_zero_one_does_no
     run(db, scenario)
     assert pool_row(db, a)[0] == 5
     assert db.one("SELECT rest_until FROM account_pools WHERE account_id = %s AND pool = 'video'", a)[0] is None
+    assert pool_row(db, a)[2] is None, "the ended rest kept its reason"
+
+
+@mutation(P, BALANCE_WAKES, BALANCE_KEEPS, expect="a positive balance ended a rest the balance rule did not set")
+@pytest.mark.parametrize("before", [False, True], ids=["rest-alone", "rest-over-a-zero-balance"])
+def test_a_reported_positive_balance_never_ends_a_rest_the_balance_rule_did_not_set(db, before):
+    """A provider's rest (a refusal, a throttle, a pacing gap) is no statement about the balance: the next account
+    check that reports credits must not end it (live: flow's code 8 rested every pool 1800 s and the 5-minute check's
+    video credits woke the video pool at once). Over a zero balance's own rest a longer provider rest takes the reason,
+    and that rest stays too."""
+    a = account(db)
+
+    async def scenario(p):
+        if before:
+            await effects(p, a, Balance("video", 0))
+        await effects(p, a, Rest("video", FUTURE + timedelta(days=3), "refused: throttled"))
+        await effects(p, a, Balance("video", 5))
+
+    run(db, scenario)
+    left_n, until, reason = pool_row(db, a)
+    assert left_n == 5
+    assert until is not None and until > FUTURE + timedelta(days=2) and reason == "refused: throttled", \
+        "a positive balance ended a rest the balance rule did not set: %r" % ((until, reason),)
 
 
 def test_a_later_report_replaces_an_earlier_one_and_a_zero_never_shortens_a_longer_rest(db):
