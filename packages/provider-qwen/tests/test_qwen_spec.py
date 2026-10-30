@@ -69,7 +69,7 @@ def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["qwen.claims_enabled"].default is False, "qwen must stay drained until the owner turns it on"
     for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
-                "refusal_grace_s", "prices", "costs", "pools", "disabled_models"):
+                "refusal_grace_s", "refusal_max_accounts", "prices", "costs", "pools", "disabled_models"):
         assert "qwen." + key in s, key
     # a free account's credits roll 24 h from their grant; images are 10 a UTC day
     pools = s["qwen.pools"]
@@ -87,6 +87,12 @@ def test_the_registry_takes_qwen_beside_every_other_provider():
     assert registry.resolve("qwen-wan-2.7")[0] is SPEC
     assert [m.id for m in SPEC.catalog()] == ["qwen-image-3.0", "qwen-image-3.0-pro", "qwen-happyhorse-1.1",
                                               "qwen-happyhorse-1.0", "qwen-wan-2.7"]
+
+
+def test_qwen_refusal_max_accounts_is_a_live_setting_from_1_to_9_defaulting_to_2():
+    s = SPEC.settings()["qwen.refusal_max_accounts"]
+    assert (s.type, s.default, s.min, s.max) == (int, 2, 1, 9)
+    assert "Insufficient Credits" in s.description and "refund" in s.description
 
 
 def test_every_code_is_registered_and_the_firewall_refusal_is_a_free_requeue():

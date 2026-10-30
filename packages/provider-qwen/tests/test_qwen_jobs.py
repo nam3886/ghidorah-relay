@@ -393,12 +393,41 @@ def test_a_video_send_with_no_answer_is_ambiguous():
 
 # ---- what qwen said after the send --------------------------------------------------------------------------------
 @mutation(SUBMIT_FILE, '    if extra.get("quota_limit") is True:\n        return "no_credits", words\n',
-          '    if False:\n        return "no_credits", words\n', expect="out_of_credits")
-def test_insufficient_credits_after_the_send_ends_the_job_refunded_and_empties_the_pool():
+          '    if False:\n        return "no_credits", words\n', expect="another account")
+@mutation(SUBMIT_FILE, "not_taken=OUT_OF_POINTS, final=errors.OUT_OF_CREDITS,",
+          "not_taken=errors.OUT_OF_CREDITS, final=errors.OUT_OF_CREDITS,", expect="another account")
+@mutation(SUBMIT_FILE, "return await _out_of_credits(ctx, job, settings, chat, said, Balance(pool, 0), *rest)",
+          "return await _out_of_credits(ctx, job, settings, chat, said, *rest)", expect="the pool was not emptied")
+def test_insufficient_credits_after_the_send_moves_the_job_to_another_account_and_empties_the_pool():
+    """qwen's complete "Insufficient Credits" answer (no task) proves nothing was made: the account cannot pay, the
+    order is fine. The job goes back to the queue with no attempt used; the account's pool reads 0."""
     log = []
-    result = run_submit(Qwen(log, send=NO_CREDITS), Ctx(log), job(VIDEO))
+    ctx = Ctx(log)
+    result = run_submit(Qwen(log, send=NO_CREDITS), ctx, job(VIDEO))
+    assert result.job == NotTaken("pool.account_out_of_points", {"credits_chat": CHAT, "refused_by": ["acc-1"]}), \
+        "the job did not go to another account: %s" % (result.job,)
+    assert Balance("video", 0) in result.account, "the pool was not emptied: %s" % (result.account,)
+    assert log.count("send") == 1 and any("another account" in e for e in ctx.events)
+
+
+@mutation(SUBMIT_FILE, "        outcome = replace(outcome, state_patch={**outcome.state_patch, CHAT_KEY: chat})\n",
+          "        pass\n", expect="the chat is not the failed job's reference")
+def test_insufficient_credits_on_the_last_account_or_a_pinned_job_fails_it_refunded_with_its_chat():
+    log = []
+    second = job(VIDEO, state={"refused_by": ["acc-0"]})
+    result = run_submit(Qwen(log, send=NO_CREDITS), Ctx(log), second)
     assert isinstance(result.job, Fail) and result.job.code == "qwen.out_of_credits", result.job
-    assert "Insufficient Credits" in result.job.detail and Balance("video", 0) in result.account
+    assert "Insufficient Credits" in result.job.detail and "refused on 2 account(s)" in result.job.detail
+    assert result.job.state_patch.get("chat") == CHAT, "the chat is not the failed job's reference: %s" % (
+        result.job.state_patch,)
+    assert result.job.state_patch["refused_by"] == ["acc-0", "acc-1"] and Balance("video", 0) in result.account
+    rule = errors.CODES["qwen.out_of_credits"]
+    assert rule.terminal and rule.refund
+    wider = run_submit(Qwen([], send=NO_CREDITS), Ctx([]), second, settings(qwen__refusal_max_accounts=3))
+    assert isinstance(wider.job, NotTaken), "at 3 the second answer goes to a third account"
+    pinned = dataclasses.replace(job(VIDEO), source=object())
+    assert run_submit(Qwen([], send=NO_CREDITS), Ctx([]), pinned).job.code == "qwen.out_of_credits"
+
 
 
 VIDEO_REFUSAL = {"success": True, "data": {"chat_id": CHAT, "messages": [

@@ -21,6 +21,7 @@ from relay_core.providers import (
     Plan,
     PoolSpec,
 )
+from relay_core.refusals import refusal_max_accounts_setting
 from relay_core.settings import Spec, disabled_models
 from relay_qwen import catalog as C
 from relay_qwen import errors as codes
@@ -94,6 +95,10 @@ _SETTINGS = dict((
              "Seconds after the send before a video whose answer was lost, and whose chat holds a reply in words with "
              "no task, is failed as a refusal and refunded (a task named within this time is followed).", min=60,
              max=3600),
+    refusal_max_accounts_setting(
+        PROVIDER, "How many accounts one job may try when qwen answers its send with \"Insufficient Credits\" "
+        "(nothing was made). Each such answer empties that account's pool and sends the job to another account; the "
+        "answer on the last one ends the job failed, with its full refund. 1 ends it at the first."),
     (PROVIDER + ".prices", table_setting(
         PROVIDER + ".prices", "Points charged per job, keyed by model for an image and by model@<seconds>s for a "
         "video. An option missing here is refused (model.unpriced), never charged a guess.", C.PRICE_KEYS,

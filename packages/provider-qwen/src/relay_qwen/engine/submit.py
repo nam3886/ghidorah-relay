@@ -10,9 +10,11 @@ Money rules that shape this file (each has a test and a mutation):
 - The chat id is on the job BEFORE the paid POST: qwen keeps no id of ours, so the chat is how a lost answer is read
   back (reconcile). One chat per job, and exactly one POST into it.
 - `ctx.mark_sent()` runs immediately before that POST, never after.
-- Nothing is ever sent twice. After `mark_sent` only two answers end in something other than `Ambiguous`/`Completed`/
-  `Accepted`: qwen's own refusal and its "Insufficient Credits" (`Fail`, refunded), and the Aliyun WAF's edge block
-  of the pair, which never reached qwen's app. That one is `NotTaken` (the job goes back to the queue, the stale pair
+- Nothing is ever sent twice on one account. After `mark_sent` only three answers end in something other than
+  `Ambiguous`/`Completed`/`Accepted`: qwen's own refusal (`Fail`, refunded); its complete "Insufficient Credits"
+  answer, which proves nothing was made (the core's `account_refused`: the job goes to another account, or fails
+  refunded on the last one `qwen.refusal_max_accounts` allows); and the Aliyun WAF's edge block of the pair, which
+  never reached qwen's app. That one is `NotTaken` (the job goes back to the queue, the stale pair
   is dropped so the next send mints anew) ONLY when the answer is that block exactly, as measured (`is_waf_block`:
   status, the WAF's own headers and cookie, none of the app's, the exact body); a chat read is no proof and is not
   used. Anything that only looks like it is `Ambiguous`. A complete image answer that is qwen's daily image quota
@@ -31,12 +33,14 @@ import json
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 
 from relay_core.providers import (
+    REFUSED_BY,
     Accepted,
     Ambiguous,
     Balance,
@@ -52,6 +56,7 @@ from relay_core.providers import (
     SubmitResult,
     Success,
 )
+from relay_core.refusals import account_refused
 from relay_qwen import catalog as C
 from relay_qwen import errors
 from relay_qwen.constants import (
@@ -350,14 +355,28 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
             return _result(Accepted(said, {CHAT_KEY: chat, TASK_KEY: said}, stated_cost(answer), taken=True),
                            Success(), *rest)
         if verdict == "no_credits":
-            return _result(Fail(errors.OUT_OF_CREDITS, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}),
-                           Balance(pool, 0), *rest)
+            return await _out_of_credits(ctx, job, settings, chat, said, Balance(pool, 0), *rest)
         if verdict == "refused" and kind == "image" and is_image_quota(said):
             # the account's image pool is empty until its day turns; the job goes to another account, no attempt used
             return _result(NotTaken(errors.IMAGE_LIMIT, {"limit_chat": chat}), Balance(pool, 0), *rest)
         if verdict == "refused":
             return _result(Fail(errors.REFUSED, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}), *rest)
         return _result(Ambiguous(str(said)), *rest)
+
+
+async def _out_of_credits(ctx, job, settings, chat: str, said: Any, *effects) -> SubmitResult:
+    """qwen's complete "Insufficient Credits" answer (`quota_limit`, no task): THIS account cannot pay for the order and
+    nothing was made. The job goes to another account (`pool.account_out_of_points`, no attempt used) until
+    `qwen.refusal_max_accounts` accounts answered so, then fails with `qwen.out_of_credits` and its refund, the chat
+    kept as its reference; the account's pool reads 0 either way."""
+    outcome = account_refused(job, ctx.account.id, settings, not_taken=OUT_OF_POINTS, final=errors.OUT_OF_CREDITS,
+                              detail="qwen: %s" % str(said)[:300], patch={"credits_chat": chat})
+    if isinstance(outcome, NotTaken):
+        await ctx.event("qwen had too few credits on %d account(s); the job goes to another account"
+                        % len(outcome.state_patch[REFUSED_BY]), "submit", "engine")
+    else:
+        outcome = replace(outcome, state_patch={**outcome.state_patch, CHAT_KEY: chat})
+    return _result(outcome, *effects)
 
 
 def is_image_quota(text: Any) -> bool:
