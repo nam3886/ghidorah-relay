@@ -23,7 +23,11 @@ Money rules (each has a test and a mutation):
 - a job from images is sent only once meta answered every upload (`{media_id}`) and the composer shows exactly as
   many attached images, read again right before `mark_sent`: never the text without its images;
 - `mark_sent` runs immediately before the single Enter, and nothing presses Enter again: after `mark_sent` the engine
-  never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send. One answer goes back to the
+  never returns `Retry`, whatever is unclear is `Ambiguous` (unknown), never a re-send. The composer is found again
+  as one element and checked (shown, editable, exactly the order) right before `mark_sent`; after it, that element is
+  read and focused in one page script before the Enter, and when it is gone or changed no key was ever pressed:
+  `NotTaken(meta.ui_send_failed)`, the job goes back to the queue (a new chat). The Enter itself (`keyboard.press`,
+  no wait for any element) failing is unknown. One answer goes back to the
   queue: meta's limit words in a DONE answer with no media at all (no final link, no preview, nothing of the other
   kind), which proves nothing was made in that chat; the core's `account_refused` moves the job to another account
   (a new chat there) or, on the last one `meta.refusal_max_accounts` allows, fails it refunded;
@@ -146,6 +150,13 @@ IMAGE_FROM_TEXT = "Create 1 image: "
 ANSWER_JS = """(sel) => {
   const all = document.querySelectorAll(sel);
   return all.length ? all[all.length - 1].outerHTML : '';
+}"""
+
+# The composer (an ElementHandle) right before the Enter: its text once it holds the focus, null when it cannot take
+# it (a node out of the DOM never can). One script: nothing on the page runs between the focus and the read.
+FOCUS_JS = """(el) => {
+  el.focus();
+  return document.activeElement === el ? el.innerText : null;
 }"""
 
 # [base64, mime, max bytes, max side] -> base64 of a JPEG within both, or "" when the image cannot be made that small
@@ -534,21 +545,40 @@ class _Run:
             why = await self._attach(images)
             if why:
                 return await self._unsent(errors.UI_SEND_FAILED, why)
-        if " ".join((await box.inner_text()).split()) != self.text:
-            return await self._unsent(errors.UI_SEND_FAILED, "the prompt did not go into the composer as typed")
         conversation = await self._warmup_id()
         if conversation is None:
             return await self._unsent(errors.UI_SEND_FAILED, "meta named no conversation before Enter")
         self.conversation = conversation
         await self._core(lambda: ctx.report_ref(conversation, {"conversation_id": conversation}))
-        # the thumbnails are read again right before the send: meta may have dropped or doubled one since the attach;
-        # nothing but mark_sent is awaited between this read and the one Enter
+        # the thumbnails are read again right before the send: meta may have dropped or doubled one since the attach
         if images and (shown := await page.locator(SEL_ATTACHED).count()) != len(images):
             return await self._unsent(errors.UI_SEND_FAILED, "just before the send the composer shows %d attached "
                                       "images, not %d" % (shown, len(images)))
+        # the composer is found again right before the send, as one element (meta re-renders it: 31/10 the one typed
+        # into was gone at the Enter); it must be shown, editable and hold exactly the order
+        try:
+            handle = await box.element_handle(timeout=self.deps.composer_wait_s * 1000)
+        except Exception:      # noqa: BLE001 - Playwright's timeout: no composer to send from
+            return await self._unsent(errors.UI_SEND_FAILED, "the composer was gone just before the send")
+        if not (await handle.is_visible() and await handle.is_editable()) or (
+                " ".join((await handle.inner_text()).split()) != self.text):
+            return await self._unsent(errors.UI_SEND_FAILED, "the prompt did not go into the composer as typed")
         await self._core(self.ctx.mark_sent)
         self.sent = True
-        await box.press("Enter")
+        # Proof the Enter was never pressed: that same element, read and focused in ONE page script after mark_sent,
+        # is gone (detached, or the page went away) or holds something else. Nothing presses a key before this read
+        # and the typed text has no newline, so meta has nothing: the job goes back to the queue (a new chat).
+        try:
+            held = await handle.evaluate(FOCUS_JS)
+        except Exception:      # noqa: BLE001 - the page script did not run on a live composer: no key was pressed
+            held = None
+        if not isinstance(held, str) or " ".join(held.split()) != self.text:
+            why = "the composer was gone or changed after mark_sent, before the Enter: nothing was pressed"
+            await self._say(why, "submit")
+            self._evidence(errors.UI_SEND_FAILED)
+            return _result(NotTaken(errors.UI_SEND_FAILED))
+        # the one Enter, into the element just focused; whatever fails from here on is unknown (`failed`)
+        await page.keyboard.press("Enter")
         return await self._answer()
 
     async def _attach(self, images: tuple[tuple[bytes, str], ...]) -> str:

@@ -153,7 +153,7 @@ class Keyboard:
         self.page.typed[self.page.focus] = self.page.typed.get(self.page.focus, "") + text
 
     async def press(self, key):
-        self.page.log.append("key " + key)
+        await self.page.press(key)
 
 
 class Box:
@@ -173,16 +173,40 @@ class Box:
         self.page.focus = self.target
         self.page.log.append("click " + self.target)
 
-    async def inner_text(self):
-        return "" if self.target == TEXTAREA else self.page.typed.get(EDITABLE, "")
+    async def element_handle(self, timeout=None):
+        assert self.target == EDITABLE, "the placeholder textarea is never sent from"
+        if self.page.composer == "gone":        # meta re-rendered it away: Playwright's wait times out
+            raise TimeoutError("Timeout %sms exceeded" % timeout)
+        return Handle(self.page)
 
     async def press(self, key):
-        self.page.log.append(key)
-        if self.page.press_error:
-            raise self.page.press_error
-        # meta ignores Enter while an upload is pending (FINDINGS.md): nothing is sent, the address stays
-        if key == "Enter" and self.page.opens is not None and (not self.page.chosen or self.page.uploaded):
-            self.page.url = "https://www.meta.ai/prompt/" + self.page.opens
+        await self.page.press(key)
+
+
+class Handle:
+    """The composer as one element (an ElementHandle): it stays that element; `page.detached` is meta re-rendering
+    it (the handle then points at a node out of the DOM, which cannot take the focus)."""
+
+    def __init__(self, page):
+        self.page = page
+
+    async def is_visible(self):
+        return self.page.composer != "hidden"
+
+    async def is_editable(self):
+        return True
+
+    async def inner_text(self):
+        return "" if self.page.composer == "empty" else self.page.typed.get(EDITABLE, "")
+
+    async def evaluate(self, script):
+        assert script is S.FOCUS_JS, "an unexpected script"
+        if self.page.focus_error:
+            raise self.page.focus_error
+        if self.page.detached:
+            return None
+        self.page.focus = EDITABLE
+        return self.page.typed.get(EDITABLE, "")
 
 
 class Page:
@@ -203,6 +227,18 @@ class Page:
         self.goto_s = 0.0       # how long the page load takes (real time)
         self.read_hang_s = 0.0  # how long a read of meta's answer takes (real time)
         self.composer_hang_s = 0.0   # how long the wait for the composer takes (real time)
+        self.composer = None    # right before the send: "gone", "hidden" or "empty" (re-rendered without the text)
+        self.detached = False   # the composer element typed into is out of the DOM (meta re-rendered it)
+        self.focus_error = None     # what the page script on the composer raises (the page went away)
+
+    async def press(self, key):
+        """The keyboard (or a locator) pressing `key` into the page."""
+        self.log.append(key)
+        if self.press_error:
+            raise self.press_error
+        # meta ignores Enter while an upload is pending (FINDINGS.md): nothing is sent, the address stays
+        if key == "Enter" and self.opens is not None and (not self.chosen or self.uploaded):
+            self.url = "https://www.meta.ai/prompt/" + self.opens
 
     async def screenshot(self, type="png", **kw):
         await asyncio.sleep(self.shot_hang_s)
@@ -380,10 +416,9 @@ def test_the_conversation_id_is_the_warmed_up_one_and_the_address_after_enter_na
 
 
 # ---- the send ----------------------------------------------------------------------------------------------------
-@mutation(SUBMIT_FILE, '        await self._core(self.ctx.mark_sent)\n        self.sent = True\n'
-          '        await box.press("Enter")\n',
-          '        self.sent = True\n        await box.press("Enter")\n        await self._core(self.ctx.mark_sent)\n',
-          expect="mark_sent right before the one Enter")
+@mutation(SUBMIT_FILE, '        await self._core(self.ctx.mark_sent)\n        self.sent = True\n',
+          '        await page.keyboard.press("Enter")\n        await self._core(self.ctx.mark_sent)\n'
+          '        self.sent = True\n', expect="mark_sent right before the one Enter")
 @mutation(SUBMIT_FILE, '        await self._core(lambda: ctx.report_ref(conversation, '
           '{"conversation_id": conversation}))\n', "", expect="the chat id before the send")
 def test_a_signed_in_page_persists_the_chat_id_marks_sent_presses_enter_once_and_delivers_the_final_images():
@@ -444,6 +479,57 @@ def test_whatever_goes_wrong_after_the_enter_is_unknown_and_never_a_second_enter
         assert page.log.count("Enter") == 1, "%s: one Enter, got %s" % (what, page.log)
         assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"], what
         assert isinstance(result.job, Ambiguous), "%s: never a Retry after mark_sent: %r" % (what, result.job)
+
+
+# ---- the composer re-rendered between the typing and the Enter (prod c10170ab, 31/10) -------------------------------
+@mutation(SUBMIT_FILE, "        if not (await handle.is_visible() and await handle.is_editable()) or (",
+          "        if False and (", expect="re-checked before mark_sent")
+@mutation(SUBMIT_FILE, "        if not (await handle.is_visible() and await handle.is_editable()) or (",
+          "        if (", expect="hidden")
+def test_a_composer_gone_hidden_or_emptied_just_before_the_send_is_a_retry_and_never_marked_sent():
+    cap = capture("image-1-acc1")
+    for what in ("gone", "hidden", "empty"):
+        page = Page([], cap)
+        page.composer = what
+        result, _ = run(page, cap)
+        assert sent(page.log) == ["report_ref " + warmed_uuid(cap)], "%s: re-checked before mark_sent: %s" % (
+            what, page.log)
+        assert result.job == Retry("meta.ui_send_failed"), "%s: %r" % (what, result.job)
+
+
+class DetachingCtx(Ctx):
+    """meta re-renders the composer while `mark_sent` runs: the element typed into leaves the DOM."""
+
+    def __init__(self, page, error=None):
+        super().__init__(page.log)
+        self.page, self.error = page, error
+
+    async def mark_sent(self):
+        await super().mark_sent()
+        self.page.detached = True
+        self.page.focus_error = self.error
+
+
+@mutation(SUBMIT_FILE, '        if not isinstance(held, str) or " ".join(held.split()) != self.text:',
+          "        if False:", expect="no Enter")
+@mutation(SUBMIT_FILE, "            held = None\n", "            raise\n", expect="page went away")
+def test_a_composer_detached_after_mark_sent_is_not_taken_with_no_enter_and_goes_back_to_the_queue():
+    cap = capture("image-1-acc1")
+    uuid = warmed_uuid(cap)
+    for what, error in (("detached", None), ("page went away", RuntimeError("Execution context was destroyed"))):
+        page = Page([], cap)
+        result, ctx = run(page, cap, ctx=DetachingCtx(page, error))
+        assert sent(page.log) == ["report_ref " + uuid, "mark_sent"], "%s: no Enter: %s" % (what, page.log)
+        assert result.job == NotTaken("meta.ui_send_failed"), "%s: %r" % (what, result.job)
+        assert "ui-error-meta_ui_send_failed-1000.png" in [n for n, _, _ in ctx.kept], what
+
+
+def test_an_enter_that_fails_once_the_focused_composer_held_the_order_stays_unknown():
+    cap = capture("image-1-acc1")
+    page = Page([], cap, press_error=TimeoutError("Timeout 30000ms exceeded"))
+    result, _ = run(page, cap)
+    assert sent(page.log) == ["report_ref " + warmed_uuid(cap), "mark_sent", "Enter"], page.log
+    assert isinstance(result.job, Ambiguous), result.job
 
 
 def test_an_address_other_than_the_warmed_up_one_is_persisted_too_without_a_send():
