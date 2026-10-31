@@ -1,6 +1,7 @@
 """The Request logs tab: skeleton, rows, the date range, the request drawer and the clear confirm."""
 
 import re
+from datetime import date, timedelta
 
 from page_helpers import sideways
 from patchright.sync_api import expect
@@ -64,10 +65,16 @@ def close_panel(page):
     expect(page.locator(PANEL)).to_have_count(0)
 
 
+def around_today():
+    """A range that holds the seeded rows (made now) whatever the date and the browser's zone."""
+    today = date.today()
+    return str(today - timedelta(days=30)), str(today + timedelta(days=1))
+
+
 def run(page, app, live, sw, data):
     skeleton_step(sw, "logs", re.compile(r"/admin/logs"))
     sw.step("logs", "list", lambda: ready(page))
-    sw.step("logs", "date-fields", lambda: (filters_sheet(page), days(page, "2026-10-01", "2026-10-31")),
+    sw.step("logs", "date-fields", lambda: (filters_sheet(page), days(page, *around_today())),
             after=lambda: close_filters(page))
     sw.step("logs", "date-range-open", lambda: (filters_sheet(page), range_pane(page), inside_the_window(page)),
             after=lambda: (close_panel(page), close_filters(page)))
