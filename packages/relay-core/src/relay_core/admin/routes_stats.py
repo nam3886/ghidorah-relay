@@ -16,6 +16,7 @@ from psycopg_pool import AsyncConnectionPool
 from relay_core import alerts as alert_hub
 from relay_core.admin.routes_common import ms, pool_budget
 from relay_core.api.deps import get_pool, get_registry, get_settings
+from relay_core.api.doors import model_disabled
 from relay_core.api.errors_http import ApiError
 from relay_core.db import tx
 from relay_core.pool import pool_configs, pool_states
@@ -64,9 +65,30 @@ def _alert(kind: str, severity: str, message: str, provider: str | None = None) 
     return {"kind": kind, "severity": severity, "message": message, "provider": provider}
 
 
+def provider_off(config: Settings, registry: ProviderRegistry, name: str) -> bool:
+    """The admin turned the provider off on purpose: drained (`<p>.claims_enabled` false) or every model paused
+    (`<p>.disabled_models`), so it takes no job and needs no account."""
+    spec = registry.spec(name)
+    return not config.get(name + ".claims_enabled") or all(model_disabled(config, spec, m) for m in spec.catalog())
+
+
+# Claimable some time: available and checked once (claim.py `_CANDIDATES`); a cooldown or a pool at rest ends by itself.
+_CLAIMABLE = ("SELECT provider, count(*) FROM accounts WHERE last_checked_at IS NOT NULL AND state = 'available' "
+              "GROUP BY provider")
+
+
+async def _no_accounts(conn, config: Settings, registry: ProviderRegistry) -> list[dict]:
+    """One error per provider that is on and has no claimable account (all dead, disabled or never checked): its
+    jobs cannot run. Computed per read like every live condition, so it is one row while the outage lasts and gone
+    once an account is back."""
+    claimable = dict(await (await conn.execute(_CLAIMABLE)).fetchall())
+    return [_alert("no_accounts", "error", "%s has no usable account: its jobs cannot run" % name, name)
+            for name in registry.names() if not claimable.get(name) and not provider_off(config, registry, name)]
+
+
 async def live_alerts(conn, config: Settings, registry: ProviderRegistry, usable: dict[str, int]) -> list[dict]:
     """The computed conditions, every provider registered (a provider with no row yet still has 0 usable accounts)."""
-    alerts: list[dict] = []
+    alerts = await _no_accounts(conn, config, registry)        # first: the banner words the first live condition
     for worker, provider, beat_age, errors in await (await conn.execute(
             "SELECT worker_id, provider, extract(epoch FROM clock_timestamp() - at), consecutive_errors "
             "FROM worker_heartbeats ORDER BY worker_id")).fetchall():

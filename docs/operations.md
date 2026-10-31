@@ -497,6 +497,11 @@ fails when any other page or `/ui/` file carries the looser one.
   failure codes); the empty wording is shown as an API read failure. Acknowledge sends the newest row id the page
   showed, so a row that arrived later keeps the group open. The banner above the tabs counts open groups and live
   conditions. There is no phrase list to edit: new wording is a code change. Titles and replies render as text.
+  The live `no_accounts` condition (error, listed first so the banner words it) names each provider that is on and
+  has no usable account (none `available` and checked once, the claim's own rule; a cooldown does not count against
+  it): its jobs cannot run. A drained provider (`<p>.claims_enabled` off) or one with every model paused is off and
+  raises nothing. It is one row while the outage lasts and goes once an account is back; it reaches nobody outside
+  the admin.
 - **The API reference** is Scalar 1.25.122, vendored as `static/vendor/scalar.min.js` (licence beside it), pinned by SRI
   in `reference.html`; a test pins its hash and source URL.
 - **The admin token** lives in `sessionStorage` and goes out as `X-Admin-Session`. Media in a job's detail comes only

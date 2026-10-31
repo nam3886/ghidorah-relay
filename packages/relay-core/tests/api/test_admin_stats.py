@@ -225,6 +225,64 @@ def test_the_low_accounts_alert_counts_usable_accounts_and_clears_itself(db):
     assert "accounts_low" not in kinds(again), "an alert clears when its condition does"
 
 
+CLAIMABLE = "WHERE last_checked_at IS NOT NULL AND state = 'available' "
+DRAINED_OFF = 'return not config.get(name + ".claims_enabled") or all('
+EVERY_MODEL = "or all(model_disabled(config, spec, m) for m in spec.catalog())"
+
+
+def no_accounts(r) -> list[tuple]:
+    return [(a["severity"], a["message"], a["provider"]) for a in r.json()["alerts"] if a["kind"] == "no_accounts"]
+
+
+@mutation(ROUTES, CLAIMABLE, "WHERE TRUE AND state = 'available' ", expect="never checked")
+@mutation(ROUTES, CLAIMABLE, "WHERE last_checked_at IS NOT NULL AND state <> 'dead' ",
+          expect="the last usable account gone")
+@mutation(ROUTES, CLAIMABLE, "WHERE last_checked_at IS NULL AND state = 'available' ",
+          expect="one checked available account")
+@mutation(ROUTES, DRAINED_OFF, "return all(", expect="drained")
+@mutation(ROUTES, EVERY_MODEL, "or any(model_disabled(config, spec, m) for m in spec.catalog())",
+          expect="one model paused")
+@mutation(ROUTES, EVERY_MODEL, "or False", expect="every model paused")
+def test_a_provider_with_no_usable_account_raises_one_error_until_one_is_back_unless_it_is_off(db):
+    only = account(db)
+    cooling = account(db, cooldown_s=600)
+
+    async def scenario(env):
+        seen = {"served": await stats(env)}
+        db.run("UPDATE accounts SET state = 'dead' WHERE id = %s", only)
+        seen["cooling"] = await stats(env)
+        db.run("UPDATE accounts SET state = 'disabled' WHERE id = %s", cooling)
+        seen["down"] = await stats(env)
+        seen["still"] = await stats(env)
+        account(db, checked=False)
+        account(db, state="disabled")
+        seen["unchecked"] = await stats(env)
+        await env.settings.set("fake.claims_enabled", False, by="test")
+        seen["drained"] = await stats(env)
+        await env.settings.delete("fake.claims_enabled")
+        await env.settings.set("fake.disabled_models", ["fake-video"], by="test")
+        seen["one_paused"] = await stats(env)
+        await env.settings.set("fake.disabled_models", ["fake-video", "fake-image"], by="test")
+        seen["all_paused"] = await stats(env)
+        await env.settings.delete("fake.disabled_models")
+        db.run("UPDATE accounts SET state = 'available' WHERE id = %s", only)
+        seen["back"] = await stats(env)
+        return seen
+
+    seen = run_app(db, scenario)
+    down = [("error", "fake has no usable account: its jobs cannot run", "fake")]
+    assert no_accounts(seen["served"]) == [], "one checked available account serves the provider"
+    assert no_accounts(seen["cooling"]) == [], "a cooling account comes back by itself: no outage"
+    assert no_accounts(seen["down"]) == down, "the last usable account gone: one error"
+    assert seen["down"].json()["alerts"][0]["kind"] == "no_accounts", "listed first, so the banner words it"
+    assert no_accounts(seen["still"]) == down, "while it stays down: still one row, never one more"
+    assert no_accounts(seen["unchecked"]) == down, "a never checked or disabled account is not usable"
+    assert no_accounts(seen["drained"]) == [], "a drained provider is off: silent"
+    assert no_accounts(seen["one_paused"]) == down, "one model paused: the provider still takes jobs"
+    assert no_accounts(seen["all_paused"]) == [], "every model paused: off, silent"
+    assert no_accounts(seen["back"]) == [], "an account back: the error clears"
+
+
 DEAD_ONLY = "WHERE state = 'dead' ORDER BY label, id"
 
 

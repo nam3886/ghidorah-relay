@@ -67,6 +67,8 @@ RULES = (
              fixed="%d errors in a row" % CONSECUTIVE_ERRORS),
     RuleInfo("live", "accounts_low", "warning", "A provider has fewer usable accounts than the threshold.",
              settings=("alert_accounts_low",)),
+    RuleInfo("live", "no_accounts", "error",
+             "A provider that is on has no usable account (available and checked once): its jobs cannot run."),
     RuleInfo("live", "account_dead", "error", "An account's session died."),
     RuleInfo("live", "no_worker", "error", "A provider has open jobs and no live worker."),
     RuleInfo("live", "error_rate", "warning", "Too many of a provider's finished jobs failed in 24 h.",
