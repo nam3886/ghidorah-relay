@@ -491,9 +491,8 @@ def test_concurrent_claims_never_double_book_a_job_or_an_account(db):
 # ---- one job per account (muse: a job's results are what is new on the account since its send) ------------------
 ONE = dataclasses.replace(FakeSpec().caps, one_job_per_account=True)
 ONE_TWO_SLOTS = dataclasses.replace(TWO_SLOTS, one_job_per_account=True)
-QUIET = FakeSettings(fake__quiet_after_fail_s=1200)      # a provider with the flag declares its quiet window
-IN_FLIGHT = "   AND (NOT %(single)s OR NOT EXISTS (\n        SELECT 1 FROM jobs f\n"
-IN_FLIGHT_OFF = "   AND (TRUE OR NOT EXISTS (\n        SELECT 1 FROM jobs f\n"
+IN_FLIGHT = "   AND (NOT %(single)s OR NOT EXISTS ("
+IN_FLIGHT_OFF = "   AND (TRUE OR NOT EXISTS ("
 IN_FLIGHT_STATES = "f.status IN ('submitting', 'unknown', 'waiting', 'fetching')"
 SINGLE_ARG = '"single": caps.one_job_per_account,'
 
@@ -521,8 +520,8 @@ def test_one_job_per_account_skips_an_account_with_any_job_in_flight_and_the_fla
     async def scenario(p):
         for i in range(3):
             await create(p, k, str(i))
-        first = await claim(p, caps=ONE, settings=QUIET)
-        second = await claim(p, caps=ONE, settings=QUIET)     # `free`: a submitting job, `busy`: one in flight
+        first = await claim(p, caps=ONE)
+        second = await claim(p, caps=ONE)        # `free` now holds a submitting job, `busy` the one in flight
         return first, second, await claim(p)     # flag off: `busy` is taken (it holds no lease)
 
     first, second, off = run(db, scenario)
@@ -550,9 +549,9 @@ def test_one_job_per_account_holds_when_another_claim_committed_after_the_list_w
 
         failpoints.arm("claim.candidates_read", pause)
         try:
-            first = asyncio.create_task(claim(p, owner="w1", caps=ONE_TWO_SLOTS, settings=QUIET))
+            first = asyncio.create_task(claim(p, owner="w1", caps=ONE_TWO_SLOTS))
             await asyncio.wait_for(reached.wait(), 5)
-            second = await claim(p, owner="w2", caps=ONE_TWO_SLOTS, settings=QUIET)    # takes the account, commits
+            second = await claim(p, owner="w2", caps=ONE_TWO_SLOTS)    # takes the account, commits
             gate.set()
             return second, await first
         finally:
@@ -562,43 +561,3 @@ def test_one_job_per_account_holds_when_another_claim_committed_after_the_list_w
     second, first = run(db, scenario)
     assert second is not None and second.account_id == acct
     assert first is None, "a stale candidate list put two jobs on one account: %r" % (first,)
-
-
-QUIET_CLAUSE = "   AND (NOT %(single)s OR NOT EXISTS (\n        SELECT 1 FROM jobs q\n"
-QUIET_SENT = "         WHERE q.account_id = a.id AND q.status = 'failed' AND q.sent_at IS NOT NULL\n"
-QUIET_READ = "    quiet_s = settings.get(provider + QUIET_AFTER_FAIL) if caps.one_job_per_account else 0\n"
-
-
-def failed_job(db, k, acct, *, sent: bool, ago_s: float):
-    """A job of `acct` that failed `ago_s` seconds ago, sent (upstream may still be making it) or not."""
-    db.run("INSERT INTO jobs (id, provider, key_id, operation, media_type, model, prompt, marker, status, completion,"
-           " after_sent, submit_timeout_s, price_key, price, account_id, sent_at, finished_at, error_code, error)"
-           " VALUES (gen_random_uuid(), %s, %s, 'generate', 'video', 'm', 'x', 'm', 'failed', 'detach', 'reconcile', "
-           "60, 'fake-video', 0, %s, CASE WHEN %s THEN clock_timestamp() - interval '1 hour' END, "
-           "clock_timestamp() - make_interval(secs => %s), 'render.deadline', 'late')", PROVIDER, k, acct, sent, ago_s)
-
-
-@pytest.mark.parametrize("case", ["within", "after", "never_sent"])
-@mutation(K, QUIET_CLAUSE, "   AND (TRUE OR NOT EXISTS (\n        SELECT 1 FROM jobs q\n",
-          expect="within: a failed sent job's account took a job")
-@mutation(K, QUIET_SENT, "         WHERE q.account_id = a.id AND q.status = 'failed'\n", expect="never_sent: blocked")
-@mutation(K, QUIET_READ, "    quiet_s = 0\n", expect="within: a failed sent job's account took a job")
-def test_one_job_per_account_keeps_an_account_quiet_after_its_sent_job_failed(db, case):
-    k = key(db)
-    quiet, free = account(db), account(db, used_ago_s=50)       # LRU: `quiet` would go first
-    failed_job(db, k, quiet, sent=case != "never_sent", ago_s=7200 if case == "after" else 60)
-
-    async def scenario(p):
-        for i in range(3):
-            await create(p, k, str(i))
-        first = await claim(p, caps=ONE, settings=QUIET)
-        second = await claim(p, caps=ONE, settings=QUIET)
-        return first, second, await claim(p)                    # flag off: no quiet window
-
-    first, second, off = run(db, scenario)
-    if case == "within":
-        assert first.account_id == free, "within: a failed sent job's account took a job: %r" % (first,)
-        assert second is None, "within: a failed sent job's account took a job: %r" % (second,)
-        assert off is not None and off.account_id == quiet, "the flag off changes nothing"
-    else:
-        assert first is not None and first.account_id == quiet, "%s: blocked: %r" % (case, first)

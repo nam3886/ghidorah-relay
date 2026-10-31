@@ -76,6 +76,11 @@ async def _media(ref):
     return b"RIFFwebp"
 
 
+DONE_CANCEL = ("                    await cancel_chat(tunnel, self.session, timeout)    "
+               "# nothing more is taken from it\n")
+
+
+@mutation(SUBMIT_FILE, DONE_CANCEL, "", expect="a done chat is cancelled")
 def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_file():
     site = Site(vm_routes_=vm_routes([answered("job_j01.json", after=1)]))
     result, ctx = run(site)
@@ -87,13 +92,16 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     assert out.meta == {"session_id": sid, "job_id": "job-1", "last": True}
     assert "/session/delete" not in site.vms[0].paths(), "a done chat is deleted by the fetch of its last output"
     vm = site.vms[0]
-    assert vm.paths()[:7] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
-                              "/chat/subscribe", "/api/nodes/register", "/fs/list", "/fs/list", "/chat/stream"]
+    assert vm.paths()[:8] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
+                              "/chat/subscribe", "/api/nodes/register", "/api/session/list", "/fs/list", "/fs/list",
+                              "/chat/stream"]
     assert "session_id" not in vm.requests[2].json() and vm.requests[2].json()["after_chat_event_seq"] == 41
-    assert vm.requests[4].json() == {"path": "workspace/imagine_media"}, "the media folders are listed before"
+    assert vm.requests[5].json() == {"path": "workspace/imagine_media"}, "the media folders are listed before"
     assert vm.paths().count("/chat/stream") == 1
+    assert vm.paths()[-1] == "/chat/cancel" and vm.requests[-1].json() == {"session_id": sid}, \
+        "a done chat is cancelled: nothing more is taken from it"
     assert all(p in ("/chat/history?limit=40&transcript_mode=messages&session_id=" + sid, "/fs/list")
-               for p in vm.paths()[7:])
+               for p in vm.paths()[8:-1])
     body = stream_bodies(site)[0]
     assert body["node_id"] == vm.requests[0].json()["client_id"] == vm.requests[3].json()["node_id"]
     assert body["message"].startswith("Generate exactly one separate image")
@@ -634,3 +642,49 @@ def test_new_unshown_images_beyond_n_are_never_delivered():
     assert isinstance(result.job, Completed) and len(result.job.outputs) == 1
     assert result.job.outputs[0].ref == "workspace/imagine_media/a-fox-2.webp"
     assert any("muse made 4 images, 1 were paid" in text for _, text in ctx.events)
+
+
+# ---- nothing is sent while another chat of the account is working ------------------------------------------------
+BUSY_RAISE = "            if why is not None:\n                raise Busy(why)\n"
+WORKING = '               if not isinstance(s, Mapping) or s.get("status") not in idle]'
+UNREAD = ('    if not isinstance(sessions, list) or not isinstance(result, dict) or result.get("has_more"):\n'
+          "        return \"the account's chats could not be read")
+UNREAD_OFF = "    if False:\n        return \"the account's chats could not be read"
+TOO_MANY_CHATS = "    if len(sessions) > most:\n"
+
+
+def chats(*states):
+    return 200, {"ok": True, "result": {"sessions": [
+        {"session_id": "00000000-0000-4000-8000-00000000000%d" % i, "status": s, "is_primary": i == 0,
+         "is_thread": i != 0} for i, s in enumerate(states)]}}
+
+
+def not_sent(answer, why, **over):
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json")], overrides={"/api/session/list": answer}))
+    result, ctx = run(site, **over)
+    assert result.job == Retry("muse.workspace_busy"), "%s: not sent: %s" % (why, result.job)
+    assert stream_bodies(site) == [] and ctx.calls == [], "%s: not sent" % why
+    assert [type(e) for e in result.account] == [Success, Cooldown], "%s: no strike: %s" % (why, result.account)
+
+
+@mutation(SUBMIT_FILE, BUSY_RAISE, "            if False:\n                raise Busy(why)\n", expect="not sent")
+@mutation(CHAT_FILE, WORKING, "               if False]", expect="another chat is running: not sent")
+def test_another_working_chat_of_the_account_sends_nothing_and_only_finished_ones_let_the_job_go():
+    not_sent(chats("completed", "running", "completed"), "another chat is running")
+    not_sent(chats("completed", "queued"), "another chat is running (a status not known to be idle)")
+    from relay_core.errors import rule
+    busy = rule("muse.workspace_busy")
+    assert not (busy.counts_attempt or busy.terminal or busy.refund or busy.free_retries)
+    site = Site(vm_routes_=vm_routes([answered("job_j01.json")],
+                                     overrides={"/api/session/list": chats("completed", "completed", "completed")}))
+    result, _ = run(site)
+    assert isinstance(result.job, Completed) and len(stream_bodies(site)) == 1, "only finished chats: sent"
+
+
+@mutation(CHAT_FILE, UNREAD, UNREAD_OFF, expect="unreadable: not sent")
+@mutation(CHAT_FILE, TOO_MANY_CHATS, "    if False:\n", expect="more chats than read: not sent")
+def test_a_chat_list_that_cannot_be_read_sends_nothing():
+    not_sent((500, {"ok": False}), "unreadable")
+    not_sent((200, {"ok": True, "result": {"sessions": [], "has_more": True}}), "unreadable (more pages)")
+    not_sent(("reset", "gone"), "unreadable (the stream reset)")
+    not_sent(chats(*["completed"] * 11), "more chats than read", max_chats=10)

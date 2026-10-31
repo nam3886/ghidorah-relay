@@ -22,7 +22,7 @@ from relay_core.providers import (
     PoolSpec,
 )
 from relay_core.refusals import refusal_max_accounts_setting
-from relay_core.settings import Rule, Spec, disabled_models, quiet_after_fail_setting
+from relay_core.settings import Rule, Spec, disabled_models
 from relay_muse import catalog as C
 from relay_muse import errors as codes
 from relay_muse.constants import (
@@ -135,6 +135,12 @@ def _media_dirs(value: list) -> None:
         raise ValueError("1 to 8 different folders, each workspace/<name>/ (letters, numbers, _ and -, ending in /)")
 
 
+def _states(value: list) -> None:
+    if not 1 <= len(value) <= 8 or len(set(value)) != len(value) or not all(
+            isinstance(v, str) and re.fullmatch(r"[a-z_]{1,32}", v) for v in value):
+        raise ValueError("1 to 8 different status words (lower case letters and _)")
+
+
 def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any) -> tuple[str, Spec]:
     full = "%s.%s" % (PROVIDER, key)
     return full, Spec(full, kind, default, description, **bounds)
@@ -223,6 +229,13 @@ _SETTINGS = dict((
              "The most images and videos the media folders of one account may hold for a send: their names are kept "
              "on the job. An account holding more sends nothing (as when the folders cannot be listed).",
              min=100, max=50000),
+    _setting("max_chats", int, 200,
+             "The most chats of one account read before a send to see that none is still working (the relay deletes "
+             "its own); an account holding more sends nothing.", min=10, max=2000),
+    _setting("idle_chat_states", list, ["completed"],
+             "The status a chat of the account may show for a send to go (muse's chat list; 'running' while a message "
+             "runs). A chat in any other status, or a list that cannot be read, sends nothing: the job goes back to "
+             "the queue.", rule=Rule("1 to 8 different status words", _states)),
     _setting("files_grace_s", int, 60,
              "Seconds a settled chat must keep showing no new file of the job's kind, read again and again, before "
              "the job is failed as refused (refunded): muse may save the result just after its answer (a cut video "
@@ -244,10 +257,6 @@ _SETTINGS = dict((
         "the account is muse's answer that the account makes no video in its country or region (the last one ends "
         "the job with muse.video_unavailable_on_accounts); a refusal of the prompt ends the job at once "
         "(muse.refused)."),
-    quiet_after_fail_setting(
-        PROVIDER, 1200, "Seconds an account takes no new job after one of its sent jobs failed (a refusal, a render "
-        "deadline): muse may still be making that job, and a result is a file new on the account since the send, so a "
-        "late file must not land while the next job is read. Longer than the slowest render seen (about 15 min)."),
     _setting("usage_stop_percent", int, 95,
              "The weekly Usage percentage at which an account is sent no more jobs until its reset (both pools read "
              "0). Below it, what is left of each pool's budget follows the percentage.", min=1, max=100),

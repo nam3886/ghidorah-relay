@@ -12,6 +12,9 @@ Money rules (each has a test and a mutation):
   is `NotTaken` (muse refused the request itself, nothing was made), and once muse acknowledged the send the order is
   taken whatever follows: past the hold, or on a broken tunnel, it is `Accepted` and the poll reads the chat;
 - results: any is a full charge (Q4); the first n are delivered and never more; none is a failure with its refund;
+- nothing is sent while another chat of the account is still working (`chat.busy_chats`: a done job's chat making
+  more, one a deadline ended, the account's own): the job goes back to the queue (`muse.workspace_busy`, as below);
+  every chat the relay stops following (done, refused, empty) is cancelled first (`chat.cancel_chat`, best effort);
 - results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (the names of
   their images and videos kept as `provider_state.before`) and at the verdict, and only a file whose name was not
   there counts, shown in the chat or not (`chat.decide`). No listing before the send: nothing is sent, the job goes
@@ -53,8 +56,10 @@ from relay_muse import errors
 from relay_muse.catalog import MAX_REFS
 from relay_muse.constants import INPUT_MIMES, SIGNED_OUT_GAP_S, SIGNED_OUT_REST_S
 from relay_muse.engine.chat import (
+    Busy,
     SetupError,
     Unlisted,
+    busy_chats,
     cancel_chat,
     compose,
     decide,
@@ -182,6 +187,10 @@ class _Run:
             self.signed_in = True
             message = compose(self.job.operation, self.job.params, self.job.sent_text, len(images))
             body = stream_body(message, self.node, self.session, images)
+            why = await busy_chats(tunnel, timeout, self.settings.get("muse.max_chats"),
+                                   self.settings.get("muse.idle_chat_states"))
+            if why is not None:
+                raise Busy(why)
             listed = await list_media(tunnel, self.dirs, timeout, self.most)
             if listed is None:
                 raise Unlisted("muse's media folders could not be listed before the send")
@@ -228,6 +237,7 @@ class _Run:
                     self.empty = self.deps.clock() if self.empty is None else self.empty
                     found = None        # no new file yet: refused only once that held `muse.files_grace_s`
                 if found == "done":
+                    await cancel_chat(tunnel, self.session, timeout)    # nothing more is taken from it
                     await self._say(made_note(reading, self.want, self.kind, self.job.id))
                     return _result(Completed(outputs(reading, self.want, self.session, **paid_of(self.job))),
                                    Success(), *meter_effects(self.ctx.account, self.settings, self.kind,
@@ -305,6 +315,9 @@ class _Run:
             return _result(Retry(errors.VM_NOT_READY), lease_effect(exc, self.settings, now))
         if isinstance(exc, Unavailable):
             return _result(Retry(errors.VM_NOT_READY), unavailable_effect(exc, self.settings, now))
+        if isinstance(exc, Busy):
+            return _result(Retry(errors.BUSY), Cooldown("muse: another chat of the account is working",
+                                                        now + timedelta(seconds=VM_REST_S)))
         if isinstance(exc, Unlisted):
             return _result(Retry(errors.UNLISTED), Cooldown("muse media folders not listed",
                                                             now + timedelta(seconds=VM_REST_S)))
@@ -314,7 +327,7 @@ class _Run:
         if isinstance(exc, NetError) and exc.proxy:
             return _result(Retry(POOL_PROXY_FAILED), ProxyBad("the proxy could not reach muse"),
                            Cooldown("proxy failed", now + timedelta(seconds=FAULT_REST_S)))
-        if not isinstance(exc, NetError | SiteError | TunnelError | SetupError | TimeoutError | Unlisted):
+        if not isinstance(exc, NetError | SiteError | TunnelError | SetupError | TimeoutError | Unlisted | Busy):
             log.warning("muse submit broke before the send: %s", type(exc).__name__)
         return _result(Retry(errors.HTTP_ERROR))
 

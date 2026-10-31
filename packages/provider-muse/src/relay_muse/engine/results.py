@@ -99,6 +99,8 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
                 reading, found = await decide(tunnel, reading, want_of(job.params),
                                               _settled(state, seen, now, settings.get("muse.settle_s")), before,
                                               kind, dirs, timeout, most)
+                if found == "done":
+                    await cancel_chat(tunnel, session, timeout)     # nothing more is taken from it
     except Exception as e:      # noqa: BLE001 - a failed read: polled again, never a verdict
         return PollResult(Pending("the chat could not be read (%s)" % type(e).__name__, next_in_s=interval,
                                   answered=False))
@@ -168,6 +170,7 @@ async def fetch(ctx, out, settings, *, deps: Deps | None = None):
             raise RuntimeError("muse answered %d with %d bytes to the file read" % (reply.status, len(reply.body)))
         session = out.meta.get("session_id")
         if out.meta.get(LAST) and is_session(session):      # the job's last file is read: nothing more is
+            await cancel_chat(tunnel, session, settings.get("muse.call_timeout_s"))
             await delete_chat(tunnel, session, settings.get("muse.call_timeout_s"),
                               retry_after=settings.get("muse.history_poll_s"))
     if out.mime.startswith("video/") and out.meta.get("duration"):

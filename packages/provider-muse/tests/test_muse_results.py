@@ -36,6 +36,12 @@ def refused_after_grace(routes, make_job, state, at):
     return poll(site, make_job({**state, **first.outcome.state_patch}), at + timedelta(seconds=1)), site
 
 
+POLL_DONE_CANCEL = ("                    await cancel_chat(tunnel, session, timeout)     "
+                    "# nothing more is taken from it\n")
+FETCH_CANCEL = '            await cancel_chat(tunnel, session, settings.get("muse.call_timeout_s"))\n'
+
+
+@mutation(RESULTS_FILE, POLL_DONE_CANCEL, "                    pass\n", expect="a done chat is cancelled")
 def test_a_poll_delivers_the_results_with_no_send():
     site = Site(vm_routes_=vm_routes([history("job_j11.json", SID)]))
     result = poll(site, taken(n=4))
@@ -43,7 +49,7 @@ def test_a_poll_delivers_the_results_with_no_send():
     vm = site.vms[0]
     assert vm.paths() == ["/client/register-capabilities",
                           "/chat/history?limit=40&transcript_mode=messages&session_id=" + SID,
-                          "/fs/list", "/fs/list"]
+                          "/fs/list", "/fs/list", "/chat/cancel"], "a done chat is cancelled"
 
 
 SETTLED = '    since = _at(state.get("seen_at")) if state.get("seen") == seen else None\n'
@@ -190,6 +196,7 @@ def test_a_malformed_answer_to_the_delete_after_the_last_file_changes_nothing():
 
 
 @mutation(RESULTS_FILE, FETCH_DELETE, "        if False:", expect="deleted once its last file is read")
+@mutation(RESULTS_FILE, FETCH_CANCEL, "", expect="cancelled and deleted once its last file is read")
 def test_the_side_chat_is_deleted_once_the_jobs_last_file_is_read_and_a_failed_delete_changes_nothing():
     data = b"RIFF" + b"w" * 1000
     first, last = Output(REF, "image/webp", 0, meta={"session_id": SID}), \
@@ -198,7 +205,8 @@ def test_the_side_chat_is_deleted_once_the_jobs_last_file_is_read_and_a_failed_d
     assert fetch_out(site, first) == [data] and deleted(site) == [], "not before the last file"
     site = Site(vm_routes_=vm_routes(files={REF: data}))
     assert fetch_out(site, last) == [data]
-    assert site.vms[0].paths()[-2:] == ["/fs/raw/" + REF, "/session/delete"], "deleted once its last file is read"
+    assert site.vms[0].paths()[-3:] == ["/fs/raw/" + REF, "/chat/cancel", "/session/delete"], \
+        "cancelled and deleted once its last file is read"
     assert deleted(site) == [{"method": "/api/session/delete", "session_id": SID}]
     busy = (409, {"ok": False, "error": {"code": "conflict", "message": "session has an active message"}})
     for answer, tries in ((busy, 2), ((500, {}), 1), (("reset", "gone"), 1), ("silent", 1)):

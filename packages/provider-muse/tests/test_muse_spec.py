@@ -37,7 +37,7 @@ def test_the_spec_registers_and_its_codes_are_sound():
     assert registry.resolve("muse-image")[0] is SPEC and registry.resolve("muse-video")[0] is SPEC
     assert not core_errors.violations({**core_errors.RULES, **CODES})
     assert set(CODES) == {"muse.http_error", "muse.vm_not_ready", "muse.refused", "muse.output_missing",
-                          "muse.video_unavailable_on_accounts", "muse.workspace_unlisted"}
+                          "muse.video_unavailable_on_accounts", "muse.workspace_unlisted", "muse.workspace_busy"}
     region = CODES["muse.video_unavailable_on_accounts"]
     assert region.terminal and region.refund and region.public_code == core_errors.TEMPORARILY_UNAVAILABLE
     assert all(core_errors.RULES[c] is r for c, r in CODES.items())
@@ -272,5 +272,3 @@ def test_an_account_takes_no_job_while_another_is_in_flight_on_it():
     """A job's results are the files new on its account since the send: no other job may write there meanwhile."""
     assert SPEC.caps.one_job_per_account is True, "one job in flight per account"
     assert SPEC.caps.account_slots == 1
-    quiet = SPEC.settings()["muse.quiet_after_fail_s"]
-    assert quiet.default == 1200 and quiet.type is int, "quiet after a failed sent job, past the slowest render"

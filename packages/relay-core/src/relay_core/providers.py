@@ -730,8 +730,7 @@ def _problems(spec: ProviderSpec) -> list[str]:
     if stray:
         bad.append("%s: settings outside its namespace: %s" % (spec.name, ", ".join(stray)))
     needed = ["claims_enabled", "render_deadline_s", "disabled_models", "prices", "costs", "pools"] + (
-        ["browser_slots"] if spec.caps.execution == "browser" else []) + (
-        ["quiet_after_fail_s"] if spec.caps.one_job_per_account else [])
+        ["browser_slots"] if spec.caps.execution == "browser" else [])
     missing = [spec.name + "." + n for n in needed if spec.name + "." + n not in keys]
     if missing:                      # the core reads these (the door reads disabled_models, prices, costs)
         bad.append("%s: settings the core reads are not declared: %s" % (spec.name, ", ".join(missing)))

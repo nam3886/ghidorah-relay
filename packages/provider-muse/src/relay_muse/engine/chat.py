@@ -291,6 +291,39 @@ class Unlisted(Exception):
     """The media folders could not be listed before the send (or hold more names than are kept): nothing was sent."""
 
 
+class Busy(Exception):
+    """Another chat of the account is still working, or the account's chats could not be read: nothing was sent."""
+
+
+SESSIONS_PATH = "/api/session/list"
+
+
+async def busy_chats(tunnel: Tunnel, timeout: float, most: int, idle: Sequence[str]) -> str | None:
+    """Why the account must not be sent a job now, or None. Nothing else may be writing on the account while a job's
+    new files are read: a chat a relay job left running (a done job's extra outputs, a job its deadline ended), the
+    account's own main chat, anything. Live 30/10: `GET /api/session/list` answers {ok, result: {sessions: [{session_id,
+    status, is_primary, is_thread, title, ...}]}}, `status` "running" while a message runs and "completed" after.
+    Fail closed: a chat in any status but `idle` (`muse.idle_chat_states`), a list that cannot be read, or one longer
+    than `most` (`muse.max_chats`) is a reason."""
+    try:
+        reply = await tunnel.call("GET", SESSIONS_PATH, timeout=timeout)
+    except TunnelError as e:
+        return "the account's chats could not be read (%s)" % e
+    body = reply.json() if reply.status == 200 else None
+    result = body.get("result") if isinstance(body, dict) else None
+    sessions = result.get("sessions") if isinstance(result, dict) else None
+    if not isinstance(sessions, list) or not isinstance(result, dict) or result.get("has_more"):
+        return "the account's chats could not be read (muse answered %d)" % reply.status
+    if len(sessions) > most:
+        return "the account holds %d chats, more than the %d read" % (len(sessions), most)
+    working = [str(s.get("status"))[:40] if isinstance(s, Mapping) else "?" for s in sessions
+               if not isinstance(s, Mapping) or s.get("status") not in idle]
+    if working:
+        states = ", ".join(sorted(set(working)))
+        return "%d other chat(s) of the account are still working (%s)" % (len(working), states)
+    return None
+
+
 def _ms(entry: Mapping) -> int:
     try:
         return int(datetime.fromisoformat(entry["modifiedAt"]).timestamp() * 1000)

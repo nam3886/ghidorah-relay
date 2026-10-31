@@ -292,6 +292,11 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=
             return (200, data) if data is not None else (404, {"ok": False, "error": {"code": "not_found"}})
         if req.path.startswith("/approvals/"):
             return 200, {"ok": True}
+        if req.path == "/api/session/list":     # measured 30/10: every chat done
+            return 200, {"ok": True, "result": {"sessions": [
+                {"session_id": "00000000-0000-4000-8000-000000000001", "status": "completed", "is_primary": True}]}}
+        if req.path == "/chat/cancel":          # measured 30/10, on a finished chat
+            return 200, {"cancelled": False, "message_id": None}
         if req.path == "/session/delete":       # measured 30/10
             return 200, {"ok": True, "result": {"deleted": True, "session_id": req.json()["session_id"]}}
         return 404, {"ok": False, "error": {"code": "not_found", "message": "route not found"}}
