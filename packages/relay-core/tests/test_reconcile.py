@@ -98,6 +98,26 @@ def test_a_found_order_keeps_its_output_links_as_given_and_redacts_only_their_me
         "video/mp4", 0, "conv-1")
 
 
+@mutation("packages/relay-core/src/relay_core/jobs/apply.py",
+          "if not (isinstance(outs, list) and all(", "if outs is None or (False and all(",
+          expect="a found order with malformed outputs still moves to waiting")
+def test_a_found_order_with_malformed_outputs_still_moves_to_waiting(db):
+    """Outputs the core cannot read as links (here a ref that is not a string, an entry that is not a mapping) are
+    stored redacted like the rest of the patch, as before; the found transition never raises over them."""
+    k, _ = key(db), account(db, left=100)
+
+    async def scenario(p):
+        job_id = await unknown_due(p, db, k)
+        engine = FakeEngine()
+        engine.script_reconcile("*", Found("conv-1", {"conversation_id": "conv-1", "outputs": [{"ref": 5}, "x"]}))
+        await pass_once(reconciler(p, engine))
+        return job_id
+
+    job_id = run(db, scenario)
+    assert row(db, job_id, "status, external_ref, provider_state -> 'outputs'") == (
+        "waiting", "conv-1", [{"ref": 5}, "x"]), "a found order with malformed outputs still moves to waiting"
+
+
 # ---- NotSent: only with proof (I27) ---------------------------------------------------------------------------------
 @pytest.mark.parametrize("completion", MODES)
 def test_not_sent_is_refused_when_the_read_is_too_early_and_the_job_stays_unknown(db, completion):

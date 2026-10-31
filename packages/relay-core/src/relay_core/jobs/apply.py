@@ -206,13 +206,16 @@ def _outputs(outputs: tuple[Output, ...]) -> dict:
 
 def _found_state(patch: Mapping[str, Any]) -> _Raw:
     """A found order's state patch: its `outputs` (dicts with a `ref`) kept like a poll's (`_outputs`: refs as given,
-    meta redacted), the rest redacted (I24)."""
+    meta redacted), the rest redacted (I24). `outputs` that are not a list of mappings each with a non-empty str `ref`
+    are stored like the rest, as before: a malformed patch never raises (that would keep the job unknown)."""
     rest = dict(patch)
     outs = rest.pop("outputs", None)
-    if outs is None:
-        return _merge(rest)
-    kept = tuple(Output(str(o["ref"]), str(o.get("mime") or ""), int(o.get("idx", i)), o.get("upstream_id"),
-                        o.get("meta") or {}) for i, o in enumerate(outs))
+    if not (isinstance(outs, list) and all(isinstance(o, Mapping) and isinstance(o.get("ref"), str) and o["ref"]
+                                           for o in outs)):
+        return _merge(patch)
+    kept = tuple(Output(o["ref"], str(o.get("mime") or ""), o["idx"] if type(o.get("idx")) is int else i,
+                        o.get("upstream_id") if isinstance(o.get("upstream_id"), str) else None,
+                        dict(o["meta"]) if isinstance(o.get("meta"), Mapping) else {}) for i, o in enumerate(outs))
     return _Raw("provider_state || %s::jsonb || %s::jsonb", (_state(rest), Jsonb(_outputs(kept))))
 
 
