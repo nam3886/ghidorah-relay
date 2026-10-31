@@ -322,18 +322,19 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
 
 
 # ---- only files whose names were not there before the send ---------------------------------------------------------
-OLD_CARD = "    cards = [m for m in r.media if m.ref not in before]"
+OLD_CARD = "             if m.ref not in before and m.ref in now]"
 NEW_ONLY = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
             "key=lambda f: -f.ms)")
 BY_TIME = ("    new = sorted((f for f in files if f.ms > 250 and f.mime.startswith(kind + \"/\")), "
            "key=lambda f: -f.ms)")
 OLDEST_FIRST = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
                 "key=lambda f: f.ms)")
-UNSHOWN = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []"
-UNSHOWN_ALWAYS = "    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown]"
+UNSHOWN = "        if settled and not r.busy and unshown else []"
+UNSHOWN_ALWAYS = "        if True else []"
 
 
-@mutation(CHAT_FILE, OLD_CARD, "    cards = list(r.media)", expect="an old file shown in a card")
+@mutation(CHAT_FILE, OLD_CARD, "             if m.ref in now]", expect="an old file shown in a card")
+@mutation(CHAT_FILE, OLD_CARD, "             if m.ref not in before]", expect="a card not listed now")
 @mutation(CHAT_FILE, NEW_ONLY, BY_TIME, expect="an old file rewritten since")
 @mutation(CHAT_FILE, NEW_ONLY, OLDEST_FIRST, expect="newest first")
 @mutation(CHAT_FILE, UNSHOWN, UNSHOWN_ALWAYS, expect="only once settled")
@@ -354,4 +355,8 @@ def test_only_files_whose_names_were_not_there_count_cards_first_then_the_unshow
     assert [m.ref for m in new_card] == [old.ref, cut.ref], "the card first"
     assert fresh(shown, [old, cut], before, "video", False).media == (), "only once settled"
     assert fresh(shown._replace(busy=True), [old, cut], before, "video", True).media == (), "only once settled"
-    assert fresh(shown, [cut], frozenset(), "video", False).media == (Media(old.ref, "video/mp4"),)
+    assert fresh(shown, [old, cut], frozenset(), "video", False).media == (Media(old.ref, "video/mp4", (100, -1)),)
+    assert fresh(shown, [cut], frozenset(), "video", True).media == (Media(cut.ref, "video/mp4", (400, -1)),), \
+        "a card not listed now is no result"
+    assert fresh(shown, [old, cut], frozenset(), "video", True, unshown=False).media == (
+        Media(old.ref, "video/mp4", (100, -1)),), "only once settled, and only when no other chat moved"

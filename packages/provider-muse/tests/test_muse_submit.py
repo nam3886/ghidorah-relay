@@ -9,8 +9,11 @@ from datetime import timedelta
 import pytest
 from musekit import (
     IMAGE_REF,
+    MAIN_AT,
+    MAIN_CHAT,
     NOW,
     SESSION_OK,
+    SHOWN_STAMP,
     Ctx,
     Site,
     folders,
@@ -76,11 +79,11 @@ async def _media(ref):
     return b"RIFFwebp"
 
 
-DONE_CANCEL = ("                    await cancel_chat(tunnel, self.session, timeout)    "
+DONE_CANCEL = ("                    stopped = await cancel_chat(tunnel, self.session, timeout)    "
                "# nothing more is taken from it\n")
 
 
-@mutation(SUBMIT_FILE, DONE_CANCEL, "", expect="a done chat is cancelled")
+@mutation(SUBMIT_FILE, DONE_CANCEL, "                    stopped = True\n", expect="a done chat is cancelled")
 def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_file():
     site = Site(vm_routes_=vm_routes([answered("job_j01.json", after=1)]))
     result, ctx = run(site)
@@ -89,7 +92,7 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     sid = chat_of(site)
     assert out.ref.startswith("workspace/imagine_media/media-generation-generate-one-image")
     assert out.mime == "image/webp"
-    assert out.meta == {"session_id": sid, "job_id": "job-1", "last": True}
+    assert out.meta == {"session_id": sid, "job_id": "job-1", "stamp": SHOWN_STAMP, "last": True}
     assert "/session/delete" not in site.vms[0].paths(), "a done chat is deleted by the fetch of its last output"
     vm = site.vms[0]
     assert vm.paths()[:8] == ["/client/register-capabilities", "/chat/history?limit=1&transcript_mode=messages",
@@ -100,8 +103,8 @@ def test_an_image_job_is_sent_once_in_a_new_side_chat_and_completes_with_its_fil
     assert vm.paths().count("/chat/stream") == 1
     assert vm.paths()[-1] == "/chat/cancel" and vm.requests[-1].json() == {"session_id": sid}, \
         "a done chat is cancelled: nothing more is taken from it"
-    assert all(p in ("/chat/history?limit=40&transcript_mode=messages&session_id=" + sid, "/fs/list")
-               for p in vm.paths()[8:-1])
+    assert all(p in ("/chat/history?limit=40&transcript_mode=messages&session_id=" + sid, "/fs/list",
+                     "/api/session/list") for p in vm.paths()[8:-1])
     body = stream_bodies(site)[0]
     assert body["node_id"] == vm.requests[0].json()["client_id"] == vm.requests[3].json()["node_id"]
     assert body["message"].startswith("Generate exactly one separate image")
@@ -114,7 +117,8 @@ def test_the_chat_id_is_kept_before_mark_sent_and_the_send_comes_after_it():
     site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
     result, ctx = run(site)
     sid = chat_of(site)
-    assert ctx.calls[:2] == [("report_ref", sid, {"session_id": sid, "before": []}), ("mark_sent",)], \
+    assert ctx.calls[:2] == [("report_ref", sid, {"session_id": sid, "before": [], "chats": {MAIN_CHAT: MAIN_AT}}),
+                             ("mark_sent",)], \
         "the chat id first"
 
 
@@ -147,11 +151,11 @@ def test_every_call_goes_through_the_accounts_proxy_and_rotated_cookies_are_kept
     assert no_proxy.made == [None]
 
 
-CANCEL = "            await cancel_chat(tunnel, self.session, step)\n"
+CANCEL = "        stopped = await cancel_chat(tunnel, self.session, step)\n"
 
 
 @mutation(SUBMIT_FILE, "                if found == \"refused\":", "                if False:", expect="Fail")
-@mutation(SUBMIT_FILE, CANCEL, "", expect="cancelled before the delete")
+@mutation(SUBMIT_FILE, CANCEL, "        stopped = True\n", expect="cancelled before the delete")
 def test_an_answer_in_words_with_no_image_is_refused_and_refunded_once_settled():
     site = Site(vm_routes_=vm_routes([answered("job_j07.json")]))
     result, _ = run(site)
@@ -168,7 +172,7 @@ def test_an_answer_in_words_with_no_image_is_refused_and_refunded_once_settled()
 NO_VIDEO_HERE = "region-301030/history_video_unavailable.json"
 NO_VIDEO_BRANCH = '                    if self.kind == "video" and video_unavailable_here(reading.text):'
 KEEP_STRIKES = "        self.keep_strikes = True\n"
-DROP_REFUSED = "                    await self._drop_chat(tunnel, timeout)\n"
+DROP_REFUSED = "                    stopped = await self._drop_chat(tunnel, timeout)\n"
 DELETE_RETRY = "            if reply.status != 409 or final:"
 BEST_EFFORT = "    except Exception as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
 NARROW = "    except ValueError as e:      # noqa: BLE001 - whatever muse answers, the delete never changes the job"
@@ -185,7 +189,7 @@ def deleted(site: Site) -> list[dict]:
 
 @mutation(SUBMIT_FILE, NO_VIDEO_BRANCH, "                    if False:", expect="another account")
 @mutation(SUBMIT_FILE, KEEP_STRIKES, "        self.keep_strikes = False\n", expect="no Success")
-@mutation(SUBMIT_FILE, DROP_REFUSED, "", expect="the chat is deleted")
+@mutation(SUBMIT_FILE, DROP_REFUSED, "                    stopped = True\n", expect="the chat is deleted")
 def test_muse_saying_the_account_makes_no_video_where_it_is_moves_the_job_and_rests_the_video_pool():
     site = Site(vm_routes_=vm_routes([answered(NO_VIDEO_HERE)]))
     result, ctx = run(site, video_job())
@@ -458,7 +462,8 @@ def test_an_edit_sends_its_references_in_order_before_the_text_and_delivers_one_
     assert isinstance(result.job, Completed) and result.account == (Success(),)
     (out,) = result.job.outputs
     assert out.ref.startswith("workspace/imagine_media/media-generation-put-the-object-from-image-1-into-0-")
-    assert out.mime == "image/webp" and out.meta == {"session_id": chat_of(site), "job_id": "job-1", "last": True}
+    assert out.mime == "image/webp" and out.meta == {"session_id": chat_of(site), "job_id": "job-1",
+                                                     "stamp": SHOWN_STAMP, "last": True}
     assert len(stream_bodies(site)) == 1
 
 
@@ -560,8 +565,10 @@ def test_an_edit_muse_saved_without_showing_it_is_delivered_and_the_names_before
     assert isinstance(result.job, Completed), "the unshown image is the job's: %s" % (result.job,)
     (out,) = result.job.outputs
     assert (out.ref, out.mime, out.meta.get("last")) == (EDITED, "image/webp", True)
+    assert out.meta["stamp"] == [1793360919432, 673346], "the listed time and size ride on the output"
     sid = chat_of(site)
-    assert ctx.calls[0] == ("report_ref", sid, {"session_id": sid, "before": names(before)}), \
+    assert ctx.calls[0] == ("report_ref", sid, {"session_id": sid, "before": names(before),
+                                                "chats": {MAIN_CHAT: MAIN_AT}}), \
         "the names before the send are kept"
     assert len(names(before)) == 9 and EDITED not in names(before)
     assert result.account == (Success(),)
@@ -688,3 +695,55 @@ def test_a_chat_list_that_cannot_be_read_sends_nothing():
     not_sent((200, {"ok": True, "result": {"sessions": [], "has_more": True}}), "unreadable (more pages)")
     not_sent(("reset", "gone"), "unreadable (the stream reset)")
     not_sent(chats(*["completed"] * 11), "more chats than read", max_chats=10)
+
+
+# ---- the verdict reads the account's chats again; a cancel muse did not answer rests the account -------------------
+ALONE = "    alone = marks is not None and not others_moved(chats, marks, session)\n"
+CHATS_UNREAD = "    if isinstance(chats, str):\n        return r, None\n"
+SUBMIT_UNSTOPPED = "        if stopped:\n            return ()\n"
+
+
+def moved_after_send(after):
+    """The account's chats: the main chat idle before the send, then `after` (a chats answer) from the send on."""
+    sent = []
+
+    def answer(req):
+        return after if sent else (200, {"ok": True, "result": {"sessions": [
+            {"session_id": MAIN_CHAT, "status": "completed", "updated_at_ms": MAIN_AT}]}})
+
+    def stream(req):
+        sent.append(True)
+        return 200, {"session_id": req.json()["session_id"]}
+    return answer, stream
+
+
+@mutation(CHAT_FILE, ALONE, "    alone = True\n", expect="another chat moved")
+@mutation(CHAT_FILE, CHATS_UNREAD, "    if False:\n        return r, None\n", expect="no verdict")
+def test_files_the_chat_does_not_show_are_not_taken_when_another_chat_moved_and_an_unread_list_gives_no_verdict():
+    moved = (200, {"ok": True, "result": {"sessions": [
+        {"session_id": MAIN_CHAT, "status": "completed", "updated_at_ms": MAIN_AT + 5000}]}})
+    answer, stream = moved_after_send(moved)
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=folders(), stream=stream,
+                                     overrides={"/api/session/list": answer}))
+    result, _ = run(site, edit_job())
+    assert isinstance(result.job, Fail) and result.job.code == "muse.refused", \
+        "another chat moved since the send: the unshown file is not taken: %s" % (result.job,)
+    answer, stream = moved_after_send((500, {"ok": False}))
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=folders(), stream=stream,
+                                     overrides={"/api/session/list": answer}))
+    result, _ = run(site, edit_job(), image_submit_timeout_s=submit_mod.HOLD_MARGIN_S + 0.5)
+    assert isinstance(result.job, Accepted), "an unread chat list: no verdict on that read: %s" % (result.job,)
+
+
+@mutation(SUBMIT_FILE, SUBMIT_UNSTOPPED, "        if True:\n            return ()\n", expect="rests the account")
+def test_a_chat_muse_does_not_answer_the_cancel_of_rests_the_account():
+    for history_name, kind in (("job_j07.json", Fail), ("job_j01.json", Completed)):
+        site = Site(vm_routes_=vm_routes([answered(history_name)], overrides={"/chat/cancel": (500, {})}))
+        result, _ = run(site)
+        assert isinstance(result.job, kind), result.job
+        rests = [e for e in result.account if isinstance(e, Cooldown)]
+        assert [r.until for r in rests] == [NOW + timedelta(seconds=900)], \
+            "%s: a cancel muse did not answer rests the account: %s" % (history_name, result.account)
+        quiet = Site(vm_routes_=vm_routes([answered(history_name)]))
+        result, _ = run(quiet)
+        assert not [e for e in result.account if isinstance(e, Cooldown)], "an answered cancel rests nothing"

@@ -1225,7 +1225,10 @@ with the job id); more images than paid are never delivered. Then the chat's his
   no new file is refused only once that held `muse.files_grace_s` over later reads (a file may land just after the
   answer). Every chat the relay stops following (done, refused, empty) is cancelled (`POST /chat/cancel {session_id}`,
   best effort), and no job is sent while any chat of the account is still working, so nothing another chat writes
-  can be taken for a new job's result.
+  can be taken for a new job's result. At the verdict the chats are read again: when another chat changed since the
+  send, only this chat's own cards count (no unshown file), and a list that cannot be read gives no verdict. A card's
+  file must be in the listing made at the verdict; each output keeps the listed time and size, checked again with
+  `POST /fs/stat` before its fetch (another file there: `muse.output_missing`, the job fails refunded).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -1237,6 +1240,7 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.media_dirs` | `workspace/imagine_media/`, `workspace/your_files/` | the folders a result may come from, listed before the send and at the verdict |
 | `muse.media_max_files` | 5000 | the most image and video names kept for a send; more sends nothing |
 | `muse.files_grace_s` | 60 | how long a settled chat with no new file is read again before it is refused |
+| `muse.cancel_fail_rest_s` | 900 | an account rests this long when muse did not answer the cancel of a chat the relay stops following |
 | `muse.max_chats`, `muse.idle_chat_states` | 200, `completed` | before a send the account's chats are read (`GET /api/session/list`): any chat in another status (`running` while a message runs), more chats than this, or a list that cannot be read sends nothing (`muse.workspace_busy`: back to the queue, no attempt, no strike) |
 | `muse.send_ack_timeout_s` | 60 | no acknowledgement of the send by then: unknown |
 | `muse.wake_timeout_s`, `muse.wake_poll_s` | 90, 3 | how long a sleeping workspace may take to wake, and the reads meanwhile |

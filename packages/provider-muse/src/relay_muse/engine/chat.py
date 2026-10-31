@@ -192,6 +192,7 @@ def history_events(reply: Reply) -> list[dict] | None:
 class Media(NamedTuple):
     ref: str        # workspace/imagine_media/<file> or workspace/your_files/<file>
     mime: str
+    stamp: tuple[int, int] | None = None    # (modifiedAt ms, size) as the verdict's listing showed it
 
 
 class Reading(NamedTuple):
@@ -267,6 +268,7 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
     marked `LAST`: once its file is read the side chat is deleted (the core fetches the outputs in order)."""
     kept = r.media[:want]
     return tuple(Output(m.ref, m.mime, i, meta={"session_id": session, **paid,
+                                                **({"stamp": list(m.stamp)} if m.stamp else {}),
                                                 **({LAST: True} if i == len(kept) - 1 else {})})
                  for i, m in enumerate(kept))
 
@@ -284,7 +286,8 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
 class File(NamedTuple):
     ref: str
     mime: str
-    ms: int         # modifiedAt, ms since the epoch (the VM's clock; 0 when absent): only orders the new files
+    ms: int         # modifiedAt, ms since the epoch (the VM's clock; 0 when absent): orders the new files
+    size: int = -1  # bytes (-1 when absent); with `ms` the file's stamp, checked again before its fetch
 
 
 class Unlisted(Exception):
@@ -296,15 +299,14 @@ class Busy(Exception):
 
 
 SESSIONS_PATH = "/api/session/list"
+STAT_PATH = "/fs/stat"
 
 
-async def busy_chats(tunnel: Tunnel, timeout: float, most: int, idle: Sequence[str]) -> str | None:
-    """Why the account must not be sent a job now, or None. Nothing else may be writing on the account while a job's
-    new files are read: a chat a relay job left running (a done job's extra outputs, a job its deadline ended), the
-    account's own main chat, anything. Live 30/10: `GET /api/session/list` answers {ok, result: {sessions: [{session_id,
-    status, is_primary, is_thread, title, ...}]}}, `status` "running" while a message runs and "completed" after.
-    Fail closed: a chat in any status but `idle` (`muse.idle_chat_states`), a list that cannot be read, or one longer
-    than `most` (`muse.max_chats`) is a reason."""
+async def read_chats(tunnel: Tunnel, timeout: float, most: int) -> list[Mapping] | str:
+    """The account's chats, or why they cannot be read. Live 30/10: `GET /api/session/list` answers {ok, result:
+    {sessions: [{session_id, status, updated_at_ms, is_primary, is_thread, title, ...}]}}, `status` "running" while a
+    message runs and "completed" after. A list that cannot be read, or longer than `most` (`muse.max_chats`), is a
+    reason."""
     try:
         reply = await tunnel.call("GET", SESSIONS_PATH, timeout=timeout)
     except TunnelError as e:
@@ -316,12 +318,31 @@ async def busy_chats(tunnel: Tunnel, timeout: float, most: int, idle: Sequence[s
         return "the account's chats could not be read (muse answered %d)" % reply.status
     if len(sessions) > most:
         return "the account holds %d chats, more than the %d read" % (len(sessions), most)
+    return sessions
+
+
+def busy_chats(sessions: Sequence[Mapping], idle: Sequence[str]) -> str | None:
+    """Why the account must not be sent a job now, or None. Nothing else may be writing on the account while a job's
+    new files are read: a chat a relay job left running (a done job's extra outputs, a job its deadline ended), the
+    account's own main chat, anything. Fail closed: a chat in any status but `idle` (`muse.idle_chat_states`)."""
     working = [str(s.get("status"))[:40] if isinstance(s, Mapping) else "?" for s in sessions
                if not isinstance(s, Mapping) or s.get("status") not in idle]
     if working:
         states = ", ".join(sorted(set(working)))
         return "%d other chat(s) of the account are still working (%s)" % (len(working), states)
     return None
+
+
+def chat_marks(sessions: Sequence[Mapping]) -> dict[str, Any]:
+    """Each chat's `updated_at_ms`, by its id: what the send leaves as it was (`provider_state.chats`)."""
+    return {str(s.get("session_id")): s.get("updated_at_ms") for s in sessions if isinstance(s, Mapping)}
+
+
+def others_moved(sessions: Sequence[Mapping], marks: Mapping[str, Any], session: str) -> bool:
+    """A chat other than the job's own (`session`) changed since the send, or is new: it may have written a file."""
+    return any(not isinstance(s, Mapping) or (str(s.get("session_id")) != session and (
+        str(s.get("session_id")) not in marks or s.get("updated_at_ms") != marks[str(s.get("session_id"))]))
+        for s in sessions)
 
 
 def _ms(entry: Mapping) -> int:
@@ -347,7 +368,8 @@ async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float, most: 
                     continue
                 ref = folder + e["name"]
                 if is_media_ref(ref, _mime(ref), dirs):
-                    files.append(File(ref, _mime(ref), _ms(e)))
+                    size = e.get("size") if type(e.get("size")) is int else -1
+                    files.append(File(ref, _mime(ref), _ms(e), size))
     except TunnelError as e:
         log.info("muse media folders not listed: %s", e)
         return None
@@ -357,29 +379,62 @@ async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float, most: 
     return files
 
 
-def fresh(r: Reading, files: Sequence[File], before: frozenset[str], kind: str, settled: bool) -> Reading:
-    """The reading with its results limited to files of `kind` whose names were not there before the send: the chat's
-    cards first, then, once the chat is settled with every message complete, the new files it does not show, newest
-    first (muse writes a raw video, then the cut one, and may remove the raw)."""
-    cards = [m for m in r.media if m.ref not in before]
+def fresh(r: Reading, files: Sequence[File], before: frozenset[str], kind: str, settled: bool,
+          unshown: bool = True) -> Reading:
+    """The reading with its results limited to files of `kind` listed now whose names were not there before the send,
+    each stamped with its listed time and size: the chat's cards first, then, once the chat is settled with every
+    message complete and only when `unshown` (no other chat of the account changed since the send), the new files it
+    does not show, newest first (muse writes a raw video, then the cut one, and may remove the raw)."""
+    now = {f.ref: f for f in files}
+    cards = [m._replace(stamp=(now[m.ref].ms, now[m.ref].size) if m.ref in now else None) for m in r.media
+             if m.ref not in before and m.ref in now]
     shown = {m.ref for m in cards}
     new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
-    rest = [Media(f.ref, f.mime) for f in new if f.ref not in shown] if settled and not r.busy else []
+    rest = [Media(f.ref, f.mime, (f.ms, f.size)) for f in new if f.ref not in shown] \
+        if settled and not r.busy and unshown else []
     return r._replace(media=tuple(cards + rest))
 
 
 async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, before: frozenset[str] | None, kind: str,
-                 dirs: Sequence[str], timeout: float, most: int) -> tuple[Reading, str | None]:
+                 dirs: Sequence[str], timeout: float, most: int, marks: Mapping[str, Any] | None = None,
+                 session: str = "", most_chats: int = 0) -> tuple[Reading, str | None]:
     """The verdict on a reading (`verdict`), its results checked against a listing made now (`fresh`). None (no verdict
-    on this read) without the names from before the send or without a listing now."""
+    on this read) without the names from before the send, without a listing now, or without the account's chats now.
+    Files the chat does not show count only when no other chat changed since the send (`marks`, `others_moved`)."""
     found = verdict(r, want, settled)
     if found is None or before is None:
         return r, None
     listed = await list_media(tunnel, dirs, timeout, most)
     if listed is None:
         return r, None
-    r = fresh(r, listed, before, kind, settled)
+    chats = await read_chats(tunnel, timeout, most_chats)
+    if isinstance(chats, str):
+        return r, None
+    alone = marks is not None and not others_moved(chats, marks, session)
+    r = fresh(r, listed, before, kind, settled, alone)
     return r, verdict(r, want, settled)
+
+
+async def same_file(tunnel: Tunnel, ref: str, stamp: Any, timeout: float) -> bool | None:
+    """Whether the file at `ref` is still the one the verdict listed: its time and size (`stamp`) by `/fs/stat`
+    (measured 30/10: {ok, result: {path, kind, size, modified_ms}}). False when it changed, is gone or has no stamp;
+    None when muse could not say (a read to try again)."""
+    if not (isinstance(stamp, list | tuple) and len(stamp) == 2):
+        return False
+    reply = await tunnel.call("POST", STAT_PATH, {"path": ref}, timeout=timeout)
+    if reply.status == 404:
+        return False
+    body = reply.json() if reply.status == 200 else None
+    result = body.get("result") if isinstance(body, dict) else None
+    if not isinstance(result, dict):
+        return None
+    return [result.get("modified_ms"), result.get("size")] == list(stamp)
+
+
+def marks_of(state: Mapping) -> dict | None:
+    """The chats' marks kept before the send (`provider_state.chats`); None when the job has none."""
+    marks = state.get("chats")
+    return marks if isinstance(marks, dict) else None
 
 
 def before_of(state: Mapping) -> frozenset[str] | None:
@@ -458,15 +513,17 @@ CANCEL_PATH = "/chat/cancel"    # the web app's `chat.cancel` ({session_id} of a
 
 
 async def cancel_chat(tunnel: Tunnel, session: str, timeout: float) -> bool:
-    """Stop whatever muse is still doing in a job's side chat that ends with no output, so no late file lands on the
-    account (the next job's results are its new files). Best effort: never raises; True when muse said it cancelled."""
+    """Stop whatever muse is still doing in a job's side chat the relay stops following, so no late file lands on the
+    account (the next job's results are its new files). Best effort: never raises. True when muse answered it (200,
+    {cancelled} true or false: measured 30/10 on a finished chat; or 404, no such chat): nothing runs there now."""
     try:
         reply = await tunnel.call("POST", CANCEL_PATH, {"session_id": session}, timeout=timeout)
         body = reply.json() if reply.status == 200 else None
-        result = body.get("result") if isinstance(body, dict) else None
-        cancelled = any(isinstance(b, dict) and b.get("cancelled") is True for b in (body, result))
-        log.info("muse side chat %s cancel: %d%s", session, reply.status, " (cancelled)" if cancelled else "")
-        return cancelled
+        answered = reply.status == 404 or (isinstance(body, dict) and isinstance(body.get("cancelled"), bool))
+        log.info("muse side chat %s cancel: %d", session, reply.status)
+        if not answered:
+            log.warning("muse side chat %s: the cancel was not answered (%d)", session, reply.status)
+        return answered
     except Exception as e:      # noqa: BLE001 - whatever muse answers, the cancel never changes the job
         log.warning("muse side chat %s not cancelled: %s", session, type(e).__name__)
         return False

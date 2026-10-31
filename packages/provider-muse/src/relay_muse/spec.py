@@ -236,6 +236,10 @@ _SETTINGS = dict((
              "The status a chat of the account may show for a send to go (muse's chat list; 'running' while a message "
              "runs). A chat in any other status, or a list that cannot be read, sends nothing: the job goes back to "
              "the queue.", rule=Rule("1 to 8 different status words", _states)),
+    _setting("cancel_fail_rest_s", int, 900,
+             "Seconds an account rests when muse did not answer the cancel of a chat the relay stops following (done, "
+             "refused, empty): that chat may still write a file, which must land before the next job's listing.",
+             min=60, max=7200),
     _setting("files_grace_s", int, 60,
              "Seconds a settled chat must keep showing no new file of the job's kind, read again and again, before "
              "the job is failed as refused (refunded): muse may save the result just after its answer (a cut video "

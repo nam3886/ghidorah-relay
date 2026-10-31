@@ -61,6 +61,7 @@ from relay_muse.engine.chat import (
     Unlisted,
     busy_chats,
     cancel_chat,
+    chat_marks,
     compose,
     decide,
     delete_chat,
@@ -72,6 +73,7 @@ from relay_muse.engine.chat import (
     meter_effects,
     outputs,
     paid_of,
+    read_chats,
     read_history,
     signature,
     stream_body,
@@ -142,6 +144,7 @@ class _Run:
         self.most = settings.get("muse.media_max_files")
         self.before: frozenset[str] = frozenset()   # the media files' names before the send
         self.empty: float | None = None   # (deps.clock) the first read of a settled chat with no new file
+        self.marks: dict = {}           # each chat's updated_at_ms before the send
         self.settling: tuple[list, float] | None = None     # the last reading's signature, unchanged since (clock)
 
     async def _say(self, text: str, stage: str = "submit") -> None:
@@ -187,15 +190,18 @@ class _Run:
             self.signed_in = True
             message = compose(self.job.operation, self.job.params, self.job.sent_text, len(images))
             body = stream_body(message, self.node, self.session, images)
-            why = await busy_chats(tunnel, timeout, self.settings.get("muse.max_chats"),
-                                   self.settings.get("muse.idle_chat_states"))
+            chats = await read_chats(tunnel, timeout, self.settings.get("muse.max_chats"))
+            if isinstance(chats, str):
+                raise Busy(chats)
+            why = busy_chats(chats, self.settings.get("muse.idle_chat_states"))
             if why is not None:
                 raise Busy(why)
             listed = await list_media(tunnel, self.dirs, timeout, self.most)
             if listed is None:
                 raise Unlisted("muse's media folders could not be listed before the send")
             self.before = frozenset(f.ref for f in listed)
-            state = {"session_id": self.session, "before": sorted(self.before)}
+            self.marks = chat_marks(chats)
+            state = {"session_id": self.session, "before": sorted(self.before), "chats": self.marks}
             await self._core(lambda: self.ctx.report_ref(self.session, state))
             await self._core(self.ctx.mark_sent)
             self.sent = True
@@ -230,18 +236,19 @@ class _Run:
                     seen, since = signature(reading), self.deps.clock()
                 self.settling = (seen, since)
                 reading, found = await decide(tunnel, reading, self.want, self.deps.clock() - since >= settle_s,
-                                              self.before, self.kind, self.dirs, timeout, self.most)
+                                              self.before, self.kind, self.dirs, timeout, self.most, self.marks,
+                                              self.session, self.settings.get("muse.max_chats"))
                 if found != "refused":
                     self.empty = None
                 elif self.empty is None or self.deps.clock() - self.empty < grace:
                     self.empty = self.deps.clock() if self.empty is None else self.empty
                     found = None        # no new file yet: refused only once that held `muse.files_grace_s`
                 if found == "done":
-                    await cancel_chat(tunnel, self.session, timeout)    # nothing more is taken from it
+                    stopped = await cancel_chat(tunnel, self.session, timeout)    # nothing more is taken from it
                     await self._say(made_note(reading, self.want, self.kind, self.job.id))
                     return _result(Completed(outputs(reading, self.want, self.session, **paid_of(self.job))),
                                    Success(), *meter_effects(self.ctx.account, self.settings, self.kind,
-                                                             len(reading.media)))
+                                                             len(reading.media)), *self._unstopped(stopped))
                 if found == "refused":
                     words = " ".join(reading.text.split())[:300]
                     if self.kind == "video" and video_unavailable_here(reading.text):
@@ -250,8 +257,8 @@ class _Run:
                         why = "muse answered with no %s: %s" % (self.kind, words)
                         await self._say(why, "submit_error")
                         outcome = _result(Fail(errors.REFUSED, why), Success())
-                    await self._drop_chat(tunnel, timeout)
-                    return outcome
+                    stopped = await self._drop_chat(tunnel, timeout)
+                    return replace(outcome, account=(*outcome.account, *self._unstopped(stopped)))
                 for aid in await deny_approvals(tunnel, [*tunnel.events, *events], denied, timeout):
                     await self._say("muse asked an approval (%s): denied" % aid)
             left = self.deadline - self.deps.clock()
@@ -272,13 +279,23 @@ class _Run:
         self.keep_strikes = True
         return _result(outcome, Rest("video", until, "muse makes no video for this account in its country or region"))
 
-    async def _drop_chat(self, tunnel, timeout: float) -> None:
-        """Delete the chat of a final verdict with no output, inside what is left of the hold (so the run's bound never
-        cuts it: that would turn the verdict into a taken order)."""
+    async def _drop_chat(self, tunnel, timeout: float) -> bool:
+        """Cancel and delete the chat of a final verdict with no output, inside what is left of the hold (so the run's
+        bound never cuts it: that would turn the verdict into a taken order). True when muse answered the cancel."""
         step = min(timeout, (self.deadline - self.deps.clock()) / 4)
-        if step > 0:
-            await cancel_chat(tunnel, self.session, step)
-            await delete_chat(tunnel, self.session, step, retry_after=step)
+        if step <= 0:
+            return False
+        stopped = await cancel_chat(tunnel, self.session, step)
+        await delete_chat(tunnel, self.session, step, retry_after=step)
+        return stopped
+
+    def _unstopped(self, stopped: bool) -> tuple[Cooldown, ...]:
+        """A chat the relay stops following that muse did not answer the cancel of may still write: the account rests
+        `muse.cancel_fail_rest_s`, so a late file lands before the next job's listing."""
+        if stopped:
+            return ()
+        until = self.deps.now() + timedelta(seconds=self.settings.get("muse.cancel_fail_rest_s"))
+        return (Cooldown("muse: a chat the relay stopped following could not be cancelled", until),)
 
     def _accepted(self) -> SubmitResult:
         """Taken and not finished: the poll reads the chat from here, and goes on where the hold stopped: the reading

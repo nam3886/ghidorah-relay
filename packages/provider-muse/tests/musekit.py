@@ -248,21 +248,38 @@ class VM:
         return [r.path for r in self.requests]
 
 
+MAIN_CHAT, MAIN_AT = "00000000-0000-4000-8000-000000000001", 1793300000000    # the account's main chat, idle
+SHOWN_AT = "2026-10-30T12:00:00.000Z"
+SHOWN_STAMP = [1793361600000, 1000]     # (ms, size) the kit lists a shown file with
+FILE_MS = 1793361700000                 # the time `/fs/stat` gives a file of `files`
+
+
+def stamp(data: bytes) -> list:
+    """The stamp an output of a file of `files` (with `data`) carries for its fetch."""
+    return [FILE_MS, len(data)]
+
+
 def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=None):
     """The VM's answers: the setup calls, `/chat/stream` acknowledged for the chat it names, the job's history from
     `histories` (one per read, the last repeated), the files of `files` (ref -> bytes; others 404), a chat delete, and
     the folder listings of `folders` (before the send, after it): each {folder: entries}, a folder it lacks 404 (with
-    no `folders`, every folder is listed empty)."""
+    no `folders`: empty before the send, then the files the chat's cards showed so far, each `SHOWN_STAMP`), and
+    `/fs/stat` of a file of `files` (its size, `FILE_MS`)."""
     reads = list(histories)
     files = files or {}
-    sent = []
+    sent: list = []
+    shown: set = set()
 
     def route(req):
         if req.path == "/chat/stream":
             sent.append(True)
         if req.path == "/fs/list" and not any(req.path.startswith(p) for p in overrides or {}):
             path = req.json()["path"]
-            entries = [] if folders is None else folders[1 if sent else 0].get(path)
+            if folders is None:
+                entries = [{"name": ref.rsplit("/", 1)[1], "type": "file", "size": SHOWN_STAMP[1],
+                            "modifiedAt": SHOWN_AT} for ref in sorted(shown) if ref.rsplit("/", 1)[0] == path]
+            else:
+                entries = folders[1 if sent else 0].get(path)
             if entries is None:
                 return 404, {"ok": False, "error": {"code": "not_found", "message": "path not found"}}
             return 200, {"path": path, "entries": entries}
@@ -286,6 +303,7 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=
             events = reads.pop(0) if len(reads) > 1 else (reads[0] if reads else [])
             if callable(events):
                 events = events(req)
+            shown.update(re.findall(r"/raw/(workspace/[^\"?]+)", json.dumps(events)))
             return 200, {"result": {"chat_events": events}}
         if req.path.startswith("/fs/raw/"):
             data = files.get(req.path[len("/fs/raw/"):])
@@ -294,7 +312,13 @@ def vm_routes(histories=(), *, stream=None, files=None, overrides=None, folders=
             return 200, {"ok": True}
         if req.path == "/api/session/list":     # measured 30/10: every chat done
             return 200, {"ok": True, "result": {"sessions": [
-                {"session_id": "00000000-0000-4000-8000-000000000001", "status": "completed", "is_primary": True}]}}
+                {"session_id": MAIN_CHAT, "status": "completed", "is_primary": True, "updated_at_ms": MAIN_AT}]}}
+        if req.path == "/fs/stat":              # measured 30/10
+            ref = req.json()["path"]
+            if ref not in files:
+                return 404, {"ok": False, "error": {"code": "not_found", "message": "path not found"}}
+            return 200, {"ok": True, "result": {"path": "/" + ref, "kind": "file", "size": len(files[ref]),
+                                                "modified_ms": FILE_MS}}
         if req.path == "/chat/cancel":          # measured 30/10, on a finished chat
             return 200, {"cancelled": False, "message_id": None}
         if req.path == "/session/delete":       # measured 30/10

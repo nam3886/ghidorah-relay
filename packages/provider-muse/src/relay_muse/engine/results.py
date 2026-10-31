@@ -20,7 +20,18 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from relay_core.providers import REFUSED_BY, Done, Failed, Found, OutputGone, Pending, PollResult, Rest, StillUnknown
+from relay_core.providers import (
+    REFUSED_BY,
+    Cooldown,
+    Done,
+    Failed,
+    Found,
+    OutputGone,
+    Pending,
+    PollResult,
+    Rest,
+    StillUnknown,
+)
 from relay_core.refusals import refused_accounts
 from relay_muse import errors
 from relay_muse.engine.chat import (
@@ -34,10 +45,12 @@ from relay_muse.engine.chat import (
     is_media_ref,
     is_session,
     made_note,
+    marks_of,
     meter_effects,
     outputs,
     paid_of,
     read_history,
+    same_file,
     signature,
     video_unavailable_here,
     want_of,
@@ -89,6 +102,7 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
     kind, state, now = job.params.get("kind"), job.provider_state or {}, deps.now()
     dirs, timeout = settings.get("muse.media_dirs"), settings.get("muse.call_timeout_s")
     before, most = before_of(state), settings.get("muse.media_max_files")
+    stopped = True
     try:
         async with opened(ctx, settings, deps, chat=False) as (_web, tunnel):
             reply = await tunnel.call("GET", history_path(session), timeout=timeout)
@@ -98,9 +112,10 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
                 seen = signature(reading)
                 reading, found = await decide(tunnel, reading, want_of(job.params),
                                               _settled(state, seen, now, settings.get("muse.settle_s")), before,
-                                              kind, dirs, timeout, most)
+                                              kind, dirs, timeout, most, marks_of(state), session,
+                                              settings.get("muse.max_chats"))
                 if found == "done":
-                    await cancel_chat(tunnel, session, timeout)     # nothing more is taken from it
+                    stopped = await cancel_chat(tunnel, session, timeout)     # nothing more is taken from it
     except Exception as e:      # noqa: BLE001 - a failed read: polled again, never a verdict
         return PollResult(Pending("the chat could not be read (%s)" % type(e).__name__, next_in_s=interval,
                                   answered=False))
@@ -114,10 +129,11 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
     if found == "done":
         await _say(ctx, made_note(reading, want_of(job.params), kind, job.id))
         return PollResult(Done(outputs(reading, want_of(job.params), session, **paid_of(job))),
-                          effects=meter_effects(ctx.account, settings, kind, len(reading.media)))
+                          effects=(*meter_effects(ctx.account, settings, kind, len(reading.media)),
+                                   *_unstopped(stopped, settings, now)))
     if found == "refused":
         words = " ".join(reading.text.split())[:300]
-        await _drop_chat(ctx, settings, deps, session)
+        stopped = await _drop_chat(ctx, settings, deps, session)
         if kind == "video" and video_unavailable_here(reading.text):
             # muse refused the account (as in the submit), but the order was taken past the hold: no other account
             # may get it now, so it ends here with its refund; the account's video pool rests all the same
@@ -126,22 +142,34 @@ async def poll(ctx, job, settings, *, deps: Deps | None = None) -> PollResult:
             return PollResult(Failed(errors.VIDEO_UNAVAILABLE_ON_ACCOUNTS, why,
                                      state_patch={REFUSED_BY: refused_accounts(job, ctx.account.id)}),
                               effects=(Rest("video", until, "muse makes no video for this account in its country "
-                                                            "or region"),))
-        return PollResult(Failed(errors.REFUSED, "muse answered with no %s: %s" % (kind, words)))
+                                                            "or region"), *_unstopped(stopped, settings, now)))
+        return PollResult(Failed(errors.REFUSED, "muse answered with no %s: %s" % (kind, words)),
+                          effects=_unstopped(stopped, settings, now))
     since = state.get("seen_at") if state.get("seen") == seen else now.isoformat()
     return PollResult(Pending("muse is still working", next_in_s=interval,
                               state_patch={"seen": seen, "seen_at": since, "empty_at": empty_at}))
 
 
-async def _drop_chat(ctx, settings, deps: Deps, session: str) -> None:
-    """Delete the side chat of a verdict with no output, in a tunnel of its own (best effort)."""
+async def _drop_chat(ctx, settings, deps: Deps, session: str) -> bool:
+    """Cancel and delete the side chat of a verdict with no output, in a tunnel of its own (best effort). True when
+    muse answered the cancel."""
     timeout = settings.get("muse.call_timeout_s")
     try:
         async with opened(ctx, settings, deps, chat=False) as (_web, tunnel):
-            await cancel_chat(tunnel, session, timeout)
+            stopped = await cancel_chat(tunnel, session, timeout)
             await delete_chat(tunnel, session, timeout, retry_after=settings.get("muse.history_poll_s"))
+            return stopped
     except Exception as e:      # noqa: BLE001 - the delete never changes the job
         log.warning("muse side chat %s not deleted: %s", session, type(e).__name__)
+        return False
+
+
+def _unstopped(stopped: bool, settings, now: datetime) -> tuple[Cooldown, ...]:
+    """A chat muse did not answer the cancel of may still write: the account rests `muse.cancel_fail_rest_s`."""
+    if stopped:
+        return ()
+    until = now + timedelta(seconds=settings.get("muse.cancel_fail_rest_s"))
+    return (Cooldown("muse: a chat the relay stopped following could not be cancelled", until),)
 
 
 async def reconcile(ctx, job, settings, *, deps: Deps | None = None):
@@ -163,6 +191,11 @@ async def fetch(ctx, out, settings, *, deps: Deps | None = None):
     if not is_media_ref(out.ref, out.mime, settings.get("muse.media_dirs")):
         raise OutputGone(errors.OUTPUT_MISSING, "the result is not a file of muse's media folder")
     async with opened(ctx, settings, deps or Deps(), chat=False) as (_web, tunnel):
+        same = await same_file(tunnel, out.ref, out.meta.get("stamp"), settings.get("muse.call_timeout_s"))
+        if same is None:
+            raise RuntimeError("muse did not say whether the result's file is still the one listed")
+        if not same:
+            raise OutputGone(errors.OUTPUT_MISSING, "the result's file is gone or changed since the verdict")
         reply = await tunnel.call("GET", "/fs/raw/" + out.ref, timeout=settings.get("muse.fetch_timeout_s"))
         if reply.status == 404:
             raise OutputGone(errors.OUTPUT_MISSING, "muse has no file for this result")
