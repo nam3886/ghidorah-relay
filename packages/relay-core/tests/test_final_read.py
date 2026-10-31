@@ -245,8 +245,8 @@ def test_the_final_reconcile_finds_the_order_and_the_job_is_delivered_with_one_c
     assert charges(db, job_id) == (1, 0) and refunds(db, job_id) == 0
 
 
-@mutation(APPLY, "provider_state=_merge(result.provider_state), answered_at=None)",
-          "provider_state=_merge(result.provider_state))", expect="a found order kept its answer")
+@mutation(APPLY, "provider_state=_found_state(result.provider_state), answered_at=None)",
+          "provider_state=_found_state(result.provider_state))", expect="a found order kept its answer")
 def test_a_found_order_forgets_an_answered_read_so_that_a_poll_after_the_deadline_is_still_needed(db):
     k, _ = key(db), account(db, left=100)
 

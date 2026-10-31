@@ -204,6 +204,18 @@ def _outputs(outputs: tuple[Output, ...]) -> dict:
                          "meta": redact(dict(o.meta))} for o in outputs]}
 
 
+def _found_state(patch: Mapping[str, Any]) -> _Raw:
+    """A found order's state patch: its `outputs` (dicts with a `ref`) kept like a poll's (`_outputs`: refs as given,
+    meta redacted), the rest redacted (I24)."""
+    rest = dict(patch)
+    outs = rest.pop("outputs", None)
+    if outs is None:
+        return _merge(rest)
+    kept = tuple(Output(str(o["ref"]), str(o.get("mime") or ""), int(o.get("idx", i)), o.get("upstream_id"),
+                        o.get("meta") or {}) for i, o in enumerate(outs))
+    return _Raw("provider_state || %s::jsonb || %s::jsonb", (_state(rest), Jsonb(_outputs(kept))))
+
+
 async def _charge_taken(conn: AsyncConnection, job: _Job, pools: Mapping[str, pool.PoolConfig]) -> None:
     """The order is proven taken: the account's pool is charged `account_cost` (once per job and pool, I7)."""
     if job.pool is not None:
@@ -524,7 +536,7 @@ async def _reconciled(conn: AsyncConnection, job_id, result: Reconciled, read_st
                 await _charge_taken(conn, job, pools)
             cols = dict(status="waiting", external_ref=result.ref, accepted_at=_Raw(
                 "COALESCE(accepted_at, clock_timestamp())"), next_poll_at=_in(FIRST_POLL_S),
-                provider_state=_merge(result.provider_state), answered_at=None)   # a poll after the deadline is next
+                provider_state=_found_state(result.provider_state), answered_at=None)   # polled next, deadline or not
             cols["late_seen_at"] = None         # the reaper's next pass stamps it again: the found order gets its hour
             cols["render_since"] = _Raw("COALESCE(render_since, sent_at)")   # as after an accepted send
             if late:

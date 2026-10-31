@@ -72,6 +72,32 @@ def test_a_found_order_moves_the_job_to_waiting_and_charges_the_account_only_whe
     assert db.one("SELECT count(*) FROM leases") == (0,), "the lease goes with the result"
 
 
+@mutation("packages/relay-core/src/relay_core/jobs/apply.py",
+          "provider_state=_found_state(result.provider_state)", "provider_state=_merge(result.provider_state)",
+          expect="the found link is stored as given")
+def test_a_found_order_keeps_its_output_links_as_given_and_redacts_only_their_meta(db):
+    """A link with a long path segment (an fbcdn URL) is what the fetcher downloads: the redactor's long-token rule
+    must not touch it, as for the outputs of a poll; their meta and the rest of the patch are still redacted (I24)."""
+    k, _ = key(db), account(db, left=100)
+    link = "https://scontent.fbcdn.net/o1/v/t6/f2/m69/" + "AQNx7s2" * 8 + ".mp4?_nc_ht=x&oh=00_y"
+    token = "B" * 45
+
+    async def scenario(p):
+        job_id = await unknown_due(p, db, k)
+        engine = FakeEngine()
+        engine.script_reconcile("*", Found("conv-1", {"conversation_id": "conv-1", "debug": token, "outputs": [
+            {"ref": link, "mime": "video/mp4", "meta": {"signed": token}}]}))
+        await pass_once(reconciler(p, engine))
+        return job_id
+
+    job_id = run(db, scenario)
+    state = row(db, job_id, "provider_state")[0]
+    assert state["outputs"][0]["ref"] == link, "the found link is stored as given"
+    assert state["outputs"][0]["meta"] == {"signed": "[redacted]"} and state["debug"] == "[redacted]"
+    assert (state["outputs"][0]["mime"], state["outputs"][0]["idx"], state["conversation_id"]) == (
+        "video/mp4", 0, "conv-1")
+
+
 # ---- NotSent: only with proof (I27) ---------------------------------------------------------------------------------
 @pytest.mark.parametrize("completion", MODES)
 def test_not_sent_is_refused_when_the_read_is_too_early_and_the_job_stays_unknown(db, completion):
