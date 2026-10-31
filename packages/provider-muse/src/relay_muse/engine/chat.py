@@ -339,7 +339,11 @@ def chat_marks(sessions: Sequence[Mapping]) -> dict[str, Any]:
 
 
 def others_moved(sessions: Sequence[Mapping], marks: Mapping[str, Any], session: str) -> bool:
-    """A chat other than the job's own (`session`) changed since the send, or is new: it may have written a file."""
+    """A chat other than the job's own (`session`) changed since the send, is new, or is gone (it may have written a
+    file, then been deleted): it may have written a file."""
+    listed = {str(s.get("session_id")) for s in sessions if isinstance(s, Mapping)}
+    if any(sid != session and sid not in listed for sid in marks):
+        return True
     return any(not isinstance(s, Mapping) or (str(s.get("session_id")) != session and (
         str(s.get("session_id")) not in marks or s.get("updated_at_ms") != marks[str(s.get("session_id"))]))
         for s in sessions)

@@ -12,6 +12,7 @@ from relay_muse.engine.chat import (
     compose,
     fresh,
     is_media_ref,
+    others_moved,
     outputs,
     pending_approvals,
     read_history,
@@ -360,3 +361,18 @@ def test_only_files_whose_names_were_not_there_count_cards_first_then_the_unshow
         "a card not listed now is no result"
     assert fresh(shown, [old, cut], frozenset(), "video", True, unshown=False).media == (
         Media(old.ref, "video/mp4", (100, -1)),), "only once settled, and only when no other chat moved"
+
+
+GONE = "    if any(sid != session and sid not in listed for sid in marks):\n"
+
+
+@mutation(CHAT_FILE, GONE, "    if False:\n", expect="a chat deleted since the send")
+def test_another_chat_changed_new_or_deleted_since_the_send_has_moved():
+    marks = {"main": 100, "old": 200, SID: 1}
+    same = [{"session_id": "main", "updated_at_ms": 100}, {"session_id": "old", "updated_at_ms": 200},
+            {"session_id": SID, "updated_at_ms": 999}]
+    assert not others_moved(same, marks, SID), "the job's own chat moves freely"
+    assert others_moved([dict(same[0], updated_at_ms=101), *same[1:]], marks, SID), "a chat updated since the send"
+    assert others_moved([*same, {"session_id": "new", "updated_at_ms": 5}], marks, SID), "a chat new since the send"
+    assert others_moved([same[0], same[2]], marks, SID), "a chat deleted since the send"
+    assert not others_moved(same[:2], marks, SID), "the job's own chat gone (deleted by the relay) is not another"
