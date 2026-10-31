@@ -541,3 +541,17 @@ five answers word for word (two in Vietnamese); `result` is one history answer b
 muse's complete answer to it, with no result card. No cookie, token or account id is in it.
 
 - `muse/region-301030/history_video_unavailable.json`
+
+## muse.ai: results judged by the new files (30/10/2026)
+
+On 30/10 muse saved results in `workspace/your_files` without a result card (job aae305b4, an image edit answered
+"kept private in your workspace") or named only by a `sandbox://` link in the answer (job 1c7ddda2, a video); both
+were refunded while muse had made them. `fs_list_after.json`: one live answer of `POST /fs/list` for
+`workspace/your_files` (`{path, entries: [{name, type, size, modifiedAt}]}`), names kept, no VM id or URL.
+`history_linked_video.json` and `history_unlinked_image.json`: history answers built from the two jobs' answers
+and the shapes of `ref-spike-301030/history_your_files.json`, redacted the same way, with no result card. No cookie,
+token or account id is in them.
+
+- `muse/new-files-301030/fs_list_after.json`
+- `muse/new-files-301030/history_linked_video.json`
+- `muse/new-files-301030/history_unlinked_image.json`
