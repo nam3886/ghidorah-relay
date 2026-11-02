@@ -1132,11 +1132,15 @@ mints a new pair at half `qwen.bx_max_age_s`. A refresh that says the session is
 with a recheck. Live 23/10: both spike accounts' refresh tokens came back "Token is revoked, please login again"
 minutes after a working refresh (one right after a first browser mint, one with no browser run): watch for it.
 
-**The pair.** Chrome loads chat.qwen.ai with the jar through the account's proxy, the page gets a prompt and Enter,
-and its `chat/completions` is failed inside the browser (CDP Fetch, Request stage) after its headers (`bx-ua`,
-`bx-umidtoken`, `bx-v`, the user agent and client hints) are kept; the page's sign-out and log-out calls are failed
-too, and the browser's cookies replace the jar (written back even when the mint fails). The pair is reused by every
-send until `qwen.bx_max_age_s` (1500); one browser at a time per worker.
+**The pair.** Chrome loads chat.qwen.ai with the jar through the account's proxy and asks the page's own baxia
+signer (`window.__baxia__.getFYModule`, read in the page's main world) for `bx-ua`/`bx-umidtoken`; nothing is typed or
+sent, and the `Version` header is read from the page's bundle path. When the module gives no pair within
+`qwen.baxia_wait_s`, the page gets a prompt and Enter instead, and its `chat/completions` is failed inside the browser
+(CDP Fetch, Request stage) after its headers (`bx-ua`, `bx-umidtoken`, `bx-v`, the user agent and client hints) are
+kept; neither way giving a pair is `qwen.mint_failed`, with the page's screenshot on the account. The page's sign-out
+and log-out calls are failed too, and the browser's cookies replace the jar (written back even when the mint fails).
+The pair is reused by every send until `qwen.bx_max_age_s` (1500); at most `qwen.mint_browsers` mint browsers at once
+per worker.
 
 **Send.** Free steps first (token, pair, video credit check `credits/verify`, the input image to OSS, a new chat), then
 the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An image is drawn in that stream (60-110 s,
@@ -1156,6 +1160,8 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 |---|---|---|
 | `qwen.claims_enabled` | false | drain mode: no new job; the checks go on (no mint while drained) |
 | `qwen.bx_max_age_s` | 1500 | a pair is reused this long; the check mints at half of it |
+| `qwen.baxia_wait_s` | 30 | a mint waits this long for the page's baxia module, then types a prompt and presses Enter |
+| `qwen.mint_browsers` | 2 | mint browsers (Chrome) one worker opens at once, 1-4 |
 | `qwen.account_min_gap_s` | 60 | the pools' rest after a generate |
 | `qwen.poll_interval_s` | 30 | between two reads of a rendering video |
 | `qwen.image_lost_after_s` | 900 | an image chat still empty this long after the send fails, refunded |

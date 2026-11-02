@@ -68,7 +68,8 @@ def test_the_caps_say_an_http_provider_with_a_video_credit_pool_and_an_image_poo
 def test_qwen_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["qwen.claims_enabled"].default is False, "qwen must stay drained until the owner turns it on"
-    for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "image_lost_after_s",
+    for key in ("render_deadline_s", "poll_interval_s", "account_min_gap_s", "bx_max_age_s", "baxia_wait_s",
+                "mint_browsers", "image_lost_after_s",
                 "refusal_grace_s", "refusal_max_accounts", "prices", "costs", "pools", "disabled_models"):
         assert "qwen." + key in s, key
     # a free account's credits roll 24 h from their grant; images are 10 a UTC day

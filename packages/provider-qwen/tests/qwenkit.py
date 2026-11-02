@@ -218,7 +218,7 @@ class FakeMint:
     def __init__(self, log: list, *, fail: BaseException | None = None, bx: dict | None = None):
         self.log, self.fail, self.bx, self.calls = log, fail, bx or PAIR, 0
 
-    async def __call__(self, account, cred, token):
+    async def __call__(self, account, cred, token, baxia_wait_s):
         self.log.append("mint")
         self.calls += 1
         assert token is not None and not token.released, "a mint ran without a browser token"

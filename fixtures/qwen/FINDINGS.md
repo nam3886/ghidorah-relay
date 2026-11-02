@@ -342,3 +342,21 @@ refresh, and a refresh beside the relay forked the session earlier today (both a
     to 720P), not for Wan. Durations 5/10/15; ratios as before plus `original` (`origin` on the wire, not sold).
 - The recorded price list has scenes the web app never builds: Wan 3.0 / 3.0 prime (480P-1080P, `purchase`), Wan 2.5
   preview (480P-1080P, `all`), video edit, extend and motion imitation. Not built: no request shape for them.
+
+## Baxia mint, 01/11 (spike, signed-in accounts out of rotation)
+About 9 newer accounts failed every mint (`qwen.mint_failed`): on them the typed mint's Enter sends nothing, so no
+generate is captured. A spike minted the pair without typing and sent real t2i orders with it over plain HTTP: accepted,
+images delivered, on good accounts and on "Enter does nothing" ones alike.
+- Load `chat.qwen.ai/` (no t2i prompt). The page's baxia signer is `window.__baxia__.getFYModule`; it is ready when
+  `getFYModule.fyObj` exists (3.5-4 s after the load). `getFYToken()` is `bx-ua` (starts `234!`, about 1250-1300
+  chars), `getUidToken()` is `bx-umidtoken` (68 chars); `bx-v` stays 2.5.37.
+- It must be read in the page's MAIN world (CDP `Runtime.evaluate`): patchright's `page.evaluate` runs in an isolated
+  world that sees no page global.
+- The live web app is **0.3.32** (the typed mint carried its `Version` from the page's request; the constant was
+  0.3.22). The baxia mint reads the version from the bundle's path `qwen-chat-fe/<version>/`, the constant only when
+  none is found.
+- A bad account's localStorage held `qwen.cookie_gate_required = {"required":true}`: a possible cause of the silent
+  Enter, not followed up (the baxia mint does not need it).
+
+The provider mints the baxia way first and falls back to the typed way when the module gives no pair within
+`qwen.baxia_wait_s` (30 s); both failing is `MintError` with the page's screenshot, as before.

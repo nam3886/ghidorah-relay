@@ -28,8 +28,9 @@ from qwenkit import (
 from relay_core.providers import Balance, Cooldown, Health, Proxy, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_qwen.constants import TOKEN_REUSE_S
-from relay_qwen.credential import cred_of, merge_blobs
+from relay_qwen.credential import Cred, cred_of, merge_blobs
 from relay_qwen.engine import http as H
+from relay_qwen.engine import mint as M
 from relay_qwen.engine.check import check_account
 from relay_qwen.engine.mint import Minter, MintError, browser_cookies, drop_pair, kept_headers, paused_action
 from relay_qwen.engine.upload import oss_v4_headers
@@ -192,7 +193,7 @@ def test_a_mint_that_fails_raises_mint_error_with_no_value_and_releases_its_brow
         with pytest.raises(MintError) as e:
             asyncio.run(asyncio.wait_for(m.fresh(Ctx(log, blob=BLOB), H.Sessions(), 1500), 5))
         assert REFRESH not in str(e.value) and "pw" not in str(e.value)
-    assert m._budget.busy == 0
+    assert m._busy == 0
 
 
 @mutation(MINT_FILE, '    if any(fnmatch.fnmatchcase(url, p) for p in SESSION_ENDERS):\n        return "refuse"\n', "",
@@ -214,7 +215,7 @@ def test_a_failed_mint_still_writes_back_the_session_the_page_renewed_and_keeps_
     renewed = cred_of(minted_blob(NOW - 5000))
     renewed.cookies[(".qwen.ai", "/", "refresh_token")] = "rt-renewed-by-the-page"
 
-    async def mint(account, cred, token):
+    async def mint(account, cred, token, baxia_wait_s):
         raise MintError("the page sent no generate in 30 s", renewed)
     ctx = Ctx(log, blob=minted_blob(NOW - 5000))
     with pytest.raises(MintError):
@@ -383,3 +384,190 @@ def test_a_check_whose_mint_failed_shows_the_page_the_mint_gave_up_on():
     assert health.state == "alive" and health.screenshot == page, "the page of the failed mint was not shown"
     health = run_check(Qwen(log), Ctx(log, blob=BLOB), qwen__claims_enabled=True)
     assert health.screenshot is None, "a check whose mint worked shows a screenshot"
+
+
+# ---- the browser mint: the baxia way, then the typed way -----------------------------------------------------------
+AGENT = {"user-agent": "Mozilla/5.0 PLANTED-browser", "sec-ch-ua": '"Chromium";v="154"', "sec-ch-ua-mobile": "?0",
+         "sec-ch-ua-platform": '"Linux"'}
+
+
+class FakeCdp:
+    """The CDP session of a fake chat.qwen.ai page. `baxia`: what the page's MAIN world answers for BAXIA_JS (None:
+    the module is not there). Enter makes the page send its generate when `sends` is true."""
+
+    def __init__(self, log: list, baxia: dict | None, sends: bool):
+        self.log, self.baxia, self.sends, self.handlers = log, baxia, sends, {}
+
+    def on(self, event, handler):
+        self.handlers[event] = handler
+
+    async def send(self, method, params=None):
+        self.log.append(method)
+        if method == "Runtime.evaluate":      # the main world answers a by-value read of the baxia script
+            ok = params.get("returnByValue") is True and params.get("expression") == M.BAXIA_JS
+            return {"result": {"value": self.baxia if ok else None}}
+        return {}
+
+    def enter(self):
+        if self.sends:
+            self.handlers["Fetch.requestPaused"]({"requestId": "r1", "request": {
+                "url": "https://chat.qwen.ai/api/v2/chat/completions?chat_id=c", "headers": {
+                    "bx-ua": "typed-" + BX_UA, "bx-umidtoken": "typed-" + UMID, "bx-v": "2.5.37",
+                    "Version": "0.3.31"}}})
+
+
+class FakeBrowserPage:
+    """A fake page: its isolated world (`evaluate`) sees no page global, as patchright's does."""
+
+    def __init__(self, log: list, cdp: FakeCdp):
+        self.log, self.cdp = log, cdp
+
+    async def goto(self, url, **kw):
+        self.log.append("goto " + url.replace(M.BASE_URL, ""))
+
+    async def wait_for_timeout(self, ms):
+        pass
+
+    def get_by_text(self, *a, **kw):
+        raise LookupError("no intro")
+
+    def locator(self, sel):
+        return self
+
+    @property
+    def first(self):
+        return self
+
+    @property
+    def keyboard(self):
+        return self
+
+    async def input_value(self):
+        return M.MINT_PROMPT
+
+    async def focus(self):
+        pass
+
+    async def press(self, key):
+        self.log.append("press " + key)
+        self.cdp.enter()
+
+    async def evaluate(self, js):
+        return dict(AGENT) if js == M.AGENT_JS else None        # the isolated world: no `window.__baxia__`
+
+    async def screenshot(self, **kw):
+        return b"\x89PNG the page"
+
+
+class FakeBrowserCtx:
+    def __init__(self, cdp):
+        self.cdp = cdp
+
+    async def add_cookies(self, cookies):
+        pass
+
+    async def new_cdp_session(self, page):
+        return self.cdp
+
+    async def cookies(self):
+        return [dict(name=name, value=value, domain=".qwen.ai", path="/")
+                for name, value in (("refresh_token", REFRESH), ("cna", "browser-cna"))]
+
+
+def install_browser(monkeypatch, log, *, baxia=None, sends=False):
+    import contextlib
+    from types import SimpleNamespace
+
+    import relay_browser.session as kit
+    cdp = FakeCdp(log, baxia, sends)
+
+    @contextlib.asynccontextmanager
+    async def open_session(site, account, *, purpose, token, redact):
+        yield SimpleNamespace(page=FakeBrowserPage(log, cdp), ctx=FakeBrowserCtx(cdp))
+
+    monkeypatch.setattr(kit, "open_session", open_session)
+    monkeypatch.setattr(M, "BAXIA_POLL_S", 0)
+    monkeypatch.setattr(M, "SEND_WAIT_S", 0.05)
+
+
+def run_mint(log, wait_s=0.05):
+    from relay_core.budget import BrowserBudget, Purpose
+    return asyncio.run(M.browser_mint(Ctx(log).account, cred_of(BLOB), BrowserBudget(1).try_acquire(Purpose.CHECK),
+                                      wait_s))
+
+
+BAXIA = {"bx-ua": "234!" + BX_UA, "bx-umidtoken": UMID,
+         "assets": ["https://g.alicdn.com/x.js", "https://assets.alicdn.com/g/qwenweb/qwen-chat-fe/0.3.32/js/main.js"]}
+READS_MAIN_WORLD = '        ev = await cdp.send("Runtime.evaluate", {"expression": js, "returnByValue": True})\n'
+
+
+@mutation(MINT_FILE, READS_MAIN_WORLD, "        ev = {}\n", expect="not read from the page's main world")
+@mutation(MINT_FILE, "            return found.group(1)\n", "            return WEB_VERSION\n", expect="0.3.32")
+def test_a_mint_reads_the_pair_from_the_pages_baxia_module_in_its_main_world_and_sends_nothing(monkeypatch):
+    log = []
+    install_browser(monkeypatch, log, baxia=BAXIA, sends=True)
+    cred = run_mint(log)
+    assert cred.bx["bx-ua"] == "234!" + BX_UA, "the pair was not read from the page's main world"
+    assert cred.bx == {"bx-ua": "234!" + BX_UA, "bx-umidtoken": UMID, "bx-v": "2.5.37", "version": "0.3.32", **AGENT}
+    assert "press Enter" not in log and log.count("goto /") == 1, "the baxia mint typed or sent: %s" % log
+    assert cred.cookies[(".qwen.ai", "/", "cna")] == "browser-cna"
+
+
+def test_the_version_is_the_pages_bundle_path_else_the_constant():
+    assert M.page_version(BAXIA["assets"]) == "0.3.32"
+    for none in ([], ["https://g.alicdn.com/qwen-chat-fe/main.js"], None, [None, 3]):
+        assert M.page_version(none) == M.WEB_VERSION == "0.3.22"
+
+
+@mutation(MINT_FILE, "            if raw is None:\n", "            if False:\n", expect="MintError: no generate")
+def test_a_page_without_the_baxia_module_falls_back_to_the_typed_mint(monkeypatch):
+    for baxia in (None, {**BAXIA, "bx-umidtoken": ""}):       # no module, or half a pair: typed
+        log = []
+        install_browser(monkeypatch, log, baxia=baxia, sends=True)
+        cred = run_mint(log)
+        assert "press Enter" in log, "no typed mint after the baxia module gave no pair: %s" % log[-5:]
+        assert log.index("goto /") < log.index("goto /?inputFeature=t2i&text=a+red+apple") < log.index("press Enter")
+        assert cred.bx["bx-ua"] == "typed-" + BX_UA and cred.bx["version"] == "0.3.31"
+        assert log.count("Fetch.failRequest") == 1 and "Fetch.continueRequest" not in log, "the generate left"
+
+
+@mutation(MINT_FILE, "                shot = await page.screenshot(full_page=False)\n", "                pass\n",
+          expect="no screenshot")
+def test_a_mint_with_neither_the_baxia_module_nor_a_typed_send_fails_with_the_page_and_the_cookies(monkeypatch):
+    log = []
+    install_browser(monkeypatch, log, baxia=None, sends=False)
+    with pytest.raises(MintError) as e:
+        run_mint(log)
+    assert "press Enter" in log and "no generate" in str(e.value)
+    assert e.value.screenshot == b"\x89PNG the page", "no screenshot of the page the mint gave up on"
+    assert e.value.cred is not None and e.value.cred.cookies[(".qwen.ai", "/", "cna")] == "browser-cna"
+
+
+MINT_SLOTS = '        while self._busy >= int(self._setting("qwen.mint_browsers")):\n'
+
+
+@mutation(MINT_FILE, MINT_SLOTS, "        while self._busy >= 1:\n", expect="mints at once")
+@mutation(MINT_FILE, MINT_SLOTS, "        while False:\n", expect="mints at once")
+def test_mints_run_at_once_up_to_the_mint_browsers_setting_and_take_the_baxia_wait_setting(monkeypatch):
+    monkeypatch.setattr(M, "SLOT_POLL_S", 0)
+
+    def most_at_once(n):
+        running, most, waits = [0], [0], []
+
+        async def mint(account, cred, token, baxia_wait_s):
+            waits.append(baxia_wait_s)
+            running[0] += 1
+            most[0] = max(most[0], running[0])
+            await asyncio.sleep(0.02)
+            running[0] -= 1
+            return Cred(dict(cred.cookies), dict(PAIR), 0.0)
+        m = Minter(mint, settings=settings(qwen__mint_browsers=n, qwen__baxia_wait_s=17), clock=lambda: NOW)
+
+        async def three():
+            await asyncio.gather(*(m.fresh(Ctx([], blob=BLOB, account_id="acc-%d" % i), H.Sessions(), 1500)
+                                   for i in range(3)))
+        asyncio.run(three())
+        assert waits == [17] * 3 and m._busy == 0
+        return most[0]
+    for n in (1, 2, 3):
+        assert most_at_once(n) == n, "qwen.mint_browsers %d: not that many mints at once" % n

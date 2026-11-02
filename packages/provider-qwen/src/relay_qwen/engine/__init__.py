@@ -2,7 +2,8 @@
 (engine/mint.py), so the worker runs the browser image.
 
 Each method is a thin delegate to the module that owns the behaviour. Bound once at build time: the settings view,
-the process's `Sessions` (each account's newest credential and access token) and the `Minter` (one browser at a time).
+the process's `Sessions` (each account's newest credential and access token) and the `Minter` (`qwen.mint_browsers`
+browsers at a time).
 """
 
 from relay_qwen.engine import check as _check
@@ -16,7 +17,7 @@ class QwenEngine:
     def __init__(self, settings, minter: Minter | None = None):
         self.settings = settings
         self.sessions = Sessions()
-        self.minter = minter or Minter()
+        self.minter = minter or Minter(settings=settings)
 
     async def submit(self, ctx, job):
         return await _submit.submit(ctx, job, self.settings, self.sessions, self.minter)
