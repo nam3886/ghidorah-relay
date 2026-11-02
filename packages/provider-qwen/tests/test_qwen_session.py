@@ -368,3 +368,18 @@ def test_the_check_never_logs_a_session_value(caplog):
     run_check(Qwen(log), Ctx(log, blob=BLOB), qwen__claims_enabled=True)
     for secret in (REFRESH, ACCESS, BX_UA, UMID):
         assert secret not in caplog.text
+
+
+@mutation(MINT_FILE, "                raise MintError(str(e), screenshot=e.screenshot) from None\n",
+          "                raise MintError(str(e)) from None\n", expect="the page of the failed mint was not shown")
+@mutation(CHECK_FILE, "                          screenshot=shot, effects=effects)\n",
+          "                          effects=effects)\n", expect="the page of the failed mint was not shown")
+def test_a_check_whose_mint_failed_shows_the_page_the_mint_gave_up_on():
+    log = []
+    page = b"\x89PNG the page that did not send"
+    health = run_check(Qwen(log), Ctx(log, blob=BLOB),
+                       Minter(FakeMint(log, fail=MintError("the page sent no generate in 30 s", None, page))),
+                       qwen__claims_enabled=True)
+    assert health.state == "alive" and health.screenshot == page, "the page of the failed mint was not shown"
+    health = run_check(Qwen(log), Ctx(log, blob=BLOB), qwen__claims_enabled=True)
+    assert health.screenshot is None, "a check whose mint worked shows a screenshot"

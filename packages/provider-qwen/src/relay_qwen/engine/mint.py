@@ -43,11 +43,13 @@ SEND_WAIT_S = 30          # after Enter the page builds its generate in a second
 
 class MintError(Exception):
     """No pair. The text names the reason only, never a header or cookie value. `cred`: the browser's cookies of a
-    mint that ran (the old pair kept), to be written back; None when no browser ran."""
+    mint that ran (the old pair kept), to be written back; None when no browser ran. `screenshot`: the page as the
+    mint gave up on it (PNG), for the account's check screenshot; None when none was taken."""
 
-    def __init__(self, why: str, cred: Cred | None = None):
+    def __init__(self, why: str, cred: Cred | None = None, screenshot: bytes | None = None):
         super().__init__(why)
         self.cred = cred
+        self.screenshot = screenshot
 
 
 def is_fresh(cred: Cred, max_age_s: float, now: float) -> bool:
@@ -112,7 +114,7 @@ async def browser_mint(account, cred: Cred, token) -> Cred:
 
     site = SiteProfile(name="qwen", host=SITE_HOST, timezone="UTC", local_storage_token_keys=("token",))
     got: asyncio.Future = asyncio.get_running_loop().create_future()
-    raw, agent, failure = None, {}, None
+    raw, agent, failure, shot = None, {}, None, None
     async with open_session(site, account, purpose=Purpose.CHECK, token=token, redact=redact_text) as session:
         page = session.page
         await session.ctx.add_cookies(chrome_cookies(cred))
@@ -162,12 +164,15 @@ async def browser_mint(account, cred: Cred, token) -> Cred:
             failure = "the page sent no generate in %d s" % SEND_WAIT_S
         except Exception as e:      # noqa: BLE001 - its text may hold a URL: only the kind goes out
             failure = "the page failed (%s)" % type(e).__name__
+        if failure is not None or raw is None:
+            with contextlib.suppress(Exception):          # what kept the page from sending, shown in the admin
+                shot = await page.screenshot(full_page=False)
         cookies = browser_cookies(await session.ctx.cookies())
     if not any(name == REFRESH_COOKIE for (_d, _p, name) in cookies):
         cookies = {**cred.cookies, **cookies}       # the browser dropped the session cookie: keep the jar's
     kept = Cred(cookies, cred.bx, cred.minted_at)
     if failure is not None or raw is None:
-        raise MintError(failure or "no generate", kept)
+        raise MintError(failure or "no generate", kept, shot)
     try:
         headers = kept_headers(raw, agent if isinstance(agent, dict) else {})
     except MintError as e:
@@ -202,7 +207,7 @@ class Minter:
                 if e.cred is not None and e.cred.cookies != cred.cookies:
                     self._stamp(e.cred, cred)
                     await write_back(ctx, sessions, e.cred)      # the page renewed the session: keep it
-                raise MintError(str(e)) from None
+                raise MintError(str(e), screenshot=e.screenshot) from None
             except Exception as e:  # noqa: BLE001 - a browser failure of any kind is "no pair"; its text may hold a URL
                 raise MintError("the browser mint failed (%s)" % type(e).__name__) from None
             finally:

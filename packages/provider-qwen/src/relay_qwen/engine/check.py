@@ -60,14 +60,16 @@ async def check_account(ctx, settings, sessions: Sessions, minter, *, transport:
                 return Health("unknown")
             credits = await site.credits()
             effects = (() if credits is None else (Balance("video", credits),)) + await read_tier(site)
+            shot = None
             if settings.get("qwen.claims_enabled"):
                 try:
                     await minter.fresh(ctx, sessions, int(settings.get("qwen.bx_max_age_s")) / 2)
                 except Exception as e:  # noqa: BLE001 - a mint is a nicety here: the submit mints when it must
                     log.warning("qwen account %s: the check could not mint a pair (%s)", ctx.account.id, e)
+                    shot = getattr(e, "screenshot", None)      # the page that did not send: the check's screenshot
             name = user.get("email") or user.get("id")
             return Health("alive", identity=name, display_name=user.get("email") or user.get("name"),
-                          effects=effects)
+                          screenshot=shot, effects=effects)
     except httpx.HTTPError as e:
         # the exception text may carry the proxy URL: only its kind goes out
         raise RuntimeError("qwen could not be reached (%s)" % type(e).__name__) from None
