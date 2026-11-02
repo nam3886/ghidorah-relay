@@ -240,7 +240,8 @@ def test_a_complete_answer_with_a_final_text_and_no_image_fails_with_its_refund_
 
 # the final texts of two song sends gemini failed on its side (25/10 c5a71c28, and the engine smoke's)
 WENT_WRONG = [a["text"] for a in json.loads((FIX_MODES / "music_temporary_failure.json").read_text())["answers"]]
-TEMPORARY_JUDGE = '    if is_temporary_failure(final):\n        return "refused", (errors.UPSTREAM_FAILED, final)\n'
+TEMPORARY_JUDGE = ('    if is_temporary_failure(final) or video and is_video_busy(final):\n'
+                   '        return "refused", (errors.UPSTREAM_FAILED, final)\n')
 TEMPORARY_REQUEUE = '    if verdict == "refused" and what[0] == errors.UPSTREAM_FAILED:\n'
 BOTH_PHRASES = "any(p in t for p in TEMPORARY_FAILURE_PHRASES) and any(p in t for p in TRY_AGAIN_PHRASES)"
 REFUSAL_WINS = "    if any(w in t for w in REFUSAL_WORDS):\n        return False\n"

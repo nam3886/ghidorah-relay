@@ -75,6 +75,7 @@ def test_gemini_stays_drained_by_default_and_declares_its_tunables():
     s = SPEC.settings()
     assert s["gemini.claims_enabled"].default is False, "gemini must stay drained until the owner turns it on"
     assert (s["gemini.rotate_interval_s"].default, s["gemini.rotate_interval_s"].max) == (600, 900)
+    assert s["gemini.video_busy_rest_s"].default == 900
     assert s["gemini.account_min_gap_s"].default == 30 and s["gemini.poll_interval_s"].default == 30
     assert s["gemini.render_deadline_s"].default == 900
     assert s["gemini.prices"].default == {MODEL: 1, PRO: 1, VIDEO + "@10s": 1, MUSIC: 1}

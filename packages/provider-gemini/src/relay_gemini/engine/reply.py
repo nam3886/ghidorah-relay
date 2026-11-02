@@ -49,9 +49,10 @@ class Video:
 class Answer:
     """What one answer said. `clean`: every line was the guard, a length or a JSON frame (nothing cut or unreadable).
     `cid`: the conversation it names (None: none). `texts`: every candidate text, in order (the last is the final
-    one). `images`, `videos`: the media of the LAST payload that has a candidate (each payload repeats the whole answer
-    so far). `generating`: some payload carries the "generating your video" item. `errors`: error items (`["er", ...]`)
-    or error codes a payload carried."""
+    one); with no candidate, the text of each `{"7": [text]}` turn update (`_field_texts`). `images`, `videos`: the
+    media of the LAST payload that has a candidate (each payload repeats the whole answer so far). `generating`: some
+    payload carries the "generating your video" item. `errors`: error items (`["er", ...]`) or error codes a payload
+    carried."""
     clean: bool
     ended: bool
     payloads: tuple
@@ -188,6 +189,19 @@ def _candidate_texts(node) -> list[str]:
     return out
 
 
+def _field_texts(payloads) -> list[str]:
+    """The text of every turn update `[null, [cid, rid], {"7": [text, ...], ...}]` (every recorded video send streams
+    its "I'm generating your video" so, live-261024), read only when the answer has no candidate: a newer reply may
+    carry its whole text there (ntthanh2603/gemini-web-to-api a72d9d9, its "too many requests" video answer). An
+    update that carries the "generating" item is left out: its text is the taken answer's, never a final one."""
+    out = []
+    for p in payloads:
+        part = p[2].get("7") if isinstance(p, list) and len(p) > 2 and isinstance(p[2], dict) else None
+        if isinstance(part, list) and part and isinstance(part[0], str) and part[0] and not generating(part):
+            out.append(part[0])
+    return out
+
+
 def read_answer(text: str) -> Answer:
     payloads, errors, clean, ended = _items(text)
     cid = None
@@ -200,7 +214,7 @@ def read_answer(text: str) -> Answer:
     for p in payloads:
         if isinstance(p, list) and len(p) > 4 and isinstance(p[4], list) and p[4]:
             last = p
-    texts = tuple(_candidate_texts(last)) if last is not None else ()
+    texts = tuple(_candidate_texts(last)) if last is not None else tuple(_field_texts(payloads))
     return Answer(clean, ended, tuple(payloads), cid, texts, images_in(last) if last is not None else (),
                   tuple(errors), videos_in(last) if last is not None else (), generating(payloads))
 

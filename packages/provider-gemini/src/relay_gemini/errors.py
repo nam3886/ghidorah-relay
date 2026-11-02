@@ -15,7 +15,7 @@ LIMIT_REACHED = "gemini.limit_reached"    # such a refusal that is the account's
 NOT_ENTITLED = "gemini.not_entitled"      # gemini answered that the account's plan does not include this
 VIDEO_LIMIT = "gemini.video_limit"        # gemini answered that the account makes no more videos today
 UNRESOLVED = "gemini.account_unresolved"  # before the send: the Google account of the session is not the one meant
-UPSTREAM_FAILED = "gemini.upstream_failed"  # gemini said it failed on its side, "try again": re-queued
+UPSTREAM_FAILED = "gemini.upstream_failed"  # gemini said it failed on its side or is too busy, "try again": re-queued
 
 _BUSY = core_errors.TEMPORARILY_UNAVAILABLE
 
@@ -35,10 +35,12 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          public_text="The input image could not be handed to gemini and nothing was made. Sending the request "
                      "again may work; if it keeps failing, use another image."),
     # gemini's final answer said it failed on its side and asked to try again ("something went wrong on our end",
-    # 25/10): nothing was made, the job goes back to the queue (this account or another) and uses one attempt; at the
-    # last attempt it fails with its refund. Only from a send's own answer: a found chat's read cannot re-queue.
+    # 25/10), or a video answer that it has too many requests and to try again in a while (02/11): nothing was made,
+    # the job goes back to the queue (this account or another) and uses one attempt; at the last attempt it fails with
+    # its refund. Only from a send's own answer: a found chat's read cannot re-queue.
     Rule(UPSTREAM_FAILED, 503, "api_error", True, False, True, True,
-         "gemini said something went wrong on its side; nothing was made, it is sent again",
+         "gemini said something went wrong on its side or it had too many requests; nothing was made, it is sent "
+         "again",
          public_code=core_errors.GENERATION_FAILED,
          public_text="gemini kept failing on its side and nothing was made. Sending the request again later may "
                      "work."),

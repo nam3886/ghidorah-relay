@@ -109,6 +109,9 @@ _SETTINGS = dict((
     _setting("video_limit_rest_s", int, 18000,
              "Seconds an account's video pool reads 0 (and rests) after gemini answers it can make no more videos for "
              "now, when the usage read names no reset (the short usage window is 5 h).", min=600, max=7 * 86400),
+    _setting("video_busy_rest_s", int, 900,
+             "Seconds an account's video pool rests after gemini answers a video with \"too many requests, try again "
+             "in a while\" (the job goes back to the queue, one attempt used). Not measured.", min=60, max=86400),
     _setting("not_entitled_rest_s", int, 86400,
              "Seconds an account's pool rests after gemini answers that the account's plan does not include the job "
              "(\"upgrade your subscription\"): its other jobs of that kind would be refused alike.", min=600,

@@ -64,6 +64,7 @@ SUBMIT_FILE = "packages/provider-gemini/src/relay_gemini/engine/submit.py"
 RESULTS_FILE = "packages/provider-gemini/src/relay_gemini/engine/results.py"
 REPLY_FILE = "packages/provider-gemini/src/relay_gemini/engine/reply.py"
 HTTP_FILE = "packages/provider-gemini/src/relay_gemini/engine/http.py"
+SPEC_FILE = "packages/provider-gemini/src/relay_gemini/spec.py"
 NET_FILE = "packages/relay-core/src/relay_core/net.py"
 NOW = datetime(2026, 10, 24, 1, 8, 0, tzinfo=UTC)
 WALL = 1_792_804_000.0
@@ -550,6 +551,88 @@ def test_the_limit_resets_answer_is_the_limit_and_a_hard_time_answer_with_no_tas
     taken = type(taken)(taken.clean, taken.ended, taken.payloads, taken.cid, taken.texts, taken.images, taken.errors,
                         taken.videos, True)
     assert judge(200, taken, video=True) == ("taken", None)
+
+
+# ---- a newer reply's text in its turn update, and the "too many requests" video answer ----------------------------
+def field_reply(text: str | None, *, generating_item: bool = False) -> str:
+    """The recorded t2v answer (live-261024) with its turn update `{"7": [...], "44": true}` holding `text` alone (no
+    "generating" item, no candidate anywhere): the shape a newer reply carries its whole text in (ntthanh2603/
+    gemini-web-to-api a72d9d9). `generating_item` keeps the recorded item after the text."""
+    payloads = []
+    for p in read_answer(T2V_ACCEPTED).payloads:
+        if isinstance(p[2], dict) and "7" in p[2]:
+            p = [p[0], p[1], {**p[2], "7": [text, *p[2]["7"][1:2]] if generating_item else [text]}]
+        payloads.append(p)
+    return frames(*payloads)
+
+
+BUSY = ("We're getting a lot of requests right now. Please try again in a few minutes.",
+        "Too many requests. Try again later.", "Video generation is busy, try again in an hour.")
+FIELD_TEXTS = "tuple(_candidate_texts(last)) if last is not None else tuple(_field_texts(payloads))"
+BUSY_JUDGE = "    if is_temporary_failure(final) or video and is_video_busy(final):\n"
+BUSY_REST = "    if video and code == errors.UPSTREAM_FAILED and is_video_busy(text):\n"
+BUSY_SEND_REST = "*rest, *limit_effects(settings, now, *what, video))"
+BUSY_REFUSAL = "    return not any(w in t for w in REFUSAL_WORDS) and any(p in t for p in VIDEO_BUSY_PHRASES)"
+
+
+@mutation(REPLY_FILE, FIELD_TEXTS, "tuple(_candidate_texts(last)) if last is not None else ()",
+          expect="the turn update's text was not read")
+@mutation(REPLY_FILE, " and part[0] and not generating(part):", " and part[0]:", expect="the taken answer's text")
+def test_an_answer_with_no_candidate_reads_its_text_from_the_turn_update_but_never_the_generating_one():
+    a = read_answer(field_reply(BUSY[0]))
+    assert (a.clean, a.ended, a.generating, a.cid) == (True, True, False, T2V_CHAT)
+    assert a.texts == (BUSY[0],), "the turn update's text was not read: %r" % (a.texts,)
+    for recorded in (T2V_ACCEPTED, I2V_ACCEPTED, field_reply("Here it comes", generating_item=True)):
+        assert read_answer(recorded).texts == (), "the taken answer's text became a final text"
+    assert read_answer(field_reply(None)).texts == ()
+    # a candidate wins: the not-entitled answer's update holds the generating item, its candidate the final text
+    assert read_answer(NOT_ENTITLED).texts[-1].startswith("If you [upgrade your subscription]")
+    # an image job whose answer is such a text alone is an ordinary refusal (no image record, no candidate)
+    log = []
+    result = run(pro_site(log, send=field_reply("I can't draw that.")), pro_ctx(log), job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
+
+
+@mutation(SUBMIT_FILE, BUSY_JUDGE, "    if is_temporary_failure(final):\n", expect="a busy video answer")
+@mutation(SUBMIT_FILE, BUSY_JUDGE, "    if is_temporary_failure(final) or is_video_busy(final):\n",
+          expect="a busy answer to an image")
+@mutation(SUBMIT_FILE, BUSY_REST, "    if False:\n", expect="the video pool did not rest")
+@mutation(SUBMIT_FILE, BUSY_SEND_REST, "*rest)", expect="the video pool did not rest")
+@mutation(SUBMIT_FILE, BUSY_REFUSAL, "    return any(p in t for p in VIDEO_BUSY_PHRASES)", expect="a refusal word")
+@mutation(SPEC_FILE, '    _setting("video_busy_rest_s", int, 900,', '    _setting("video_busy_rest_s", int, 300,',
+          expect="the video pool did not rest")
+def test_a_too_many_requests_video_answer_is_not_taken_like_a_temporary_failure_and_rests_the_video_pool():
+    """gemini's "a lot of requests, try again in a few minutes" to a video (ntthanh2603/gemini-web-to-api a72d9d9) is
+    its load, not a refusal: a complete answer with no media and no "generating" item delivers nothing later, so, as
+    "I seem to be encountering an error", it is `NotTaken(gemini.upstream_failed)` (re-queued, one attempt used), and
+    the account's video pool rests `gemini.video_busy_rest_s` (900). A refusal word wins; an image job's answer stays a
+    refusal; beside the "generating" item the video is taken."""
+    rest = Rest("video", NOW + timedelta(seconds=900), "gemini: too many video requests for now")
+    for reply in (*(field_reply(t) for t in BUSY), answer(BUSY[1])):
+        log = []
+        result = run(pro_site(log, send=reply), pro_ctx(log), video_job())
+        assert result.job == NotTaken(errors.UPSTREAM_FAILED), "a busy video answer became %s" % (result.job,)
+        assert log.count("SEND") == 1 and not any(isinstance(e, Success) for e in result.account)
+        assert rest in result.account, "the video pool did not rest: %s" % (result.account,)
+        assert not any(isinstance(e, Balance) for e in result.account), "a busy answer emptied the video quota"
+    log = []
+    result = run(pro_site(log, send=answer(BUSY[0])), pro_ctx(log), job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, \
+        "a busy answer to an image became %s" % (result.job,)
+    log = []
+    refused = "Too many requests for videos that violate our policy. Try again in a new chat."
+    result = run(pro_site(log, send=field_reply(refused)), pro_ctx(log), video_job())
+    assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, \
+        "a refusal word did not win: %s" % (result.job,)
+    log = []
+    result = run(pro_site(log, send=field_reply(BUSY[0], generating_item=True)), pro_ctx(log), video_job())
+    assert isinstance(result.job, Accepted), "a busy text beside the generating item: %s" % (result.job,)
+    # a found chat holding it fails refunded (a poll cannot re-queue) and rests the pool the same
+    turn = turns(T2V_PENDING)[0][0]
+    busy = Turn(turn.prompt, (BUSY[0],), (), (), (), False)
+    assert judge(200, busy.answer(T2V_CHAT), video=True) == ("refused", (errors.UPSTREAM_FAILED, BUSY[0]))
+    rule = errors.CODES[errors.UPSTREAM_FAILED]
+    assert not rule.terminal and rule.counts_attempt and rule.refund
 
 
 # ---- the pro-tier image model (Nano Banana 2.1): the account's "Pro" mode and its kind ---------------------------

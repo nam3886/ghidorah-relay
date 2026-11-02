@@ -89,7 +89,7 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `gemini.not_entitled` | `invalid_input` | 502 | api_error | yes | yes | no | 0 | yes | the gemini account cannot make this; the charge is returned |
 | `gemini.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | gemini answered without a result (a refused prompt); the charge is returned |
 | `gemini.upload_failed` | `generation_failed` | 502 | api_error | no | yes | yes | 0 | yes | the input image could not be handed to gemini; the order was not sent |
-| `gemini.upstream_failed` | `generation_failed` | 503 | api_error | no | yes | yes | 0 | yes | gemini said something went wrong on its side; nothing was made, it is sent again |
+| `gemini.upstream_failed` | `generation_failed` | 503 | api_error | no | yes | yes | 0 | yes | gemini said something went wrong on its side or it had too many requests; nothing was made, it is sent again |
 | `gemini.video_limit` | `temporarily_unavailable` | 502 | api_error | yes | yes | no | 0 | yes | the gemini account reached its video limit for now; the charge is returned |
 
 ## `input.*`

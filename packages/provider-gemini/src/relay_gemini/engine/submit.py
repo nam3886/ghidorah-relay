@@ -28,8 +28,9 @@ Money rules that shape this file (each has a test and a mutation):
   `gemini.refusal_max_accounts`-th account; the not-entitled account's pool for the job rests
   `gemini.not_entitled_rest_s`. Beside an item in any other state the video may still render: the job fails, never
   moved (`nothing_rendering`). `gemini.refused` (the prompt) fails at once. The one exception: a final text saying
-  something went wrong on gemini's side and asking to try again, or Google's fixed "I seem to be encountering an
-  error" answer (`is_temporary_failure`), is `NotTaken`
+  something went wrong on gemini's side and asking to try again, Google's fixed "I seem to be encountering an
+  error" answer (`is_temporary_failure`), or a video's "too many requests, try again in a while" (`is_video_busy`,
+  which also rests the video pool `gemini.video_busy_rest_s`), is `NotTaken`
   (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
   core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
   one, or a video refusal that reads like a quota) also sets the video pool to a zero balance until the reset the usage
@@ -87,6 +88,7 @@ from relay_gemini.constants import (
     TEMPORARY_FAILURE_ANSWERS,
     TEMPORARY_FAILURE_PHRASES,
     TRY_AGAIN_PHRASES,
+    VIDEO_BUSY_PHRASES,
     VIDEO_LIMIT_PHRASES,
     VIDEO_TOOL,
 )
@@ -277,7 +279,7 @@ def judge(status: int, answer: Answer | None, *, video: bool = False, music: boo
         return "taken", None
     if not final or any(p in final for p in (IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, MUSIC_PLACEHOLDER)):
         return "unknown", "the answer named no %s record" % ("video" if video else "song" if music else "image")
-    if is_temporary_failure(final):
+    if is_temporary_failure(final) or video and is_video_busy(final):
         return "refused", (errors.UPSTREAM_FAILED, final)
     return "refused", (errors.REFUSED, final)
 
@@ -299,6 +301,13 @@ def is_temporary_failure(text: str) -> bool:
     if any(w in t for w in REFUSAL_WORDS):
         return False
     return any(p in t for p in TEMPORARY_FAILURE_PHRASES) and any(p in t for p in TRY_AGAIN_PHRASES)
+
+
+def is_video_busy(text: str) -> bool:
+    """Is it gemini's "too many requests, try again in a while" answer to a video (`VIDEO_BUSY_PHRASES`)? A refusal
+    word wins, as in `is_temporary_failure`."""
+    t = plain(text)
+    return not any(w in t for w in REFUSAL_WORDS) and any(p in t for p in VIDEO_BUSY_PHRASES)
 
 
 def is_video_limit(text: str) -> bool:
@@ -342,7 +351,12 @@ def limit_effects(settings, now: datetime, code: str, text: str, video: bool,
     - a video limit refusal: the video pool is 0 until the reset the usage read named (`spent`, with its window),
       else `gemini.video_limit_rest_s` from now (`limit_balance`);
     - an image refusal: the job's image pool is 0 only when the usage read then showed a used-up window (`spent`);
-      its words alone never empty the pool (an ordinary refusal would close the account's images for hours)."""
+      its words alone never empty the pool (an ordinary refusal would close the account's images for hours);
+    - a video's "too many requests" answer (`gemini.upstream_failed`, `is_video_busy`): the video pool rests
+      `gemini.video_busy_rest_s` (no zero balance: it is gemini's load, not the account's quota)."""
+    if video and code == errors.UPSTREAM_FAILED and is_video_busy(text):
+        until = now + timedelta(seconds=int(settings.get("gemini.video_busy_rest_s")))
+        return (Rest("video", until, "gemini: too many video requests for now"),)
     if video:
         if not is_video_limit_refusal(code, text):
             return ()
@@ -394,8 +408,9 @@ def answer_result(status: int, answer: Answer | None, settings, now: datetime, j
     if verdict == "refused" and what[0] == errors.UPSTREAM_FAILED:
         # a complete final answer with no media and no "generating" item: nothing is made and nothing can still come,
         # so a new send (this account or another) is no second order. No chat kept: a later send's lost answer must
-        # not be reconciled to this one (the requeue event names it, the dropped reference)
-        return _result(NotTaken(errors.UPSTREAM_FAILED), *rest)
+        # not be reconciled to this one (the requeue event names it, the dropped reference). A video's "too many
+        # requests" answer also rests the video pool (`limit_effects`)
+        return _result(NotTaken(errors.UPSTREAM_FAILED), *rest, *limit_effects(settings, now, *what, video))
     if verdict == "refused":
         code, text = what
         effects = limit_effects(settings, now, code, text, video, spent)

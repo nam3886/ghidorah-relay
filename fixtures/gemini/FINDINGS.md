@@ -127,6 +127,11 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
 - Another quota answer (zexadev/gemini-web2api-go, 24/10, not seen here): "I can create more videos as soon as your
   limit resets" with an internal "out of video generation quota" status: both in `VIDEO_LIMIT_PHRASES`. Its "I'm having
   a hard time fulfilling your request" with no video task is a content refusal (`gemini.refused`, nothing rested).
+- A busy answer (ntthanh2603/gemini-web-to-api a72d9d9, 02/11, not seen here): a video send answered with "a lot of
+  requests" / "too many requests" / "try again in ..." as the text of a turn update `{"7": ["<text>"], "44": true}`
+  with no candidate (the shape every recorded video send streams its "generating" item in). The provider reads that
+  text when no candidate exists and treats the answer as a temporary failure (`gemini.upstream_failed`, re-queued, the
+  video pool rests `gemini.video_busy_rest_s`).
 - Portrait, 25/10 06:21Z and 06:26Z (live-261025, `portrait_and_image_modes.json`): two text to video sends with
   inner[55] = [[17]] and the message's ratio `[null, [null, "9:16"]]` were taken and delivered, both 1280×720
   landscape (10.01 s, the clip landscape in its frame). The option id 17 is right (otAQ7b, and the reference repo); the
