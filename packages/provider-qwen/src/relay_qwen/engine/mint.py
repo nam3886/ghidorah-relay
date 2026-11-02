@@ -47,6 +47,7 @@ SESSION_ENDERS = ("*/api/v2/auths/signout*", "*/api/v2/users/logout/*")
 SITE_HOST = "chat.qwen.ai"
 SETTLE_MS = 9000          # the page loads its scripts and the baxia signer before the prompt is sent (spike: 9 s)
 SEND_WAIT_S = 30          # after Enter the page builds its generate in a second or two
+LOAD_TIMEOUT_MS = 45_000  # one page load; two, the baxia wait and the typed send fit in MINT_TIMEOUT_S
 BAXIA_POLL_S = 0.5        # between two asks for the baxia module while it loads
 SLOT_POLL_S = 0.5         # between two looks for a free mint browser
 # NOTE: the live web app was 0.3.32 on 01/11 while WEB_VERSION is 0.3.22: the baxia mint reads the version the page
@@ -154,7 +155,7 @@ async def typed_send(page, got: asyncio.Future) -> dict[str, str]:
     """The typed way: a t2i prompt and Enter; the headers of the generate the guard captured. TimeoutError when the
     page sent none in SEND_WAIT_S."""
     await page.goto(BASE_URL + "/?" + urlencode({"inputFeature": "t2i", "text": MINT_PROMPT}),
-                    wait_until="domcontentloaded", timeout=MINT_TIMEOUT_S * 1000 // 2)
+                    wait_until="domcontentloaded", timeout=LOAD_TIMEOUT_MS)
     await page.wait_for_timeout(SETTLE_MS)
     with contextlib.suppress(Exception):          # the credits intro some accounts are shown once
         await page.get_by_text("Got it", exact=True).first.click(timeout=3000)
@@ -184,7 +185,7 @@ async def browser_mint(account, cred: Cred, token, baxia_wait_s: float) -> Cred:
 
     site = SiteProfile(name="qwen", host=SITE_HOST, timezone="UTC", local_storage_token_keys=("token",))
     got: asyncio.Future = asyncio.get_running_loop().create_future()
-    raw, agent, failure, shot = None, {}, None, None
+    headers, failure, shot = None, None, None
     async with open_session(site, account, purpose=Purpose.CHECK, token=token, redact=redact_text) as session:
         page = session.page
         await session.ctx.add_cookies(chrome_cookies(cred))
@@ -218,29 +219,28 @@ async def browser_mint(account, cred: Cred, token, baxia_wait_s: float) -> Cred:
         await cdp.send("Fetch.enable", {"patterns": [{"urlPattern": p, "requestStage": "Request"}
                                                      for p in (COMPLETIONS, *SESSION_ENDERS)]})
         try:
-            await page.goto(BASE_URL + "/", wait_until="domcontentloaded", timeout=MINT_TIMEOUT_S * 1000 // 2)
+            await page.goto(BASE_URL + "/", wait_until="domcontentloaded", timeout=LOAD_TIMEOUT_MS)
             raw = await baxia_headers(cdp, baxia_wait_s)
             if raw is None:
                 log.info("qwen mint: the baxia module gave no pair in %d s; the typed way", baxia_wait_s)
                 raw = await typed_send(page, got)
             agent = await page.evaluate(AGENT_JS)
+            headers = kept_headers(raw, agent if isinstance(agent, dict) else {})
         except TimeoutError:
             failure = "the page sent no generate in %d s" % SEND_WAIT_S
+        except MintError as e:      # a generate without the pair
+            failure = str(e)
         except Exception as e:      # noqa: BLE001 - its text may hold a URL: only the kind goes out
             failure = "the page failed (%s)" % type(e).__name__
-        if failure is not None or raw is None:
+        if failure is not None:
             with contextlib.suppress(Exception):          # what kept the page from sending, shown in the admin
                 shot = await page.screenshot(full_page=False)
         cookies = browser_cookies(await session.ctx.cookies())
     if not any(name == REFRESH_COOKIE for (_d, _p, name) in cookies):
         cookies = {**cred.cookies, **cookies}       # the browser dropped the session cookie: keep the jar's
     kept = Cred(cookies, cred.bx, cred.minted_at)
-    if failure is not None or raw is None:
-        raise MintError(failure or "no generate", kept, shot)
-    try:
-        headers = kept_headers(raw, agent if isinstance(agent, dict) else {})
-    except MintError as e:
-        raise MintError(str(e), kept) from None
+    if failure is not None:
+        raise MintError(failure, kept, shot)
     return Cred(cookies, headers, 0.0)
 
 

@@ -38,7 +38,8 @@ IMAGE_READ_TIMEOUT_S = 60       # the image stream sends a keep-alive every 10 s
 IMAGE_STREAM_TIMEOUT_S = 360    # the image stream ended in 60-108 s (measured); no end in time makes the job unknown
 VIDEO_SEND_TIMEOUT_S = 90       # the video send answers with its task id in about 4 s
 UPLOAD_TIMEOUT_S = 120          # one input image to the object store
-MINT_TIMEOUT_S = 150            # one browser mint: Chrome start, the page load through the proxy, the aborted send
+MINT_TIMEOUT_S = 200            # one browser mint: Chrome start, the page load, the baxia wait (at most 60 s), and
+                                # when it gives no pair a second load and the aborted typed send
 SUBMIT_TIMEOUT_IMAGE_S = 720    # an image submit: a mint, an upload and the held stream
 SUBMIT_TIMEOUT_VIDEO_S = 480    # a video submit: a mint, an upload and the send; the render is polled
 PROXY_REST_S = 1800             # a failed proxy probe rests every pool

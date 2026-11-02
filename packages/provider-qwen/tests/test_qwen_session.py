@@ -412,8 +412,8 @@ class FakeCdp:
         if self.sends:
             self.handlers["Fetch.requestPaused"]({"requestId": "r1", "request": {
                 "url": "https://chat.qwen.ai/api/v2/chat/completions?chat_id=c", "headers": {
-                    "bx-ua": "typed-" + BX_UA, "bx-umidtoken": "typed-" + UMID, "bx-v": "2.5.37",
-                    "Version": "0.3.31"}}})
+                    "bx-ua": "typed-" + BX_UA, "bx-umidtoken": "" if self.sends == "half" else "typed-" + UMID,
+                    "bx-v": "2.5.37", "Version": "0.3.31"}}})
 
 
 class FakeBrowserPage:
@@ -519,7 +519,8 @@ def test_the_version_is_the_pages_bundle_path_else_the_constant():
         assert M.page_version(none) == M.WEB_VERSION == "0.3.22"
 
 
-@mutation(MINT_FILE, "            if raw is None:\n", "            if False:\n", expect="MintError: no generate")
+@mutation(MINT_FILE, "            if raw is None:\n", "            if False:\n",
+          expect="the page failed (AttributeError)")
 def test_a_page_without_the_baxia_module_falls_back_to_the_typed_mint(monkeypatch):
     for baxia in (None, {**BAXIA, "bx-umidtoken": ""}):       # no module, or half a pair: typed
         log = []
@@ -534,13 +535,14 @@ def test_a_page_without_the_baxia_module_falls_back_to_the_typed_mint(monkeypatc
 @mutation(MINT_FILE, "                shot = await page.screenshot(full_page=False)\n", "                pass\n",
           expect="no screenshot")
 def test_a_mint_with_neither_the_baxia_module_nor_a_typed_send_fails_with_the_page_and_the_cookies(monkeypatch):
-    log = []
-    install_browser(monkeypatch, log, baxia=None, sends=False)
-    with pytest.raises(MintError) as e:
-        run_mint(log)
-    assert "press Enter" in log and "no generate" in str(e.value)
-    assert e.value.screenshot == b"\x89PNG the page", "no screenshot of the page the mint gave up on"
-    assert e.value.cred is not None and e.value.cred.cookies[(".qwen.ai", "/", "cna")] == "browser-cna"
+    for sends, why in ((False, "no generate"), ("half", "no bx pair")):     # nothing sent, or a generate without
+        log = []                                                           # the pair
+        install_browser(monkeypatch, log, baxia=None, sends=sends)
+        with pytest.raises(MintError) as e:
+            run_mint(log)
+        assert "press Enter" in log and why in str(e.value)
+        assert e.value.screenshot == b"\x89PNG the page", "no screenshot of the page the mint gave up on"
+        assert e.value.cred is not None and e.value.cred.cookies[(".qwen.ai", "/", "cna")] == "browser-cna"
 
 
 MINT_SLOTS = '        while self._busy >= int(self._setting("qwen.mint_browsers")):\n'
