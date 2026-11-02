@@ -26,6 +26,7 @@ from geminikit import (
     Gemini,
     answer,
     blob_for,
+    chat_read,
     frames,
     inner_of,
     job,
@@ -65,6 +66,7 @@ RESULTS_FILE = "packages/provider-gemini/src/relay_gemini/engine/results.py"
 REPLY_FILE = "packages/provider-gemini/src/relay_gemini/engine/reply.py"
 HTTP_FILE = "packages/provider-gemini/src/relay_gemini/engine/http.py"
 SPEC_FILE = "packages/provider-gemini/src/relay_gemini/spec.py"
+CONSTANTS_FILE = "packages/provider-gemini/src/relay_gemini/constants.py"
 NET_FILE = "packages/relay-core/src/relay_core/net.py"
 NOW = datetime(2026, 10, 24, 1, 8, 0, tzinfo=UTC)
 WALL = 1_792_804_000.0
@@ -567,7 +569,7 @@ def field_reply(text: str | None, *, generating_item: bool = False) -> str:
 
 
 BUSY = ("We're getting a lot of requests right now. Please try again in a few minutes.",
-        "Too many requests. Try again later.", "Video generation is busy, try again in an hour.")
+        "Too many requests. Try again later.", "Sorry, there are too many requests for videos at the moment.")
 FIELD_TEXTS = "tuple(_candidate_texts(last)) if last is not None else tuple(_field_texts(payloads))"
 BUSY_JUDGE = "    if is_temporary_failure(final) or video and is_video_busy(final):\n"
 BUSY_REST = "    if video and code == errors.UPSTREAM_FAILED and is_video_busy(text):\n"
@@ -591,6 +593,67 @@ def test_an_answer_with_no_candidate_reads_its_text_from_the_turn_update_but_nev
     log = []
     result = run(pro_site(log, send=field_reply("I can't draw that.")), pro_ctx(log), job())
     assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, result.job
+
+
+def test_a_turn_update_never_reads_the_users_prompt_as_the_answer():
+    """Where the recorded answers give the prompt back (the not-entitled video answer, live-261023): only inside the
+    candidate (`[4][0][12]`, its `{"60": [[[null, [prompt, ...]]]]}`), never in a turn update `{"7": [...]}`. Every
+    turn update of every recorded answer holds the model's own text or none (a tool's status item), and a turn update
+    is read only when no candidate exists, from the payload's own `[2]` alone (never deeper): with the candidates cut
+    away, the answer that echoed the prompt reads no text at all."""
+    prompt = "A hot air balloon drifting over green hills at sunrise, cinematic"
+    assert json.dumps(prompt)[1:-1] in json.dumps(NOT_ENTITLED), "the capture no longer echoes its prompt"
+    cut = [p for p in read_answer(NOT_ENTITLED).payloads if not (len(p) > 4 and p[4])]
+    assert read_answer(frames(*cut)).texts == (), "the prompt was read as the answer"
+    # the echo's own shape moved into a turn update's slot, and a "7" deeper than the payload's [2]: never read
+    ids = [T2V_CHAT, "r_0000000000000001"]
+    echo = frames([None, ids, {"60": [[[None, [prompt]]]], "8": [{"7": [prompt]}]}], [None, ids, None, {"7": [prompt]}],
+                  [None, ids, {"7": [[prompt]]}])
+    assert read_answer(echo).texts == (), "the prompt was read as the answer"
+    fixtures = Path(__file__).resolve().parents[3] / "fixtures" / "gemini"
+    for path in sorted(fixtures.glob("live-*/*_reply.txt")):
+        for p in read_answer(path.read_text(encoding="utf-8")).payloads:
+            part = p[2].get("7") if len(p) > 2 and isinstance(p[2], dict) else None
+            if part:
+                assert part[0] is None or prompt not in part[0] and part[0].startswith("I'm generating"), \
+                    "a turn update held something else than the model's text: %s %r" % (path.name, part[0])
+
+
+ONLY_TRY_AGAIN = ("Please try again in a few minutes.", "Video generation is busy, try again in an hour.",
+                  "I can't help with that; try again in a new chat.")
+
+
+@mutation(CONSTANTS_FILE, 'VIDEO_BUSY_PHRASES = ("a lot of requests", "too many requests")',
+          'VIDEO_BUSY_PHRASES = ("a lot of requests", "too many requests", "try again in")',
+          expect="did not stay on its old verdict")
+def test_a_video_answer_that_only_says_try_again_in_stays_on_its_old_verdict():
+    """"try again in ..." alone says nothing of gemini's load: such an answer is judged as before the busy rule, a
+    plain refusal of the prompt (refunded, nothing rested, never sent again)."""
+    for text in ONLY_TRY_AGAIN:
+        for reply in (answer(text), field_reply(text)):
+            log = []
+            result = run(pro_site(log, send=reply), pro_ctx(log), video_job())
+            assert isinstance(result.job, Fail) and result.job.code == errors.REFUSED, \
+                "a try-again-in answer did not stay on its old verdict (refused): %s %r" % (result.job, text)
+            assert not any(isinstance(e, Rest) and e.reason.startswith("gemini: too many") for e in result.account)
+
+
+BUSY_POLL = "        effects = limit_effects(settings, now(), code, text, is_video(job), spent)\n"
+
+
+@mutation(RESULTS_FILE, BUSY_POLL, "        effects = ()\n", expect="the found chat's video pool did not rest")
+@mutation(SUBMIT_FILE, BUSY_REST, "    if False:\n", expect="the found chat's video pool did not rest")
+@mutation(SUBMIT_FILE, BUSY_JUDGE, "    if is_temporary_failure(final):\n", expect="a found busy chat")
+def test_a_found_chat_holding_the_busy_answer_fails_refunded_as_upstream_failed_and_rests_the_video_pool():
+    """A poll cannot re-queue: a found chat (a lost send's answer) holding the busy text fails, refunded, with
+    gemini.upstream_failed, and the account's video pool rests `gemini.video_busy_rest_s` as after a send."""
+    g = pro_site([], rpc={"hNvQHb": chat_read(T2V_PROMPT, BUSY[0], image=False, cid=T2V_CHAT)})
+    got = poll(g, video_job(state={"chat": T2V_CHAT}))
+    assert isinstance(got.outcome, Failed) and got.outcome.code == errors.UPSTREAM_FAILED, \
+        "a found busy chat became %s" % (got.outcome,)
+    assert Rest("video", NOW + timedelta(seconds=900), "gemini: too many video requests for now") in got.effects, \
+        "the found chat's video pool did not rest: %s" % (got.effects,)
+    assert not any(isinstance(e, Balance) for e in got.effects)
 
 
 @mutation(SUBMIT_FILE, BUSY_JUDGE, "    if is_temporary_failure(final):\n", expect="a busy video answer")

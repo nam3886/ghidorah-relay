@@ -56,10 +56,11 @@ TRY_AGAIN_PHRASES = ("try again", "try requesting it again", "try your request a
 # model fails on Google's side (xwteam/gemini2api b1df2d9, 26/10; it switches accounts on it).
 TEMPORARY_FAILURE_ANSWERS = ("i seem to be encountering an error can i try something else for you",)
 # gemini's "too busy for a video now" answer, in `submit.plain` form (ntthanh2603/gemini-web-to-api a72d9d9, 02/11:
-# "a lot of requests", "too many requests", "try again in ..."; not seen here): a video answer holding one, with no
-# refusal word and no "generating" item, is a temporary failure on gemini's side like the phrases above, and rests the
-# account's video pool `gemini.video_busy_rest_s`. Videos only: the reference saw it from the video tool alone.
-VIDEO_BUSY_PHRASES = ("a lot of requests", "too many requests", "try again in")
+# "a lot of requests", "too many requests"; not seen here): a video answer holding one, with no refusal word and no
+# "generating" item, is a temporary failure on gemini's side like the phrases above, and rests the account's video
+# pool `gemini.video_busy_rest_s`. Videos only: the reference saw it from the video tool alone. Its "try again in ..."
+# is left out: alone it says nothing of load ("I can't help with that; try again in a new chat").
+VIDEO_BUSY_PHRASES = ("a lot of requests", "too many requests")
 # Words of a refusal: an answer holding one is a refusal even with both phrases above ("Something went wrong with that
 # request. Please try again with a different prompt that follows our guidelines.").
 REFUSAL_WORDS = ("polic", "guideline", "different prompt", "another prompt", "new prompt", "rephras", "reword",

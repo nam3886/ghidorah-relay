@@ -29,7 +29,7 @@ Money rules that shape this file (each has a test and a mutation):
   `gemini.not_entitled_rest_s`. Beside an item in any other state the video may still render: the job fails, never
   moved (`nothing_rendering`). `gemini.refused` (the prompt) fails at once. The one exception: a final text saying
   something went wrong on gemini's side and asking to try again, Google's fixed "I seem to be encountering an
-  error" answer (`is_temporary_failure`), or a video's "too many requests, try again in a while" (`is_video_busy`,
+  error" answer (`is_temporary_failure`), or a video's "too many requests" answer (`is_video_busy`,
   which also rests the video pool `gemini.video_busy_rest_s`), is `NotTaken`
   (`gemini.upstream_failed`): a complete answer with no media and no "generating" item can deliver nothing later, so the
   core re-queues the job with one attempt used and refunds it only when the attempts run out. A video limit answer (that
@@ -304,7 +304,7 @@ def is_temporary_failure(text: str) -> bool:
 
 
 def is_video_busy(text: str) -> bool:
-    """Is it gemini's "too many requests, try again in a while" answer to a video (`VIDEO_BUSY_PHRASES`)? A refusal
+    """Is it gemini's "too many requests" answer to a video (`VIDEO_BUSY_PHRASES`)? A refusal
     word wins, as in `is_temporary_failure`."""
     t = plain(text)
     return not any(w in t for w in REFUSAL_WORDS) and any(p in t for p in VIDEO_BUSY_PHRASES)

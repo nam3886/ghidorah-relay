@@ -1081,7 +1081,7 @@ none). An image answer streams until the image is drawn, a song's until the song
   still come, so it is not taken (`gemini.upstream_failed`): the job goes back to the queue, this account or another,
   with one attempt used, and fails with its refund only when the attempts run out. A found chat (after a lost answer)
   holding that text fails refunded with the same code: a poll cannot re-queue. A video answer that gemini has "a lot
-  of requests" or "too many requests" or asks to "try again in" a while, with no refusal word, is the same failure
+  of requests" or "too many requests", with no refusal word, is the same failure ("try again in ..." alone is not)
   (`gemini.upstream_failed`, re-queued) and also rests the account's video pool `gemini.video_busy_rest_s`; an image's
   stays a refusal. Beside the "generating your video" item it is a taken video, as any text.
 - An answer with no candidate (a newer reply shape) is read by the text of its turn update `{"7": [text]}`, except an
@@ -1104,7 +1104,7 @@ none). An image answer streams until the image is drawn, a song's until the song
 | `gemini.prices`, `gemini.costs` | 1 (Nano Banana 2), 2 (Nano Banana 2.1), 6 (video, owner 25/10), 2 (song, proposed 25/10); 1 use each | points per job; one use of its pool |
 | `gemini.pools` | image 100 a day; image_pro free 0, pro 100, ultra 1000; video 15; music free 0, pro 39 per 5 h block | uses per account per day by tier (not measured; AI Pro: a video uses 453 of 2400 units per 5 h, 48384 per week, a song 51-61). The free 0 of image_pro and music is what keeps Nano Banana 2.1 and songs off free accounts |
 | `gemini.video_limit_rest_s` | 18000 | the video pool's rest after the "no more videos today" answer |
-| `gemini.video_busy_rest_s` | 900 | the video pool's rest after a "too many requests, try again in a while" video answer (not measured) |
+| `gemini.video_busy_rest_s` | 900 | the video pool's rest after a "too many requests" video answer (not measured) |
 | `gemini.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 ## The qwen provider (`relay worker --provider qwen`)

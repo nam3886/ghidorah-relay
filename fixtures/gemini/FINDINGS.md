@@ -128,7 +128,7 @@ Each video used 453 units of the account's usage windows (5 h: 2400 → 1949 →
   limit resets" with an internal "out of video generation quota" status: both in `VIDEO_LIMIT_PHRASES`. Its "I'm having
   a hard time fulfilling your request" with no video task is a content refusal (`gemini.refused`, nothing rested).
 - A busy answer (ntthanh2603/gemini-web-to-api a72d9d9, 02/11, not seen here): a video send answered with "a lot of
-  requests" / "too many requests" / "try again in ..." as the text of a turn update `{"7": ["<text>"], "44": true}`
+  requests" / "too many requests" (its "try again in ..." alone is not read as load here) as the text of a turn update `{"7": ["<text>"], "44": true}`
   with no candidate (the shape every recorded video send streams its "generating" item in). The provider reads that
   text when no candidate exists and treats the answer as a temporary failure (`gemini.upstream_failed`, re-queued, the
   video pool rests `gemini.video_busy_rest_s`).
