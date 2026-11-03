@@ -359,7 +359,7 @@ images delivered, on good accounts and on "Enter does nothing" ones alike.
   Enter, not followed up (the baxia mint does not need it).
 
 The provider mints the baxia way first and falls back to the typed way when the module gives no pair within
-`qwen.baxia_wait_s` (30 s); both failing is `MintError` with the page's screenshot, as before.
+`qwen.baxia_wait_s`; both failing is `MintError` with the page's screenshot, as before.
 
 ## qwen's own error on an image, 02/11 (live jobs, read back from the chat)
 Two t2i orders ("a blue cat on a sofa, photo", "a black cat on a sofa, photo") lost their send stream (it ended with no
@@ -374,3 +374,11 @@ The provider reads any assistant message whose `error.code` is not empty, with n
 details. A video send whose complete JSON answer carries such an error and no task fails the same way at once. An
 image stream's own error event has not been seen: a stream that ends with no image stays unknown and the chat read
 decides. A finished answer in words with no image stays a refusal.
+
+## Skipped signer, 03/11 (live, measured)
+About once per ~100 minutes per account a page load sets up `window.__baxia__` but never loads its signer:
+`fireyejs.js` / `dss.js` are never requested and `getFYModule` does not appear even after 60 s. The very next load of
+the page has it at about 2.3 s. Every success measured came 2.3-4 s after the load. Before this, the typed fallback
+(which loads the page a second time) only waited for an Enter-generate, which never comes on the ~9 accounts whose
+localStorage holds `qwen.cookie_gate_required`: those mints failed. Now the second load asks the baxia module again
+before typing, and `qwen.baxia_wait_s` defaults to 10 s (5-30) for each of the two asks.

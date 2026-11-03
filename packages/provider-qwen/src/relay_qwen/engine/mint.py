@@ -7,9 +7,11 @@ chat.qwen.ai with the account's cookies through the account's proxy (`relay_brow
   asked for the pair in the page's MAIN world (CDP `Runtime.evaluate`: patchright's `page.evaluate` runs in an
   isolated world that sees no page global): `getFYToken()` is `bx-ua`, `getUidToken()` `bx-umidtoken`. Nothing is
   typed and nothing is sent. It was ready 3.5-4 s after the load; it worked on accounts whose Enter sends nothing.
-- when the module gives no pair within `qwen.baxia_wait_s`, the typed way: the page is given a text-to-image prompt
-  and Enter, and its generate is FAILED inside the browser by CDP `Fetch` at the Request stage, before a byte of it
-  leaves (no Playwright route: the kit forbids them). That request's headers are kept.
+- when the module gives no pair within `qwen.baxia_wait_s`, the page is loaded again and its module asked again for
+  as long (live 03/11: about once per 100 min a load skips the signer, never there even at 60 s, and the next load
+  has it at about 2.3 s); still none, the typed way: the page is given a text-to-image prompt and Enter, and its
+  generate is FAILED inside the browser by CDP `Fetch` at the Request stage, before a byte of it leaves (no
+  Playwright route: the kit forbids them). That request's headers are kept.
 The browser's cookies are kept too; a pair worked from plain HTTP for at least 30 min and 3 sends.
 
 The session is the account: the page is never let to end it. Its sign-out and log-out calls are failed the same way
@@ -47,7 +49,7 @@ SESSION_ENDERS = ("*/api/v2/auths/signout*", "*/api/v2/users/logout/*")
 SITE_HOST = "chat.qwen.ai"
 SETTLE_MS = 9000          # the page loads its scripts and the baxia signer before the prompt is sent (spike: 9 s)
 SEND_WAIT_S = 30          # after Enter the page builds its generate in a second or two
-LOAD_TIMEOUT_MS = 45_000  # one page load; two, the baxia wait and the typed send fit in MINT_TIMEOUT_S
+LOAD_TIMEOUT_MS = 45_000  # one page load; two, two baxia waits and the typed send fit in MINT_TIMEOUT_S
 BAXIA_POLL_S = 0.5        # between two asks for the baxia module while it loads
 SLOT_POLL_S = 0.5         # between two looks for a free mint browser
 # NOTE: the live web app was 0.3.32 on 01/11 while WEB_VERSION is 0.3.22: the baxia mint reads the version the page
@@ -151,12 +153,18 @@ async def baxia_headers(cdp, wait_s: float) -> dict[str, str] | None:
         await asyncio.sleep(BAXIA_POLL_S)
 
 
-async def typed_send(page, got: asyncio.Future) -> dict[str, str]:
-    """The typed way: a t2i prompt and Enter; the headers of the generate the guard captured. TimeoutError when the
-    page sent none in SEND_WAIT_S."""
+async def typed_send(page, cdp, got: asyncio.Future, baxia_wait_s: float) -> dict[str, str]:
+    """The typed way: a second page load, a t2i prompt and Enter; the headers of the generate the guard captured.
+    The second load is asked for the baxia pair first (up to `baxia_wait_s`): a load that skipped the signer is
+    mostly followed by one that has it, and then nothing is typed or sent. TimeoutError when the page sent none in
+    SEND_WAIT_S."""
     await page.goto(BASE_URL + "/?" + urlencode({"inputFeature": "t2i", "text": MINT_PROMPT}),
                     wait_until="domcontentloaded", timeout=LOAD_TIMEOUT_MS)
     await page.wait_for_timeout(SETTLE_MS)
+    raw = await baxia_headers(cdp, baxia_wait_s)
+    if raw is not None:
+        log.info("qwen mint: the second load's baxia module gave the pair; nothing typed")
+        return raw
     with contextlib.suppress(Exception):          # the credits intro some accounts are shown once
         await page.get_by_text("Got it", exact=True).first.click(timeout=3000)
     box = page.locator("textarea").first
@@ -178,9 +186,9 @@ def paused_action(url: str) -> str:
 
 
 async def browser_mint(account, cred: Cred, token, baxia_wait_s: float) -> Cred:
-    """One mint in Chrome (see the module text): the baxia way, the typed way when the module gives no pair within
-    `baxia_wait_s`. Returns the credential with the browser's cookies and the pair. A failed mint raises `MintError`
-    carrying the browser's cookies all the same."""
+    """One mint in Chrome (see the module text): the baxia way, then on a second load the baxia way again and the
+    typed way, each baxia ask up to `baxia_wait_s`. Returns the credential with the browser's cookies and the pair. A
+    failed mint raises `MintError` carrying the browser's cookies all the same."""
     from relay_browser.session import SiteProfile, open_session  # late: only a mint starts a browser
 
     site = SiteProfile(name="qwen", host=SITE_HOST, timezone="UTC", local_storage_token_keys=("token",))
@@ -222,8 +230,9 @@ async def browser_mint(account, cred: Cred, token, baxia_wait_s: float) -> Cred:
             await page.goto(BASE_URL + "/", wait_until="domcontentloaded", timeout=LOAD_TIMEOUT_MS)
             raw = await baxia_headers(cdp, baxia_wait_s)
             if raw is None:
-                log.info("qwen mint: the baxia module gave no pair in %d s; the typed way", baxia_wait_s)
-                raw = await typed_send(page, got)
+                log.info("qwen mint: the baxia module gave no pair in %d s; a second load, then the typed way",
+                         baxia_wait_s)
+                raw = await typed_send(page, cdp, got, baxia_wait_s)
             agent = await page.evaluate(AGENT_JS)
             headers = kept_headers(raw, agent if isinstance(agent, dict) else {})
         except TimeoutError:

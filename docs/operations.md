@@ -1135,7 +1135,8 @@ minutes after a working refresh (one right after a first browser mint, one with 
 **The pair.** Chrome loads chat.qwen.ai with the jar through the account's proxy and asks the page's own baxia
 signer (`window.__baxia__.getFYModule`, read in the page's main world) for `bx-ua`/`bx-umidtoken`; nothing is typed or
 sent, and the `Version` header is read from the page's bundle path. When the module gives no pair within
-`qwen.baxia_wait_s`, the page gets a prompt and Enter instead, and its `chat/completions` is failed inside the browser
+`qwen.baxia_wait_s`, the page is loaded again and its module asked again for as long (a load now and then skips the
+signer; the next one has it); still none, the page gets a prompt and Enter instead, and its `chat/completions` is failed inside the browser
 (CDP Fetch, Request stage) after its headers (`bx-ua`, `bx-umidtoken`, `bx-v`, the user agent and client hints) are
 kept; neither way giving a pair is `qwen.mint_failed`, with the page's screenshot on the account. The page's sign-out
 and log-out calls are failed too, and the browser's cookies replace the jar (written back even when the mint fails).
@@ -1160,7 +1161,7 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 |---|---|---|
 | `qwen.claims_enabled` | false | drain mode: no new job; the checks go on (no mint while drained) |
 | `qwen.bx_max_age_s` | 1500 | a pair is reused this long; the check mints at half of it |
-| `qwen.baxia_wait_s` | 30 | a mint waits this long for the page's baxia module, then types a prompt and presses Enter |
+| `qwen.baxia_wait_s` | 10 | a mint waits this long for the page's baxia module, then loads the page again and waits as long again, then types a prompt and presses Enter; 5-30 |
 | `qwen.mint_browsers` | 2 | mint browsers (Chrome) one worker opens at once, 1-4 |
 | `qwen.account_min_gap_s` | 60 | the pools' rest after a generate |
 | `qwen.poll_interval_s` | 30 | between two reads of a rendering video |

@@ -393,10 +393,12 @@ AGENT = {"user-agent": "Mozilla/5.0 PLANTED-browser", "sec-ch-ua": '"Chromium";v
 
 class FakeCdp:
     """The CDP session of a fake chat.qwen.ai page. `baxia`: what the page's MAIN world answers for BAXIA_JS (None:
-    the module is not there). Enter makes the page send its generate when `sends` is true."""
+    the module is not there; `reloaded`: what it answers from the second page load on). Enter makes the page send its
+    generate when `sends` is true."""
 
-    def __init__(self, log: list, baxia: dict | None, sends: bool):
-        self.log, self.baxia, self.sends, self.handlers = log, baxia, sends, {}
+    def __init__(self, log: list, baxia: dict | None, sends: bool, reloaded: dict | None = None):
+        self.log, self.baxia, self.sends, self.reloaded, self.handlers = log, baxia, sends, reloaded, {}
+        self.loads = 0
 
     def on(self, event, handler):
         self.handlers[event] = handler
@@ -405,7 +407,8 @@ class FakeCdp:
         self.log.append(method)
         if method == "Runtime.evaluate":      # the main world answers a by-value read of the baxia script
             ok = params.get("returnByValue") is True and params.get("expression") == M.BAXIA_JS
-            return {"result": {"value": self.baxia if ok else None}}
+            answer = self.reloaded if self.loads >= 2 else self.baxia
+            return {"result": {"value": answer if ok else None}}
         return {}
 
     def enter(self):
@@ -424,6 +427,7 @@ class FakeBrowserPage:
 
     async def goto(self, url, **kw):
         self.log.append("goto " + url.replace(M.BASE_URL, ""))
+        self.cdp.loads += 1
 
     async def wait_for_timeout(self, ms):
         pass
@@ -474,12 +478,12 @@ class FakeBrowserCtx:
                 for name, value in (("refresh_token", REFRESH), ("cna", "browser-cna"))]
 
 
-def install_browser(monkeypatch, log, *, baxia=None, sends=False):
+def install_browser(monkeypatch, log, *, baxia=None, sends=False, reloaded=None):
     import contextlib
     from types import SimpleNamespace
 
     import relay_browser.session as kit
-    cdp = FakeCdp(log, baxia, sends)
+    cdp = FakeCdp(log, baxia, sends, reloaded)
 
     @contextlib.asynccontextmanager
     async def open_session(site, account, *, purpose, token, redact):
@@ -530,6 +534,21 @@ def test_a_page_without_the_baxia_module_falls_back_to_the_typed_mint(monkeypatc
         assert log.index("goto /") < log.index("goto /?inputFeature=t2i&text=a+red+apple") < log.index("press Enter")
         assert cred.bx["bx-ua"] == "typed-" + BX_UA and cred.bx["version"] == "0.3.31"
         assert log.count("Fetch.failRequest") == 1 and "Fetch.continueRequest" not in log, "the generate left"
+
+
+SECOND_LOAD_PAIR = "    if raw is not None:\n"
+
+
+@mutation(MINT_FILE, SECOND_LOAD_PAIR, "    if False:\n", expect="the second load's pair was not taken")
+def test_a_first_load_that_skipped_the_signer_takes_the_pair_of_the_second_load_and_types_nothing(monkeypatch):
+    log = []                    # live 03/11: a load now and then skips the signer, the next one has it
+    install_browser(monkeypatch, log, baxia=None, sends=True, reloaded=BAXIA)
+    cred = run_mint(log)
+    assert log.count("goto /") == 1 and log.count("goto /?inputFeature=t2i&text=a+red+apple") == 1
+    assert cred.bx["bx-ua"] == "234!" + BX_UA, "the second load's pair was not taken: %s" % cred.bx
+    assert cred.bx["version"] == "0.3.32"
+    assert "press Enter" not in log, "the mint typed and sent although the second load gave the pair"
+    assert "Fetch.failRequest" not in log, "a generate was captured although the second load gave the pair"
 
 
 @mutation(MINT_FILE, "                shot = await page.screenshot(full_page=False)\n", "                pass\n",
