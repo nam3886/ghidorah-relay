@@ -186,6 +186,19 @@ answer: a video's code 8 (exactly the refusal shape) is now an account refusal l
 stays Ambiguous. An image's `PUBLIC_ERROR_MODEL_ACCESS_DENIED` (never seen in production) is an account refusal too:
 no more tries on that account, its image pool rests `flow.model_denied_rest_s`.
 
+## Code 7 on video 03/11
+Three production Veo 3.1 Lite text-to-video sends on one AI Pro account (03/11 11:16, 12:17, 14:00 GMT+7) got the
+immediate code 7 envelope (`PUBLIC_ERROR_UNUSUAL_ACTIVITY`): HTTP 200, one reply item, no result. Each was unknown,
+its batch looked up in the project listing five times over 15 min, never listed; the last read of each answered (the
+listing was read) 15 min after its send, and `render.deadline` ended each with its refund. One send of that hour on
+the same account was accepted (06:15 UTC, done in 80 s): the listing and the video path were working. With the five
+code 7 video sends of 25/10 (same never-listed record, and no credit spent on any of them: Catalog 25/10) that is both
+halves of the proof the morning-proof plan asked for (`live-261103/video_code7_sends.json`). A video's code 7 with
+`PUBLIC_ERROR_UNUSUAL_ACTIVITY`, in exactly the refusal shape, is now an image's: nothing was made, the next try goes
+with a new token and a new batch (`flow.captcha_max_tries`, `flow.captcha_retry_gap_s`), and when every try is
+refused the job goes back to the queue (`flow.captcha_refused`). A 7 envelope with any other reason or none on a video
+stays Ambiguous. Images the same morning: 12 of 12 done, 2 tries refused with code 7 and taken on the next try.
+
 ## Inputs and the full catalog 25/10
 GetModels (`HTrJv`) read again on the AI Pro account (`live-261025b/models_HTrJv.json`). The request shape of each new
 mode was read from flow's web app (module `wO1vlb`; its JSPB messages put field N at index N-1) and proven by one live

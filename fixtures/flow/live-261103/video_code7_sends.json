@@ -1,0 +1,425 @@
+{
+ "note": "Production's eight flow video sends that flow answered with code 7 (PUBLIC_ERROR_UNUSUAL_ACTIVITY, the reCAPTCHA refusal), read from the relay's own jobs and job_events (read-only, 03/11). The raw reply was not kept: the event says HTTP 200, exactly one reply item of the rpc id, envelope code 7 (the five of 25/10 were sent before the relay read the reason; the three of 03/11 name it). Each job's batch was written ahead and searched in the project's listing (Zzl0ze) five times over 15 min; none was ever listed, and the last read of each answered (`last_answered_read_utc`, jobs.answered_at: the listing was read and did not hold the batch) 15 min or more after its send. The five of 25/10 are the ones whose credits were read before and after (FINDINGS, Catalog 25/10: none spent a credit). `envelope` is the item as flow sends it (live-261023 img1, rpc id YhhmEf). No cookie, token, project id, proxy or email here.",
+ "envelope": [
+  "wrb.fr",
+  "YhhmEf",
+  null,
+  null,
+  null,
+  [
+   7,
+   null,
+   [
+    [
+     "type.googleapis.com/google.rpc.ErrorInfo",
+     [
+      "PUBLIC_ERROR_UNUSUAL_ACTIVITY"
+     ]
+    ]
+   ]
+  ],
+  "generic"
+ ],
+ "jobs": [
+  {
+   "job": "72ac8570",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "83b67f6b-3ed1-453a-a4b0-0dd838260e40",
+   "sent_utc": "2026-10-25 03:32:56Z",
+   "last_answered_read_utc": "2026-10-25 03:48:18Z",
+   "events": [
+    {
+     "at_utc": "2026-10-25 03:32:39Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-25 03:32:57Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7)"
+    },
+    {
+     "at_utc": "2026-10-25 03:33:59Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:35:02Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:37:04Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:41:08Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:48:20Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:48:48Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "dca420a6",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "72e91da0-2c56-4e35-8193-5640b2b27fa6",
+   "sent_utc": "2026-10-25 03:55:52Z",
+   "last_answered_read_utc": "2026-10-25 04:11:19Z",
+   "events": [
+    {
+     "at_utc": "2026-10-25 03:55:27Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-25 03:55:54Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7)"
+    },
+    {
+     "at_utc": "2026-10-25 03:56:57Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 03:57:59Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 04:00:02Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 04:04:05Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 04:11:22Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 04:11:49Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "440e5aaa",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "32caafae-baa1-4540-b06d-c8d1abaf25f5",
+   "sent_utc": "2026-10-25 06:11:48Z",
+   "last_answered_read_utc": "2026-10-25 06:27:12Z",
+   "events": [
+    {
+     "at_utc": "2026-10-25 06:11:28Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-25 06:11:50Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7)"
+    },
+    {
+     "at_utc": "2026-10-25 06:12:53Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:13:55Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:15:57Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:20:00Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:27:15Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:27:41Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "a71d3bd8",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "a2b31bde-2461-4dfa-9168-11fbea2f95b7",
+   "sent_utc": "2026-10-25 06:17:37Z",
+   "last_answered_read_utc": "2026-10-25 06:32:48Z",
+   "events": [
+    {
+     "at_utc": "2026-10-25 06:17:20Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-25 06:17:38Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7)"
+    },
+    {
+     "at_utc": "2026-10-25 06:18:41Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:19:43Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:21:47Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:25:49Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:32:50Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:33:17Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "306e7baf",
+   "model": "flow-veo-3.1-fast",
+   "operation": "text_to_video",
+   "batch": "2dee0d0a-a61e-4dbc-91d1-b6a221a594b5",
+   "sent_utc": "2026-10-25 06:27:47Z",
+   "last_answered_read_utc": "2026-10-25 06:42:48Z",
+   "events": [
+    {
+     "at_utc": "2026-10-25 06:27:23Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-10-25 06:27:49Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7, PUBLIC_ERROR_UNUSUAL_ACTIVITY)"
+    },
+    {
+     "at_utc": "2026-10-25 06:28:51Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:29:53Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:31:56Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:35:59Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:42:51Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-10-25 06:43:18Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "8e20f4dd",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "13402d78-9bcd-44a1-9af0-a984470aab73",
+   "sent_utc": "2026-11-03 04:16:38Z",
+   "last_answered_read_utc": "2026-11-03 04:32:06Z",
+   "events": [
+    {
+     "at_utc": "2026-11-03 04:16:21Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-11-03 04:16:40Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7, PUBLIC_ERROR_UNUSUAL_ACTIVITY)"
+    },
+    {
+     "at_utc": "2026-11-03 04:17:42Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 04:18:45Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 04:20:47Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 04:24:50Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 04:32:08Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 04:32:36Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "e1bd3daa",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "17cc6753-51cd-4fc3-943d-966754a89d77",
+   "sent_utc": "2026-11-03 05:17:39Z",
+   "last_answered_read_utc": "2026-11-03 05:33:08Z",
+   "events": [
+    {
+     "at_utc": "2026-11-03 05:17:22Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-11-03 05:17:41Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7, PUBLIC_ERROR_UNUSUAL_ACTIVITY)"
+    },
+    {
+     "at_utc": "2026-11-03 05:18:43Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 05:19:45Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 05:21:48Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 05:25:50Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 05:33:11Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 05:33:38Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  },
+  {
+   "job": "de2ac830",
+   "model": "flow-veo-3.1-lite",
+   "operation": "text_to_video",
+   "batch": "7b3c96b5-87b7-4abf-ae62-e1700709ec21",
+   "sent_utc": "2026-11-03 07:00:01Z",
+   "last_answered_read_utc": "2026-11-03 07:15:13Z",
+   "events": [
+    {
+     "at_utc": "2026-11-03 06:59:43Z",
+     "stage": "queued",
+     "text": "queued"
+    },
+    {
+     "at_utc": "2026-11-03 07:00:02Z",
+     "stage": "unknown",
+     "text": "outcome unknown: flow answered 200 to the video send (reply item there, code 7, PUBLIC_ERROR_UNUSUAL_ACTIVITY)"
+    },
+    {
+     "at_utc": "2026-11-03 07:01:04Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 07:02:06Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 07:04:08Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 07:08:10Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 07:15:16Z",
+     "stage": "reconcile",
+     "text": "still unknown"
+    },
+    {
+     "at_utc": "2026-11-03 07:15:42Z",
+     "stage": "failed",
+     "text": "failed: render.deadline - the result did not arrive before the deadline"
+    }
+   ]
+  }
+ ]
+}

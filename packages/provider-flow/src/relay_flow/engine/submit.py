@@ -21,9 +21,11 @@ Money rules that shape this file (each has a test and a mutation):
   Measured on images: such a refusal comes in 0.4 s, nothing is listed, nothing is charged, so a new try with a new
   token and a new batch id cannot make a second image. When the tries run out (or the next would not end inside the
   submit bound, or a token cannot be had after a refusal) the job goes back to the queue: `NotTaken`, nothing was made.
-  A video gets ONE try. Its code 8 refusal (exactly that shape) is proven to make nothing (FINDINGS 30/10: four live
-  sends, none ever listed) and is an account refusal like an image's; a 7 envelope on a video is still no such proof
-  (Flow could take the video and still answer it): `Ambiguous`, reconciled by its batch, never re-sent (FINDINGS 24/10).
+  On a video only two refusals (exactly that shape) are proven to make nothing: code 8 (FINDINGS 30/10: four live
+  sends, none ever listed), an account refusal like an image's; and code 7 with `PUBLIC_ERROR_UNUSUAL_ACTIVITY`
+  (FINDINGS 03/11: eight live sends, none ever listed, five read before and after with no credit spent), tried again
+  with a new token like an image's. Any other 7 envelope on a video (another reason, or none) is no such proof:
+  `Ambiguous`, reconciled by its batch, never re-sent (FINDINGS 24/10).
 - Any other reply that is not a drawn image, or for a video not the recorded acceptance (our batch echoed, a media
   record of our project), is `Ambiguous`: the job becomes unknown and the reconciler looks for its batch ids; it is
   never sent again. A refusal or an out-of-credits answer to a video send was never captured, so it is ambiguous too:
@@ -109,6 +111,8 @@ OUT_OF_POINTS = "pool.account_out_of_points"
 PROXY_FAILED = "pool.proxy_failed"
 POOLS = ("image", "video", "video_pro", "video_ultra")
 TOO_MUCH_TRAFFIC = 8         # RESOURCE_EXHAUSTED, PUBLIC_ERROR_UNUSUAL_ACTIVITY_TOO_MUCH_TRAFFIC (FINDINGS 3)
+CAPTCHA_REFUSED = 7          # PERMISSION_DENIED with UNUSUAL: the reCAPTCHA refusal (FINDINGS 3, video 03/11)
+UNUSUAL = "PUBLIC_ERROR_UNUSUAL_ACTIVITY"
 MODEL_DENIED = "PUBLIC_ERROR_MODEL_ACCESS_DENIED"     # flow2api 16/10: the account may not use the model
 MEDIA_PREFIX = "https://%s/image/" % MEDIA_HOSTS[0]
 
@@ -385,7 +389,8 @@ async def submit(ctx, job, settings, sessions: Sessions, tokens: Callable[..., A
                     return _result(Ambiguous("the generate got no answer (%s)" % type(e).__name__),
                                    *pacing(settings, now()))
                 code8 = reply.refused_before_anything and reply.code == TOO_MUCH_TRAFFIC
-                if video and not code8:     # only a video's code 8 is proven to make nothing; never re-sent
+                code7 = reply.refused_before_anything and reply.code == CAPTCHA_REFUSED and reply.reason == UNUSUAL
+                if video and not (code8 or code7):     # only these two are proven to make nothing on a video
                     return video_answer(reply, batch, batches, project, settings, now(), balance)
                 if not reply.refused_before_anything:
                     return answer(reply, batch, settings, now())

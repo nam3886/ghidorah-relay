@@ -409,6 +409,14 @@ envelope's shape, each batch, and the listing reads that never found it; `flow/l
 
 - `flow/live-261030/video_code8_sends.json`
 
+## Google Flow code 7 on video sends (25/10 and 03/11/2026)
+
+The eight production video sends flow answered with code 7 (`PUBLIC_ERROR_UNUSUAL_ACTIVITY`, the reCAPTCHA refusal),
+from the relay's own jobs and job events: the envelope's shape, each batch, and the listing reads that never found it;
+`flow/live-261103/README.md` describes it.
+
+- `flow/live-261103/video_code7_sends.json`
+
 ## Gemini web spikes (23/10/2026)
 
 The signed-out probe (`gemini/spike-261023/`) and the live run with gemini's own session (`gemini/live-261023/`: t2i,

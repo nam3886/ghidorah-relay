@@ -97,11 +97,14 @@ WRITE_AHEAD = ("                await ctx.report_ref(batch, {BATCH_KEY: batch, B
 MARK_FIRST = ("                    await ctx.mark_sent()          # then marked sent, immediately before the POST\n"
               "                    sent = True\n")
 ACTION = "token = await tokens(VIDEO_ACTION if video else IMAGE_ACTION,"
-VIDEO_IF = ("                if video and not code8:     # only a video's code 8 is proven to make nothing; "
-            "never re-sent\n")
-VIDEO_BRANCH = ("                if video and not code8:     # only a video's code 8 is proven to make nothing; "
-                "never re-sent\n"
-                "                    return video_answer(reply, batch, batches, project, settings, now(), balance)\n")
+VIDEO_IF = ("                if video and not (code8 or code7):     # only these two are proven to make nothing on a "
+            "video\n")
+VIDEO_BRANCH = VIDEO_IF + ("                    return video_answer(reply, batch, batches, project, settings, now(), "
+                           "balance)\n")
+CODE7 = ("                code7 = reply.refused_before_anything and reply.code == CAPTCHA_REFUSED and reply.reason == "
+         "UNUSUAL\n")
+# the live code 7 of 25/10 and 03/11 (fixtures/flow/live-261103): its envelope, framed as flow frames a reply
+LIVE_CODE7 = json.loads((FIX / "live-261103" / "video_code7_sends.json").read_text(encoding="utf-8"))
 # the live code 8 of 26-30/10 (fixtures/flow/live-261030): its envelope, framed as flow frames a reply
 LIVE_CODE8 = json.loads((FIX / "live-261030" / "video_code8_sends.json").read_text(encoding="utf-8"))
 _ITEM = json.dumps([LIVE_CODE8["envelope"], ["di", 179]])
@@ -218,19 +221,36 @@ def test_the_pre_send_read_is_reported_on_a_result_that_spent_nothing_and_not_on
         "a balance read before a send that may have spent was reported after it"
 
 
+def _framed(item) -> str:
+    text = json.dumps([item])
+    return ")]}'\n\n%d\n%s\n" % (len(text), text)
+
+
 @mutation(SUBMIT_FILE, VIDEO_IF, "                if video and not reply.refused_before_anything:\n",
           expect="sent twice")
 @mutation(SUBMIT_FILE, VIDEO_BRANCH, "", expect="sent twice")
-@pytest.mark.parametrize("name", ("code 7", "code 8 with a result", "code 8 twice", "code 8 over HTTP 429"))
-def test_a_7_envelope_or_a_code_8_not_exactly_the_refusal_to_a_video_is_ambiguous_and_never_sent_again(name):
-    """Codex review of d92c5f4, owner's ruling 24/10: the 7 refusal is proven on images only. On a video it is no
-    proof that nothing was made (Flow could take the video and still answer it), so it is reconciled, never re-sent.
-    A code 8 counts as the refusal only in exactly the refusal's shape."""
-    seven = REFUSED_7.replace("ogiZ0b", "YhhmEf")
+@mutation(SUBMIT_FILE, CODE7, "                code7 = reply.refused_before_anything and reply.code == "
+          "CAPTCHA_REFUSED\n", expect="sent twice")
+@pytest.mark.parametrize("name", ("code 7 with another reason", "code 7 with no reason", "code 7 with a result",
+                                  "code 8 with a result", "code 8 twice", "code 8 over HTTP 429"))
+def test_a_7_or_8_envelope_not_exactly_a_proven_refusal_to_a_video_is_ambiguous_and_never_sent_again(name):
+    """Codex review of d92c5f4, owner's ruling 24/10: a refusal envelope on a video is no proof that nothing was made
+    (Flow could take the video and still answer it) unless that exact refusal was proven on videos: code 8 (30/10) and
+    code 7 with PUBLIC_ERROR_UNUSUAL_ACTIVITY (03/11). Any other is reconciled, never re-sent."""
+    def seven(reason=None, result=None):
+        item = copy.deepcopy(LIVE_CODE7["envelope"])
+        item[2] = result
+        if reason is None:
+            item[5] = [7, None]
+        else:
+            item[5][2][0][1] = [reason]
+        return _framed(item)
     item = list(LIVE_CODE8["envelope"])
     item[2] = "[[]]"
-    with_result = json.dumps([item])
-    answer = {"code 7": seven, "code 8 with a result": ")]}'\n\n%d\n%s\n" % (len(with_result), with_result),
+    answer = {"code 7 with another reason": seven("PUBLIC_ERROR_SOMETHING_ELSE"),
+              "code 7 with no reason": seven(),
+              "code 7 with a result": seven("PUBLIC_ERROR_UNUSUAL_ACTIVITY", "[[]]"),
+              "code 8 with a result": _framed(item),
               "code 8 twice": CODE8_REPLY + CODE8_REPLY,
               "code 8 over HTTP 429": httpx.Response(429, text=CODE8_REPLY)}[name]
     log = []
@@ -240,9 +260,51 @@ def test_a_7_envelope_or_a_code_8_not_exactly_the_refusal_to_a_video_is_ambiguou
     assert isinstance(result.job, Ambiguous), "%s on a video must be Ambiguous: %s" % (name, result.job)
     (batch, state), = ctx.refs
     assert state["batches"] == [batch] and rested(result)
-    if name == "code 7":
-        assert "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in result.job.note, "the reason is named in the unknown job's note"
+    if name == "code 7 with another reason":
+        assert "PUBLIC_ERROR_SOMETHING_ELSE" in result.job.note, "the reason is named in the unknown job's note"
         assert {e.until for e in rested(result)} == {NOW + timedelta(seconds=300)}
+
+
+CODE7_REPLY = _framed(LIVE_CODE7["envelope"])
+
+
+@mutation(SUBMIT_FILE, VIDEO_IF, "                if video and not code8:\n", expect="code 7 to a video")
+@mutation(SUBMIT_FILE, CODE7, "                code7 = False\n", expect="code 7 to a video")
+def test_the_live_code_7_to_a_video_made_nothing_and_is_tried_again_with_a_new_token_and_a_new_batch():
+    """25/10 and 03/11 (fixtures/flow/live-261103): eight video sends answered with exactly the code 7 refusal
+    (PUBLIC_ERROR_UNUSUAL_ACTIVITY), none ever listed in the project, the last read of each answered 15 min or more
+    after its send; five read before and after spent no credit. Like an image's: nothing was made, the next try goes
+    with a new token and a new batch after `flow.captcha_retry_gap_s`; when every try is refused the job goes back to
+    the queue (`flow.captcha_refused`), the credits read before the send standing."""
+    jobs = LIVE_CODE7["jobs"]
+    assert len(jobs) == 8 and all(j["events"][1]["stage"] == "unknown" and "code 7" in j["events"][1]["text"]
+                                  and "reply item there" in j["events"][1]["text"] for j in jobs)
+    assert all(not any("found" in e["text"] or e["stage"] == "accepted" for e in j["events"]) for j in jobs), \
+        "a code 7 video was listed after all"
+    assert all(datetime.strptime(j["last_answered_read_utc"], "%Y-%m-%d %H:%M:%SZ")
+               - datetime.strptime(j["sent_utc"], "%Y-%m-%d %H:%M:%SZ") >= timedelta(minutes=15) for j in jobs)
+    log = []
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": [CODE7_REPLY, accepted_for]}), Ctx(log)
+    tokens, clock = Tokens(log), Clock()
+    result = run(flow, ctx, tokens, clock=clock)
+    posts = flow.calls("YhhmEf")
+    assert len(posts) == 2 and log.count("mark_sent") == 2, "the code 7 to a video was not tried again: %s" % (
+        result.job,)
+    batches = [args_of(p)[2][0] for p in posts]
+    assert len(set(batches)) == 2 and len(set(tokens.given)) == 2 and clock.slept == [60]
+    assert [state["batches"] for _, state in ctx.refs] == [batches[:1], batches]
+    assert isinstance(result.job, Accepted) and result.job.ref == batches[1]
+    assert result.job.facts == Facts(10, cost_source="balance_delta"), "the refused try spent nothing"
+    assert "code 7" in ctx.events[0]
+    log = []
+    flow, ctx = Flow(log, rpc={"nzlxg": CREDITS, "YhhmEf": CODE7_REPLY}), Ctx(log)
+    result = run(flow, ctx)
+    batches = [args_of(p)[2][0] for p in flow.calls("YhhmEf")]
+    assert len(batches) == 5, "flow.captcha_max_tries"
+    assert result.job == NotTaken(errors.CAPTCHA_REFUSED, {"refused_batches": batches}), \
+        "every try refused: back to the queue, nothing made: %s" % (result.job,)
+    assert any(isinstance(e, Balance) and e.left_n == 50 for e in result.account), "the read before the send"
+    assert not any(isinstance(e, Success) for e in result.account)
 
 
 @mutation(SUBMIT_FILE, VIDEO_IF, "                if video:\n", expect="code 8 to a video")

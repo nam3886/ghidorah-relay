@@ -982,13 +982,14 @@ false, the default), so an imported account is kept signed in before flow takes 
 
 **A video job.** Load the project page; read the account's Flow credits (`nzlxg`, free): fewer than the video costs
 and the job goes to another account (`pool.account_out_of_points`), nothing sent; the plan the same read names must
-have the option (`flow.tier_required`). The input images are uploaded. Then ONE try: a token for `VIDEO_GENERATION`, a
+have the option (`flow.tier_required`). The input images are uploaded. Then per try: a token for `VIDEO_GENERATION`, a
 batch id written to the job, marked sent, one POST of the operation's send (`YhhmEf` text, `eb1hJf` start frame,
 `nprQif` first and last frame, `MZZa6b` references). The recorded acceptance (our batch
 echoed, the media record of our project) is accepted with the new credit balance; the job is then polled (`jwpduf`
-status 6 queued, 2 rendering, 3 done; `as29s` gives the mp4 link). Anything else, the 7/8 envelope included (proven
-on images only, so on a video it is no proof nothing was made), is `unknown`: reconciled by the batch, never re-sent,
-refunded at `flow.render_deadline_s`. A status never recorded waits, is named once in a job event, and ends at the
+status 6 queued, 2 rendering, 3 done; `as29s` gives the mp4 link). The immediate refusal in exactly its shape is
+proven on videos to make nothing (never listed, no credit spent): code 7 `PUBLIC_ERROR_UNUSUAL_ACTIVITY` is tried
+again like an image's (03/11), code 8 moves the job to another account (30/10). Anything else, a 7 envelope with any
+other reason included, is `unknown`: reconciled by the batch, never re-sent, refunded at `flow.render_deadline_s`. A status never recorded waits, is named once in a job event, and ends at the
 deadline with its refund. Both pools rest after any generate.
 
 | Setting | Default | Meaning |

@@ -162,7 +162,7 @@ _SETTINGS = dict((
         "an image or a video, or a model refused to the account. Each refusal rests that account and sends the job to "
         "another one, using no attempt; the refusal on the last account ends the job failed, with its full refund. 1 "
         "ends it at the first refusal. A reCAPTCHA refusal (code 7) is not counted: it is tried again with a new "
-        "token, and on a video it stays unknown."),
+        "token, on a video too."),
     _setting("account_min_gap_s", int, 300,
              "Minimum seconds between two jobs of one flow account: after a generate the account's pools rest this "
              "long (a 12-min pause was accepted on the first try, rapid tries were refused).", min=0, max=3600),
