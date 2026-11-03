@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any, NamedTuple
 
 from relay_core.providers import Balance, Output
+from relay_core.redact import REDACTED
 from relay_muse.constants import LIST_PATH, MEDIA_DIRS
 from relay_muse.engine import noise
 from relay_muse.engine.tunnel import Reply, Tunnel, TunnelError
@@ -387,13 +388,14 @@ async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float, most: 
     return files
 
 
-def is_new(f: File, before: Mapping[str, int | None]) -> bool:
+def is_new(f: File, before: Mapping[str, int | None], alone: bool) -> bool:
     """A file made since the send: its name was not listed before it, or was with another size (both known: muse wrote
-    it again with other bytes). The same size, or a size not known, is the earlier file."""
+    it again with other bytes) and `alone` (no other chat of the account changed since the send: another chat may have
+    rewritten it). The same size, or a size not known, is the earlier file."""
     if f.ref not in before:
         return True
     size = before[f.ref]
-    return size is not None and size >= 0 and f.size >= 0 and f.size != size
+    return alone and size is not None and size >= 0 and f.size >= 0 and f.size != size
 
 
 def sizes(files: Sequence[File]) -> dict[str, int]:
@@ -407,12 +409,14 @@ def fresh(r: Reading, files: Sequence[File], before: Mapping[str, int | None], k
     """The reading with its results limited to files of `kind` listed now that are new since the send (`is_new`),
     each stamped with its listed time and size: the chat's cards first, then, once the chat is settled with every
     message complete and only when `unshown` (no other chat of the account changed since the send), the new files it
-    does not show, newest first (muse writes a raw video, then the cut one, and may remove the raw)."""
+    does not show, newest first (muse writes a raw video, then the cut one, and may remove the raw). A name written
+    again counts only when `unshown`, a card's included."""
     now = {f.ref: f for f in files}
     cards = [m._replace(stamp=(now[m.ref].ms, now[m.ref].size) if m.ref in now else None) for m in r.media
-             if m.ref in now and is_new(now[m.ref], before)]
+             if m.ref in now and is_new(now[m.ref], before, unshown)]
     shown = {m.ref for m in cards}
-    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
+    new = sorted((f for f in files if is_new(f, before, unshown) and f.mime.startswith(kind + "/")),
+                 key=lambda f: -f.ms)
     rest = [Media(f.ref, f.mime, (f.ms, f.size)) for f in new if f.ref not in shown] \
         if settled and not r.busy and unshown else []
     return r._replace(media=tuple(cards + rest))
@@ -476,13 +480,29 @@ def marks_of(state: Mapping) -> dict | None:
     return marks if isinstance(marks, dict) else None
 
 
-def before_of(state: Mapping) -> dict[str, int | None] | None:
+class _AllThere(dict):
+    """Names kept before the send that the redactor blanked: every name was there, its size not known."""
+
+    def __contains__(self, name: object) -> bool:
+        return True
+
+    def __missing__(self, name: str) -> None:
+        return None
+
+
+def before_of(state: Mapping) -> Mapping[str, int | None] | None:
     """The files kept before the send (`provider_state.before`): each size by its name; None when the job has none. A
-    job sent before 03/11 kept a list of names only (sizes not known)."""
+    job sent before 03/11 kept a list of names only (sizes not known), stored through the core's redactor: a long name
+    came back `[redacted]...`. Such a list holds no file as new (fail closed: no result, the job is refunded)."""
     kept = state.get("before")
     if isinstance(kept, dict):
         return {n: v if type(v) is int else None for n, v in kept.items() if isinstance(n, str)}
-    return {n: None for n in kept if isinstance(n, str)} if isinstance(kept, list) else None
+    if not isinstance(kept, list):
+        return None
+    if any(isinstance(n, str) and REDACTED in n for n in kept):
+        log.warning("muse: the names kept before the send were redacted: no file counts as new")
+        return _AllThere()
+    return {n: None for n in kept if isinstance(n, str)}
 
 
 # ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------

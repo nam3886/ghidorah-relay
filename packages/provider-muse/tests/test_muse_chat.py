@@ -324,16 +324,17 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
 
 
 # ---- only files new since the send: a name not there before, or there with another size ----------------------------
-OLD_CARD = "             if m.ref in now and is_new(now[m.ref], before)]"
-NEW_ONLY = ("    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + \"/\")), "
-            "key=lambda f: -f.ms)")
-BY_TIME = ("    new = sorted((f for f in files if f.ms > 250 and f.mime.startswith(kind + \"/\")), "
-           "key=lambda f: -f.ms)")
-OLDEST_FIRST = ("    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + \"/\")), "
-                "key=lambda f: f.ms)")
+OLD_CARD = "             if m.ref in now and is_new(now[m.ref], before, unshown)]"
+NEW_ONLY = ("    new = sorted((f for f in files if is_new(f, before, unshown) and f.mime.startswith(kind + \"/\")),\n"
+            "                 key=lambda f: -f.ms)")
+BY_TIME = ("    new = sorted((f for f in files if f.ms > 250 and f.mime.startswith(kind + \"/\")),\n"
+           "                 key=lambda f: -f.ms)")
+OLDEST_FIRST = ("    new = sorted((f for f in files if is_new(f, before, unshown) and "
+                "f.mime.startswith(kind + \"/\")),\n                 key=lambda f: f.ms)")
 UNSHOWN = "        if settled and not r.busy and unshown else []"
 UNSHOWN_ALWAYS = "        if True else []"
-OTHER_BYTES = "    return size is not None and size >= 0 and f.size >= 0 and f.size != size\n"
+OTHER_BYTES = "    return alone and size is not None and size >= 0 and f.size >= 0 and f.size != size\n"
+NOT_ALONE = "    return size is not None and size >= 0 and f.size >= 0 and f.size != size\n"
 
 
 @mutation(CHAT_FILE, OLD_CARD, "             if m.ref in now]", expect="an old file shown in a card")
@@ -342,6 +343,7 @@ OTHER_BYTES = "    return size is not None and size >= 0 and f.size >= 0 and f.s
 @mutation(CHAT_FILE, NEW_ONLY, OLDEST_FIRST, expect="newest first")
 @mutation(CHAT_FILE, UNSHOWN, UNSHOWN_ALWAYS, expect="only once settled")
 @mutation(CHAT_FILE, OTHER_BYTES, "    return False\n", expect="written again with other bytes")
+@mutation(CHAT_FILE, OTHER_BYTES, NOT_ALONE, expect="another chat moved: a name written again is no result")
 def test_only_files_new_since_the_send_count_cards_first_then_the_unshown_newest_first():
     old = File("workspace/your_files/ocean_waves_beach_5s.mp4", "video/mp4", 100, 3708901)
     raw = File("workspace/your_files/media-generation-boat-0-1a2b.mp4", "video/mp4", 300)
@@ -372,6 +374,8 @@ def test_only_files_new_since_the_send_count_cards_first_then_the_unshown_newest
         "a card not listed now is no result"
     assert fresh(shown, [old, cut], {}, "video", True, unshown=False).media == (
         Media(old.ref, "video/mp4", (100, 3708901)),), "only once settled, and only when no other chat moved"
+    assert fresh(shown, [again], before, "video", True, unshown=False).media == (), \
+        "another chat moved: a name written again is no result, a card included"
 
 
 def test_the_files_kept_before_the_send_are_read_back_as_stored_old_lists_included():
@@ -379,6 +383,22 @@ def test_the_files_kept_before_the_send_are_read_back_as_stored_old_lists_includ
     assert before_of(state) == {"workspace/your_files/a.webp": 12, "workspace/your_files/b.webp": None}
     assert before_of({"before": ["workspace/your_files/a.webp"]}) == {"workspace/your_files/a.webp": None}
     assert before_of({}) is None
+
+
+REDACTED_LIST = "    if any(isinstance(n, str) and REDACTED in n for n in kept):\n"
+
+
+@mutation(CHAT_FILE, REDACTED_LIST, "    if False:\n", expect="a redacted old list holds no file as new")
+def test_an_old_list_of_names_the_redactor_blanked_holds_no_file_as_new(caplog):
+    """A job sent before 03/11 kept a list of names, stored through the core's redactor: `[redacted].webp`."""
+    kept = before_of({"before": ["[redacted].webp", "workspace/your_files/fox_flies_snow_5s.mp4"]})
+    long = File("workspace/your_files/media-generation-red-bicycle-in-the-rain-photo-0-06639bca.webp", "image/webp",
+                900, 1234)
+    shown = reading(YOUR_FILES, "video")
+    with caplog.at_level("WARNING"):
+        got = fresh(shown, [long, File("workspace/your_files/new_5s.mp4", "video/mp4", 950, 99)], kept, "video", True)
+    assert got.media == (), "a redacted old list holds no file as new: %s" % (got.media,)
+    assert any("redacted" in r.getMessage() for r in caplog.records)
 
 
 GONE = "    if any(sid != session and sid not in listed for sid in marks):\n"

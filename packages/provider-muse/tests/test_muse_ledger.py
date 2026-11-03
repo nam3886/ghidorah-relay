@@ -136,10 +136,10 @@ def test_a_video_in_your_files_is_delivered_and_charged_in_full(db):
     assert account_charges(db, job_id) == [(1, False)]
 
 
-NEW_ONLY = ("    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + \"/\")), "
-            "key=lambda f: -f.ms)")
-ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")), "
-            "key=lambda f: -f.ms)")
+NEW_ONLY = ("    new = sorted((f for f in files if is_new(f, before, unshown) and f.mime.startswith(kind + \"/\")),\n"
+            "                 key=lambda f: -f.ms)")
+ANY_TIME = ("    new = sorted((f for f in files if f.ms > 0 and f.mime.startswith(kind + \"/\")),\n"
+            "                 key=lambda f: -f.ms)")
 
 
 @mutation(CHAT_FILE, NEW_ONLY, ANY_TIME, expect="an old file is refunded")
