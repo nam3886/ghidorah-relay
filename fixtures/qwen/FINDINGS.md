@@ -381,4 +381,4 @@ About once per ~100 minutes per account a page load sets up `window.__baxia__` b
 the page has it at about 2.3 s. Every success measured came 2.3-4 s after the load. Before this, the typed fallback
 (which loads the page a second time) only waited for an Enter-generate, which never comes on the ~9 accounts whose
 localStorage holds `qwen.cookie_gate_required`: those mints failed. Now the second load asks the baxia module again
-before typing, and `qwen.baxia_wait_s` defaults to 10 s (5-30) for each of the two asks.
+before typing, and `qwen.baxia_wait_s` defaults to 10 s (5-20) for each of the two asks.

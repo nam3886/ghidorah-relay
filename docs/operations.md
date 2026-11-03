@@ -1161,7 +1161,7 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 |---|---|---|
 | `qwen.claims_enabled` | false | drain mode: no new job; the checks go on (no mint while drained) |
 | `qwen.bx_max_age_s` | 1500 | a pair is reused this long; the check mints at half of it |
-| `qwen.baxia_wait_s` | 10 | a mint waits this long for the page's baxia module, then loads the page again and waits as long again, then types a prompt and presses Enter; 5-30 |
+| `qwen.baxia_wait_s` | 10 | a mint waits this long for the page's baxia module, then loads the page again and waits as long again, then types a prompt and presses Enter; 5-20 |
 | `qwen.mint_browsers` | 2 | mint browsers (Chrome) one worker opens at once, 1-4 |
 | `qwen.account_min_gap_s` | 60 | the pools' rest after a generate |
 | `qwen.poll_interval_s` | 30 | between two reads of a rendering video |

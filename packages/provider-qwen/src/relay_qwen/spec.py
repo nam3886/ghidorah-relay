@@ -90,7 +90,7 @@ _SETTINGS = dict((
     _setting("baxia_wait_s", int, 10,
              "Seconds a mint waits for the page's baxia module to hand it the anti-bot pair (it was ready in 2.3-4 s; "
              "a load that skipped it never got it later). None in time: the page is loaded again and asked again "
-             "for as long, then the mint types a prompt and presses Enter.", min=5, max=30),
+             "for as long, then the mint types a prompt and presses Enter.", min=5, max=20),
     _setting("mint_browsers", int, 2,
              "How many browsers one qwen worker opens at once to mint anti-bot pairs (one per account at a time). "
              "Each is a Chrome: more mints at once, more memory.", min=1, max=4),
