@@ -311,7 +311,7 @@ def names(listing):
     return sorted(f + "/" + e["name"] for f, entries in listing.items() for e in entries if e["type"] == "file")
 
 
-@mutation(RESULTS_FILE, BEFORE_OF, '    before, most = frozenset(), settings.get("muse.media_max_files")\n',
+@mutation(RESULTS_FILE, BEFORE_OF, '    before, most = {}, settings.get("muse.media_max_files")\n',
           expect="a name from before the send")
 @mutation(RESULTS_FILE, POLL_GRACE, "        if first is None:\n", expect="within the grace")
 def test_a_poll_takes_only_files_whose_names_were_not_there_before_the_send_and_waits_out_the_grace():

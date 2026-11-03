@@ -15,11 +15,12 @@ Money rules (each has a test and a mutation):
 - nothing is sent while another chat of the account is still working (`chat.busy_chats`: a done job's chat making
   more, one a deadline ended, the account's own): the job goes back to the queue (`muse.workspace_busy`, as below);
   every chat the relay stops following (done, refused, empty) is cancelled first (`chat.cancel_chat`, best effort);
-- results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (the names of
-  their images and videos kept as `provider_state.before`) and at the verdict, and only a file whose name was not
-  there counts, shown in the chat or not (`chat.decide`). No listing before the send: nothing is sent, the job goes
-  back to the queue (`muse.workspace_unlisted`: no attempt, no strike). No listing at the verdict: no verdict on that
-  read. A settled chat with no new file is refused only once that held `muse.files_grace_s`;
+- results are files new since the send: the media folders (`muse.media_dirs`) are listed before it (their images and
+  videos kept as `provider_state.before`, each size by its name) and at the verdict, and only a file whose name was
+  not there, or was with another size (muse wrote it again), counts, shown in the chat or not (`chat.decide`). No
+  listing before the send: nothing is sent, the job goes back to the queue (`muse.workspace_unlisted`: no attempt, no
+  strike). No listing at the verdict: no verdict on that read. A settled chat with no new file is refused only once
+  that held `muse.files_grace_s`;
 - muse's answer that the account makes no video where it is (`chat.video_unavailable_here`), once the chat is settled
   with no video (the verdict "refused": nothing was made), is a refusal of the ACCOUNT (`relay_core.refusals`): the
   video pool rests `muse.video_region_rest_s`, the strikes are left as they are, and the job goes to another account
@@ -76,6 +77,7 @@ from relay_muse.engine.chat import (
     read_chats,
     read_history,
     signature,
+    sizes,
     stream_body,
     video_unavailable_here,
     want_of,
@@ -142,7 +144,7 @@ class _Run:
         self.keep_strikes = False  # muse refused the account: no Success for it
         self.dirs = settings.get("muse.media_dirs")
         self.most = settings.get("muse.media_max_files")
-        self.before: frozenset[str] = frozenset()   # the media files' names before the send
+        self.before: dict[str, int] = {}   # the media files before the send: each size by its name
         self.empty: float | None = None   # (deps.clock) the first read of a settled chat with no new file
         self.marks: dict = {}           # each chat's updated_at_ms before the send
         self.settling: tuple[list, float] | None = None     # the last reading's signature, unchanged since (clock)
@@ -199,9 +201,9 @@ class _Run:
             listed = await list_media(tunnel, self.dirs, timeout, self.most)
             if listed is None:
                 raise Unlisted("muse's media folders could not be listed before the send")
-            self.before = frozenset(f.ref for f in listed)
+            self.before = sizes(listed)
             self.marks = chat_marks(chats)
-            state = {"session_id": self.session, "before": sorted(self.before), "chats": self.marks}
+            state = {"session_id": self.session, "before": self.before, "chats": self.marks}
             await self._core(lambda: self.ctx.report_ref(self.session, state))
             await self._core(self.ctx.mark_sent)
             self.sent = True

@@ -279,10 +279,14 @@ def outputs(r: Reading, want: int, session: str, **paid: Any) -> tuple[Output, .
 # as sandbox://... (job 1c7ddda2). Both were refunded while muse had spent its quota. So the media folders are listed
 # before the send and the names of their image and video files kept on the job (`provider_state.before`); at a verdict
 # they are listed again, and a result is a file whose name was not there before the send, shown in a card or not.
-# A name that was there never is, even rewritten since, so one customer's file is never another's (muse's agent has a
-# memory and may show an earlier file in a new chat). Fail closed: no listing before the send, no send; no listing at
-# the verdict, no verdict on that read. No other job of the account writes there meanwhile: muse's caps set
-# `one_job_per_account`, so the claim (relay_core.jobs.claim) gives an account no job while another is in flight on it.
+# A name that was there is one only when muse wrote it again with other bytes since the send (its size changed): live
+# 03/11 (muse-acc2, 6 of 19 jobs) muse answered a prompt it had made before on the account under the same file name
+# ("Done. One image, kept private in your workspace. ![...](sandbox://...)"), and no new name was ever listed after
+# those jobs. A name that was there with the same size never is, rewritten or not, so one customer's file is never
+# another's (muse's agent has a memory and may show, or copy again, an earlier file in a new chat). Fail closed: no
+# listing before the send, no send; no listing at the verdict, no verdict on that read. No other job of the account
+# writes there meanwhile: muse's caps set `one_job_per_account`, so the claim (relay_core.jobs.claim) gives an account
+# no job while another is in flight on it.
 class File(NamedTuple):
     ref: str
     mime: str
@@ -383,24 +387,39 @@ async def list_media(tunnel: Tunnel, dirs: Sequence[str], timeout: float, most: 
     return files
 
 
-def fresh(r: Reading, files: Sequence[File], before: frozenset[str], kind: str, settled: bool,
+def is_new(f: File, before: Mapping[str, int | None]) -> bool:
+    """A file made since the send: its name was not listed before it, or was with another size (both known: muse wrote
+    it again with other bytes). The same size, or a size not known, is the earlier file."""
+    if f.ref not in before:
+        return True
+    size = before[f.ref]
+    return size is not None and size >= 0 and f.size >= 0 and f.size != size
+
+
+def sizes(files: Sequence[File]) -> dict[str, int]:
+    """What the send keeps of a listing (`provider_state.before`): each file's size by its name. Names are the keys,
+    which the core's redactor leaves as they are (a long name as a value is stored `[redacted]`)."""
+    return {f.ref: f.size for f in files}
+
+
+def fresh(r: Reading, files: Sequence[File], before: Mapping[str, int | None], kind: str, settled: bool,
           unshown: bool = True) -> Reading:
-    """The reading with its results limited to files of `kind` listed now whose names were not there before the send,
+    """The reading with its results limited to files of `kind` listed now that are new since the send (`is_new`),
     each stamped with its listed time and size: the chat's cards first, then, once the chat is settled with every
     message complete and only when `unshown` (no other chat of the account changed since the send), the new files it
     does not show, newest first (muse writes a raw video, then the cut one, and may remove the raw)."""
     now = {f.ref: f for f in files}
     cards = [m._replace(stamp=(now[m.ref].ms, now[m.ref].size) if m.ref in now else None) for m in r.media
-             if m.ref not in before and m.ref in now]
+             if m.ref in now and is_new(now[m.ref], before)]
     shown = {m.ref for m in cards}
-    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
+    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + "/")), key=lambda f: -f.ms)
     rest = [Media(f.ref, f.mime, (f.ms, f.size)) for f in new if f.ref not in shown] \
         if settled and not r.busy and unshown else []
     return r._replace(media=tuple(cards + rest))
 
 
-async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, before: frozenset[str] | None, kind: str,
-                 dirs: Sequence[str], timeout: float, most: int, marks: Mapping[str, Any] | None = None,
+async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, before: Mapping[str, int | None] | None,
+                 kind: str, dirs: Sequence[str], timeout: float, most: int, marks: Mapping[str, Any] | None = None,
                  session: str = "", most_chats: int = 0) -> tuple[Reading, str | None]:
     """The verdict on a reading (`verdict`), its results checked against a listing made now (`fresh`). None (no verdict
     on this read) without the names from before the send, without a listing now, or without the account's chats now.
@@ -416,7 +435,23 @@ async def decide(tunnel: Tunnel, r: Reading, want: int, settled: bool, before: f
         return r, None
     alone = marks is not None and not others_moved(chats, marks, session)
     r = fresh(r, listed, before, kind, settled, alone)
-    return r, verdict(r, want, settled)
+    found = verdict(r, want, settled)
+    if found == "refused":
+        _log_links(r.text, listed, before)
+    return r, found
+
+
+_SANDBOX = re.compile(r"sandbox://([^\s()\[\]<>]+)")
+
+
+def _log_links(text: str, listed: Sequence[File], before: Mapping[str, int | None]) -> None:
+    """Where the files an answer with no result links to are (folder and what the listings say): a link outside the
+    media folders is a folder `muse.media_dirs` lacks."""
+    now = {f.ref: f for f in listed}
+    for ref in _SANDBOX.findall(text or ""):
+        said = ("not in the media folders" if ref not in now else
+                "listed, there before with the same size" if ref in before else "listed")
+        log.warning("muse answer with no result links a file in %s/: %s", ref.rpartition("/")[0][:80], said)
 
 
 async def same_file(tunnel: Tunnel, ref: str, stamp: Any, timeout: float) -> bool | None:
@@ -441,10 +476,13 @@ def marks_of(state: Mapping) -> dict | None:
     return marks if isinstance(marks, dict) else None
 
 
-def before_of(state: Mapping) -> frozenset[str] | None:
-    """The names kept before the send (`provider_state.before`); None when the job has none."""
-    names = state.get("before")
-    return frozenset(n for n in names if isinstance(n, str)) if isinstance(names, list) else None
+def before_of(state: Mapping) -> dict[str, int | None] | None:
+    """The files kept before the send (`provider_state.before`): each size by its name; None when the job has none. A
+    job sent before 03/11 kept a list of names only (sizes not known)."""
+    kept = state.get("before")
+    if isinstance(kept, dict):
+        return {n: v if type(v) is int else None for n, v in kept.items() if isinstance(n, str)}
+    return {n: None for n in kept if isinstance(n, str)} if isinstance(kept, list) else None
 
 
 # ---- muse's answer that the ACCOUNT makes no video -----------------------------------------------------------------

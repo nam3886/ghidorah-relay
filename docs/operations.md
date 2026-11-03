@@ -1234,11 +1234,12 @@ with the job id); more images than paid are never delivered. Then the chat's his
   sends again; the render deadline fails it with its refund. A 4xx answer to the send is `muse.http_error` (nothing
   was made, tried again). The files are read in the tunnel (`/fs/raw/<folder><file>`): there is no public link.
 - only files new since the send are results: the media folders (`muse.media_dirs`) are listed (`POST /fs/list`) just
-  before the send, the names of their images and videos kept on the job (`provider_state.before`, at most
-  `muse.media_max_files`), and again at a verdict. A file of the job's kind whose name was not there is the job's,
-  whether the chat shows it or not (live 30/10: an edit's image saved in `your_files` with no card, a video named only
-  by a `sandbox://` link in the answer; both had been refunded). A name that was there is never a result, shown in a
-  card or rewritten since. Fail closed: when the folders cannot be listed before the send (or hold more names than
+  before the send, their images and videos kept on the job (`provider_state.before`: each size by its name, at most
+  `muse.media_max_files`), and again at a verdict. A file of the job's kind whose name was not there, or was there with
+  another size (muse wrote it again: live 03/11, a prompt made before on the account was made again under the same
+  name and refunded), is the job's, whether the chat shows it or not (live 30/10: an edit's image saved in `your_files`
+  with no card, a video named only by a `sandbox://` link in the answer; both had been refunded). A name that was there
+  with the same size is never a result, shown in a card or rewritten since. Fail closed: when the folders cannot be listed before the send (or hold more names than
   are kept), nothing is sent and the job goes back to the queue (`muse.workspace_unlisted`: no attempt, no strike, the
   account rests 5 minutes); when they cannot be listed at the verdict, that read gives no verdict. A settled chat with
   no new file is refused only once that held `muse.files_grace_s` over later reads (a file may land just after the

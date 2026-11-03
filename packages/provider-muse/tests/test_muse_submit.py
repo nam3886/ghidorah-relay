@@ -117,7 +117,7 @@ def test_the_chat_id_is_kept_before_mark_sent_and_the_send_comes_after_it():
     site = Site(vm_routes_=vm_routes([answered("job_j01.json")]))
     result, ctx = run(site)
     sid = chat_of(site)
-    assert ctx.calls[:2] == [("report_ref", sid, {"session_id": sid, "before": [], "chats": {MAIN_CHAT: MAIN_AT}}),
+    assert ctx.calls[:2] == [("report_ref", sid, {"session_id": sid, "before": {}, "chats": {MAIN_CHAT: MAIN_AT}}),
                              ("mark_sent",)], \
         "the chat id first"
 
@@ -537,7 +537,7 @@ def test_a_job_whose_workspace_is_unavailable_from_here_rests_the_account_and_le
 UNLINKED = "new-files-301030/history_unlinked_image.json"
 LINKED_VIDEO = "new-files-301030/history_linked_video.json"
 EDITED = "workspace/your_files/media-generation-fox-snow-watercolor-9x16-0-d74ae617-0900-46fb-aef2-46d9edd0add4.webp"
-KEPT = "            self.before = frozenset(f.ref for f in listed)\n"
+KEPT = "            self.before = sizes(listed)\n"
 NOT_SENT = "            if listed is None:\n                raise Unlisted("
 LIST_FAILED = "            if not isinstance(entries, list):\n                return None\n"
 TOO_MANY = "    if len(files) > most:\n"
@@ -551,11 +551,17 @@ def names(listing) -> list[str]:
                   if e["type"] == "file" and e["name"].lower().endswith(MEDIA_EXT))
 
 
+def kept(listing) -> dict[str, int]:
+    """What the send keeps of a listing: each image and video file's size by its name."""
+    return {f + "/" + e["name"]: e["size"] for f, entries in listing.items() for e in entries
+            if e["type"] == "file" and e["name"].lower().endswith(MEDIA_EXT)}
+
+
 def edit_job():
     return job("image_to_image", inputs=(IMAGE_REF,), ratio="9:16")
 
 
-@mutation(SUBMIT_FILE, KEPT, "            self.before = frozenset()\n", expect="the names before the send are kept")
+@mutation(SUBMIT_FILE, KEPT, "            self.before = {}\n", expect="the names before the send are kept")
 def test_an_edit_muse_saved_without_showing_it_is_delivered_and_the_names_before_the_send_kept():
     """Job aae305b4: "Done — one 9:16 watercolor version, kept private in your workspace.", no card, the WebP in
     your_files."""
@@ -567,7 +573,7 @@ def test_an_edit_muse_saved_without_showing_it_is_delivered_and_the_names_before
     assert (out.ref, out.mime, out.meta.get("last")) == (EDITED, "image/webp", True)
     assert out.meta["stamp"] == [1793360919432, 673346], "the listed time and size ride on the output"
     sid = chat_of(site)
-    assert ctx.calls[0] == ("report_ref", sid, {"session_id": sid, "before": names(before),
+    assert ctx.calls[0] == ("report_ref", sid, {"session_id": sid, "before": kept(before),
                                                 "chats": {MAIN_CHAT: MAIN_AT}}), \
         "the names before the send are kept"
     assert len(names(before)) == 9 and EDITED not in names(before)
@@ -612,6 +618,38 @@ def test_a_file_that_was_there_before_the_send_is_never_taken_shown_rewritten_or
     before["workspace/your_files"].append(dict(rewritten, modifiedAt="2026-10-30T05:00:00.000Z"))
     result, _ = run(Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=(before, after))), edit_job())
     assert isinstance(result.job, Fail), "a file rewritten since the send: %s" % (result.job,)
+
+
+def test_a_name_from_before_the_send_written_again_with_other_bytes_is_the_jobs_result():
+    """Live 03/11 (muse-acc2, 6 of 19 jobs): a prompt made before on the account, made again under the same name,
+    answered "Done. One image, kept private in your workspace. ![...](sandbox://...)": refunded while muse had made
+    it, as no new name was listed."""
+    before, after = folders("2099-01-01T00:00:00.000Z")
+    files = after["workspace/your_files"]
+    i = next(i for i, e in enumerate(files) if "workspace/your_files/" + e["name"] == EDITED)
+    files[i] = again = dict(files[i], size=files[i]["size"] + 1234, modifiedAt="2099-01-01T00:00:30.000Z")
+    result, _ = run(Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=(before, after))), edit_job())
+    assert isinstance(result.job, Completed), "written again with other bytes: %s" % (result.job,)
+    assert [(o.ref, o.meta["stamp"][1]) for o in result.job.outputs] == [(EDITED, again["size"])]
+
+
+def test_the_files_kept_before_the_send_survive_the_cores_redactor_so_a_poll_takes_no_old_file():
+    """`provider_state` is stored through `relay_core.redact.redact`: a name of 40 characters or more as a VALUE comes
+    back `[redacted].webp` (live 03/11), and every long old name would then look new to a poll."""
+    from relay_core.providers import Done
+    from relay_core.redact import redact
+    from relay_muse.engine import results
+    same = folders("2099-01-01T00:00:00.000Z")          # nothing new since the send
+    site = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=same))
+    result, ctx = run(site, edit_job(), image_submit_timeout_s=submit_mod.HOLD_MARGIN_S + 0.3, files_grace_s=30)
+    assert isinstance(result.job, Accepted), result.job
+    stored = {**redact(ctx.calls[0][2]), **redact(dict(result.job.provider_state))}
+    assert EDITED in stored["before"], "the names survive the redactor: %s" % (stored["before"],)
+    polled = Site(vm_routes_=vm_routes([answered(UNLINKED)], folders=same))
+    taken = job("image_to_image", external_ref=result.job.ref, state=stored)
+    outcome = asyncio.run(results.poll(Ctx(), taken, settings(files_grace_s=0, settle_s=0),
+                                       deps=polled.deps(now=lambda: NOW + timedelta(seconds=60)))).outcome
+    assert not isinstance(outcome, Done), "an old file is never a poll's result: %s" % (outcome,)
 
 
 @mutation(SUBMIT_FILE, GRACE, "                elif False:\n", expect="lands within the grace")

@@ -9,6 +9,7 @@ from relay_core.testing.mutation import mutation
 from relay_muse.engine.chat import (
     File,
     Media,
+    before_of,
     compose,
     fresh,
     is_media_ref,
@@ -322,45 +323,62 @@ def test_muse_saying_the_account_makes_no_video_where_it_is_is_told_from_a_refus
     assert verdict(r, 1, settled=True) == "refused" and video_unavailable_here(r.text), "nothing was made"
 
 
-# ---- only files whose names were not there before the send ---------------------------------------------------------
-OLD_CARD = "             if m.ref not in before and m.ref in now]"
-NEW_ONLY = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
+# ---- only files new since the send: a name not there before, or there with another size ----------------------------
+OLD_CARD = "             if m.ref in now and is_new(now[m.ref], before)]"
+NEW_ONLY = ("    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + \"/\")), "
             "key=lambda f: -f.ms)")
 BY_TIME = ("    new = sorted((f for f in files if f.ms > 250 and f.mime.startswith(kind + \"/\")), "
            "key=lambda f: -f.ms)")
-OLDEST_FIRST = ("    new = sorted((f for f in files if f.ref not in before and f.mime.startswith(kind + \"/\")), "
+OLDEST_FIRST = ("    new = sorted((f for f in files if is_new(f, before) and f.mime.startswith(kind + \"/\")), "
                 "key=lambda f: f.ms)")
 UNSHOWN = "        if settled and not r.busy and unshown else []"
 UNSHOWN_ALWAYS = "        if True else []"
+OTHER_BYTES = "    return size is not None and size >= 0 and f.size >= 0 and f.size != size\n"
 
 
 @mutation(CHAT_FILE, OLD_CARD, "             if m.ref in now]", expect="an old file shown in a card")
 @mutation(CHAT_FILE, OLD_CARD, "             if m.ref not in before]", expect="a card not listed now")
-@mutation(CHAT_FILE, NEW_ONLY, BY_TIME, expect="an old file rewritten since")
+@mutation(CHAT_FILE, NEW_ONLY, BY_TIME, expect="an old file rewritten with the same size")
 @mutation(CHAT_FILE, NEW_ONLY, OLDEST_FIRST, expect="newest first")
 @mutation(CHAT_FILE, UNSHOWN, UNSHOWN_ALWAYS, expect="only once settled")
-def test_only_files_whose_names_were_not_there_count_cards_first_then_the_unshown_newest_first():
-    old = File("workspace/your_files/ocean_waves_beach_5s.mp4", "video/mp4", 100)
+@mutation(CHAT_FILE, OTHER_BYTES, "    return False\n", expect="written again with other bytes")
+def test_only_files_new_since_the_send_count_cards_first_then_the_unshown_newest_first():
+    old = File("workspace/your_files/ocean_waves_beach_5s.mp4", "video/mp4", 100, 3708901)
     raw = File("workspace/your_files/media-generation-boat-0-1a2b.mp4", "video/mp4", 300)
     cut = File("workspace/your_files/paper_boat_5s.mp4", "video/mp4", 400)
     image = File("workspace/your_files/a-fox-0-1a2b.webp", "image/webp", 500)
     shown = reading(YOUR_FILES, "video")          # a card for ocean_waves_beach_5s.mp4
-    before = frozenset({old.ref})
+    before = {old.ref: old.size}
     got = fresh(shown, [old, raw, cut, image], before, "video", True).media
     assert old.ref not in [m.ref for m in got], "an old file shown in a card is never a result"
     assert [m.ref for m in got] == [cut.ref, raw.ref], "newest first"
     assert all(m.mime == "video/mp4" for m in got)
     rewritten = fresh(shown, [old._replace(ms=900), cut], before, "video", True).media
-    assert [m.ref for m in rewritten] == [cut.ref], "an old file rewritten since the send is never a result"
-    new_card = fresh(shown, [old, cut], frozenset(), "video", True).media
+    assert [m.ref for m in rewritten] == [cut.ref], "an old file rewritten with the same size is never a result"
+    # live 03/11 (muse-acc2): a prompt made before on the account, made again under the same name
+    again = old._replace(ms=900, size=4100000)
+    assert fresh(shown, [again, cut], before, "video", True).media == (
+        Media(old.ref, "video/mp4", (900, 4100000)), Media(cut.ref, "video/mp4", (400, -1))), \
+        "a name written again with other bytes since the send is a result"
+    assert fresh(shown, [again], {old.ref: None}, "video", True).media == (), "a size not known: the earlier file"
+    assert fresh(shown, [again._replace(size=-1)], before, "video", True).media == (), \
+        "a size not listed now: the earlier file"
+    new_card = fresh(shown, [old, cut], {}, "video", True).media
     assert [m.ref for m in new_card] == [old.ref, cut.ref], "the card first"
     assert fresh(shown, [old, cut], before, "video", False).media == (), "only once settled"
     assert fresh(shown._replace(busy=True), [old, cut], before, "video", True).media == (), "only once settled"
-    assert fresh(shown, [old, cut], frozenset(), "video", False).media == (Media(old.ref, "video/mp4", (100, -1)),)
-    assert fresh(shown, [cut], frozenset(), "video", True).media == (Media(cut.ref, "video/mp4", (400, -1)),), \
+    assert fresh(shown, [old, cut], {}, "video", False).media == (Media(old.ref, "video/mp4", (100, 3708901)),)
+    assert fresh(shown, [cut], {}, "video", True).media == (Media(cut.ref, "video/mp4", (400, -1)),), \
         "a card not listed now is no result"
-    assert fresh(shown, [old, cut], frozenset(), "video", True, unshown=False).media == (
-        Media(old.ref, "video/mp4", (100, -1)),), "only once settled, and only when no other chat moved"
+    assert fresh(shown, [old, cut], {}, "video", True, unshown=False).media == (
+        Media(old.ref, "video/mp4", (100, 3708901)),), "only once settled, and only when no other chat moved"
+
+
+def test_the_files_kept_before_the_send_are_read_back_as_stored_old_lists_included():
+    state = {"before": {"workspace/your_files/a.webp": 12, "workspace/your_files/b.webp": "[redacted]"}}
+    assert before_of(state) == {"workspace/your_files/a.webp": 12, "workspace/your_files/b.webp": None}
+    assert before_of({"before": ["workspace/your_files/a.webp"]}) == {"workspace/your_files/a.webp": None}
+    assert before_of({}) is None
 
 
 GONE = "    if any(sid != session and sid not in listed for sid in marks):\n"
