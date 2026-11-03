@@ -697,6 +697,53 @@ def test_an_image_is_read_from_the_chat_and_a_chat_still_empty_long_after_is_a_l
     assert isinstance(out, Failed) and out.code == "qwen.image_lost", "image_lost: %s" % (out,)
 
 
+# qwen's own error, measured 02/11 on two t2i chats read back after a lost stream (FINDINGS, "qwen's own error")
+QWEN_ERROR = {"code": "internal_error", "details": "An unexpected error occurred. Please try again later, or report "
+                                                   "the issue by emailing feedback@qwen.com."}
+ERRORED = {"role": "assistant", "content": "", "done": True, "error": QWEN_ERROR,
+           "extra": {"startTime": 1762051200, "endTime": 1762051806}}
+
+
+def chat_with(reply: dict) -> dict:
+    return {"success": True, "data": {"chat": {"messages": [{"role": "user", "content": "x"}, reply]}}}
+
+
+@mutation(RESULTS_FILE, "        return PollResult(Failed(errors.RENDER_FAILED, \"qwen: %s\" % failure, True))\n",
+          "        pass\n", expect="render_failed")
+def test_an_image_chat_whose_answer_is_qwens_own_error_fails_refunded_and_is_no_refusal():
+    out = run_poll(Qwen([], chat=chat_with(ERRORED)), job(state={"chat": CHAT})).outcome
+    assert isinstance(out, Failed) and out.code == "qwen.render_failed" and out.taken, "render_failed: %s" % (out,)
+    assert "internal_error: An unexpected error occurred" in out.detail, out.detail
+    rule = errors.CODES["qwen.render_failed"]
+    assert rule.terminal and rule.refund and rule.public_code == "generation_failed"
+    # finished in plain words with no image stays a refusal; an empty error is no error
+    words = {"role": "assistant", "content": "I can't create that image.", "done": True, "error": ""}
+    out = run_poll(Qwen([], chat=chat_with(words)), job(state={"chat": CHAT})).outcome
+    assert isinstance(out, Failed) and out.code == "qwen.refused", out
+    out = run_poll(Qwen([], chat=chat_with({**words, "error": {"code": ""}})), job(state={"chat": CHAT})).outcome
+    assert out.code == "qwen.refused", out
+
+
+@mutation(RESULTS_FILE, "        return PollResult(Failed(errors.RENDER_FAILED, \"qwen: %s\" % failure, False))\n",
+          "        pass\n", expect="render_failed")
+def test_a_video_chat_whose_answer_is_qwens_own_error_fails_refunded_before_the_grace():
+    young = job(VIDEO, state={"chat": CHAT}, sent_at=NOW_DT - timedelta(seconds=10))
+    out = run_poll(Qwen([], chat=chat_with(ERRORED)), young).outcome
+    assert isinstance(out, Failed) and out.code == "qwen.render_failed" and not out.taken, "render_failed: %s" % (
+        out,)
+
+
+@mutation(SUBMIT_FILE, '    if msg.get("role") == "assistant" and error_of(msg):',
+          '    if False:', expect="render_failed")
+def test_a_complete_video_answer_carrying_qwens_own_error_fails_refunded_at_once_never_sent_twice():
+    answer = {"success": True, "data": {"chat_id": CHAT, "messages": [{**ERRORED, "status": "finished"}]}}
+    log = []
+    result = run_submit(Qwen(log, send=answer), Ctx(log), job(VIDEO))
+    assert isinstance(result.job, Fail) and result.job.code == "qwen.render_failed", "render_failed: %s" % (
+        result.job,)
+    assert "internal_error" in result.job.detail and log.count("send") == 1
+
+
 # ---- fetch ---------------------------------------------------------------------------------------------------------
 @mutation(RESULTS_FILE, "            out.ref, hosts=MEDIA_HOSTS, proxy=proxy_url(ctx.account.proxy),",
           "            out.ref, hosts=MEDIA_HOSTS, proxy=None,", expect="not through the account proxy")

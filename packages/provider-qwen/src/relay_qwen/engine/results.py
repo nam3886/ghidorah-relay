@@ -9,9 +9,10 @@ sends a generate, so nothing here can spend.
 - Poll, a video with its task: `GET /api/v2/task/status/<task>` until `success` with the mp4 link; a status that says
   the task failed fails the job (refunded). A video without a task yet: read the chat for its task, for qwen's
   "Insufficient Credits", or for a reply in words with no task, a refusal after `qwen.refusal_grace_s`. An image:
-  read the chat; the image is the assistant's `cdn.qwenlm.ai` link (in `content_list`); a finished answer with
-  words and no image is qwen refusing; an image chat still empty `qwen.image_lost_after_s` after the send is a lost
-  stream (it never delivered later, FINDINGS 6).
+  read the chat; the image is the assistant's `cdn.qwenlm.ai` link (in `content_list`); an assistant message with
+  qwen's own `error.code` and no image or task is qwen failing (`qwen.render_failed`, refunded, never re-sent), in
+  an image or a video chat; a finished answer with words and no image is qwen refusing; an image chat still empty
+  `qwen.image_lost_after_s` after the send is a lost stream (it never delivered later, FINDINGS 6).
 - Fetch: the `cdn.qwenlm.ai` link (its `key` holds no expiry), through the account's proxy, no cookie.
 """
 
@@ -41,6 +42,7 @@ from relay_qwen.engine.http import (
     Sessions,
     Site,
     assistant,
+    error_of,
     has_user_message,
     links_of,
     media_link,
@@ -138,6 +140,9 @@ def _video_chat(record: dict, chat: str, wait: int, job, settings, now: datetime
     extra = (message or {}).get("extra")
     if isinstance(extra, dict) and extra.get("quota_limit") is True:
         return PollResult(Failed(errors.OUT_OF_CREDITS, "qwen: %s" % text_of(message)[:300], False))
+    failure = error_of(message)
+    if failure:     # qwen's own error, no refusal; it named no task, so nothing was deducted
+        return PollResult(Failed(errors.RENDER_FAILED, "qwen: %s" % failure, False))
     words = text_of(message)
     grace = int(settings.get("qwen.refusal_grace_s"))
     if words and job.sent_at is not None and (now - job.sent_at).total_seconds() >= grace:
@@ -156,6 +161,9 @@ def _image_chat(record: dict, chat: str, wait: int, job, settings, now: datetime
         # turns
         return PollResult(Failed(errors.OUT_OF_CREDITS, "qwen: %s" % text_of(message)[:300], False),
                           effects=(Balance(C.pool_of(job.model, job.params), 0),))
+    failure = error_of(message)
+    if failure:     # qwen's own error (02/11: internal_error 606 s after the send), no refusal
+        return PollResult(Failed(errors.RENDER_FAILED, "qwen: %s" % failure, True))
     if (message or {}).get("done") is True:
         return PollResult(Failed(errors.REFUSED, "qwen: %s" % (text_of(message) or "no image")[:300], True))
     lost_after = int(settings.get("qwen.image_lost_after_s"))

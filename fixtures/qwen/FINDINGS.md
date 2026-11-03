@@ -360,3 +360,17 @@ images delivered, on good accounts and on "Enter does nothing" ones alike.
 
 The provider mints the baxia way first and falls back to the typed way when the module gives no pair within
 `qwen.baxia_wait_s` (30 s); both failing is `MintError` with the page's screenshot, as before.
+
+## qwen's own error on an image, 02/11 (live jobs, read back from the chat)
+Two t2i orders ("a blue cat on a sofa, photo", "a black cat on a sofa, photo") lost their send stream (it ended with no
+image after about 6 min, so the job went unknown). The chat read back later held, as its assistant message:
+`role: "assistant"`, `content: ""`, `done: true`, `error: {"code": "internal_error", "details": "An unexpected error
+occurred. Please try again later, or report the issue by emailing feedback@qwen.com."}`, `extra.endTime` about 606 s
+after the send. That is qwen failing, not refusing: on every good answer recorded `error` is `null` or `""`. Three jobs
+in 7 days had been shown as `qwen.refused` ("no image") for it.
+
+The provider reads any assistant message whose `error.code` is not empty, with no image (for a video, no task), as
+`qwen.render_failed` (public `generation_failed`), refunded and never sent again; the detail is qwen's code and its
+details. A video send whose complete JSON answer carries such an error and no task fails the same way at once. An
+image stream's own error event has not been seen: a stream that ends with no image stays unknown and the chat read
+decides. A finished answer in words with no image stays a refusal.

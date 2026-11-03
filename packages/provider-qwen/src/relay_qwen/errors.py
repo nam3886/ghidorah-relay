@@ -14,7 +14,7 @@ MINT_FAILED = "qwen.mint_failed"          # before the send: the browser could n
 WAF_REFUSED = "qwen.waf_refused"          # qwen's firewall refused the pair; the chat stayed empty: re-mint, re-queue
 REFUSED = "qwen.refused"                  # qwen answered the order with words and no image or task
 OUT_OF_CREDITS = "qwen.out_of_credits"    # qwen answered "Insufficient Credits" to the order
-RENDER_FAILED = "qwen.render_failed"      # the video task ended without a video
+RENDER_FAILED = "qwen.render_failed"      # the video task ended without a video, or qwen answered its own error.code
 IMAGE_LOST = "qwen.image_lost"            # the image stream died and the chat shows no image long after
 IMAGE_LIMIT = "qwen.image_limit"          # qwen answered the account's daily image quota is used up: nothing made
 
@@ -50,7 +50,8 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          "the qwen account had too few credits for this; the charge is returned", public_code=_BUSY,
          public_text="qwen's capacity for this was used up for now. Sending the request again later may work."),
     Rule(RENDER_FAILED, 502, "api_error", True, True, False, True,
-         "qwen ended the render with no result; the charge is returned", public_code=core_errors.GENERATION_FAILED,
+         "qwen ended the render with no result, or with its own error (not a refusal); the charge is returned",
+         public_code=core_errors.GENERATION_FAILED,
          public_text="qwen ended the render with no result. Sending the request again may work."),
     Rule(IMAGE_LOST, 502, "api_error", True, True, False, True,
          "qwen lost the image while it was drawn; the charge is returned", public_code=core_errors.GENERATION_FAILED,

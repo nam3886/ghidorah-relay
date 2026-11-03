@@ -195,7 +195,7 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `qwen.mint_failed` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | the security headers for qwen could not be made; the order was not sent |
 | `qwen.out_of_credits` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | the qwen account had too few credits for this; the charge is returned |
 | `qwen.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | qwen refused to make this; try a different prompt; the charge is returned |
-| `qwen.render_failed` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | qwen ended the render with no result; the charge is returned |
+| `qwen.render_failed` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | qwen ended the render with no result, or with its own error (not a refusal); the charge is returned |
 | `qwen.waf_refused` | `temporarily_unavailable` | 503 | api_error | no | no | no | 2 | yes | qwen's firewall refused the request; nothing was made, it is sent again |
 
 ## `render.*`

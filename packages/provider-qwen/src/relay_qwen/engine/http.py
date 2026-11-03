@@ -338,6 +338,18 @@ def text_of(message: dict | None) -> str:
     return "\n".join(c for c in _contents(message) if not media_link(c)).strip()
 
 
+def error_of(message: dict | None) -> str | None:
+    """qwen's own failure on a message (`error: {"code", "details"}`, measured 02/11: `internal_error`, "An unexpected
+    error occurred..."), as "code: details" shortened; None when its `error` names no code (`null` or `""` on every
+    good answer recorded)."""
+    error = (message or {}).get("error")
+    code = error.get("code") if isinstance(error, dict) else None
+    if not isinstance(code, str) or not code:
+        return None
+    details = error.get("details")
+    return ("%s: %s" % (code, details) if isinstance(details, str) and details else code)[:300]
+
+
 def task_of(message: dict | None) -> str | None:
     """The video task a message names (`extra.wanx.task_id`)."""
     extra = (message or {}).get("extra")

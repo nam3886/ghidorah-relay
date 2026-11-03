@@ -11,7 +11,8 @@ Money rules that shape this file (each has a test and a mutation):
   back (reconcile). One chat per job, and exactly one POST into it.
 - `ctx.mark_sent()` runs immediately before that POST, never after.
 - Nothing is ever sent twice on one account. After `mark_sent` only three answers end in something other than
-  `Ambiguous`/`Completed`/`Accepted`: qwen's own refusal (`Fail`, refunded); its complete "Insufficient Credits"
+  `Ambiguous`/`Completed`/`Accepted`: qwen's own refusal (`Fail`, refunded) or its own error on a complete JSON
+  answer with no task (`error.code`, `Fail` `qwen.render_failed`, refunded); its complete "Insufficient Credits"
   answer, which proves nothing was made (the core's `account_refused`: the job goes to another account, or fails
   refunded on the last one `qwen.refusal_max_accounts` allows); and the Aliyun WAF's edge block of the pair, which
   never reached qwen's app. That one is `NotTaken` (the job goes back to the queue, the stale pair
@@ -74,6 +75,7 @@ from relay_qwen.engine.http import (
     Sessions,
     SignedOut,
     Site,
+    error_of,
     media_link,
     task_of,
     text_of,
@@ -197,7 +199,8 @@ def _first_message(body: dict) -> dict:
 
 
 def json_verdict(status: int, body: dict | None) -> tuple[str, Any]:
-    """A JSON answer to the paid POST: ("task", id) | ("no_credits", text) | ("refused", text) | ("unclear", note)."""
+    """A JSON answer to the paid POST: ("task", id) | ("no_credits", text) | ("failed", qwen's error) |
+    ("refused", text) | ("unclear", note)."""
     if status != 200 or body is None or body.get("success") is not True:
         return "unclear", "qwen answered %d%s" % (status, "" if body is None else " (success %r, code %s)" % (
             body.get("success"), str((body.get("data") or {}).get("code") if isinstance(body.get("data"), dict)
@@ -209,6 +212,8 @@ def json_verdict(status: int, body: dict | None) -> tuple[str, Any]:
         return "task", task
     if extra.get("quota_limit") is True:
         return "no_credits", words
+    if msg.get("role") == "assistant" and error_of(msg):     # qwen's own error (02/11), complete JSON: no refusal
+        return "failed", error_of(msg)
     # A refusal only in a provably complete answer: qwen's own end marker on the message (`status: "finished"`, on
     # every complete video answer recorded: t2v_send, i2v_send). Words without it may be cut short: unknown.
     if msg.get("role") == "assistant" and words and "wanx" not in extra and msg.get("status") == "finished":
@@ -359,6 +364,8 @@ async def submit(ctx, job, settings, sessions: Sessions, minter: Minter, *, tran
         if verdict == "refused" and kind == "image" and is_image_quota(said):
             # the account's image pool is empty until its day turns; the job goes to another account, no attempt used
             return _result(NotTaken(errors.IMAGE_LIMIT, {"limit_chat": chat}), Balance(pool, 0), *rest)
+        if verdict == "failed":
+            return _result(Fail(errors.RENDER_FAILED, "qwen: %s" % said, {CHAT_KEY: chat}), *rest)
         if verdict == "refused":
             return _result(Fail(errors.REFUSED, "qwen: %s" % str(said)[:300], {CHAT_KEY: chat}), *rest)
         return _result(Ambiguous(str(said)), *rest)
