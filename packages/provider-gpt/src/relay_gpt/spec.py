@@ -91,6 +91,10 @@ _SETTINGS = dict((
     _setting("alert_turnstile_rate", float, 0.2,
              "Drift alert: share of the last 24 h gpt jobs sent with an empty Turnstile answer (the solver failed).",
              min=0.0, max=1.0),
+    _setting("alert_refused_rate", float, 0.5,
+             "Drift alert: share of the last 24 h gpt jobs that ended refused (gpt.refused, an answer in words with no "
+             "image). A jump is the likely sign of a silent upstream limit rather than of the prompts.",
+             min=0.0, max=1.0),
     refusal_max_accounts_setting(
         PROVIDER, "How many accounts one job may try when chatgpt.com refuses the account before anything is made "
         "(an image limit or a challenge answered to the send). Each such answer sends the job to another account; "
@@ -126,7 +130,8 @@ class GptSpec:
         FixedLimit("relay_gpt.credential.MAX_COOKIES", MAX_COOKIES,
                    "far above a real chatgpt.com export; a longer list is not a cookie export", "cookies"),
     )
-    rate_alerts = (RateAlert("gpt.alert_turnstile_rate", codes.WARN_TURNSTILE, "warning"),)
+    rate_alerts = (RateAlert("gpt.alert_turnstile_rate", codes.WARN_TURNSTILE, "warning"),
+                   RateAlert("gpt.alert_refused_rate", codes.REFUSED, "error_code"))
 
     def catalog(self) -> list[ModelSpec]:
         return C.catalog()

@@ -4,7 +4,9 @@ conversation read that replaces it when the stream breaks (`GET /backend-api/con
 
 A result is only an image pointer in a finished `role:"tool"` message: the input image of an edit shows as a
 `sediment://` pointer in the user message (FINDINGS F5) and is never one. A refusal is judged as "complete, no image,
-assistant text present" or a blocked moderation; `tool_invoked` is never read (it is false on real images)."""
+assistant text present" or a blocked moderation, where complete means an assistant message ended its turn
+(`end_turn` true, finished) and, for the stream, the stream ended too; `tool_invoked` is never read (it is false on
+real images)."""
 
 import json
 from dataclasses import dataclass, field
@@ -50,6 +52,12 @@ def _text(message: dict) -> str:
     if (message.get("author") or {}).get("role") != "assistant" or content.get("content_type") != "text":
         return ""
     return "".join(p for p in content.get("parts") or [] if isinstance(p, str))
+
+
+def _finished(messages: list[dict]) -> bool:
+    """An assistant message that ended its turn: what "complete" means for the stream and the conversation read."""
+    return any((m.get("author") or {}).get("role") == "assistant" and m.get("end_turn") is True
+               and m.get("status") == "finished_successfully" for m in messages)
 
 
 def _gather(messages: list[dict], reading: Reading) -> Reading:
@@ -151,8 +159,10 @@ class Reader:
     def reading(self) -> Reading:
         user = next((mid for mid, m in self._messages.items() if (m.get("author") or {}).get("role") == "user"),
                     None)
-        return _gather(list(self._messages.values()), Reading(
-            self._conversation, user, blocked=self._blocked, complete=self._complete, title=self._title))
+        messages = list(self._messages.values())
+        # complete: the stream ended ([DONE] / message_stream_complete) AND an assistant message ended its turn
+        return _gather(messages, Reading(self._conversation, user, blocked=self._blocked,
+                                         complete=self._complete and _finished(messages), title=self._title))
 
 
 def read_conversation(body: dict, message_id: str) -> Reading:
@@ -161,8 +171,7 @@ def read_conversation(body: dict, message_id: str) -> Reading:
                 if isinstance(n, dict) and isinstance(n.get("message"), dict)]
     ours = any(m.get("id") == message_id and (m.get("author") or {}).get("role") == "user" for m in messages)
     blocked = any(isinstance(r, dict) and r.get("blocked") is True for r in body.get("moderation_results") or [])
-    complete = any((m.get("author") or {}).get("role") == "assistant" and m.get("end_turn") is True
-                   and m.get("status") == "finished_successfully" for m in messages)
+    complete = _finished(messages)
     title = body.get("title") if isinstance(body.get("title"), str) else None
     return _gather(messages, Reading(body.get("conversation_id"), message_id if ours else None,
                                      blocked=blocked, complete=complete, title=title))

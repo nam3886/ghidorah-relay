@@ -15,6 +15,8 @@ ROLE_TOOL = "    if role != \"tool\" or message.get(\"status\") != \"finished_su
 ANY_ROLE = "    if message.get(\"status\") != \"finished_successfully\":"
 COMPLETE_AND = "    if r.complete and not r.images and r.assistant_text.strip():"
 TRUE_AND = "    if True and not r.images and r.assistant_text.strip():"
+DONE_AND_FINISHED = "complete=self._complete and _finished(messages)"
+DONE_ONLY = "complete=self._complete"
 CID = "6aeb5d18-6638-83ec-a053-487d9b537d06"
 OUR_MESSAGE = "360bfd87-efe9-4516-993b-1f006fb68a6b"     # the edit's user message id (conv_edit)
 
@@ -102,6 +104,19 @@ def test_complete_text_without_image_is_refused():
     assert verdict(read(HEAD + delta(message("a-2", "assistant", [""], end_turn=True)) + DONE)) == "open"
     only_done = read(HEAD + refusal_text() + ["data: [DONE]"])
     assert only_done.complete and verdict(only_done) == "refused"
+
+
+@mutation(STREAM_FILE, DONE_AND_FINISHED, DONE_ONLY, expect="a [DONE] without a finished answer was judged refused")
+def test_an_ended_stream_whose_answer_never_finished_is_open():
+    unfinished = (delta(message("a-1", "assistant", [""], status="in_progress"))
+                  + delta({"p": "/message/content/parts/0", "o": "append", "v": "Let me draw that"}))
+    r = read(HEAD + unfinished + DONE)
+    assert not r.complete and verdict(r) == "open", "a [DONE] without a finished answer was judged refused"
+    # the conversation read judges the same way: complete only with an assistant message that ended its turn
+    body = {"conversation_id": "c-1", "mapping": {"a-1": {"message": {
+        "id": "a-1", "author": {"role": "assistant"}, "content": {"content_type": "text", "parts": ["x"]},
+        "status": "in_progress", "end_turn": None}}}}
+    assert verdict(read_conversation(body, "u-1")) == "open"
 
 
 def test_moderation_blocked_is_refused():

@@ -37,6 +37,8 @@ CATALOG_FILE = "packages/provider-gpt/src/relay_gpt/catalog.py"
 ERRORS_FILE = "packages/provider-gpt/src/relay_gpt/errors.py"
 CLAIMS_OFF = '    _setting("claims_enabled", bool, False,'
 CLAIMS_ON = '    _setting("claims_enabled", bool, True,'
+REFUSED_ALERT = '                   RateAlert("gpt.alert_refused_rate", codes.REFUSED, "error_code"))'
+NO_REFUSED_ALERT = '                   )'
 COST_ONE = "DEFAULT_COSTS = {IMAGE_MODEL: 1}"
 COST_TWO = "DEFAULT_COSTS = {IMAGE_MODEL: 2}"
 REFUSED_PUBLIC = "public_code=core_errors.CONTENT_REFUSED"
@@ -78,6 +80,7 @@ def test_the_registry_accepts_the_spec():
     assert model.price_keys == {"default": "gpt-image"}
 
 
+@mutation(SPEC_FILE, REFUSED_ALERT, NO_REFUSED_ALERT, expect="a refusal rate must be alerted on")
 def test_the_settings_are_the_tunables_with_their_defaults_and_bounds():
     s = SPEC.settings()
     want = {"render_deadline_s": (int, 900, 300, None), "poll_interval_s": (int, 15, 5, 120),
@@ -85,14 +88,16 @@ def test_the_settings_are_the_tunables_with_their_defaults_and_bounds():
             "page_max_age_s": (int, 3600, 300, 86400), "signed_out_rest_s": (int, 600, 60, 86400),
             "signed_out_gap_s": (int, 540, 0, 86400), "network_rest_s": (int, 300, 30, 3600),
             "challenge_rest_s": (int, 3600, 300, 86400), "alert_turnstile_rate": (float, 0.2, 0.0, 1.0),
-            "refusal_max_accounts": (int, 2, 1, 9)}
+            "refusal_max_accounts": (int, 2, 1, 9), "alert_refused_rate": (float, 0.5, 0.0, 1.0)}
     for key, (kind, default, low, high) in want.items():
         spec = s["gpt." + key]
         assert (spec.type, spec.default, spec.min, spec.max) == (kind, default, low, high), key
     assert {"gpt.prices", "gpt.costs", "gpt.pools", "gpt.disabled_models"} <= set(s)
     assert all(k.startswith("gpt.") for k in s)
     assert {k for k, v in s.items() if v.basic} == {"gpt.claims_enabled", "gpt.prices", "gpt.disabled_models"}
-    assert SPEC.rate_alerts == (RateAlert("gpt.alert_turnstile_rate", codes.WARN_TURNSTILE, "warning"),)
+    assert SPEC.rate_alerts == (RateAlert("gpt.alert_turnstile_rate", codes.WARN_TURNSTILE, "warning"),
+                                RateAlert("gpt.alert_refused_rate", codes.REFUSED, "error_code")), \
+        "a refusal rate must be alerted on"
     assert codes.WARN_TURNSTILE == "gpt.turnstile_unsolved"
 
 
