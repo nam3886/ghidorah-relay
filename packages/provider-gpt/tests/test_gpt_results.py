@@ -18,7 +18,13 @@ from relay_gpt.errors import IMAGE_LOST, OUTPUT_MISSING, REFUSED
 RESULTS_FILE = "packages/provider-gpt/src/relay_gpt/engine/results.py"
 NEVER_NOT_SENT = "    return StillUnknown(answered=read_ok)\n"
 NOT_SENT = "    return __import__('relay_core.providers', fromlist=['x']).NotSent(covers_send_window=True)\n"
-CLAIMED = "        return False                 # claimed by another message id: never matched by its text\n"
+CLAIMED = "        return None                  # claimed by another message id: never matched by its text\n"
+ID_FIRST = "    if by_id:\n"
+NO_ID_FIRST = "    if False:\n"
+TEXT_RULE = "    if len(by_text) == 1 and read_ok and job.operation != \"image_to_image\":\n"
+TEXT_ANY = "    if len(by_text) >= 1 and read_ok and job.operation != \"image_to_image\":\n"
+TEXT_UNREAD = "    if len(by_text) == 1 and job.operation != \"image_to_image\":\n"
+TEXT_EDIT = "    if len(by_text) == 1 and read_ok:\n"
 NOT_CLAIMED = "        pass\n"
 HOST_CHECK = "    if parts.scheme != \"https\" or parts.netloc != SITE_HOST or parts.path != ESTUARY_PATH:\n"
 NO_HOST_CHECK = "    if False:\n"
@@ -159,12 +165,55 @@ def test_reconcile_takes_the_conversation_with_its_own_message_id_not_the_twin_p
                    ("GET", CONV + mine): Resp(json_body=conv(mine, OURS))})
     result, ctx = go_reconcile(maker, gpt_job())
     assert result == Found(mine, {STATE_CONVERSATION: mine}, taken=True), "matched the twin prompt"
+    # the twin alone (another job's message id, the same words) is never ours
+    maker = Maker({("GET", LIST): listing((twin, NOW + 2)),
+                   ("GET", CONV + twin): Resp(json_body=conv(twin, "other-job-message"))})
+    assert go_reconcile(maker, gpt_job())[0] == StillUnknown(answered=True), "matched the twin prompt"
     # text decides only when the user message id cannot be read, and only the exact sent text
     maker = Maker({("GET", LIST): listing((twin, NOW + 2), (mine, NOW + 9)),
                    ("GET", CONV + twin): Resp(json_body=conv(twin, None, PROMPT + " ")),
                    ("GET", CONV + mine): Resp(json_body=conv(mine, None))})
     assert go_reconcile(maker, gpt_job())[0] == Found(mine, {STATE_CONVERSATION: mine}, taken=True)
     assert ctx.refs == [] and "mark_sent" not in ctx.log
+
+
+@mutation(RESULTS_FILE, ID_FIRST, NO_ID_FIRST, expect="an older text match won over our own message id")
+def test_our_message_id_wins_over_an_older_text_match():
+    # the older conversation's user message id is unreadable (same words); the newer one has the job's own id
+    older, mine = "c-older", "c-mine"
+    maker = Maker({("GET", LIST): listing((older, NOW + 2), (mine, NOW + 9)),
+                   ("GET", CONV + older): Resp(json_body=conv(older, None)),
+                   ("GET", CONV + mine): Resp(json_body=conv(mine, OURS))})
+    result, _ = go_reconcile(maker, gpt_job())
+    assert result == Found(mine, {STATE_CONVERSATION: mine}, taken=True), \
+        "an older text match won over our own message id"
+
+
+@mutation(RESULTS_FILE, TEXT_RULE, TEXT_ANY, expect="a text match that is not unique was taken")
+@mutation(RESULTS_FILE, TEXT_RULE, TEXT_UNREAD, expect="a text match that is not unique was taken")
+def test_text_matches_only_when_unique_among_all_read():
+    a, b = "c-a", "c-b"
+    maker = Maker({("GET", LIST): listing((a, NOW + 2), (b, NOW + 9)),
+                   ("GET", CONV + a): Resp(json_body=conv(a, None)),
+                   ("GET", CONV + b): Resp(json_body=conv(b, None))})
+    assert go_reconcile(maker, gpt_job())[0] == StillUnknown(answered=True), \
+        "a text match that is not unique was taken"
+    # one text match, but another candidate could not be read: it may be the twin, nothing is proven
+    maker.table[("GET", CONV + b)] = Resp(502, text="bad gateway")
+    assert go_reconcile(maker, gpt_job())[0] == StillUnknown(answered=False), \
+        "a text match that is not unique was taken"
+
+
+@mutation(RESULTS_FILE, TEXT_RULE, TEXT_EDIT, expect="an edit was matched by its words alone")
+def test_an_edit_is_never_matched_by_its_words_alone():
+    only = "c-only"
+    maker = Maker({("GET", LIST): listing((only, NOW + 2)), ("GET", CONV + only): Resp(json_body=conv(only, None))})
+    edit = job(image=True, state={STATE_MESSAGE: OURS, STATE_PROMPT: PROMPT}, sent_at=SENT)
+    assert edit.operation == "image_to_image"
+    assert go_reconcile(maker, edit)[0] == StillUnknown(answered=True), "an edit was matched by its words alone"
+    # its own message id still finds it
+    maker.table[("GET", CONV + only)] = Resp(json_body=conv(only, OURS))
+    assert go_reconcile(maker, edit)[0] == Found(only, {STATE_CONVERSATION: only}, taken=True)
 
 
 def test_reconcile_by_known_conversation():

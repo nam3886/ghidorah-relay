@@ -6,11 +6,12 @@ is deleting, FINDINGS F7), so nothing here can spend or lose a result.
   tool message is the result, words with the answer finished are a refusal, still nothing `gpt.image_lost_after_s`
   after the send is a lost image. A 404 is a conversation gone with no result. A failed read is read again.
 - Reconcile: the conversation the stream named, else the account's recent conversations made in
-  [sent_at - FIND_BEFORE_S, sent_at + FIND_AFTER_S], oldest first. A conversation is the job's when a user message has
-  the job's own client-made message id; its exact sent text decides only when no user message id can be read, so a
-  conversation another job's message id claims is never taken for its twin prompt. Nothing found is `StillUnknown`,
-  NEVER `NotSent`: a read may lag the send, and a requeue would send it again; the render deadline fails such a job
-  with its refund.
+  [sent_at - FIND_BEFORE_S, sent_at + FIND_AFTER_S], oldest first, all of them read. A conversation is the job's when a
+  user message has the job's own client-made message id (that wins over any other); the exact sent text decides only
+  when no user message id can be read there, exactly one conversation qualifies, every read worked and the job is not
+  an edit, so a conversation another job's message id claims is never taken for its twin prompt. Nothing found is
+  `StillUnknown`, NEVER `NotSent`: a read may lag the send, and a requeue would send it again; the render deadline
+  fails such a job with its refund.
 - Fetch: the attachment's `download_url` (relative or absolute) must be `https://chatgpt.com` + ESTUARY_PATH; any
   other place ends the fetch before a request carries the bearer. The bytes come with the bearer only (no cookie).
 """
@@ -116,16 +117,16 @@ def _text(message: dict) -> str:
     return "".join(p for p in (message.get("content") or {}).get("parts") or [] if isinstance(p, str))
 
 
-def is_ours(body: dict, message_id: str, prompt: str | None) -> bool:
-    """The conversation holds the job's send: a user message with its message id; else, only when no user message id
-    can be read, a user message with exactly its sent text."""
+def match(body: dict, message_id: str, prompt: str | None) -> str | None:
+    """How the conversation holds the job's send: "id" (a user message with its message id), "text" (no user message
+    id can be read and a user message has exactly its sent text), or None (claimed by another message id, or not it)."""
     users = _user_messages(body)
     ids = [m.get("id") for m in users]
     if message_id in ids:
-        return True
+        return "id"
     if any(isinstance(i, str) and i for i in ids):
-        return False                 # claimed by another message id: never matched by its text
-    return bool(prompt) and any(_text(m) == prompt for m in users)
+        return None                  # claimed by another message id: never matched by its text
+    return "text" if prompt and any(_text(m) == prompt for m in users) else None
 
 
 def _when(value: Any) -> float | None:
@@ -165,34 +166,37 @@ async def reconcile(ctx, job, settings, sessions: Sessions, *, session=None,
                               _state(job, STATE_CONVERSATION))
     if message is None or (known is None and job.sent_at is None):
         return StillUnknown()
-    read_ok = True
+    read_ok, kinds = True, {}
     try:
         async with Web(ctx.account, settings, sessions, ctx, session=session, make_session=make_session) as web:
             await web.access_token()
             if known is not None:
-                status, body = await _read(web, known)
-                if status != 200 or not isinstance(body, dict):
+                cids = [known]
+            else:
+                status, listing = await web.get_json("/backend-api/conversations?offset=0&limit=%d&order=updated"
+                                                     % LIST_LIMIT)
+                cids = candidates(listing, job.sent_at.timestamp()) if status == 200 else None
+                if cids is None:
                     return StillUnknown()
-                if is_ours(body, message, prompt):
-                    return Found(known, {STATE_CONVERSATION: known}, taken=True)
-                return StillUnknown(answered=True)
-            status, listing = await web.get_json("/backend-api/conversations?offset=0&limit=%d&order=updated"
-                                                 % LIST_LIMIT)
-            ids = candidates(listing, job.sent_at.timestamp()) if status == 200 else None
-            if ids is None:
-                return StillUnknown()
-            for cid in ids:
+            for cid in cids:             # every candidate is read: a later one may hold the job's own message id
                 status, body = await _read(web, cid)
                 if status != 200 or not isinstance(body, dict):
                     read_ok = False
                     continue
-                if is_ours(body, message, prompt):
-                    return Found(cid, {STATE_CONVERSATION: cid}, taken=True)
+                kinds[cid] = match(body, message, prompt)
     except SignedOut:
         return StillUnknown(effects=doubt_effects("chatgpt.com answered the reconcile read signed out", settings,
                                                   now()))
     except Exception:      # noqa: BLE001 - any failed read settles nothing
         return StillUnknown()
+    by_id = [cid for cid, kind in kinds.items() if kind == "id"]
+    if by_id:
+        return Found(by_id[0], {STATE_CONVERSATION: by_id[0]}, taken=True)
+    # The sent text alone decides only when it is unique among conversations that were all read, and never for an
+    # edit (the same words on another input image is another order).
+    by_text = [cid for cid, kind in kinds.items() if kind == "text"]
+    if len(by_text) == 1 and read_ok and job.operation != "image_to_image":
+        return Found(by_text[0], {STATE_CONVERSATION: by_text[0]}, taken=True)
     return StillUnknown(answered=read_ok)
 
 
