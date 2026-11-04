@@ -1337,8 +1337,11 @@ import is checked by hand before claims are turned on (identity names the right 
 an edit (uploaded to `*.oaiusercontent.com`), the sentinel (chat-requirements prepare, the relay's own proof of work,
 the Turnstile answer, finalize) and the conduit token (`f/conversation/prepare`). Then the client-made message id and
 the exact text sent are written to the job, `mark_sent`, and ONE `POST /backend-api/f/conversation` in a new
-conversation. Its stream is read to the end (held, at most 300 s); the conversation it names is written to the job at
-once. Nothing is ever sent again for the job.
+conversation. Its stream is read to the end (held for what is left of the 480 s submit bound, less 30 s, so the
+worker never cuts a submit in the middle of the stream); the conversation it names is written to the job at once
+(`provider_state.conversation_id`, the key the job drawer shows). Nothing is ever sent again for the job. A call
+answered 401 forgets the cached access token, reads `/api/auth/session` once more and makes the call again; a second
+401 is signed out. The paid send itself is never made again: its 401 is a send answered not 200.
 
 How an order is judged:
 
@@ -1346,14 +1349,14 @@ How an order is judged:
 |---|---|---|
 | before the send | the session read or a call answered signed out | tried again (`pool.account_logged_out`), one spaced strike, the account rests `gpt.signed_out_rest_s` and is rechecked |
 | before the send | the proxy could not reach chatgpt.com | tried again (`pool.proxy_failed`), the proxy is marked bad, the account rests `gpt.network_rest_s` |
-| before the send | a step answered an error (home page, sentinel, conduit, upload; or an input image too large or unreadable) | tried again (`gpt.http_error`, one of 3 attempts; out of attempts: failed, refunded) |
+| before the send | a step answered an error (home page, sentinel, conduit, upload; or an input image too large or unreadable) | tried again (`gpt.http_error`, one of 3 attempts; out of attempts: failed, refunded); a 403, a 429 or Cloudflare's page also rests the account `gpt.network_rest_s` |
 | before the send | `image_gen` remaining 0 | refusal of the account (`gpt.image_limit`): the job goes to another account with no attempt used, the image pool reads 0 until the limit's reset |
 | before the send | prepare asked for `arkose` or `force_login` | refusal of the account (`gpt.challenge_required`): another account, this one rests `gpt.challenge_rest_s`; the relay never answers a challenge |
 | before the send | the account refusals reached `gpt.refusal_max_accounts` | failed `gpt.unavailable`, refunded |
 | after the send | an image in a finished tool message | done (the image's `sediment://` pointer; the input image of an edit, in the user message, is never a result) |
-| after the send | the answer finished in words with no image, or a moderation block | failed `gpt.refused` (public `content_refused`), refunded |
+| after the send | the answer finished in words with no image (an assistant message ended its turn and the stream ended), or a moderation block | failed `gpt.refused` (public `content_refused`), refunded |
 | after the send | the stream named the conversation, then broke or outran the hold | taken: the conversation is polled every `gpt.poll_interval_s` |
-| after the send | not 200, or the stream ended before naming a conversation | unknown: the reconciler |
+| after the send | not 200 (the account also rests `gpt.network_rest_s`), or the stream ended before naming a conversation | unknown: the reconciler |
 | poll | an image / words with no image | done / failed `gpt.refused`, refunded |
 | poll | the conversation is gone (404), or shows no image `gpt.image_lost_after_s` after the send | failed `gpt.image_lost`, refunded |
 | poll | the read failed or answered signed out | read again (signed out: one spaced strike) |
@@ -1379,6 +1382,11 @@ upstream link is never handed to a client. A conversation or file that is gone i
 conversation is the reconcile handle and the download source), never calls a token refresh or rotate endpoint, and
 never sends a job twice.
 
+**Refusal alert.** A send answered in words with no image (the answer finished its turn, the stream ended) is
+`gpt.refused`, refunded. Above `gpt.alert_refused_rate` of the last 24 h jobs the drift alert fires: a silent upstream
+limit on the accounts answers like a refusal, so check a few refused jobs' texts and the accounts' image quota before
+blaming the prompts. Refusals never rest the account by themselves.
+
 **Turnstile alert.** chatgpt.com's sentinel sends a Turnstile program (`turnstile.dx`) in every prepare; the relay
 answers it with a solver ported from aurora (MIT, `engine/turnstile.py`). When the solver fails, the send goes on with
 an empty answer (chatgpt.com accepts that today) and the job carries the warning `gpt.turnstile_unsolved`; above
@@ -1388,7 +1396,8 @@ home page every `gpt.page_max_age_s`, so the proof-of-work config follows a new 
 does not. When the alert fires:
 1. Check that jobs still deliver (empty answers accepted): if they do, nothing is urgent.
 2. Record a new `{p, dx}` from the current build (the way the spike's `dxdump.py` did) into
-   `fixtures/gpt/spike-261104/turnstile_dx.json` (redacted with `scripts/redact-fixtures.py`), make
+   `fixtures/gpt/spike-261104/turnstile_dx.json`, from a SIGNED-OUT prepare (a random device id, no bearer, so `p`
+   holds no account value) and copied unredacted: redaction would break the XOR of `dx` with `p` (FINDINGS F4). Make
    `packages/provider-gpt/tests/test_gpt_turnstile.py` pass against it, and port aurora's change if it has one.
 3. If jobs start failing at the sentinel (`gpt.http_error` before the send), drain gpt (`gpt.claims_enabled` false)
    until the solver is fixed. The same holds when the proof of work changes.
@@ -1403,9 +1412,10 @@ does not. When the alert fires:
 | `gpt.page_max_age_s` | 3600 | the home page's build id and `sdk.js` address are reused this long, 300-86400 |
 | `gpt.signed_out_rest_s` | 600 | the rest after a signed-out read, then a recheck |
 | `gpt.signed_out_gap_s` | 540 | a signed-out read this soon after the last counted strike adds none |
-| `gpt.network_rest_s` | 300 | the rest after the proxy could not reach chatgpt.com in a submit |
+| `gpt.network_rest_s` | 300 | the rest after the proxy could not reach chatgpt.com in a submit, a step before the send was answered 403, 429 or with Cloudflare's page, or the send itself was answered not 200 |
 | `gpt.challenge_rest_s` | 3600 | the rest after prepare asked for a challenge or a new login |
 | `gpt.alert_turnstile_rate` | 0.2 | drift alert: share of the last 24 h jobs sent with an empty Turnstile answer (0 to 1) |
+| `gpt.alert_refused_rate` | 0.5 | drift alert: share of the last 24 h jobs that ended `gpt.refused` (0 to 1) |
 | `gpt.refusal_max_accounts` | 2 | accounts one job may try on an image limit or a challenge before it fails refunded (`gpt.unavailable`), 1-9 |
 | `gpt.prices`, `gpt.costs` | 1 per job | points per `gpt-image` job; one job of the image budget |
 | `gpt.pools` | image: free 3, pro 40, ultra 100 a day | images per account per day by tier |

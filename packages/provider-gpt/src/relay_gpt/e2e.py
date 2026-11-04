@@ -1,15 +1,19 @@
 """gpt end-to-end run against the live service: `relay e2e --provider gpt`.
 
 It makes a temporary API key with a small points wallet, draws one 1:1 `gpt-image` from a text prompt through the
-running API, waits for it, checks the delivered file is a real PNG, and disables the key afterwards. It SPENDS one image
-of a chatgpt.com account (a real generation) and so refuses unless `RELAY_E2E_SPEND=yes`. Environment: `DATABASE_URL`
+running API, then one edit of a small PNG (made here), waits for each, checks each delivered file is a real PNG, and
+disables the key afterwards. It SPENDS two images of a chatgpt.com account (real generations) and so refuses unless
+`RELAY_E2E_SPEND=yes`. Environment: `DATABASE_URL`
 (a role that may create keys), `RELAY_E2E_URL` (the API, default http://127.0.0.1:8100). Never prints a key.
 """
 
 import asyncio
+import base64
 import os
+import struct
 import sys
 import time
+import zlib
 from collections.abc import Mapping
 
 import httpx
@@ -21,6 +25,16 @@ from relay_gpt.catalog import IMAGE_MODEL
 MIN_BYTES = 10_000       # a real drawing is MBs (1254x1254 PNG); an error page or an empty file is far below this
 WAIT_S = 600             # the stream ends in 21-26 s (FINDINGS); its submit bound is 480 s, plus a queue
 POLL_S = 15              # the same cadence as dola's e2e
+EDIT_SIDE = 64           # the edit's input: a small square PNG, made here
+
+
+def small_png(side: int = EDIT_SIDE) -> bytes:
+    """A plain blue `side` x `side` RGB PNG (stdlib only)."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    rows = b"".join(b"\x00" + b"\x20\x40\xc0" * side for _ in range(side))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", side, side, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
 
 
 def png_ok(data: bytes) -> bool:
@@ -51,30 +65,41 @@ async def run(env: Mapping[str, str]) -> int:
 
 
 async def _generate(base: str, raw_key: str) -> int:
+    """The text-to-image case, then the edit case (one small PNG input); 0 only when both delivered a PNG."""
     headers = {"Authorization": "Bearer " + raw_key}
+    edit = "data:image/png;base64," + base64.b64encode(small_png()).decode()
     async with httpx.AsyncClient(base_url=base, headers=headers, timeout=60) as http:
-        made = await http.post("/v1/images/generations", json={
-            "model": IMAGE_MODEL, "ratio": "1:1", "prompt": "A paper boat drifting on a calm pond at sunrise"})
-        if made.status_code >= 300:
-            print("relay e2e gpt: create answered %d" % made.status_code, file=sys.stderr)
-            return 1
-        job = made.json()["id"]
-        end = time.monotonic() + WAIT_S
-        while time.monotonic() < end:
-            state = (await http.get("/v1/images/generations/%s" % job)).json()
-            if state["status"] == "failed":
-                print("relay e2e gpt: job failed: %s" % state.get("error_code"), file=sys.stderr)
+        for name, body in (("t2i", {"model": IMAGE_MODEL, "ratio": "1:1",
+                                    "prompt": "A paper boat drifting on a calm pond at sunrise"}),
+                           ("edit", {"model": IMAGE_MODEL, "image": edit,
+                                     "prompt": "Turn this blue square into a night sky with a full moon"})):
+            if await _one(http, name, body) != 0:
                 return 1
-            if state["status"] == "done":
-                break
-            await asyncio.sleep(POLL_S)
-        else:
-            print("relay e2e gpt: no result in %d s" % WAIT_S, file=sys.stderr)
+    return 0
+
+
+async def _one(http, name: str, body: dict) -> int:
+    made = await http.post("/v1/images/generations", json=body)
+    if made.status_code >= 300:
+        print("relay e2e gpt %s: create answered %d" % (name, made.status_code), file=sys.stderr)
+        return 1
+    job = made.json()["id"]
+    end = time.monotonic() + WAIT_S
+    while time.monotonic() < end:
+        state = (await http.get("/v1/images/generations/%s" % job)).json()
+        if state["status"] == "failed":
+            print("relay e2e gpt %s: job failed: %s" % (name, state.get("error_code")), file=sys.stderr)
             return 1
-        image = await http.get("/v1/images/generations/%s/content/0" % job)
-        image.raise_for_status()
+        if state["status"] == "done":
+            break
+        await asyncio.sleep(POLL_S)
+    else:
+        print("relay e2e gpt %s: no result in %d s" % (name, WAIT_S), file=sys.stderr)
+        return 1
+    image = await http.get("/v1/images/generations/%s/content/0" % job)
+    image.raise_for_status()
     ok = png_ok(image.content)
-    print("relay e2e gpt: %s, %d bytes" % ("OK" if ok else "NOT A PNG", len(image.content)))
+    print("relay e2e gpt %s: %s, %d bytes" % (name, "OK" if ok else "NOT A PNG", len(image.content)))
     return 0 if ok else 1
 
 

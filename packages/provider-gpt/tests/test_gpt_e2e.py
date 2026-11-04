@@ -79,3 +79,28 @@ def test_only_a_png_of_some_size_passes():
     assert e2e.png_ok(PNG)
     assert not e2e.png_ok(b"\xff\xd8\xff" + b"\x00" * 20_000) and not e2e.png_ok(b"<html>" + b"\x00" * 20_000)
     assert not e2e.png_ok(PNG[:500])
+
+
+def test_the_run_draws_then_edits_one_small_png(monkeypatch):
+    import base64
+    import json
+
+    import httpx
+    posts: list[dict] = []
+
+    def site(request):
+        if request.method == "POST":
+            posts.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": "job-%d" % len(posts)})
+        if request.url.path.endswith("/content/0"):
+            return httpx.Response(200, content=PNG)
+        return httpx.Response(200, json={"status": "done"})
+    real = httpx.AsyncClient
+    monkeypatch.setattr(e2e.httpx, "AsyncClient",
+                        lambda **kw: real(transport=httpx.MockTransport(site), **kw))
+    assert asyncio.run(e2e._generate("http://api.invalid", "rk_x")) == 0
+    assert len(posts) == 2 and "image" not in posts[0] and posts[0]["ratio"] == "1:1"
+    image = posts[1]["image"]
+    assert image.startswith("data:image/png;base64,")
+    data = base64.b64decode(image.split(",", 1)[1])
+    assert data[:8] == b"\x89PNG\r\n\x1a\n" and data[16:24] == (64).to_bytes(4, "big") * 2
