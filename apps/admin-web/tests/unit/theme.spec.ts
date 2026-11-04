@@ -197,6 +197,7 @@ const PF = {
   gemini: ["#c2410c", "#fdba74"],
   qwen: ["#8a6700", "#fde047"],
   muse: ["#0369a1", "#7dd3fc"],
+  gpt: ["#15803d", "#86efac"],
 };
 const PB = {
   dola: ["#ddf6f2", "#0f2e2b"],
@@ -206,6 +207,7 @@ const PB = {
   gemini: ["#feebdc", "#3a1e0c"],
   qwen: ["#fbf1d0", "#33290a"],
   muse: ["#e0f2fe", "#0c2a3d"],
+  gpt: ["#dcfce7", "#0d2e1a"],
 };
 
 describe("the Ledger tokens", () => {

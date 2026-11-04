@@ -119,6 +119,9 @@ html:root {
   --p-muse: #0369a1;
   --p-muse-soft: #e0f2fe;
   --p-muse-ink: #0369a1;
+  --p-gpt: #15803d;
+  --p-gpt-soft: #dcfce7;
+  --p-gpt-ink: #15803d;
 }
 
 html.dark:root {
@@ -224,6 +227,9 @@ html.dark:root {
   --p-muse: #7dd3fc;
   --p-muse-soft: #0c2a3d;
   --p-muse-ink: #7dd3fc;
+  --p-gpt: #86efac;
+  --p-gpt-soft: #0d2e1a;
+  --p-gpt-ink: #86efac;
 }
 
 /* A provider's colours, by class (lib/providers.ts `providerClass`): --pc and --pi the ink (PF), --ps the fill (PB).
@@ -262,6 +268,11 @@ html.dark:root {
   --pc: var(--p-muse);
   --ps: var(--p-muse-soft);
   --pi: var(--p-muse-ink);
+}
+.p-gpt {
+  --pc: var(--p-gpt);
+  --ps: var(--p-gpt-soft);
+  --pi: var(--p-gpt-ink);
 }
 .p-other {
   --pc: var(--rl-neutral);
