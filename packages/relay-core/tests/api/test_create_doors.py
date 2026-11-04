@@ -976,3 +976,72 @@ def test_the_options_of_a_request_are_bounded_and_nothing_is_made_over_the_bound
 
     run_app(db, scenario)
 
+
+
+# ---- input images given as URLs load at once, within IMAGES_TOTAL_S --------------------------------------------
+@mutation(DOORS, "    loaded = await load_images(req.images)",
+          "    loaded = [(ref, *await load_image(ref)) for ref in req.images]", expect="at once")
+@mutation(DOORS, "        raise ApiError(\"input.image_unreadable\", refs[len(loaded)].param) from None",
+          "        raise", expect="past the total")
+def test_slow_image_urls_load_at_once_and_a_set_past_the_total_is_refused_at_once_with_no_job(db, monkeypatch):
+    import asyncio
+    import time
+
+    async def serve(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(3.0 if "stuck" in request.url.path else 0.5)
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+
+    monkeypatch.setitem(doors.NET_OPTIONS, "transport", httpx.MockTransport(serve))
+    monkeypatch.setattr(doors, "IMAGES_TOTAL_S", 1.5)
+
+    async def scenario(env):
+        key = await env.new_key()
+        urls = ["https://93.184.216.34/%d.png" % i for i in range(4)]
+        began = time.monotonic()
+        r = await env.client.post(VIDEO_PATH, json=video(images=urls), headers=key.headers)
+        took = time.monotonic() - began
+        assert r.status_code == 200, r.text
+        assert took < 1.4, "four 0.5 s images load at once, not one after another: %.1f s" % took
+        other = await env.new_key()
+        try:
+            r = await env.client.post(VIDEO_PATH, json=video(images=[urls[0], "https://93.184.216.34/stuck.png"]),
+                                      headers=other.headers)
+        except Exception as e:         # an unmapped TimeoutError ends as a server error, not as the refusal
+            raise AssertionError("past the total: %r" % e) from None
+        assert error_of(r) == (400, "input.image_unreadable", "images.1"), "past the total: %s" % r.text
+        assert not jobs(db, other.id) and charges(db, key_id=other.id) == 0, nothing_made(db, other)
+
+    run_app(db, scenario)
+
+
+@mutation(DOORS, "            task.cancel()\n", "            pass\n", expect="not waited for")
+def test_the_first_image_in_the_request_order_that_fails_answers_without_waiting_for_slower_ones_after_it(
+        db, monkeypatch):
+    import asyncio
+    import time
+
+    async def serve(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        await asyncio.sleep(0.6 if "slow-bad" in path else 3.0 if "late" in path else 0.0)
+        return httpx.Response(404 if "bad" in path else 200, content=PNG)
+
+    monkeypatch.setitem(doors.NET_OPTIONS, "transport", httpx.MockTransport(serve))
+    monkeypatch.setattr(doors, "IMAGES_TOTAL_S", 5.0)
+
+    async def scenario(env):
+        key = await env.new_key()
+        # images.1 is refused at once (http, not https); images.0 fails later: the order decides, not the clock
+        r = await env.client.post(VIDEO_PATH, json=video(images=["https://93.184.216.34/slow-bad.png",
+                                                                  "http://93.184.216.34/b.png"]),
+                                  headers=key.headers)
+        assert error_of(r) == (400, "input.image_unreadable", "images.0"), "request order: %s" % r.text
+        began = time.monotonic()
+        r = await env.client.post(VIDEO_PATH, json=video(images=["https://93.184.216.34/ok.png",
+                                                                  "https://93.184.216.34/bad.png",
+                                                                  "https://93.184.216.34/late.png"]),
+                                  headers=key.headers)
+        assert error_of(r) == (400, "input.image_unreadable", "images.1"), r.text
+        assert time.monotonic() - began < 2.0, "the 3 s image after the failed one is not waited for"
+        assert not jobs(db, key.id), "no job"
+
+    run_app(db, scenario)

@@ -122,6 +122,7 @@ CORE: tuple[FixedLimit, ...] = (
     _c(doors, "RETRY_WINDOW_S", "a retry with no Idempotency-Key finds its job this far back", "s"),
     _c(doors, "MAX_BODY_BYTES", "a request body: ten images of 12 MiB as base64, plus the text", "bytes"),
     _c(doors, "NET_OPTIONS", "fetching an image the client gave as a URL: its size and its time"),
+    _c(doors, "IMAGES_TOTAL_S", "all input images of a request, fetched at once, load within this", "s"),
     _c(facade_common, "HOLD_LIMIT_S", "a stream waits this long at most", "s"),
     _c(facade_common, "NON_STREAM_HOLD_S", "a non-stream request answers within this, below the OpenAI SDK's 600 s "
        "timeout", "s"),

@@ -74,6 +74,7 @@ RETRY_WINDOW_S = 30 * 60                # a facade retry with no Idempotency-Key
 MAX_BODY_BYTES = 170 * 1024 * 1024      # ten images of 12 MiB as base64, plus the text
 # Foreign fetches of client image URLs go through `net`; a test passes `transport` / `resolver` here.
 NET_OPTIONS: dict[str, Any] = {"max_bytes": MAX_IMAGE_BYTES, "timeout_s": 20.0}
+IMAGES_TOTAL_S = 45.0       # all input images of a request, fetched at once, load within this
 
 _DATA_URI = re.compile(r"data:[^,;]*(?:;[^,;]*)*;base64,(.*)", re.DOTALL)
 # The request field a plan() refusal is about when the provider names none, by the reason part of its code.
@@ -425,6 +426,29 @@ async def load_image(ref: ImageRef) -> tuple[bytes, str]:
     return data, mime
 
 
+async def load_images(refs: Sequence[ImageRef]) -> list[tuple[ImageRef, bytes, str]]:
+    """Every input image, fetched at once, read back in the request's order: the answer is the error of the first
+    image that failed, as one at a time gave, and comes as soon as the images before it are in (a slower one after it
+    is not waited for). Past IMAGES_TOTAL_S the first unfinished image is `input.image_unreadable`, so a proxy in front
+    (Cloudflare cuts at 100 s) still sees the hold or the stream start. Nothing is created on an error; the fetches
+    still running are cancelled whatever ends the wait (an error, the total, the request's own cancel)."""
+    tasks = [asyncio.ensure_future(load_image(ref)) for ref in refs]
+    loaded: list[tuple[ImageRef, bytes, str]] = []
+    try:
+        async with asyncio.timeout(IMAGES_TOTAL_S) as total:
+            for ref, task in zip(refs, tasks, strict=True):
+                loaded.append((ref, *await task))
+    except TimeoutError:
+        if not total.expired():
+            raise
+        raise ApiError("input.image_unreadable", refs[len(loaded)].param) from None
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)  # every outcome read: no "exception never retrieved"
+    return loaded
+
+
 async def check_callback(url: str) -> None:
     try:
         await net.check_url(url, NET_OPTIONS.get("resolver", net.system_resolver))
@@ -501,7 +525,7 @@ async def create_job_for(gate: Gate, key: ApiKey, req: DoorRequest) -> Made:
         await check_callback(req.callback_url)
     source_id, source = (None, None) if req.source_job_id is None else await source_of(
         gate.pool, key.id, req.source_job_id, req.source_index)
-    loaded = [(ref, *await load_image(ref)) for ref in req.images]
+    loaded = await load_images(req.images)
     media = tuple([MediaIn(await asyncio.to_thread(_sha256, data), mime, len(data)) for _, data, mime in loaded])
     creq = CreateRequest(model=req.model, prompt=prompt, duration=req.duration, ratio=req.ratio, n=req.n,
                          images=media, options=dict(req.options), title=req.title, callback_url=req.callback_url,

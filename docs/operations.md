@@ -354,9 +354,9 @@ A non-stream `/v1/chat/completions` or `generateContent` holds the request until
 `non_stream_hold_s` (default 540, at most 540: below the OpenAI SDK's 600 s timeout), counted from the start of the
 request; then it answers with the poll hint and the job runs on. Behind Cloudflare it is 80: Cloudflare cuts a request
 that has sent nothing for 100 s (a 524, which the SDK re-sends). A stream says it is alive every 5 s and is not cut.
-Not covered: the job is created before the hold or the stream starts, and its input images given as URLs are fetched
-one after another (20 s each at most), so a request with many slow image URLs can still pass 100 s before its first
-byte; a 524 then, with the job created and charged.
+The job is created before the hold or the stream starts: its input images given as URLs are fetched at once, 20 s
+each at most and 45 s for all of them (`IMAGES_TOTAL_S`); past that the first unfinished image is
+`input.image_unreadable` and nothing is created or charged, so the first byte still comes well inside 100 s.
 
 A status read of a `waiting` job may run one median query over recent finished jobs of its model and duration: at most one per shape every 5 minutes, in its own transaction with a 500 ms statement timeout; if it fails or is slow the answer is still served (progress by stage, no estimated finish) and the api log carries a one-line warning. It needs no index at today's volume; past about 200 000 rows in `jobs`, add a partial index on `(provider, model, finished_at DESC) WHERE status = 'done'`, built concurrently outside a migration transaction.
 
