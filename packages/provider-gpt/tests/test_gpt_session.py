@@ -182,6 +182,34 @@ def test_a_session_without_access_token_is_signed_out_and_a_401_forgets_the_toke
     assert sessions.token(ctx.account.id, ctx.account.credential_gen) is None
 
 
+def test_a_401_reads_the_session_again_once_then_makes_the_call_again():
+    clock = Clock()
+    sessions = Sessions(clock=clock)
+    fresh = access_token(user="user-UID2")
+    maker = Maker(routes(**{"GET /api/auth/session": Resp(json_body=session_body(fresh)),
+                            "GET /backend-api/me": [Resp(401, text="{}"), Resp(json_body={"ok": True})]}))
+    ctx = Ctx(maker.log)
+    sessions.keep_token(ctx.account.id, ctx.account.credential_gen, ACCESS)     # a cached bearer gone stale
+
+    async def me():
+        async with Web(ctx.account, ctx.settings, sessions, ctx, make_session=maker) as web:
+            await web.access_token()
+            got = await web.get_json("/backend-api/me")
+            return got, web.signed_out
+    assert run(me()) == ((200, {"ok": True}), False)
+    assert maker.paths() == ["/backend-api/me", "/api/auth/session", "/backend-api/me"]
+    auths = [h.get("Authorization") for _, url, h in maker.log if urlsplit(url).path == "/backend-api/me"]
+    assert auths == ["Bearer " + ACCESS, "Bearer " + fresh], "the second call carries the bearer read again"
+    assert sessions.token(ctx.account.id, ctx.account.credential_gen) == fresh
+    assert not any("oauth" in p or "refresh" in p for p in maker.paths())
+    # a second 401 after the read: signed out, nothing tried a third time
+    maker = Maker(routes(**{"GET /backend-api/me": Resp(401, text="{}")}))
+    ctx, sessions = Ctx(maker.log), Sessions(clock=clock)
+    with pytest.raises(SignedOut):
+        run(me())
+    assert maker.paths() == ["/api/auth/session", "/backend-api/me", "/api/auth/session", "/backend-api/me"]
+
+
 # ---- proxy and redirects ----------------------------------------------------------------------------------------
 @mutation(WEB_FILE, PROXIES_LINE, NO_PROXIES_LINE, expect="the session must use the account proxy")
 def test_every_call_goes_through_the_account_proxy():
@@ -299,7 +327,7 @@ def test_uploads_and_media_go_only_to_their_hosts():
 @mutation(WEB_FILE, WRITE_BACK, NO_WRITE_BACK, expect="the re-set session cookie was not kept")
 def test_a_re_set_session_cookie_is_written_back_merged():
     # Review Focus 3: the split .0/.1 comes back as a single .0 (the .1 deleted): the stored set is replaced whole
-    maker = Maker(routes(**{"GET /api/auth/session": Resp(json_body=session_body(), cookies={S0: NEW0, S1: ""})}))
+    maker = Maker(routes(**{"GET /api/auth/session": Resp(json_body=session_body(), cookies={S0: NEW0, S1: None})}))
     ctx = Ctx(maker.log)
     ctx.stored = parse_credential(json.dumps([*export(), {"domain": "chatgpt.com", "name": "other-run",
                                                           "value": "1"}]).encode()).blob
@@ -315,12 +343,62 @@ def test_a_re_set_session_cookie_is_written_back_merged():
     assert ctx.renewed == []
 
 
+def test_real_curl_cffi_drops_a_part_the_answer_expired(monkeypatch):
+    """chatgpt.com shrinks `.0/.1` to `.0` by expiring `.1` (Max-Age=0). The locked curl_cffi applies curl's DELETE to
+    its own jar, so the write-back (which reads that jar) never pairs a new `.0` with a stale `.1`. Real curl_cffi
+    against a loopback server: nothing leaves the box, no proxy is involved for 127.0.0.1."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from curl_cffi import AsyncSession
+
+    from relay_gpt.constants import IMPERSONATE
+
+    class Site(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            if self.path == "/split":
+                self.send_header("Set-Cookie", S0 + "=old0; Path=/; Secure")
+                self.send_header("Set-Cookie", S1 + "=old1; Path=/; Secure")
+            else:
+                self.send_header("Set-Cookie", S0 + "=new0; Path=/; Secure")
+                self.send_header("Set-Cookie", S1 + "=; Path=/; Max-Age=0; Secure")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    for name in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = "http://127.0.0.1:%d" % server.server_address[1]
+
+    async def go():
+        s = AsyncSession(impersonate=IMPERSONATE)
+        try:
+            await s.get(base + "/split", timeout=10)
+            before = {c.name: c.value for c in s.cookies.jar}
+            await s.get(base + "/shrink", timeout=10)
+            return before, {c.name: c.value for c in s.cookies.jar}
+        finally:
+            await s.close()
+    try:
+        before, after = run(go())
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert session_parts(before) == {S0: "old0", S1: "old1"}, "the loopback site did not set both parts"
+    assert session_parts(after) == {S0: "new0"}, "a part the answer expired stayed in curl_cffi's jar"
+
+
 @mutation(WEB_FILE, STAMP_AT_RESET, STAMP_AT_EXIT, expect="the cookie given later must win")
 def test_overlapping_runs_keep_the_cookie_given_last_not_the_run_ended_last():
     # run A gets its cookie first and keeps going (a long stream); run B gets a newer one and ends first; A ends last
     new_a, new_b = "eyJ-PLANTED-session-run-a", "eyJ-PLANTED-session-run-b"
     clock = Clock()
-    answers = [Resp(json_body=session_body(), cookies={S0: new, S1: ""}) for new in (new_a, new_b)]
+    answers = [Resp(json_body=session_body(), cookies={S0: new, S1: None}) for new in (new_a, new_b)]
     maker = Maker(routes(**{"GET /api/auth/session": answers}))
     ctx = Ctx(maker.log)
 
@@ -454,7 +532,7 @@ def test_net_error_text_holds_no_proxy_login():
 
 def test_nothing_secret_reaches_the_log(caplog):
     maker = Maker(routes(**{"GET /api/auth/session": Resp(json_body=session_body(access_token(plan="weird")),
-                                                          cookies={S0: NEW0, S1: ""})}))
+                                                          cookies={S0: NEW0, S1: None})}))
     ctx = Ctx(maker.log)
     with caplog.at_level(logging.DEBUG):
         health = check(maker, ctx)

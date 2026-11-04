@@ -95,7 +95,7 @@ async def poll(ctx, job, settings, sessions: Sessions, *, session=None,
     if said == "image":
         image = reading.images[0]
         return PollResult(Done((Output(image.pointer, IMAGE_MIME, 0, image.file_id, {
-            "conversation": cid, "width": image.width, "height": image.height}),)),
+            STATE_CONVERSATION: cid, "width": image.width, "height": image.height}),)),
             effects=(Success(),), title=reading.title)
     if said == "refused":
         return PollResult(Failed(REFUSED, "chatgpt.com: %s" % (reading.assistant_text.strip() or "blocked")[:300],
@@ -218,7 +218,7 @@ async def fetch(ctx, out: Output, settings, sessions: Sessions, *, session=None,
                 make_session: Callable[[dict[str, str] | None], Any] = real_session) -> AsyncIterator[bytes]:
     """The bytes of `out` (one image), yielded once. A conversation or file that is gone -> OutputGone; any other
     failure raises and the core downloads again."""
-    cid, file_id = (out.meta or {}).get("conversation"), out.upstream_id
+    cid, file_id = (out.meta or {}).get(STATE_CONVERSATION), out.upstream_id
     if not isinstance(cid, str) or not cid or not file_id:
         raise OutputGone(OUTPUT_MISSING, "the result names no conversation or no file")
     async with Web(ctx.account, settings, sessions, ctx, session=session, make_session=make_session) as web:

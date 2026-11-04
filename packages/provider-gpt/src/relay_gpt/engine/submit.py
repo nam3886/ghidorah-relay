@@ -14,12 +14,14 @@ Money rules that shape this file (each has a test and a mutation):
 - After `mark_sent` there is no Retry and no NotTaken (no rejection shape was ever recorded, design 1c): an image is
   `Completed`; a complete answer in words (or a blocked moderation) is `Fail(gpt.refused)`, refunded; any other end
   with a conversation named (a cut stream, the hold over) is `Accepted(taken)` and polled; with none named, a non-200
-  answer or any failure is `Ambiguous` and reconciled.
+  answer or a broken stream is `Ambiguous` and reconciled. The stream is held for what is left of SUBMIT_TIMEOUT_S
+  (less SUBMIT_MARGIN_S), so the core never cancels a submit in the middle of it.
 - Every result after the send rests the account's image pool (`gpt.account_min_gap_s`).
 - A failed Turnstile solver sends with an empty answer and warns `gpt.turnstile_unsolved`.
 
 Before `mark_sent` every failure is an ordinary retry: signed out `pool.account_logged_out` with a spaced strike, a
-proxy that cannot reach chatgpt.com `pool.proxy_failed`, an error answer `gpt.http_error`, a challenge an account
+proxy that cannot reach chatgpt.com `pool.proxy_failed`, an error answer `gpt.http_error` (a 403, a 429 or Cloudflare's
+page also rests the account `gpt.network_rest_s`, as does a send answered not 200), a challenge an account
 refusal (`gpt.challenge_required`). No secret goes into a log, an event, a result or `provider_state`.
 """
 
@@ -53,7 +55,7 @@ from relay_gpt.constants import (
     STATE_CONVERSATION,
     STATE_MESSAGE,
     STATE_PROMPT,
-    STREAM_HOLD_S,
+    SUBMIT_TIMEOUT_S,
     TIMEZONE,
     TIMEZONE_OFFSET_MIN,
 )
@@ -71,6 +73,7 @@ LOGGED_OUT = "pool.account_logged_out"
 PROXY_FAILED = "pool.proxy_failed"
 POOL = "image"
 IMAGE_MIME = "image/png"
+SUBMIT_MARGIN_S = 30     # the stream's hold ends this long before the core's submit bound (SUBMIT_TIMEOUT_S)
 _TAG = re.compile(r"</?\s*description\s*>", re.IGNORECASE)
 _store = None
 
@@ -155,6 +158,7 @@ async def submit(ctx, job, settings, sessions: Sessions, *, session=None,
     def now() -> datetime:
         return datetime.fromtimestamp(clock(), UTC)
 
+    started = clock()
     edit = job.operation == "image_to_image"
     message_id = str(uuid.uuid4())
     prompt = compose(job.params, job.sent_text or job.prompt, edit)
@@ -182,11 +186,10 @@ async def submit(ctx, job, settings, sessions: Sessions, *, session=None,
                                                                  settings, now()))
         except NetError as e:
             why = "chatgpt.com could not be reached (%s)" % e.kind
-            return SubmitResult(Retry(PROXY_FAILED), (ProxyBad(why), Cooldown(
-                why, now() + timedelta(seconds=settings.get("gpt.network_rest_s")))))
+            return SubmitResult(Retry(PROXY_FAILED), (ProxyBad(why), _network_rest(why, settings, now())))
         except BadAnswer as e:
             await ctx.event(str(e), "submit", "upstream")
-            return SubmitResult(Retry(errors.HTTP_ERROR))
+            return SubmitResult(Retry(errors.HTTP_ERROR), _rest_if_blocked(web, e, settings, now()))
         except Challenge as e:
             return SubmitResult(account_refused(
                 job, ctx.account.id, settings, not_taken=errors.CHALLENGE, final=errors.UNAVAILABLE,
@@ -201,19 +204,36 @@ async def submit(ctx, job, settings, sessions: Sessions, *, session=None,
             Warning(errors.WARN_TURNSTILE, "the Turnstile answer could not be made; sent with an empty one"),)
         await ctx.report_ref(message_id, {STATE_MESSAGE: message_id, STATE_PROMPT: prompt})
         await ctx.mark_sent()
+        # ponytail: a pre-send past the margin still holds 1 s and is reconciled; a pre-send Retry would be cleaner
+        hold = max(1.0, started + SUBMIT_TIMEOUT_S - SUBMIT_MARGIN_S - clock())
         reader, named, failure, answered = Reader(), None, None, True
+        # after the send nothing is ever sent again: judged on what was read. Only the wire's failures are caught
+        # here; anything else (a lost lease from `report_ref`) reaches the core unchanged.
         try:
-            async with asyncio.timeout(STREAM_HOLD_S):
-                async for line in web.stream(SEND_PATH, body, headers, STREAM_HOLD_S):
+            async with asyncio.timeout(hold):
+                async for line in web.stream(SEND_PATH, body, headers, hold):
                     reader.feed(line)
                     if named is None and reader.conversation_named():
                         named = reader.conversation_named()
                         await ctx.report_ref(named, {STATE_CONVERSATION: named})
         except BadAnswer as e:
             failure, answered = "the send was answered %d" % e.status, False
-        except Exception as e:      # noqa: BLE001 - after the send nothing is ever sent again: judged on what was read
+        except SignedOut:
+            failure, answered = "the send was answered 401", False
+        except (NetError, TimeoutError) as e:
             failure = "the send's stream ended early (%s)" % type(e).__name__
         return _verdict(reader, named, answered, failure, settings, now(), warnings)
+
+
+def _network_rest(why: str, settings, now: datetime) -> Cooldown:
+    return Cooldown(why, now + timedelta(seconds=settings.get("gpt.network_rest_s")))
+
+
+def _rest_if_blocked(web: Web, e: BadAnswer, settings, now: datetime) -> tuple[Cooldown, ...]:
+    """A step before the send answered 403, 429 or with Cloudflare's page: the account rests `gpt.network_rest_s`."""
+    if e.status and web.blocked:
+        return (_network_rest("chatgpt.com answered %d before the send" % e.status, settings, now),)
+    return ()
 
 
 def _verdict(reader: Reader, cid: str | None, answered: bool, failure: str | None, settings, now: datetime,
@@ -222,7 +242,9 @@ def _verdict(reader: Reader, cid: str | None, answered: bool, failure: str | Non
     rest = pacing(settings, now)
     reading = reader.reading()
     said = verdict(reading)
-    if not answered or cid is None:
+    if not answered:      # the send itself was refused (not 200): ambiguous, and the account rests
+        return SubmitResult(Ambiguous(failure), (*rest, _network_rest(failure, settings, now)), warnings)
+    if cid is None:
         return SubmitResult(Ambiguous(failure or "the send's stream named no conversation"), rest, warnings)
     if said == "image":
         image = reading.images[0]

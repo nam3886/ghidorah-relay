@@ -124,7 +124,7 @@ def go_fetch(maker, out):
 
 
 def output(cid=CID, file_id=FILE_ID):
-    return Output("sediment://" + file_id, "image/png", 0, file_id, {"conversation": cid, "width": 1254,
+    return Output("sediment://" + file_id, "image/png", 0, file_id, {STATE_CONVERSATION: cid, "width": 1254,
                                                                      "height": 1254})
 
 
@@ -267,7 +267,7 @@ def test_poll_done_refused_lost_and_pending(body, at, want):
     out = result.outcome
     if want == "done":
         assert out == Done((Output("sediment://" + FILE_ID, "image/png", 0, FILE_ID,
-                                   {"conversation": CID, "width": 1254, "height": 1254}),))
+                                   {STATE_CONVERSATION: CID, "width": 1254, "height": 1254}),))
         assert result.title == T2I["title"]
     elif want == "refused":
         assert isinstance(out, Failed) and out.code == REFUSED and out.taken is True
@@ -383,3 +383,9 @@ def test_planted_secrets_never_leave(caplog):
             go_fetch(Maker(table), output())
         texts += [repr(e.value), str(e.value)]
     assert_no_secret(*texts, caplog.text)
+
+
+def test_the_conversation_key_is_the_one_the_admin_job_drawer_reads():
+    from relay_core.admin.routes_jobs import _upstream_ids
+    assert STATE_CONVERSATION == "conversation_id"
+    assert _upstream_ids(False, "msg-1", {STATE_CONVERSATION: CID}) == (CID, "msg-1")

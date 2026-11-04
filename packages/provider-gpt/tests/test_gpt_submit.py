@@ -3,6 +3,7 @@ id, `mark_sent` right before the ONE paid POST, and the verdict on its stream. N
 a stream cut after the conversation is named is accepted and polled (Review Focus 4)."""
 
 import asyncio
+import base64
 import copy
 import json
 import logging
@@ -25,6 +26,7 @@ from gptkit import (
     settings,
 )
 
+from relay_core.leases import LeaseLost
 from relay_core.providers import (
     REFUSED_BY,
     Accepted,
@@ -65,6 +67,12 @@ PACING = '    gap = int(settings.get("gpt.account_min_gap_s"))'
 NO_PACING = "    gap = 0"
 TURNSTILE_FALLBACK = "        except Exception as e:      # noqa: BLE001 - design 1c"
 TURNSTILE_RAISE = "        except ZeroDivisionError as e:      # noqa: BLE001 - design 1c"
+WIRE_ONLY = "        except (NetError, TimeoutError) as e:"
+CATCH_ALL = "        except Exception as e:"
+WEB_FILE = "packages/provider-gpt/src/relay_gpt/engine/web.py"
+SEND_NO_REREAD = "stream=True, reread=False)"
+SEND_REREAD = "stream=True, reread=True)"
+CF_PAGE = '<html><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script></html>'
 
 HOME = '<html data-build="ccbd58c87c3a77dcbef035020b701a5bc7c54b87"><script src="https://chatgpt.com/sentinel/' \
        '20260810913b/sdk.js"></script></html>'
@@ -138,11 +146,11 @@ class Run:
     """One submit over the fake site; `result` is the SubmitResult, or the exception the submit raised."""
 
     def __init__(self, table: dict | None = None, *, job_=None, solver=solved, settings_=None, data=b"png-bytes",
-                 log: list | None = None):
+                 log: list | None = None, ctx=None, clock=lambda: NOW):
         self.log: list = log if log is not None else []
         self.sessions: list[FakeSession] = []
         self.table = table if table is not None else routes()
-        self.ctx = Ctx(self.log, settings_=settings_)
+        self.ctx = ctx if ctx is not None else Ctx(self.log, settings_=settings_)
 
         def make(proxies):
             s = FakeSession(self.table, self.log, proxies=proxies)
@@ -154,7 +162,7 @@ class Run:
         try:
             self.result = run(submit(self.ctx, job_ or job(), self.ctx.settings, Sessions(clock=lambda: NOW),
                                      make_session=make, read_media=read_media, measure=measure,
-                                     solve_turnstile=solver, clock=lambda: NOW))
+                                     solve_turnstile=solver, clock=clock))
         except Exception as e:      # noqa: BLE001 - the test says what it expected instead
             self.result = e
 
@@ -188,17 +196,48 @@ def test_message_id_is_written_ahead_and_marked_sent_right_before_the_one_post()
 
 
 @mutation(SUBMIT_FILE, AMBIGUOUS_AFTER_SEND, RETRY_AFTER_SEND, expect="a failure after the send must be ambiguous")
+@mutation(WEB_FILE, SEND_NO_REREAD, SEND_REREAD, expect="the send was made twice")
 def test_any_failure_after_mark_sent_is_ambiguous_and_never_sent_again():
-    for answer in (Resp(lines=[], cut=0, error=ConnectionResetError("reset")),       # no line at all
-                   Resp(500, text='{"detail":"internal"}'),
-                   Resp(403, text='{"detail":"Unusual activity"}'),
-                   Resp(401, text="{}"),
-                   Resp(lines=['event: delta_encoding', 'data: "v1"', ""])):        # ended, no conversation named
+    for answer, refused in ((Resp(lines=[], cut=0, error=ConnectionResetError("reset")), False),   # no line at all
+                            (Resp(500, text='{"detail":"internal"}'), True),
+                            (Resp(403, text='{"detail":"Unusual activity"}'), True),
+                            (Resp(401, text="{}"), True),
+                            (Resp(lines=['event: delta_encoding', 'data: "v1"', ""]), False)):  # no conversation
         r = Run(routes(**{"POST " + SEND_PATH: answer}))
         assert isinstance(r.result, SubmitResult) and isinstance(r.result.job, Ambiguous), \
             "a failure after the send must be ambiguous"
-        assert len(r.sends()) == 1 and r.log.count("mark_sent") == 1
+        assert len(r.sends()) == 1, "the send was made twice"
+        assert r.log.count("mark_sent") == 1
         assert REST in r.result.account and Success() not in r.result.account
+        # a send answered not 200 also rests the whole account gpt.network_rest_s; a broken stream does not
+        cool = [e.until for e in r.result.account if isinstance(e, Cooldown)]
+        assert cool == ([NOW_DT + timedelta(seconds=300)] if refused else []), "the refused send must rest the account"
+        assert len(r.requests("GET", "/api/auth/session")) == 1, "the send's 401 never reads the session again"
+
+
+@mutation(SUBMIT_FILE, WIRE_ONLY, CATCH_ALL, expect="a lost lease after the send must reach the core")
+def test_a_lease_lost_while_reporting_the_conversation_reaches_the_core():
+    class Losing(Ctx):
+        async def report_ref(self, ref, state):
+            await super().report_ref(ref, state)
+            if STATE_CONVERSATION in state:
+                raise LeaseLost("lease-1")
+    log: list = []
+    r = Run(ctx=Losing(log), log=log)
+    assert isinstance(r.result, LeaseLost), "a lost lease after the send must reach the core"
+    assert len(r.sends()) == 1 and log.count("mark_sent") == 1
+
+
+def test_the_stream_is_held_for_what_is_left_of_the_submit_bound():
+    clock = {"t": NOW}
+
+    def slow_prepare(req):
+        clock["t"] = NOW + 400            # the steps before the send took 400 s of the 480 s bound
+        return Resp(json_body={**body_of("conv_prepare"), "conduit_token": CONDUIT})
+    r = Run(routes(**{"POST " + CONDUIT_PATH: slow_prepare}), clock=lambda: clock["t"])
+    assert isinstance(r.result.job, Completed)
+    assert r.sends()[0].timeout == 480 - 30 - 400, "the hold must end before the core's submit bound"
+    assert Run().sends()[0].timeout == 480 - 30
 
 
 @mutation(SUBMIT_FILE, ACCEPT_OPEN, AMBIGUOUS_OPEN, expect="a stream cut after the conversation is named is polled")
@@ -261,6 +300,10 @@ def test_complete_words_without_image_fail_refused():
     assert "I can't help with that." in r.result.job.detail
     assert r.result.job.state_patch == {STATE_CONVERSATION: "c-1"}
     assert errors.CODES[errors.REFUSED].refund
+    # the stream ended ([DONE]) but the answer never finished its turn: not a refusal, the conversation is polled
+    unfinished = [line for line in refusal_lines() if '"patch"' not in line]     # never finished, no end_turn
+    r = Run(routes(**{"POST " + SEND_PATH: Resp(lines=unfinished)}))
+    assert r.result.job == Accepted("c-1", {STATE_CONVERSATION: "c-1"}, taken=True)
 
 
 # ---- before the send ---------------------------------------------------------------------------------------------
@@ -339,11 +382,21 @@ def test_pre_send_signed_out_proxy_and_http_errors_retry_with_their_effects():
     assert len(bad) == 1 and cool[0].until == NOW_DT + timedelta(seconds=300)
     assert_no_secret(no_proxy.result)
 
-    for broken in ({"POST " + PREPARE: Resp(500, text="{}")}, {"POST " + FINALIZE: Resp(403, text="{}")},
-                   {"POST " + CONDUIT_PATH: Resp(500, text="{}")}, {"GET /": Resp(200, text="<html></html>")}):
+    # an error answer retries; a 403, a 429 or Cloudflare's page also rests the account gpt.network_rest_s
+    rest = [NOW_DT + timedelta(seconds=300)]
+    for broken, cool in (({"POST " + PREPARE: Resp(500, text="{}")}, []),
+                         ({"POST " + FINALIZE: Resp(403, text="{}")}, rest),
+                         ({"POST " + PREPARE: Resp(429, text="{}")}, rest),
+                         ({"POST " + CONDUIT_PATH: Resp(503, {"cf-mitigated": "challenge"}, "<html></html>")}, rest),
+                         ({"GET /": Resp(503, text=CF_PAGE)}, rest),
+                         ({"POST " + CONDUIT_PATH: Resp(500, text="{}")}, []),
+                         ({"GET /": Resp(200, text="<html></html>")}, [])):
         r = Run(routes(**broken))
-        assert r.result.job == Retry(errors.HTTP_ERROR) and r.result.account == ()
+        assert r.result.job == Retry(errors.HTTP_ERROR)
+        assert [e.until for e in r.result.account if isinstance(e, Cooldown)] == cool and \
+            all(isinstance(e, Cooldown) for e in r.result.account), broken
         assert r.ctx.events and r.ctx.events[0][1:] == ("submit", "upstream")
+        assert not r.sends()
     for r in (signed_out, no_proxy):
         assert not r.sends() and "mark_sent" not in r.log and "report_ref" not in r.log
 
@@ -378,6 +431,20 @@ def test_edit_uploads_through_the_proxy_to_the_azure_host_only():
     # the upload host refusing the PUT
     r = Run(routes(**{"PUT " + UPLOAD_HOST + "/files/*": Resp(403)}), job_=job(image=True))
     assert r.result.job == Retry(errors.HTTP_ERROR) and not r.sends()
+
+
+def test_the_proof_of_work_uses_the_requirements_config_once_per_send():
+    r = Run()
+    p = json.loads(r.requests("POST", PREPARE)[0].data)["p"]
+    proof = r.sends()[0].headers["OpenAI-Sentinel-Proof-Token"]
+
+    def fields(token: str, head: str) -> list:
+        return json.loads(base64.b64decode(token.removeprefix(head).removesuffix("~S")))
+    asked, solved_ = fields(p, "gAAAAAC"), fields(proof, "gAAAAAB")
+    for i in (3, 9):                      # the try counter and the elapsed time: what the proof of work changes
+        asked[i] = solved_[i] = None
+    assert asked == solved_, "the proof of work was built from another config"
+    assert asked[5] == "https://chatgpt.com/sentinel/20260810913b/sdk.js"
 
 
 def test_ratio_words_and_no_ratio():

@@ -1,10 +1,12 @@
 """The sentinel's Turnstile `dx` solver: a register VM that runs the program chatgpt.com sends in
 `chat-requirements/prepare` and returns the answer finalize takes as `turnstile_token`. Pure and CPU-bound
-(the submit calls it through `asyncio.to_thread`); no network, no `eval`, stdlib only.
+(the submit calls it through `asyncio.to_thread`); no network, no `eval`, no third-party code.
 
 Ported line by line from aurora-develop/aurora, commit cbfbabc9c14c7278e4dd91cf8807b2bf500860b1,
-`internal/turnstile/turnstile.go` (the browser fingerprint it reads from `internal/browserfp` is fixed here to
-one of that package's Win32 profiles). Values keep the Go shapes: numbers are floats, JS objects are dicts that
+`internal/turnstile/turnstile.go`. The browser fingerprint aurora reads from `internal/browserfp` (Win32 profiles)
+is replaced here by one macOS profile that matches the relay's own headers (Chrome 150 on macOS, `MacIntel`, an
+Apple GPU behind ANGLE Metal, device pixel ratio 2), on the page `https://chatgpt.com/` with the page's own sentinel
+script address, read from the requirements token. Values keep the Go shapes: numbers are floats, JS objects are dicts that
 carry their key order under `__ordered_keys__`, a Go `[]string` is a tuple. Changes from the Go code: the clock
 and `Math.random` are injected (`clock`, `rand`), a step overflow and every other failure raise `TurnstileError`
 with a fixed kind (never program text), and a function turns into a fixed text where Go prints its address.
@@ -48,6 +50,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from relay_gpt.constants import USER_AGENT
+
 MAX_STEPS = 50_000
 
 QUEUE_REG = 9
@@ -65,10 +69,13 @@ _META = frozenset({ORDER, PROTO, STORAGE_DATA, STORAGE_KEYS})
 _OPCODES = (0, 1, 2, 5, 6, 7, 8, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 33, 34, 35)
 _FUNCTION_TEXT = "function () { [native code] }"  # Go prints a func's address here
 
-# browserfp's Win32 profile, fixed (aurora picks one at random per process)
-WEBGL_VENDOR = "Google Inc. (AMD)"
-WEBGL_RENDERER = "ANGLE (AMD, AMD Radeon RX 6600 (0x000073FF) Direct3D11 vs_5_0 ps_5_0, D3D11)"
-DEVICE_PIXEL_RATIO = 1.0
+# the macOS profile of the relay's Chrome 150 (constants.USER_AGENT, SEC_CH_UA_PLATFORM "macOS"); aurora picks a Win32
+# one at random per process
+PLATFORM = "MacIntel"
+WEBGL_VENDOR = "Google Inc. (Apple)"
+WEBGL_RENDERER = "ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)"
+DEVICE_PIXEL_RATIO = 2.0
+PAGE_URL = "https://chatgpt.com/"
 
 WINDOW_KEY_ORDER = (
     "0", "window", "self", "document", "name", "location", "customElements", "history", "navigation", "locationbar",
@@ -143,6 +150,7 @@ class Profile:
 
     screen_sum: int = 0
     user_agent: str = ""
+    sdk_url: str = ""            # the page's https://chatgpt.com/sentinel/<build>/sdk.js (the token's 6th field)
     language: str = ""
     languages_join: str = ""
     navigator_probe: str = ""
@@ -176,6 +184,7 @@ def parse_profile(token: str) -> Profile:
             raise ValueError
         return Profile(
             screen_sum=int(_json_float(fields[0])), user_agent=_json_str_field(fields[4]),
+            sdk_url=_json_str_field(fields[5]),
             language=_json_str_field(fields[7]), languages_join=_json_str_field(fields[8]),
             navigator_probe=_json_str_field(fields[10]), document_probe=_json_str_field(fields[11]),
             window_probe=_json_str_field(fields[12]), performance_now=_json_float(fields[13]),
@@ -484,10 +493,9 @@ class _Solver:
     # ---- the browser window -------------------------------------------------------------------------------------
     def _build_window(self) -> dict:
         p = self.profile
-        ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 "
-              "Safari/537.36")
+        ua = USER_AGENT
         lang, languages_join = "en-US", "en-US,en"
-        width, height = 1920, 1080
+        width, height = 1512, 982
         inner_width, inner_height = width, height - 86
         outer_width, outer_height = 1280, 720
         screen_x = screen_y = 0
@@ -496,7 +504,7 @@ class _Solver:
         device_id = "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
         time_origin = float(int((self.clock() - 10) * 1000))
         performance_now = 9270.4
-        vendor, platform = "Google Inc.", "Win32"
+        vendor, platform = "Google Inc.", PLATFORM
         document_probe, window_probe = "__reactContainer$b63yiita51i", "__oai_cached_session"
         if p.screen_sum > 0:
             width, height = _split_screen(p.screen_sum)
@@ -520,9 +528,10 @@ class _Solver:
         hints = _browser_hints(ua, platform, vendor)
         session_id = p.session_id.strip() or "session-" + device_id.replace("-", "")
 
-        location = _obj({"href": "https://auth.openai.com/create-account/password", "search": ""})
-        scripts = [_obj({"src": "https://chatgpt.com/backend-api/sentinel/sdk.js"}),
-                   _obj({"src": "https://chatgpt.com/sentinel/20260423af3c/sdk.js"})]
+        location = _obj({"href": PAGE_URL, "search": ""})
+        scripts = [_obj({"src": "https://chatgpt.com/backend-api/sentinel/sdk.js"})]
+        if p.sdk_url.strip():
+            scripts.append(_obj({"src": p.sdk_url.strip()}))
         storage_order = ("statsig.stable_id.444584300", "statsig.session_id.444584300",
                          "statsig.network_fallback.2742193661")
         storage_data = _obj({
@@ -703,7 +712,7 @@ class _Solver:
 # ---- browser hints --------------------------------------------------------------------------------------------------
 def _browser_hints(ua: str, platform: str, vendor: str) -> dict:
     hints = {"send_client_hints": True, "version_major": "150", "version_full": "150.0.0.0",
-             "platform_name": "Windows", "platform_version": "10.0.0", "architecture": "x86_64",
+             "platform_name": "macOS", "platform_version": "15.5.0", "architecture": "arm",
              "vendor": vendor.strip() and vendor or "Google Inc.",
              "webgl_vendor": WEBGL_VENDOR, "webgl_renderer": WEBGL_RENDERER}
     if version := _ua_version(ua, r"Chrome/([0-9]+(?:\.[0-9]+)*)"):
@@ -726,7 +735,7 @@ def _major(version: str) -> str:
 
 
 def _split_screen(total: int) -> tuple[int, int]:
-    for w, h in ((2048, 1152), (1920, 1080), (1536, 864), (1440, 900), (1600, 900), (1366, 768)):
+    for w, h in ((1512, 982), (2048, 1152), (1920, 1080), (1536, 864), (1440, 900), (1600, 900), (1366, 768)):
         if w + h == total:
             return w, h
     if total > 2000:

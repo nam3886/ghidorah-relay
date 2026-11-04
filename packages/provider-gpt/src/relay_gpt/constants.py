@@ -43,15 +43,15 @@ MEDIA_MAX_BYTES = 64 * 2**20      # one result file (a 1536x1024 PNG is a few MB
 
 # ---- timing ---------------------------------------------------------------------------------------------------
 API_TIMEOUT_S = 30                # one plain call over a proxy
-STREAM_HOLD_S = 300               # the send's stream ended in 21-26 s (measured); no end in time: polled instead
 UPLOAD_TIMEOUT_S = 120            # one input image to the upload host
 MEDIA_DEADLINE_S = 120            # one result download
-SUBMIT_TIMEOUT_S = 480            # a submit: the session, the sentinel, an upload and the held stream
+SUBMIT_TIMEOUT_S = 480            # a submit: the session, the sentinel, an upload and the held stream (the stream
+                                  # is held for what is left of it; no end in time: polled instead)
 TOKEN_MARGIN_S = 600              # an access token this close to its `exp` is read again before a call
 
 # ---- provider_state keys (no secret goes in them) ---------------------------------------------------------------
 STATE_MESSAGE = "message"         # the client-made id of the sent user message (written ahead)
-STATE_CONVERSATION = "conversation"
+STATE_CONVERSATION = "conversation_id"   # the key the admin job drawer reads (`_upstream_ids`)
 STATE_PROMPT = "sent_prompt"      # the exact text sent, for a reconcile that cannot read the message id
 
 # ---- the Fixed limits card ------------------------------------------------------------------------------------
@@ -63,8 +63,6 @@ LIMITS = (
     FixedLimit("relay_gpt.constants.MEDIA_MAX_BYTES", MEDIA_MAX_BYTES, "one result file downloaded", "bytes"),
     FixedLimit("relay_gpt.constants.API_TIMEOUT_S", API_TIMEOUT_S,
                "one plain call over a proxy; none in time is a failed step", "s"),
-    FixedLimit("relay_gpt.constants.STREAM_HOLD_S", STREAM_HOLD_S,
-               "the image stream ends in 21-26 s; no end in time leaves the job to the poll", "s"),
     FixedLimit("relay_gpt.constants.UPLOAD_TIMEOUT_S", UPLOAD_TIMEOUT_S,
                "one input image to the upload host; nothing is sent yet, so a timeout is a retry", "s"),
     FixedLimit("relay_gpt.constants.MEDIA_DEADLINE_S", MEDIA_DEADLINE_S, "one result download", "s"),

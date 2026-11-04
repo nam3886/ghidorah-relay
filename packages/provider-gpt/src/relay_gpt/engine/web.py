@@ -47,6 +47,7 @@ AUTH_SESSION_PATH = "/api/auth/session"
 AUTH_NAMESPACE = "https://api.openai.com/auth"
 RENEW_TIMEOUT_S = 5.0       # writing the re-set session back: past it nothing is written
 _BUILD = re.compile(r'data-build="([^"]+)"')
+CF_CHALLENGE = "/cdn-cgi/challenge-platform/"
 _SDK = re.compile(r'(?:https://chatgpt\.com)?(/sentinel/[A-Za-z0-9._-]+/sdk\.js)')
 
 
@@ -64,11 +65,11 @@ class SignedOut(Exception):
 
 class BadAnswer(Exception):
     """chatgpt.com (or the upload host) answered a step with something else than its answer, or a URL was refused
-    before any request. `body` is the parsed JSON of the answer when there was one (never in the text)."""
+    before any request (`status` 0)."""
 
-    def __init__(self, status: int, where: str, body: Any = None):
+    def __init__(self, status: int, where: str):
         super().__init__("chatgpt.com answered %d to %s" % (status, where) if status else "refused: %s" % where)
-        self.status, self.where, self.body = status, where, body
+        self.status, self.where = status, where
 
 
 class Challenge(Exception):
@@ -93,6 +94,14 @@ def proxy_url(proxy: Proxy | None) -> str | None:
         user, _, secret = proxy.auth.partition(":")
         auth = quote(user, safe="") + (":" + quote(secret, safe="") if secret else "") + "@"
     return "http://%s%s:%d" % (auth, proxy.host, proxy.port)
+
+
+def _cloudflare(resp, streamed: bool) -> bool:
+    """Cloudflare answered instead of chatgpt.com: its challenge header, or its challenge page (not read when the
+    answer is a stream)."""
+    if (resp.headers or {}).get("cf-mitigated"):
+        return True
+    return not streamed and CF_CHALLENGE in (getattr(resp, "text", "") or "")
 
 
 def _proxy_failure(exc: BaseException) -> bool:
@@ -179,6 +188,7 @@ class Web:
         self.session_id = str(uuid.uuid4())
         self.token: str | None = None
         self.signed_out = False
+        self.blocked = False     # the last answer was a 403, a 429 or Cloudflare's: the account rests (submit)
         # the session parts the jar held after the last answer, and when an answer last changed them (the stamp of
         # the write-back: two overlapping runs keep the set chatgpt.com gave LAST, not the one whose run ended last)
         self.seen_parts = self.start_parts
@@ -195,7 +205,8 @@ class Web:
             await _close(self.s)
 
     # ---- the wire ----------------------------------------------------------------------------------------------
-    async def _request(self, session, method: str, url: str, headers: dict[str, str], timeout: float, **kw):
+    async def _request(self, session, method: str, url: str, headers: dict[str, str], timeout: float, *,
+                       signed_out_on_401: bool = True, **kw):
         try:
             resp = await session.request(method, url, headers=headers, timeout=timeout, allow_redirects=False, **kw)
         except Exception as e:
@@ -204,7 +215,8 @@ class Web:
             parts = self.session_now()
             if parts != self.seen_parts:
                 self.seen_parts, self.parts_at = parts, self.sessions.clock()
-        if resp.status_code == 401:
+        self.blocked = resp.status_code in (403, 429) or _cloudflare(resp, bool(kw.get("stream")))
+        if resp.status_code == 401 and signed_out_on_401:
             self._signed_out()
         return resp
 
@@ -232,9 +244,25 @@ class Web:
         h.update(extra or {})
         return h
 
-    async def _call(self, method: str, path: str, extra: dict[str, str] | None = None, **kw):
-        return await self._request(self.s, method, BASE_URL + path, self.headers(path.split("?")[0], extra),
-                                   kw.pop("timeout", API_TIMEOUT_S), **kw)
+    async def _call(self, method: str, path: str, extra: dict[str, str] | None = None, *, reread: bool = True,
+                    **kw):
+        """One call to chatgpt.com. A 401 first forgets the bearer and reads the session again, then makes the call
+        once more; a second 401 is signed out. `reread` False (the paid send: never made twice): a 401 is signed out
+        at once."""
+        timeout = kw.pop("timeout", API_TIMEOUT_S)
+
+        async def once():
+            return await self._request(self.s, method, BASE_URL + path, self.headers(path.split("?")[0], extra),
+                                       timeout, signed_out_on_401=False, **kw)
+        resp = await once()
+        if resp.status_code == 401 and reread and path != AUTH_SESSION_PATH:
+            self.token = None
+            self.sessions.forget(self.account.id)
+            await self.session()
+            resp = await once()
+        if resp.status_code == 401:
+            self._signed_out()
+        return resp
 
     # ---- the page and the token ---------------------------------------------------------------------------------
     async def home(self) -> Page:
@@ -295,14 +323,14 @@ class Web:
 
     async def stream(self, path: str, body: Any, extra_headers: dict[str, str] | None,
                      hold_s: float) -> AsyncIterator[str]:
-        """POST and yield the answer's lines (an SSE stream). Not 200 -> BadAnswer (with the JSON body); a break in
-        the middle -> NetError."""
+        """POST and yield the answer's lines (an SSE stream). Not 200 -> BadAnswer, a 401 SignedOut (never made
+        twice); a break in the middle -> NetError."""
         resp = await self._call("POST", path, {"Content-Type": "application/json", "Accept": "text/event-stream",
                                                **(extra_headers or {})}, data=json.dumps(body), timeout=hold_s,
-                                stream=True)
+                                stream=True, reread=False)
         try:
             if resp.status_code != 200:
-                raise BadAnswer(resp.status_code, path, await _body(resp))
+                raise BadAnswer(resp.status_code, path)
             try:
                 async for line in resp.aiter_lines():
                     yield line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line
@@ -362,20 +390,6 @@ class Web:
     def cookies(self) -> dict[str, str]:
         """The chatgpt.com cookies the session holds now (what chatgpt.com set included)."""
         return {c.name: c.value for c in self.s.cookies.jar if on_site(c.domain or SITE_HOST)}
-
-
-async def _body(resp, limit: int = 65536) -> Any:
-    """The JSON of a streamed answer that is not the stream (an error body), read up to `limit` bytes; None when it
-    cannot be read or is not JSON."""
-    data = bytearray()
-    try:
-        async for chunk in resp.aiter_content():
-            data += chunk
-            if len(data) > limit:
-                return None
-    except Exception:      # noqa: BLE001 - the status alone says it
-        return None
-    return _json(data.decode("utf-8", errors="replace"))
 
 
 async def _close(thing, method: str = "close") -> None:

@@ -7,7 +7,17 @@ import pytest
 from gptkit import fixture
 
 from relay_core.testing.mutation import mutation
-from relay_gpt.engine.turnstile import MAX_STEPS, Profile, TurnstileError, _Solver, reg_key, solve_dx, xor_string
+from relay_gpt.constants import USER_AGENT
+from relay_gpt.engine.turnstile import (
+    MAX_STEPS,
+    Profile,
+    TurnstileError,
+    _Solver,
+    parse_profile,
+    reg_key,
+    solve_dx,
+    xor_string,
+)
 
 TS_FILE = "packages/provider-gpt/src/relay_gpt/engine/turnstile.py"
 REG_FLOAT_LINE = '        return "n:" + repr(value)'
@@ -114,6 +124,24 @@ def test_a_dx_for_another_token_raises_a_fixed_kind():
         with pytest.raises(TurnstileError) as e:
             solve_dx(bad, rec["dx"])
         assert str(e.value) == "bad requirements token"
+
+
+def test_the_window_is_the_relay_s_macos_chrome_on_the_chatgpt_page():
+    sdk = "https://chatgpt.com/sentinel/20260810913b/sdk.js"
+    fields = [1512 + 982, "", 4294967296, 1, USER_AGENT, sdk, "build", "en-US", "en-US,en", 0, "", "", "", 1000.5,
+              "sid", "", 8, 1.0]
+    w = _Solver(parse_profile(requirements(fields)), clock=lambda: NOW, rand=lambda: 0.5).window
+    nav = w["navigator"]
+    assert nav["platform"] == "MacIntel" and nav["userAgent"] == USER_AGENT and "Macintosh" in USER_AGENT
+    assert nav["userAgentData"]["platform"] == "macOS" and w["devicePixelRatio"] == 2.0
+    assert (w["screen"]["width"], w["screen"]["height"]) == (1512.0, 982.0)
+    assert w["location"]["href"] == "https://chatgpt.com/" and w["document"]["location"] is w["location"]
+    assert w["document"]["scripts"][-1]["src"] == sdk, "the page's own sentinel script"
+    gl = w["document"]["createElement"]("canvas")["getContext"]("webgl")
+    assert "Apple" in gl["getParameter"](37445.0) and "Metal" in gl["getParameter"](37446.0)
+    # the proof-of-work config the sentinel sends carries that address in its 6th field (pow.config)
+    from relay_gpt.engine.pow import config
+    assert config("did", "build", sdk, now=NOW, rand=lambda: 0.5)[5] == sdk
 
 
 def test_a_looping_program_stops_at_max_steps():

@@ -50,10 +50,11 @@ async def requirements(web: Web, page: Page, *, clock: Callable[[], float] = tim
                        rand: Callable[[], float] = random.random,
                        solve_turnstile: Callable[[str, str], str] = solve_dx) -> Tokens:
     """The sentinel tokens of one send. Raises Challenge, BadAnswer (and the Web's SignedOut/NetError)."""
-    p = requirements_token(config(web.device_id, page.build, page.sdk_url, now=clock(), rand=rand))
+    cfg = config(web.device_id, page.build, page.sdk_url, now=clock(), rand=rand)    # one config per send
+    p = requirements_token(cfg)
     status, prep = await web.post_json(PREPARE_PATH, {"p": p})
     if status != 200 or not isinstance(prep, dict):
-        raise BadAnswer(status, "the sentinel prepare", prep)
+        raise BadAnswer(status, "the sentinel prepare")
     if _dict(prep.get("arkose")).get("required") is True:
         raise Challenge("arkose")
     if prep.get("force_login") is True:
@@ -64,7 +65,6 @@ async def requirements(web: Web, page: Page, *, clock: Callable[[], float] = tim
         seed, difficulty = pow_.get("seed"), pow_.get("difficulty")
         if not isinstance(seed, str) or not isinstance(difficulty, str):
             raise BadAnswer(status, "the sentinel prepare (no proof-of-work seed)")
-        cfg = config(web.device_id, page.build, page.sdk_url, now=clock(), rand=rand)
         proof, _ = await asyncio.to_thread(solve, seed, difficulty, cfg, clock=clock)
     turnstile, solved = "", True
     dx = _dict(prep.get("turnstile")).get("dx")
@@ -79,7 +79,7 @@ async def requirements(web: Web, page: Page, *, clock: Callable[[], float] = tim
                                                       "proof_token": proof, "turnstile_token": turnstile})
     token = _dict(fin).get("token")
     if status != 200 or not isinstance(token, str) or not token:
-        raise BadAnswer(status, "the sentinel finalize", fin)
+        raise BadAnswer(status, "the sentinel finalize")
     return Tokens(token, proof, turnstile, solved)
 
 
@@ -88,6 +88,6 @@ async def conduit(web: Web, tokens: Tokens, body: dict) -> str:
     Not 200 -> BadAnswer."""
     status, answer = await web.post_json(CONDUIT_PATH, body, tokens.headers())
     if status != 200:
-        raise BadAnswer(status, "the conversation prepare", answer)
+        raise BadAnswer(status, "the conversation prepare")
     token = _dict(answer).get("conduit_token")
     return token if isinstance(token, str) else ""

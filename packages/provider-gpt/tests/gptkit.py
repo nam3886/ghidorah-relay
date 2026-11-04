@@ -96,7 +96,8 @@ class Cut(Exception):
 
 class Resp:
     """One answer. `text` is the body; `lines` makes it a stream (`aiter_lines` yields them as bytes); `cut` breaks
-    the stream with `error` after that many lines; `cookies` are set on the session as a Set-Cookie would."""
+    the stream with `error` after that many lines; `cookies` are set on the session as a Set-Cookie would (a value of
+    None expires that cookie: it leaves the jar, as curl_cffi's own jar drops a cookie the answer expired)."""
 
     def __init__(self, status: int = 200, headers: dict | None = None, text: str = "", lines: list[str] | None = None,
                  *, json_body: object = None, cut: int | None = None, error: BaseException | None = None,
@@ -184,7 +185,10 @@ class FakeSession:
         if isinstance(answer, BaseException):
             raise answer
         for name, value in answer.cookies.items():
-            self.cookies.set(name, value, urlsplit(url).hostname or "")
+            if value is None:       # Set-Cookie with Max-Age=0: gone from the jar, not kept as ""
+                self.cookies.jar = [c for c in self.cookies.jar if c.name != name]
+            else:
+                self.cookies.set(name, value, urlsplit(url).hostname or "")
         return answer
 
     async def get(self, url, **kw):
