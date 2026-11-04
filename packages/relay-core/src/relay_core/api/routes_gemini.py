@@ -45,7 +45,8 @@ class _Inline(Strict):
 
 class _File(Strict):
     file_uri: str = Field(validation_alias=AliasChoices("fileUri", "file_uri"),
-                          description="An https URL of the input image (file_uri is accepted too).")
+                          description=("An https URL of the input image (file_uri is accepted too); prefer it to "
+                                       "inlineData for many or large images."))
     mime_type: str | None = Field(default=None, validation_alias=AliasChoices("mimeType", "mime_type"),
                                   description="Optional; when sent, an image type such as image/png.")
 
@@ -70,7 +71,8 @@ class GenerateBody(Strict):
 
     contents: list[_Content] = Field(description=(
         "The conversation. The last user content is the request: its text parts are the prompt, its inlineData and "
-        "fileData parts the input images."))
+        "fileData parts the input images. A length or a ratio goes in the model name of the path, for a model that "
+        "takes it (see Chat and Gemini routes in the introduction)."))
     system_instruction: _Content | None = Field(default=None, validation_alias="systemInstruction", description=(
         "Text put before the prompt, separated by a blank line."))
     generation_config: dict[str, Any] | None = Field(default=None, validation_alias="generationConfig", description=(

@@ -1,6 +1,7 @@
 """The `/reference` page (Scalar over `/openapi.json`) stays vanilla and outside the Vue build: it loads and renders
-under its own looser CSP, the vendored renderer is the pinned build with its licence, the page links back to the
-dashboard and follows the stored theme. Browser tests run under the CSP watch of `conftest.CspWatch`."""
+under its own looser CSP, the vendored renderer is the pinned build with its licence, the page is public (its bar
+names the API and links to nothing locked) and follows the stored theme. Browser tests run under the CSP watch of
+`conftest.CspWatch`."""
 
 import base64
 import hashlib
@@ -43,7 +44,7 @@ def test_the_renderer_is_the_pinned_vendored_build_with_its_licence_and_the_page
     assert 'data-renderer="/ui/vendor/scalar.min.js"' in page
 
 
-@mutation(REFERENCE_HTML, '<a id="back" href="/manage">', '<a id="back" onclick="x()" href="/manage">',
+@mutation(REFERENCE_HTML, '<span id="logo">', '<span id="logo" onclick="x()">',
           expect="inline handler, style or script")
 @mutation(REFERENCE_HTML, '<span id="bar-title">', '<span style="color:red" id="bar-title">',
           expect="inline handler, style or script")
@@ -89,24 +90,16 @@ def test_the_page_renders_the_api_from_the_schema_and_the_browser_reports_no_csp
         context.close()
 
 
-@pytest.mark.browser
-@mutation(REFERENCE_HTML, 'href="/manage"', 'href="/manage-x"', expect="the back link")
-def test_the_bar_links_back_to_the_dashboard(app):
-    context, page = app.new_page()
-    try:
-        page.goto("/reference")
-        link = page.get_by_role("link", name=re.compile("Back to the dashboard"))
-        expect(link).to_be_visible()
-        assert link.get_attribute("href") == "/manage", "the back link goes to %s" % link.get_attribute("href")
-        with page.expect_response(lambda r: urlpath(r.url) == "/manage") as served:
-            link.click()
-        assert served.value.status == 200 and "/reference" not in page.url, (served.value.status, page.url)
-    finally:
-        context.close()
-
-
-def urlpath(url: str) -> str:
-    return re.sub(r"^https?://[^/]+", "", url).split("?")[0].split("#")[0]
+@mutation(REFERENCE_HTML, '<span id="bar-title">API reference</span>',
+          '<a id="back" href="/manage">Dashboard</a><span id="bar-title">API reference</span>',
+          expect="links to the locked dashboard")
+def test_the_public_bar_shows_the_logo_and_the_title_and_links_to_nothing_locked():
+    """The page is public; /manage is locked behind the operator's access gate, so a link there only fails."""
+    page = (STATIC / "reference.html").read_text()
+    bar = re.search(r'<header id="bar">(.*?)</header>', page, re.S).group(1)
+    assert 'id="logo"' in bar and '<span id="bar-title">API reference</span>' in bar, bar
+    assert "<a " not in bar and "/manage" not in page, "the public page links to the locked dashboard"
+    assert "#back" not in (STATIC / "reference.js").read_text() + (STATIC / "reference.css").read_text()
 
 
 @pytest.mark.browser
@@ -161,6 +154,6 @@ def test_a_renderer_that_fails_to_load_or_does_not_match_its_pin_shows_the_fallb
             expect(card).to_be_visible()
             expect(card).to_contain_text("API reference could not load")
             assert card.get_by_role("link", name="/openapi.json").get_attribute("href") == "/openapi.json"
-            expect(page.get_by_role("link", name=re.compile("Back to the dashboard"))).to_be_visible()
+            expect(page.locator("#bar-title")).to_have_text("API reference")
         finally:
             context.close()

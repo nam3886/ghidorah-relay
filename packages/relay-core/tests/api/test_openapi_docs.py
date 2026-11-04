@@ -109,7 +109,10 @@ def test_every_operation_declares_the_error_envelope_and_a_key(db):
                 want = "#/components/schemas/" + ("GeminiError" if gemini else "Error")
                 got = op["responses"]["default"]["content"]["application/json"]["schema"]["$ref"]
                 assert got == want, "Gemini routes declare the Gemini error: %s %s" % (method, path)
-                assert "422" not in op["responses"], "a bad request is a 400, not a 422: %s" % path
+                # only a held facade request whose job failed answers 422 (its failure's status), never a bad request
+                held = op["responses"].get("422", {}).get("description", "")
+                assert "422" not in op["responses"] or held.startswith("A held request whose job failed"), \
+                    "a bad request is a 400, not a 422: %s" % path
                 assert op["description"] and op["tags"], (method, path)
                 assert bool(op.get("security")) == (path not in ("/healthz", "/m/{token}")), (method, path)
 
@@ -429,7 +432,8 @@ def test_the_job_routes_have_no_response_model(db):
 
 
 # ---- the reference: failure codes, servers, operationIds, version, limits, headers ----------------------------------
-APP_SCHEMA_LINE = '        return {**schema, "servers": [{"url": public_base(request)}]}\n'
+APP_SCHEMA_LINE = '        return {**held, "servers": [{"url": public_base(request)}]}\n'
+APP_HOLD_LINE = '        held = live(schema, request.app.state.settings.get("non_stream_hold_s"))\n'
 
 
 @mutation(DOCS, "%s Sending again helps: %s Points refunded.", "%s %s Points refunded.", expect="is listed")
@@ -483,6 +487,51 @@ def test_the_server_address_is_the_public_address_setting_else_the_request_base(
             k: v for k, v in first.items() if k != "servers"}
 
     run_app(db, scenario)
+
+
+FACADE_HELD = ("/v1/chat/completions", "/v1beta/models/{model}:generateContent", "/models/{model}:generateContent")
+
+
+@mutation(APP, APP_HOLD_LINE, "        held = schema\n", expect="the wait the routes use")
+@mutation(DOCS, "replace(HOLD_MARK, str(int(hold_s)))", "replace(HOLD_MARK, '540')",
+          expect="the wait the routes use")
+def test_the_reference_states_the_live_non_stream_wait_and_documents_the_poll_hint(db):
+    """`non_stream_hold_s` is read on each request: the reference never states another wait than the routes use."""
+    async def scenario(env):
+        first = await fetch(env)
+        await env.settings.set("non_stream_hold_s", 80)
+        return first, await fetch(env)
+
+    first, second = run_app(db, scenario)
+    for schema, seconds in ((first, 540), (second, 80)):
+        served = json.dumps(schema, ensure_ascii=False)
+        assert openapi_docs.HOLD_MARK not in served, "the wait the routes use: the mark is left in the reference"
+        wait = "waits for its job at most %d seconds" % seconds
+        assert wait in schema["info"]["description"], "the wait the routes use: %r not in the introduction" % wait
+        for path in FACADE_HELD:
+            text = schema["paths"][path]["post"]["description"]
+            assert "at most %d seconds" % seconds in text, "the wait the routes use: %s" % path
+    assert "9 minutes" not in json.dumps(second)
+    for path in FACADE_HELD:
+        op = second["paths"][path]["post"]
+        examples = op["responses"]["200"]["content"]["application/json"]["examples"]
+        hint = json.dumps(examples["pollHint"]["value"], ensure_ascii=False)
+        assert "still rendering — poll job " in hint, path
+        assert ("length" if path.startswith("/v1/chat") else "MAX_TOKENS") in hint, path
+        for status in ("422", "500", "502", "503", "504"):
+            answer = op["responses"][status]
+            assert "Act on the code, not the status" in answer["description"], (path, status)
+            assert answer["headers"]["x-should-retry"], (path, status)
+    stream = second["paths"]["/v1beta/models/{model}:streamGenerateContent"]["post"]["responses"]
+    assert "504" not in stream, "a stream reports a failed job inside the stream"
+    intro = second["info"]["description"]
+    for word in ("still rendering — poll job <id>", "`MAX_TOKENS`", "`responseId`", "`delta.reasoning_content`",
+                 '"thought": true', "seedance-2.5-30s-16:9", "x-stainless-retry-count", "100 MB", "170 MB",
+                 "45 seconds", "Asia/Ho_Chi_Minh", "new `event_id`", "300 seconds", "redirects",
+                 "comes from Cloudflare"):
+        assert word in intro, word
+    assert "Every route." in second["components"]["securitySchemes"]["GoogleApiKeyHeader"]["description"]
+    assert "7 days" in second["paths"]["/m/{token}"]["get"]["description"]
 
 
 @mutation(DOCS, '    return _camel(names[(method, path)]) + ("Short" if path.startswith("/models") else "")',

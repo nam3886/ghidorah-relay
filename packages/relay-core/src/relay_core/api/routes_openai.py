@@ -34,7 +34,8 @@ router = APIRouter()
 
 
 class _ImageUrl(Strict):
-    url: str = Field(description="The input image: an https URL or a base64 data URI.")
+    url: str = Field(description=(
+        "The input image: an https URL (preferred for many or large images) or a base64 data URI. At most 12 MiB."))
     detail: str | None = Field(default=None, description="Accepted for compatibility and not used.")
 
 
@@ -59,13 +60,16 @@ class ChatBody(Strict):
         "model": "example-video", "messages": [{"role": "user", "content": "A red kite over a beach at sunset"}],
         "stream": False}]})
 
-    model: str = Field(description="Model id or alias, from GET /v1/models.")
+    model: str = Field(description=(
+        "Model id or alias, from GET /v1/models. For a model that takes them, a length and a ratio go here as "
+        "suffixes, such as seedance-2.5-30s-16:9 (see Chat and Gemini routes in the introduction)."))
     messages: list[_Message] = Field(description=(
         "The conversation. Only the last message is used: its text is the prompt and its image_url parts are the "
         "input images."))
     stream: bool = Field(default=False, description=(
-        "True: answer with server-sent events (chat.completion.chunk), a heartbeat while the job runs, then "
-        "data: [DONE]. False: hold the request until the job ends."))
+        "True: answer with server-sent events (chat.completion.chunk), a heartbeat in delta.reasoning_content while "
+        "the job runs, then the result and data: [DONE]. False: hold the request until the job ends or the wait "
+        "limit passes; then the answer is the poll hint (finish_reason length) and the job runs on."))
 
 
 def extract(body: ChatBody) -> tuple[str, tuple[ImageRef, ...]]:

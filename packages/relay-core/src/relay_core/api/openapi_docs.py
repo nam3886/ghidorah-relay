@@ -7,11 +7,13 @@ four native job calls (documentation only: `api/schemas.py`), the error bodies, 
 operation by HTTP status, the security schemes, an introduction (`info.description`), the webhook, a tag and an
 English description per operation, and a few example answers. Text only: nothing here changes what a route does.
 The result is served at `/openapi.json`, where `app.py` adds `servers` from the `public_address` setting (else the
-request's own address) on each request. The failure codes it lists are the neutral public codes (`errors.PUBLIC_CODES`),
+request's own address) and writes the `non_stream_hold_s` setting in place of `HOLD_MARK` (`live`), on each request.
+The failure codes it lists are the neutral public codes (`errors.PUBLIC_CODES`),
 never an internal code.
 """
 
 import copy
+import json
 from typing import Any
 
 from fastapi import FastAPI
@@ -54,7 +56,7 @@ _SECURITY = {
     "ApiKeyHeader": {"type": "apiKey", "in": "header", "name": "X-API-Key",
                      "description": "The same API key in X-API-Key. Every route."},
     "GoogleApiKeyHeader": {"type": "apiKey", "in": "header", "name": "x-goog-api-key", "description": (
-        "The same API key as the Gemini SDK sends it. Documented on the Gemini routes.")},
+        "The same API key as the Gemini SDK sends it. Every route.")},
 }
 _KEYLESS = {"/healthz", "/m/{token}"}
 
@@ -81,11 +83,18 @@ _POLL_TEXT = "Poll every 10 to 30 seconds until status is done or failed. progre
 _RENDERS = "Rendering continues after the call returns; poll the status call, or pass callback_url."
 _CHARGE = "Charged at creation, at the price of the model's option (`prices` in GET /v1/models)."
 _IDEMPOTENT = " Send an Idempotency-Key header to make a retry safe: the same key with the same body returns the " \
-              "same job and charges nothing; with another body it is refused 409."
-_HOLDS = " If the job fails while the request waits, the answer is the error of the job's code (the job is " \
-         "refunded). After about 9 minutes the answer is a hint to poll the job instead, and the job runs on."
-_STREAMS = " The stream sends a heartbeat every few seconds while the job runs, then the result or the error (after " \
-           "30 minutes, a hint to poll the job)."
+              "same job and charges nothing; with another body it is refused 409. A key is at most 200 characters, " \
+              "belongs to your API key on every endpoint, and is never forgotten."
+# `live()` writes the `non_stream_hold_s` setting in place of HOLD_MARK each time /openapi.json is served.
+HOLD_MARK = "{non_stream_hold_s}"
+_HOLDS = " The request waits at most " + HOLD_MARK + " seconds from its start. If the job fails while it waits, the " \
+         "answer is an error with the job's code and the HTTP status of that failure (422, 500, 502, 503 or " \
+         "504): act on the code, not the status; the job is refunded. If the wait ends first, the answer is the " \
+         "poll hint and the job runs on (see Chat and Gemini routes in the introduction)."
+_STREAMS = " The stream sends a heartbeat every 5 seconds while the job runs, then the result or the error (after " \
+           "30 minutes, the poll hint)."
+_SUFFIX = " Only the model and the prompt are read: a length or a ratio goes in the model name, for a model that " \
+          "takes it (see Chat and Gemini routes in the introduction)."
 
 _DOCS: dict[tuple[str, str], tuple[str, str]] = {
     ("post", "/v1/video/generations"): (
@@ -105,10 +114,11 @@ _DOCS: dict[tuple[str, str], tuple[str, str]] = {
     ("get", "/v1/images/generations/{job_id}/content/{idx}"): (
         "Native", "Download the job's image number idx, from 0 (only the key that created it). Supports Range."),
     ("post", "/v1/chat/completions"): (
-        "OpenAI", "OpenAI-style chat completion: creates a job, then holds or streams until it ends. Only model, "
-                  "messages and stream are accepted. The answer's content is the result links, one per line; "
-                  "job_id is the job, readable with the status call of its kind. " + _CHARGE + _HOLDS + _STREAMS
-                  + _IDEMPOTENT),
+        "OpenAI", "OpenAI-style chat completion: creates a job, then holds or streams until it ends or the wait "
+                  "limit passes. Only model, messages and stream are accepted." + _SUFFIX + " The answer's content is "
+                  "the result links, one per line; job_id is the job, readable with the status call of its kind. "
+                  + _CHARGE + _HOLDS + _STREAMS + " A stream reports a failed job as an error event, with status "
+                  "200." + _IDEMPOTENT),
     ("get", "/v1/models"): ("Catalog", "Models this key may use: kind (video or image), limits (the durations, "
                                        "ratios, counts and inputs a model takes) and prices (points per option; "
                                        "null means the option cannot be ordered yet). A paused model is left out; a "
@@ -129,16 +139,18 @@ _DOCS: dict[tuple[str, str], tuple[str, str]] = {
                                      "limit of null is unlimited, 0 is closed."),
     ("get", "/m/{token}"): ("Media", "Download an output or input file by its share token, the link a job's "
                                      "result_urls or images give. No key: the link is the credential, so keep it "
-                                     "private. Supports Range."),
+                                     "private. A link to an input file stops working 7 days after it was made; a link "
+                                     "to an output file does not expire unless it is revoked. Supports Range."),
     ("get", "/healthz"): ("Service", "Liveness probe."),
 }
 for _pre in ("/v1beta", ""):
     _DOCS[("post", "%s/models/{model}:generateContent" % _pre)] = (
-        "Gemini", "Gemini-style generateContent: creates a job and holds until it ends. The answer's text part is the "
-                  "result links, one per line; responseId is the job id. " + _CHARGE + _HOLDS + _IDEMPOTENT)
+        "Gemini", "Gemini-style generateContent: creates a job and holds until it ends or the wait limit passes."
+                  + _SUFFIX + " The answer's text part is the result links, one per line; responseId is the job id. "
+                  + _CHARGE + _HOLDS + _IDEMPOTENT)
     _DOCS[("post", "%s/models/{model}:streamGenerateContent" % _pre)] = (
-        "Gemini", "Gemini-style streaming generateContent (server-sent events; alt is ignored). " + _CHARGE
-                  + _STREAMS + _IDEMPOTENT)
+        "Gemini", "Gemini-style streaming generateContent (server-sent events; alt is ignored)." + _SUFFIX + " "
+                  + _CHARGE + _STREAMS + " A failed job is an error event, with status 200." + _IDEMPOTENT)
 
 _TAGS = [
     {"name": "Native", "description": "Create video and image jobs, read them, download their files."},
@@ -154,27 +166,66 @@ INTRO = """\
 Make videos and images. Every create call makes a **job**: you get its id at once and read the result when it ends.
 
 ## Authentication
-Every route except `/healthz` and `/m/{token}` needs an API key, sent as `Authorization: Bearer <key>` or
-`X-API-Key: <key>`. The Gemini routes (`/v1beta/...`, `/models/...`) also take `x-goog-api-key`, as the Gemini SDK
-sends it. A key in the query string is never read. A missing or unknown key is 401 `auth.invalid_key`; a disabled one
-is 403 `auth.key_disabled`.
+Every route except `/healthz` and `/m/{token}` needs an API key, sent as `Authorization: Bearer <key>`,
+`X-API-Key: <key>` or `x-goog-api-key: <key>` (as the Gemini SDK sends it); each header works on every route. A key in
+the query string is never read. A missing or unknown key is 401 `auth.invalid_key`; a disabled one is 403
+`auth.key_disabled`.
 
 ## Models and options
-Do not hard-code models or prices: read `GET /v1/models`. Each entry has its `kind`, its `limits` (durations, ratios,
-styles, how many input images and outputs, the longest prompt) and its `prices` in points per option. A model's
-provider is its `owned_by`; `GET /v1/providers/{provider}/options` lists that provider's extra choices.
+Do not hard-code models or prices: read `GET /v1/models`. The model ids in this reference (`example-video`,
+`example-image`) are examples only. Each entry has its `kind`, its `limits` (durations, ratios, styles, how many input
+images and outputs, the longest prompt) and its `prices` in points per option. Some models add their own words around
+the prompt, so their longest accepted prompt can be a little shorter than `max_prompt_chars`. A model's provider is
+its `owned_by`; `GET /v1/providers/{provider}/options` lists that provider's extra choices.
 
 ## Job lifecycle
 `queued` (waiting for capacity) → `running` (see `stage`) → `done` or `failed`. A running job can go back to `queued`
 when it has to wait again; it is not charged again. Treat a `status` or `stage` you do not know as still running.
 
+`done` is final. `failed` is final for you, with one exception: an operator may check a failed, refunded job again
+(a result can arrive late). The job then shows `running` again and is charged again; it ends `done`, or `failed` and
+refunded again. With a `callback_url`, that new end sends a new webhook event with a new `event_id`.
+
 ## Polling and webhooks
 Poll `GET /v1/video/generations/{id}` or `GET /v1/images/generations/{id}` every 10 to 30 seconds. Or pass
 `callback_url` (https, a public address): when the job ends, relay POSTs
 `{"event": "job.done" | "job.failed", "event_id", "job_id", "status"}` to it, with the headers `X-Relay-Event` and
-`X-Relay-Event-Id`. A 2xx answer is a delivery; a 4xx answer ends it; anything else is tried again, three tries in all.
-**The webhook is not signed**: take it as a hint and read the job with your key before you act. The same event can
-come more than once with the same `event_id`: drop repeats.
+`X-Relay-Event-Id`. A 2xx answer is a delivery; a 4xx answer ends it; anything else is tried again: a 3xx (redirects
+are not followed), a 5xx, or no answer within 10 seconds. There are three tries in all: the second 30 seconds after
+the first, the third 300 seconds after the second. **The webhook is not signed**: take it as a hint and read the job
+with your key before you act. The same event can come more than once with the same `event_id`: drop repeats.
+
+## Chat and Gemini routes
+`POST /v1/chat/completions` and the Gemini `generateContent` routes read only the model and the prompt (with its
+images). For a model that takes a length or a ratio, put them in the model name as suffixes after a dash, in any
+order: `seedance-2.5-30s-16:9` is 30 seconds at 16:9, and an image model takes a ratio and a style, as in
+`seedream-4.5-9:16-anime`. A suffix left out is the model's default; one the model does not take is refused 400
+(`input.bad_model`, `input.bad_duration`, `input.bad_ratio` or `input.bad_style`). The native create calls refuse a
+name with suffixes (`input.bad_model`): send `duration`, `ratio` and `style` as fields there.
+
+A request without streaming waits for its job at most {non_stream_hold_s} seconds, counted from the start of the
+request. A job done by then gives the result links (finish_reason `stop`; Gemini finishReason `STOP`). Otherwise the
+answer is the **poll hint**: the content is `still rendering — poll job <id>`, with finish_reason `length` (Gemini
+finishReason `MAX_TOKENS`). It means the job is not finished: it runs on and stays charged. Take `job_id` (Gemini
+`responseId`) and poll `GET /v1/video/generations/{id}` or `GET /v1/images/generations/{id}`. A stream ends the same
+way after 30 minutes. A job that fails while the request waits answers with its error: the body's code is the job's
+code, and the HTTP status is the one of that failure (422, 500, 502, 503 or 504). Act on the body's `code`, not on the
+status. A stream reports the failure as an error event instead, with status 200.
+
+A stream sends a heartbeat every 5 seconds while the job runs: a chunk whose `delta.reasoning_content` says how long
+it has waited, or on the Gemini routes a part marked `"thought": true`. Do not show it as the result. Then comes one
+last event (the result, the poll hint or the error) and, on `/v1/chat/completions`, `data: [DONE]`.
+
+Sending again: with no `Idempotency-Key`, the same request sent again by an SDK on its own (it carries
+`x-stainless-retry-count` of 1 or more, as the OpenAI SDKs send) within 30 minutes gets the same job, and nothing is
+charged. A request you send again yourself makes a new job, charged again: send an `Idempotency-Key` to make that safe.
+
+## Request size
+The public address is behind Cloudflare, which refuses a request body over 100 MB with its own 413 page. The relay
+itself refuses a body over 170 MB with 400 `input.invalid` and no `param`. A request takes at most 10 input images, each
+at most 12 MiB. An image URL must load within 20 seconds, and all the URLs of one request within 45 seconds together;
+otherwise the first image not loaded is refused `input.image_unreadable` and no job is made. Base64 makes an image a
+third larger: for many or large images, send URLs rather than data URIs.
 
 ## Points
 A job is charged when it is created, at the price of its model option (`prices` in `GET /v1/models`). A job that
@@ -188,26 +239,36 @@ Two limits apply to a key; both refuse a create call with 429 and charge nothing
   Send it again once one of your jobs ends.
 - **Points**: the key's points have a day limit and a total limit, and each provider can have its own cap on top
   (`points` and `providers` in `GET /v1/points`; null is unlimited, 0 is closed). A job whose price does not fit is
-  refused `quota.key_exceeded`. The day limit starts again each day; the total limit does not.
+  refused `quota.key_exceeded`. The day limit starts again each day at midnight in Asia/Ho_Chi_Minh time (UTC+7);
+  the total limit does not.
 
 There is no per-second request limit, and no `Retry-After` or rate-limit header: read `GET /v1/points` to see what is
 left.
 
 ## Errors
-Every error has the body `{"error": {"code", "message", "type", "param"}}`; the Gemini routes use the Gemini error
-body, with the code in `details[0].reason`. Act on `code`; `message` is fixed text for a person. Each operation lists
-the codes it can refuse a request with, by HTTP status; nothing is charged on any of them. A failed job's code is its
-`error_code`, one of a small fixed set listed in the job status: `content_refused`, `generation_failed`,
-`temporarily_unavailable`, `timeout`, `invalid_input` and `internal_error`. Its `error` says what happened and whether
-sending the request again can help. A held or streamed request on `/v1/chat/completions` or the Gemini routes whose job
-fails answers with the same code. On those routes an error answer carries `x-should-retry: false`, so an SDK does not
-send the request (and make a job) a second time.
+Every error the relay sends has the body `{"error": {"code", "message", "type", "param"}}`; the Gemini routes use the
+Gemini error body, with the code in `details[0].reason`. Act on `code`; `message` is fixed text for a person. Each
+operation lists the codes it can refuse a request with, by HTTP status; nothing is charged on any of them. A failed
+job's code is its `error_code`, one of a small fixed set listed in the job status: `content_refused`,
+`generation_failed`, `temporarily_unavailable`, `timeout`, `invalid_input` and `internal_error`. Its `error` says what
+happened and whether sending the request again can help. A held or streamed request on `/v1/chat/completions` or the
+Gemini routes whose job fails answers with the same code (see Chat and Gemini routes). On those routes an error answer
+carries `x-should-retry: false`, so an SDK does not send the request (and make a job) a second time.
+
+An answer that is not JSON (an HTML page with a 413, a 5xx or a 524) comes from Cloudflare in front of the relay, not
+from the relay. A 413 means the body is too large (see Request size). A 502, 503 or 524 means the relay could not be
+reached or did not answer within 100 seconds: a job may have been made, so send the request again with the same
+`Idempotency-Key`.
 
 ## Server address
 `servers` holds the relay's public address (its `public_address` setting), else the address this reference was read
 from.
 
 ## Changes
+- **2026-11-04, 2026.11.04**: a request to `/v1/chat/completions` or `generateContent` without streaming waits at most
+  {non_stream_hold_s} seconds from its start (it was always 540), then gives the poll hint while the job runs on.
+  The reference now documents the poll hint, the HTTP status of a failed held request, model name suffixes, the
+  re-send rules, request size, link expiry, webhook tries and a re-checked job.
 - **2026-10-30, 2026.10.30**: a model option the service cannot serve at all for now (an option of a paid plan while
   the service runs none) is refused at once, 403 `model.unavailable`, nothing charged, instead of waiting queued until
   it fails `temporarily_unavailable`.
@@ -223,7 +284,7 @@ from.
 """
 
 API_TITLE = "Ghidorah Relay API"
-API_VERSION = "2026.10.30"    # bumped by hand with each entry of ## Changes above
+API_VERSION = "2026.11.04"   # bumped by hand with each entry of ## Changes above
 
 # Request-time refusals, by operation. The HTTP status of each code is its rule's (`relay_core.errors`).
 _KEY = ("auth.invalid_key", "auth.key_disabled")
@@ -276,13 +337,30 @@ for _pre in ("/v1beta", ""):
     _EXAMPLES[("post", "%s/models/{model}:generateContent" % _pre)] = {
         "candidates": [{"content": {"role": "model", "parts": [{"text": _LINK}]}, "index": 0, "finishReason": "STOP"}],
         "modelVersion": "example-image", "responseId": _JOB_ID}
+# The facades' second 200 answer: the wait ended before the job (`facade_common.waiting_text`).
+_HINT = "still rendering — poll job " + _JOB_ID
+_PENDING: dict[tuple[str, str], dict] = {("post", "/v1/chat/completions"): {
+    **_EXAMPLES[("post", "/v1/chat/completions")],
+    "choices": [{"index": 0, "message": {"role": "assistant", "content": _HINT}, "finish_reason": "length"}]}}
+for _pre in ("/v1beta", ""):
+    _PENDING[("post", "%s/models/{model}:generateContent" % _pre)] = {
+        "candidates": [{"content": {"role": "model", "parts": [{"text": _HINT}]}, "index": 0,
+                        "finishReason": "MAX_TOKENS"}],
+        "modelVersion": "example-image", "responseId": _JOB_ID}
+
+# A held facade request whose job failed answers with the HTTP status of the failure (`errors.http_status`).
+_HELD_STATUSES = ("422", "500", "502", "503", "504")
+_HELD_FAILED = ("A held request whose job failed: the body's code is the job's code (see the job status), and this "
+                "status is the one of that failure. Act on the code, not the status. The job is refunded.")
 
 # The POST a job's callback_url gets (`jobs/webhooks.py`), as an OpenAPI 3.1 webhook.
 _WEBHOOK = {"post": {
     "summary": "Job ended", "tags": ["Native"],
     "description": "Sent to the job's callback_url when it reaches done or failed. Not signed: read the job with your "
                    "key before acting on it; for job.failed its error_code says why (listed under the job status). "
-                   "Answer 2xx; a repeat keeps the same event_id.",
+                   "Answer 2xx within 10 seconds; a repeat keeps the same event_id. Three tries in all, 30 and 300 "
+                   "seconds apart; redirects are not followed, and a 3xx is tried again. A failed job that an operator "
+                   "checks again can end once more: that end is a new event with a new event_id.",
     "parameters": [
         {"name": "X-Relay-Event", "in": "header", "required": True, "schema": {"type": "string"},
          "description": "job.done or job.failed, as event in the body."},
@@ -293,7 +371,9 @@ _WEBHOOK = {"post": {
             "event": {"type": "string", "enum": ["job.done", "job.failed"], "description": "What happened to the job."},
             "event_id": {"type": "string", "description": "Stable id of this event across tries: drop repeats."},
             "job_id": {"type": "string", "description": "The job; read its status for the result."},
-            "status": {"type": "string", "enum": ["done", "failed"], "description": "The job's final status."}},
+            "status": {"type": "string", "enum": ["done", "failed"], "description": (
+                "The job's status when the event was made. A failed job may still turn done after an operator "
+                "re-check, with a new event.")}},
         "examples": [{"event": "job.done", "event_id": _JOB_ID + ":1792310400120", "job_id": _JOB_ID,
                       "status": "done"}]}}}},
     "responses": {"200": {"description": "Any 2xx answer counts as delivered."}}}}
@@ -434,8 +514,15 @@ def public_schema(app: FastAPI) -> dict:
                 op["responses"]["200"] = {"description": "The job", "content": {"application/json": {
                     "schema": {"$ref": _REF + _RESPONSES[(method, path)].__name__}}}}
             if (method, path) in _EXAMPLES and "200" in op["responses"]:
-                op["responses"]["200"].setdefault("content", {}).setdefault("application/json", {})["example"] = (
-                    copy.deepcopy(_EXAMPLES[(method, path)]))
+                media = op["responses"]["200"].setdefault("content", {}).setdefault("application/json", {})
+                if (method, path) in _PENDING:
+                    media["examples"] = {
+                        "done": {"summary": "The job is done: the result links",
+                                 "value": copy.deepcopy(_EXAMPLES[(method, path)])},
+                        "pollHint": {"summary": "The wait ended first: poll the job",
+                                     "value": copy.deepcopy(_PENDING[(method, path)])}}
+                else:
+                    media["example"] = copy.deepcopy(_EXAMPLES[(method, path)])
             if path in _MEDIA_PATHS:
                 op["responses"].update(copy.deepcopy(_MEDIA_RESPONSES))
                 op.setdefault("parameters", []).append(copy.deepcopy(_RANGE_PARAM))
@@ -445,16 +532,26 @@ def public_schema(app: FastAPI) -> dict:
             error_ref = _REF + ("GeminiError" if gemini else "Error")
             headers = copy.deepcopy(_NO_RETRY) if is_facade_path(path) else None
             op["responses"].update(_error_responses(_ERRORS.get((method, path), ()), error_ref, headers))
+            if (method, path) in _PENDING:
+                for status in _HELD_STATUSES:
+                    answer = op["responses"].setdefault(status, {"description": "", "content": {
+                        "application/json": {"schema": {"$ref": error_ref}}}, "headers": copy.deepcopy(_NO_RETRY)})
+                    answer["description"] = (answer["description"] + " " + _HELD_FAILED).strip()
             op["responses"]["default"] = {
                 "description": "Error", "content": {"application/json": {"schema": {"$ref": error_ref}}}}
             if headers:
                 op["responses"]["default"]["headers"] = headers
             if path not in _KEYLESS:
-                op["security"] = [{"BearerAuth": []}, {"ApiKeyHeader": []}] + (
-                    [{"GoogleApiKeyHeader": []}] if gemini else [])
+                op["security"] = [{"BearerAuth": []}, {"ApiKeyHeader": []}, {"GoogleApiKeyHeader": []}]
     comps["securitySchemes"] = copy.deepcopy(_SECURITY)
     schema["info"].update(title=API_TITLE, version=API_VERSION, description=INTRO)
     schema["tags"] = copy.deepcopy(_TAGS)
     schema["webhooks"] = {"jobEnded": copy.deepcopy(_WEBHOOK)}
     _prune(schema)
     return schema
+
+
+def live(schema: dict, hold_s: int) -> dict:
+    """A copy of `schema` with the `non_stream_hold_s` setting written in place of HOLD_MARK, so the reference always
+    states the wait the routes use."""
+    return json.loads(json.dumps(schema).replace(HOLD_MARK, str(int(hold_s))))

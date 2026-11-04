@@ -35,7 +35,7 @@ from relay_core.admin import (
 from relay_core.admin.router import AdminGuard, AdminHeaders, build_admin_router
 from relay_core.api import errors_http, routes_catalog, routes_gemini, routes_media, routes_native, routes_openai
 from relay_core.api.doors import public_base
-from relay_core.api.openapi_docs import public_schema
+from relay_core.api.openapi_docs import live, public_schema
 from relay_core.api.request_log import RequestLogMiddleware
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Settings
@@ -94,8 +94,10 @@ def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectSt
         nonlocal schema
         if schema is None:
             schema = public_schema(app)
-        # the address is a setting, read on each request: `public_address`, else the address this request came to
-        return {**schema, "servers": [{"url": public_base(request)}]}
+        # settings, read on each request: the address (`public_address`, else the address this request came to) and
+        # the non-stream wait the reference states (`non_stream_hold_s`)
+        held = live(schema, request.app.state.settings.get("non_stream_hold_s"))
+        return {**held, "servers": [{"url": public_base(request)}]}
 
     app.include_router(health)
     app.include_router(pages.router)

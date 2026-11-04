@@ -29,15 +29,19 @@ router = APIRouter()
 
 class _Common(Strict):
     model: str = Field(description=(
-        "Model id or alias, from GET /v1/models: a video model on the video call, an image model on the image call."))
+        "Model id or alias, from GET /v1/models: a video model on the video call, an image model on the image call. "
+        "The name alone: a name with suffixes (such as seedance-2.5-30s-16:9, for the chat and Gemini routes) is "
+        "refused `input.bad_model`; send duration, ratio and style as fields."))
     prompt: str = Field(description=(
-        "What to make. Trimmed, never blank, at most the model's `limits.max_prompt_chars` characters."))
+        "What to make. Trimmed, never blank, at most the model's `limits.max_prompt_chars` characters (a little less "
+        "for a model that adds its own words around the prompt)."))
     ratio: str | None = Field(default=None, description=(
         "Aspect ratio, such as 16:9, from the model's `limits.ratios`. Omit it for the model's default."))
     n: StrictInt | None = Field(default=None, description=(
         "How many outputs to make, for a model that makes several (see its `limits`). Omit it for the default."))
     image: str | None = Field(default=None, description=(
-        "One input image: an https URL or a base64 data URI. JPEG, PNG or WebP, at most 12 MiB."))
+        "One input image: an https URL or a base64 data URI. JPEG, PNG or WebP, at most 12 MiB. A URL must load "
+        "within 20 seconds (45 seconds for all of a request's URLs); prefer URLs for many or large images."))
     images: list[str] | None = Field(default=None, description=(
         "Input images, each as in `image`. At most 10 together with `image`; how many a model takes is its "
         "`limits.max_images`."))
