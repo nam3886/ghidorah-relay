@@ -1,0 +1,9 @@
+{
+ "status": 200,
+ "headers": {},
+ "synthetic": "synthetic: the spike printed only the status and key names of this answer (plans/gpt-spike-261104.md); values are placeholders",
+ "body": {
+  "status": "ok",
+  "conduit_token": "<redacted>"
+ }
+}

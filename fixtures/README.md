@@ -38,6 +38,12 @@ What the captures do not hold.
 - dola throttle SSE (`/chat/completion` `error_code`) and dola likeness refusal: not captured here. The SSE bodies in `dola/sse/*.txt` are reconstructed from the event names and error codes of earlier samples (not live captures); a live 710022004 body replaces them when one is measured.
 - vibes error bodies (401, 403, 429, QUOTA, a rejected generate, a refused image edit) and an extend past its ~16.7 s ceiling: not captured yet.
 - meta refusal, rate or limit text, text-only reply and logged-out page: not captured yet.
+- gpt (chatgpt.com): the conversation listing (`GET /backend-api/conversations`), a refusal stream, a
+  moderation-blocked stream, an upstream image-limit answer, a free/team/pro session, `limits_progress` with
+  `remaining: 0` and an Arkose / `force_login` prepare were never seen: tests build them (synthetic). The bodies of
+  `f/conversation/prepare`, `files`, `files/{id}/uploaded`, the attachment download and the deleted-conversation 404
+  were not saved by the spike: `gpt/spike-261104/{conv_prepare,files_create,files_uploaded,attachment_download,
+  conversation_deleted_404}.json` are synthetic (key names as printed, placeholder values, a `synthetic` field).
 
 ## meta.ai live run (23/10/2026)
 
@@ -563,3 +569,37 @@ token or account id is in them.
 - `muse/new-files-301030/fs_list_after.json`
 - `muse/new-files-301030/history_linked_video.json`
 - `muse/new-files-301030/history_unlinked_image.json`
+
+## chatgpt.com spike (04-05/11/2026)
+
+One Plus account over plain HTTP through its own proxy (`plans/gpt-spike-261104.md`); `fixtures/gpt/FINDINGS.md`
+(F1–F8) sums them up. Each file is `{status, headers, body | stream_lines}`. The spike logged bodies and stream lines
+only, so captures from 04/11 have `headers: {}` and a `note` saying so; the two 05/11 reads (signed-out session, one
+prepare made with no cookie, no bearer and a random device id) keep their response headers, Set-Cookie as names
+(`set_cookie_names`). Shaped on the box (tokens, `dx` programs, sentinel/conduit/resume tokens → `<redacted len=N>`;
+account, user, device ids, email, name, picture, IP and region → fixed fakes; scanned for every jar cookie, the access
+token, the proxy parts and the identity values: 0 hits), then put through `scripts/redact-fixtures.py`'s `Redactor`
+(salted fakes, URL query values → `x`, `check --raw` → 0 leaks). `redact` itself was not used: it walks only its
+dola/meta/vibes layout and rewrites the destination README. `account.structure` reads a faked word because the
+`_account` cookie holds the same word. `safe_urls` in the conversation reads (the account's own earlier
+links) are `example.invalid`. `turnstile_dx.json` is `{p, dx, go_token_len}` copied unredacted (its `p` carries no
+account value; redaction would break the XOR); `go_token_len` is the length of aurora's Go VM answer (1184).
+
+- `gpt/spike-261104/home.json` — `data-build` and the sentinel `sdk.js` URL only.
+- `gpt/spike-261104/auth_session.json` — `GET /api/auth/session` signed in (Plus).
+- `gpt/spike-261104/auth_session_signed_out.json` — the same with no cookie: 200 `{}` (05/11).
+- `gpt/spike-261104/init_limits.json` — `POST /backend-api/conversation/init` (`limits_progress`).
+- `gpt/spike-261104/prepare.json` — sentinel `chat-requirements/prepare`, signed in (`chatgpt-paid`).
+- `gpt/spike-261104/prepare_signed_out.json` — the same with no cookie and no bearer (`chatgpt-noauth`, 05/11).
+- `gpt/spike-261104/finalize.json` — sentinel `chat-requirements/finalize`.
+- `gpt/spike-261104/turnstile_dx.json` — the 05/11 prepare's `p` and `dx`, with the Go VM's token length.
+- `gpt/spike-261104/sse_t2i_1x1.json` — run t5A stream (1:1, user message echoed).
+- `gpt/spike-261104/sse_t2i_16x9.json` — run t1 stream (16:9).
+- `gpt/spike-261104/sse_edit.json` — run t3 stream (image edit).
+- `gpt/spike-261104/conv_t2i.json` — run t5A conversation read.
+- `gpt/spike-261104/conv_edit.json` — run t3 conversation read (input as `sediment://` in the user message).
+- `gpt/spike-261104/conv_prepare.json` — synthetic `f/conversation/prepare` answer.
+- `gpt/spike-261104/files_create.json` — synthetic `POST /backend-api/files` answer.
+- `gpt/spike-261104/files_uploaded.json` — synthetic `POST /backend-api/files/{id}/uploaded` answer.
+- `gpt/spike-261104/attachment_download.json` — synthetic attachment download answer (real key set).
+- `gpt/spike-261104/conversation_deleted_404.json` — synthetic 404 of a hidden conversation.

@@ -1,0 +1,15 @@
+{
+ "status": 200,
+ "headers": {},
+ "synthetic": "synthetic: GET /backend-api/conversation/{cid}/attachment/{file_id}/download for run t5A; the key set is exactly the one the spike printed, the URL shape is the printed one (host chatgpt.com, query names id fn cd ts p cid sig v), every value is a placeholder except file_size_bytes and mime_type (t5A's image)",
+ "body": {
+  "status": "success",
+  "download_url": "https://chatgpt.com/backend-api/estuary/content?id=xxxx&fn=xxxx&cd=xxxx&ts=xxxx&p=xxxx&cid=xxxx&sig=xxxx&v=xxxx",
+  "file_name": "image.png",
+  "file_size_bytes": 3105523,
+  "mime_type": "image/png",
+  "creation_time": "2026-11-04T16:30:31.000000+00:00",
+  "metadata": {},
+  "no_auth_user_upload": false
+ }
+}

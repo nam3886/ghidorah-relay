@@ -1,0 +1,11 @@
+{
+ "status": 200,
+ "headers": {},
+ "note": "spike log kept the body only; status from the spike's printout, headers not recorded",
+ "body": {
+  "persona": "chatgpt-paid",
+  "token": "<redacted len=3108>",
+  "expire_after": 540,
+  "expire_at": 1793809478
+ }
+}

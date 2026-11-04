@@ -1,0 +1,9 @@
+{
+ "status": 200,
+ "headers": {},
+ "synthetic": "synthetic: the spike printed only the status and key names of this answer (plans/gpt-spike-261104.md: {download_url, status, ...}); values are placeholders and the other keys were not recorded",
+ "body": {
+  "status": "success",
+  "download_url": "https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-aaaa-4000-8000-000000000001/raw?se=xxxx&sp=xx&sv=xxxx&sr=x&sig=xxxx"
+ }
+}

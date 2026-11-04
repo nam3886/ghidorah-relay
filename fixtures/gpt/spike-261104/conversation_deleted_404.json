@@ -1,0 +1,10 @@
+{
+ "status": 404,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "synthetic": "synthetic: the spike saw 404 \"Conversation has been deleted\" on GET /backend-api/conversation/{id} and on its attachment download after PATCH is_visible:false; the exact body was not saved, the {detail} wrapper is assumed",
+ "body": {
+  "detail": "Conversation has been deleted"
+ }
+}

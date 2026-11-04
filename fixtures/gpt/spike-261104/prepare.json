@@ -1,0 +1,23 @@
+{
+ "status": 200,
+ "headers": {},
+ "note": "spike log kept the body only; status from the spike's printout, headers not recorded",
+ "body": {
+  "persona": "chatgpt-paid",
+  "prepare_token": "<redacted len=4344>",
+  "turnstile": {
+   "required": true,
+   "dx": "<redacted len=35320>"
+  },
+  "proofofwork": {
+   "required": true,
+   "seed": "0.05088451530466587",
+   "difficulty": "076e11"
+  },
+  "so": {
+   "required": true,
+   "collector_dx": "<redacted len=32096>",
+   "snapshot_dx": "<redacted len=26456>"
+  }
+ }
+}

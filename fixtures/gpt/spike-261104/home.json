@@ -1,0 +1,9 @@
+{
+ "status": 200,
+ "headers": {},
+ "note": "GET / (navigate); only data-build and the sdk.js URL its sentinel loader names kept",
+ "body": {
+  "data_build": "ccbd58c87c3a77dcbef035020b701a5bc7c54b87",
+  "sentinel_sdk_url": "https://chatgpt.com/sentinel/20260810913b/sdk.js"
+ }
+}

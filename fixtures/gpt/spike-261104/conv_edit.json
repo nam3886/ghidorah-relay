@@ -1,0 +1,299 @@
+{
+ "status": 200,
+ "headers": {},
+ "note": "spike log kept the body only; status from the spike's printout, headers not recorded; safe_urls (the account's own earlier links) replaced by example.invalid",
+ "body": {
+  "title": "Edit Image Weather",
+  "create_time": 1793809689.444681,
+  "update_time": 1793809710.379216,
+  "moderation_results": [],
+  "plugin_ids": null,
+  "conversation_id": "6aeb5d18-6638-83ec-a053-487d9b537d06",
+  "conversation_template_id": null,
+  "gizmo_id": null,
+  "gizmo_type": null,
+  "is_archived": false,
+  "is_starred": null,
+  "safe_urls": [
+   "https://example.invalid/safe-url-1",
+   "https://example.invalid/safe-url-2",
+   "https://example.invalid/safe-url-3",
+   "https://example.invalid/safe-url-4",
+   "https://example.invalid/safe-url-5",
+   "https://example.invalid/safe-url-6",
+   "https://example.invalid/safe-url-7",
+   "https://example.invalid/safe-url-8",
+   "https://example.invalid/safe-url-9",
+   "https://example.invalid/safe-url-10"
+  ],
+  "blocked_urls": [],
+  "default_model_slug": "auto",
+  "atlas_mode_enabled": null,
+  "conversation_origin": null,
+  "is_read_only": null,
+  "voice": null,
+  "async_status": null,
+  "disabled_tool_ids": [],
+  "is_temporary_chat": false,
+  "is_do_not_remember": false,
+  "memory_scope": "global_enabled",
+  "context_scopes": null,
+  "sugar_item_id": null,
+  "sugar_item_visible": false,
+  "pinned_time": null,
+  "is_study_mode": false,
+  "owner": null,
+  "sectioned_conversation": null,
+  "mapping": {
+   "client-created-root": {
+    "id": "client-created-root",
+    "message": null,
+    "parent": null,
+    "children": [
+     "360bfd87-efe9-4516-993b-1f006fb68a6b"
+    ]
+   },
+   "360bfd87-efe9-4516-993b-1f006fb68a6b": {
+    "id": "360bfd87-efe9-4516-993b-1f006fb68a6b",
+    "message": {
+     "id": "360bfd87-efe9-4516-993b-1f006fb68a6b",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1793809687.3171473,
+     "update_time": 1793809710.123799,
+     "content": {
+      "content_type": "multimodal_text",
+      "parts": [
+       {
+        "content_type": "image_asset_pointer",
+        "asset_pointer": "sediment://file_00000000b26482119bd5ae06c558289e",
+        "size_bytes": 2888899,
+        "width": 941,
+        "height": 1672,
+        "fovea": null,
+        "metadata": {
+         "dalle": null,
+         "gizmo": null,
+         "generation": null,
+         "segmentation": null,
+         "container_pixel_height": null,
+         "container_pixel_width": null,
+         "emu_omit_glimpse_image": null,
+         "emu_patches_override": null,
+         "lpe_keep_patch_ijhw": null,
+         "lpe_delta_encoding_channel": null,
+         "sanitized": false,
+         "asset_pointer_link": null,
+         "watermarked_asset_pointer": null,
+         "is_no_auth_placeholder": null
+        }
+       },
+       "Edit this image: turn the stormy scene into a calm sunny summer afternoon with blue sky. Keep the lighthouse, the cliff and the composition the same."
+      ]
+     },
+     "status": "finished_successfully",
+     "end_turn": null,
+     "weight": 1.0,
+     "metadata": {
+      "system_hints": [
+       "picture_v2"
+      ],
+      "serialization_metadata": {
+       "custom_symbol_offsets": []
+      },
+      "selected_github_repos": [],
+      "attachments": [
+       {
+        "id": "file_00000000b26482119bd5ae06c558289e",
+        "name": "img_t2_916_0.png",
+        "size": 2888899,
+        "width": 941,
+        "height": 1672
+       }
+      ],
+      "request_id": "5cd22120-d38a-401f-b31a-39e34f1c58cf",
+      "message_source": null,
+      "turn_exchange_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "working_turn_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "can_save": false
+     },
+     "recipient": "all",
+     "channel": null
+    },
+    "parent": "client-created-root",
+    "children": [
+     "7817cd23-0a75-416c-83e4-503580afae04"
+    ]
+   },
+   "7817cd23-0a75-416c-83e4-503580afae04": {
+    "id": "7817cd23-0a75-416c-83e4-503580afae04",
+    "message": {
+     "id": "7817cd23-0a75-416c-83e4-503580afae04",
+     "author": {
+      "role": "assistant",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1793809691.477673,
+     "update_time": 1793809691.563111,
+     "content": {
+      "content_type": "code",
+      "language": "python3",
+      "response_format_name": null,
+      "text": "{\"skipped_mainline\":true}"
+     },
+     "status": "finished_successfully",
+     "end_turn": false,
+     "weight": 1.0,
+     "metadata": {
+      "turn_exchange_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "image_gen_estimated_duration_ms": 22268,
+      "working_turn_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "parent_id": "3bbc9456-c3bc-4deb-b2f7-be92362ece17",
+      "model_switcher_deny": [],
+      "can_save": false
+     },
+     "recipient": "t2uay3k.sj1i4kz",
+     "channel": null
+    },
+    "parent": "360bfd87-efe9-4516-993b-1f006fb68a6b",
+    "children": [
+     "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5"
+    ]
+   },
+   "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5": {
+    "id": "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5",
+    "message": {
+     "id": "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5",
+     "author": {
+      "role": "tool",
+      "name": "t2uay3k.sj1i4kz",
+      "metadata": {}
+     },
+     "create_time": 1793809708.508872,
+     "update_time": 1793809708.508872,
+     "content": {
+      "content_type": "multimodal_text",
+      "parts": [
+       {
+        "content_type": "image_asset_pointer",
+        "asset_pointer": "sediment://file_00000000f8988207b5be52138be217d0",
+        "mime_type": "image/png",
+        "size_bytes": 2864440,
+        "width": 941,
+        "height": 1672,
+        "fovea": null,
+        "metadata": {
+         "dalle": {
+          "gen_id": "ff181729-3eac-4625-ab6a-ec79b7f163b7",
+          "prompt": "",
+          "seed": null,
+          "parent_gen_id": null,
+          "edit_op": null,
+          "serialization_title": "DALL-E generation metadata"
+         },
+         "gizmo": null,
+         "generation": {
+          "gen_id": "ff181729-3eac-4625-ab6a-ec79b7f163b7",
+          "gen_size": "smimage",
+          "gen_size_v2": "16",
+          "seed": null,
+          "parent_gen_id": null,
+          "height": 1672,
+          "width": 941,
+          "transparent_background": false,
+          "is_sticker": false,
+          "is_purchasable": null,
+          "purchase_hints": null,
+          "serialization_title": "Image Generation metadata",
+          "orientation": "portrait",
+          "projection": "rectilinear",
+          "spritesheet": null,
+          "animation": null,
+          "selected_speed": null,
+          "gif_speed_variants": null,
+          "watermarked_gif_speed_variants": null
+         },
+         "segmentation": null,
+         "container_pixel_height": 1672,
+         "container_pixel_width": 941,
+         "emu_omit_glimpse_image": null,
+         "emu_patches_override": null,
+         "lpe_keep_patch_ijhw": null,
+         "lpe_delta_encoding_channel": null,
+         "sanitized": false,
+         "asset_pointer_link": null,
+         "watermarked_asset_pointer": null,
+         "is_no_auth_placeholder": null
+        }
+       }
+      ]
+     },
+     "status": "finished_successfully",
+     "end_turn": null,
+     "weight": 0.0,
+     "metadata": {
+      "image_gen_title": "Sunlit Lighthouse on a Turquoise Coast",
+      "turn_exchange_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "working_turn_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "permissions": [
+       {
+        "type": "notification",
+        "status": "requested",
+        "notification_channel_id": "image_gen",
+        "notification_channel_name": "ImageGen",
+        "notification_priority": 4
+       }
+      ],
+      "parent_id": "7817cd23-0a75-416c-83e4-503580afae04",
+      "can_save": false
+     },
+     "recipient": "all",
+     "channel": null
+    },
+    "parent": "7817cd23-0a75-416c-83e4-503580afae04",
+    "children": [
+     "e86abb96-5823-4f60-89c8-95225e564b33"
+    ]
+   },
+   "e86abb96-5823-4f60-89c8-95225e564b33": {
+    "id": "e86abb96-5823-4f60-89c8-95225e564b33",
+    "message": {
+     "id": "e86abb96-5823-4f60-89c8-95225e564b33",
+     "author": {
+      "role": "assistant",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1793809708.514348,
+     "update_time": 1793809709.463612,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       ""
+      ]
+     },
+     "status": "finished_successfully",
+     "end_turn": true,
+     "weight": 1.0,
+     "metadata": {
+      "parent_id": "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5",
+      "turn_exchange_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "working_turn_id": "0fa69137-9347-485a-90e8-97552e83612d",
+      "model_switcher_deny": [],
+      "can_save": false
+     },
+     "recipient": "all",
+     "channel": "final"
+    },
+    "parent": "e6d0bd2a-7c3f-485d-840a-67d4dbe8a7c5",
+    "children": []
+   }
+  },
+  "current_node": "e86abb96-5823-4f60-89c8-95225e564b33",
+  "context_truncation_continuation": null
+ }
+}

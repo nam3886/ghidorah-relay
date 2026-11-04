@@ -1,0 +1,50 @@
+{
+ "status": 200,
+ "headers": {
+  "date": "Wed, 04 Nov 2026 17:11:17 GMT",
+  "content-type": "application/json",
+  "server": "cloudflare",
+  "x-content-type-options": "nosniff",
+  "access-control-allow-credentials": "true",
+  "access-control-allow-origin": "https://chatgpt.com",
+  "vary": "Origin",
+  "x-oai-request-id": "5b506807-19a0-4e34-ae99-afcfa77a0ea9",
+  "x-build": "e02defe1a589",
+  "cf-cache-status": "DYNAMIC",
+  "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+  "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.01,\"max_age\":604800}",
+  "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
+  "s-cf-edge-msec": "25",
+  "s-cf-origin-ttfb-msec": "65",
+  "s-cf-quic-rtt-msec": "0",
+  "s-cf-tcp-rtt-msec": "302",
+  "content-encoding": "br",
+  "cf-ray": "a5553cac3ce2bbe3-FRA"
+ },
+ "set_cookie_names": [
+  "__cf_bm",
+  "__cflb",
+  "_cfuvid",
+  "oai-sc"
+ ],
+ "body": {
+  "persona": "chatgpt-noauth",
+  "prepare_token": "<redacted len=3832>",
+  "turnstile": {
+   "required": true,
+   "dx": "<redacted len=30664>"
+  },
+  "proofofwork": {
+   "required": true,
+   "seed": "0.22303293818467218",
+   "difficulty": "061a80"
+  },
+  "so": {
+   "required": true,
+   "collector_dx": "<redacted len=31952>",
+   "snapshot_dx": "<redacted len=25880>"
+  }
+ }
+}

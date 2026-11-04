@@ -1,0 +1,36 @@
+{
+ "status": 200,
+ "headers": {},
+ "note": "spike log kept the body only; status from the spike's printout, headers not recorded",
+ "body": {
+  "type": "conversation_detail_metadata",
+  "banner_info": null,
+  "blocked_features": [],
+  "model_limits": [],
+  "limits_progress": [
+   {
+    "feature_name": "deep_research",
+    "remaining": 25,
+    "reset_after": "2026-12-04T16:14:21.130409+00:00"
+   },
+   {
+    "feature_name": "file_upload",
+    "remaining": 80,
+    "reset_after": "2026-11-04T19:14:21.130428+00:00"
+   },
+   {
+    "feature_name": "paste_text_to_file",
+    "remaining": 80,
+    "reset_after": "2026-11-04T19:14:21.130433+00:00"
+   },
+   {
+    "feature_name": "image_gen",
+    "remaining": 120,
+    "reset_after": "2026-11-05T16:14:21.130437+00:00"
+   }
+  ],
+  "default_model_slug": "gpt-6",
+  "intended_default_model_slug": "gpt-6",
+  "atlas_mode_enabled": null
+ }
+}

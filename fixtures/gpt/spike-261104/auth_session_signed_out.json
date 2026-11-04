@@ -1,0 +1,27 @@
+{
+ "status": 200,
+ "headers": {
+  "date": "Wed, 04 Nov 2026 17:11:15 GMT",
+  "content-type": "application/json; charset=utf-8",
+  "content-length": "2",
+  "x-powered-by": "Express",
+  "cache-control": "private, no-store",
+  "etag": "W/\"2-vyGp6PvFo4RvsFtPoIWeCReyIC8\"",
+  "x-openai-proxy-wasm": "v0.1",
+  "server": "cloudflare",
+  "cf-cache-status": "DYNAMIC",
+  "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+  "x-content-type-options": "nosniff",
+  "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.01,\"max_age\":604800}",
+  "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}]}",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "cross-origin-opener-policy": "same-origin-allow-popups",
+  "cf-ray": "a5553ca15b989291-FRA"
+ },
+ "set_cookie_names": [
+  "__cf_bm",
+  "__cflb",
+  "_cfuvid"
+ ],
+ "body": {}
+}

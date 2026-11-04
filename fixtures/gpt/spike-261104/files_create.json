@@ -1,0 +1,10 @@
+{
+ "status": 200,
+ "headers": {},
+ "synthetic": "synthetic: the spike printed only the status and key names of this answer (plans/gpt-spike-261104.md); values are placeholders, the upload host is the one the spike saw",
+ "body": {
+  "status": "success",
+  "file_id": "file_00000000aaaa8207b5be52138be21700",
+  "upload_url": "https://sdmntprindiasocentral.oaiusercontent.com/files/00000000-aaaa-4000-8000-000000000001/raw?se=xxxx&sp=xx&sv=xxxx&sr=x&skoid=xxxx&sig=xxxx"
+ }
+}
