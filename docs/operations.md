@@ -1286,6 +1286,133 @@ with the job id); more images than paid are never delivered. Then the chat's his
 | `muse.pools` | image 400, video 40 a week | uses per account per 168 h, from muse's reset |
 | `muse.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
+## The gpt provider (`relay worker --provider gpt`)
+
+ChatGPT (chatgpt.com, the consumer web app) over plain HTTP, no browser: curl_cffi with Chrome's fingerprint
+(`chrome150` and its own user agent), every call through the account's proxy (direct only for an account with none,
+never a direct fallback), no redirect followed. One model:
+- `gpt-image`: one image per job (`n` 1), from a text prompt or an edit of exactly one input image
+  (`image_to_image`, at most 20 MiB). Ratios `1:1`, `16:9`, `9:16`, `3:2`, asked for in the message, or none:
+  chatgpt.com draws 3:2, 1536×1024 (spike sizes 1254², 1672×941, 941×1672, 1536×1024). An image takes 21-26 s.
+
+The protocol is in `fixtures/gpt/FINDINGS.md`; the package is `packages/provider-gpt/` (`relay_gpt`). gpt ships
+drained: `gpt.claims_enabled` is false until the owner turns it on, and `scripts/deploy.sh` keeps it so.
+
+**What the worker needs.** The http image (`worker-gpt`) and `deploy/worker-gpt.env` with the usual worker
+variables. No key of its own.
+
+**Account.** A Cookie-Editor JSON export of chatgpt.com (the cookie list, or an object `{url, cookies}`); only the
+cookies of chatgpt.com and its subdomains are kept, and the session cookie `__Secure-next-auth.session-token` (or its
+split parts `.0`, `.1`, ...) must be there. The only token source is `GET /api/auth/session` with that cookie (the call
+the page makes): its 10-day access token is reused in the process until 10 min before it ends. Nothing calls
+`auth.openai.com` or any refresh or rotate endpoint. chatgpt.com re-sets the session cookie on use (90 days, rolling,
+and it may change its split): every run writes the new set back to the account, whole (a stale `.1` never stays next
+to a new `.0`), unless a call of the run was answered signed out. So the relay renews the session: **use accounts
+dedicated to the relay**; the same jar used in a browser elsewhere is not tested and may sign one side out.
+
+**The check** (every hour, spends nothing): the session read (which also keeps the cookie rolling) and
+`conversation/init`. Signed in = the read gives an access token. Its claims give the identity
+`<chatgpt_user_id>/<chatgpt_account_id>` (one person in one workspace: two members of one Team never merge, one
+person's own and team workspaces stay separate rows), the email as the display name, and the plan, which becomes the
+tier:
+
+| chatgpt.com plan | Tier | Daily image budget (`gpt.pools`) |
+|---|---|---|
+| `free`, `go` | free | 3 |
+| `plus`, `team`, `enterprise`, `edu` | pro | 40 |
+| `pro` | ultra | 100 |
+| anything else | free (the plan name is logged) | 3 |
+
+Only Plus was measured; the budgets are conservative guesses. The admin UI shows a Plus account as "pro". The quota is
+the relay's own count: chatgpt.com's `image_gen` limit (`limits_progress`) never counts down on Plus, so only a
+`remaining` of exactly 0 is believed (the image pool reads 0 until its `reset_after`); any other figure reports
+nothing. A signed-out read (no token, or a 401) is one strike, spaced by `gpt.signed_out_gap_s`, and a rest of
+`gpt.signed_out_rest_s` with a recheck; three strikes from separate reads end the account (`signed_out`). A proxy
+that cannot reach chatgpt.com fails the check (recorded as failed). **Team accounts are untested:** the first Team
+import is checked by hand before claims are turned on (identity names the right workspace, tier pro, one
+`RELAY_E2E_SPEND=yes relay e2e --provider gpt`).
+
+**Send.** All free steps first: the home page (its build id and the sentinel `sdk.js` address, reused for
+`gpt.page_max_age_s`), the access token, `conversation/init` (an `image_gen` limit of 0 stops here), the input image of
+an edit (uploaded to `*.oaiusercontent.com`), the sentinel (chat-requirements prepare, the relay's own proof of work,
+the Turnstile answer, finalize) and the conduit token (`f/conversation/prepare`). Then the client-made message id and
+the exact text sent are written to the job, `mark_sent`, and ONE `POST /backend-api/f/conversation` in a new
+conversation. Its stream is read to the end (held, at most 300 s); the conversation it names is written to the job at
+once. Nothing is ever sent again for the job.
+
+How an order is judged:
+
+| When | What chatgpt.com answered | Verdict |
+|---|---|---|
+| before the send | the session read or a call answered signed out | tried again (`pool.account_logged_out`), one spaced strike, the account rests `gpt.signed_out_rest_s` and is rechecked |
+| before the send | the proxy could not reach chatgpt.com | tried again (`pool.proxy_failed`), the proxy is marked bad, the account rests `gpt.network_rest_s` |
+| before the send | a step answered an error (home page, sentinel, conduit, upload; or an input image too large or unreadable) | tried again (`gpt.http_error`, one of 3 attempts; out of attempts: failed, refunded) |
+| before the send | `image_gen` remaining 0 | refusal of the account (`gpt.image_limit`): the job goes to another account with no attempt used, the image pool reads 0 until the limit's reset |
+| before the send | prepare asked for `arkose` or `force_login` | refusal of the account (`gpt.challenge_required`): another account, this one rests `gpt.challenge_rest_s`; the relay never answers a challenge |
+| before the send | the account refusals reached `gpt.refusal_max_accounts` | failed `gpt.unavailable`, refunded |
+| after the send | an image in a finished tool message | done (the image's `sediment://` pointer; the input image of an edit, in the user message, is never a result) |
+| after the send | the answer finished in words with no image, or a moderation block | failed `gpt.refused` (public `content_refused`), refunded |
+| after the send | the stream named the conversation, then broke or outran the hold | taken: the conversation is polled every `gpt.poll_interval_s` |
+| after the send | not 200, or the stream ended before naming a conversation | unknown: the reconciler |
+| poll | an image / words with no image | done / failed `gpt.refused`, refunded |
+| poll | the conversation is gone (404), or shows no image `gpt.image_lost_after_s` after the send | failed `gpt.image_lost`, refunded |
+| poll | the read failed or answered signed out | read again (signed out: one spaced strike) |
+| any | no result `gpt.render_deadline_s` after the send | failed `render.deadline`, refunded |
+
+Every answer after the send rests the account's image pool `gpt.account_min_gap_s`. After the send there is no retry
+and no "not taken": no rejection of a send was ever recorded.
+
+**Reconcile** (an unknown job). The conversation the stream named, else the account's 28 most recent conversations
+made from 60 s before to 600 s after the send, every one of them read. A conversation is the job's when a user
+message there carries the job's own message id; that wins over anything else. The exact sent text decides only when
+no user message id can be read there, exactly one conversation matches, every read worked, and the job is not an
+edit (the same words on another input image is another order); a conversation claimed by another message id is never
+taken for a twin prompt. Nothing found stays unknown, never "not sent" (a read may lag the send, and a requeue would
+send it twice); the render deadline fails it with its refund.
+
+**Results.** The image is downloaded by the gpt engine (the core download sends no bearer): the conversation's
+attachment link must be `https://chatgpt.com/backend-api/estuary/content` (relative or absolute); any other place ends
+the fetch before a request carries the bearer. The bytes come with the bearer through the proxy into MinIO; the
+upstream link is never handed to a client. A conversation or file that is gone is `gpt.output_missing` (refunded).
+
+**What gpt never does.** It never hides or deletes a conversation (hiding is deleting on chatgpt.com, and the
+conversation is the reconcile handle and the download source), never calls a token refresh or rotate endpoint, and
+never sends a job twice.
+
+**Turnstile alert.** chatgpt.com's sentinel sends a Turnstile program (`turnstile.dx`) in every prepare; the relay
+answers it with a solver ported from aurora (MIT, `engine/turnstile.py`). When the solver fails, the send goes on with
+an empty answer (chatgpt.com accepts that today) and the job carries the warning `gpt.turnstile_unsolved`; above
+`gpt.alert_turnstile_rate` of the last 24 h jobs the drift alert fires. A new `sdk.js` build (its address carries the
+build: `/sentinel/<build>/sdk.js`) is the likely cause. The build id and the script address are read again from the
+home page every `gpt.page_max_age_s`, so the proof-of-work config follows a new build by itself; the Turnstile VM
+does not. When the alert fires:
+1. Check that jobs still deliver (empty answers accepted): if they do, nothing is urgent.
+2. Record a new `{p, dx}` from the current build (the way the spike's `dxdump.py` did) into
+   `fixtures/gpt/spike-261104/turnstile_dx.json` (redacted with `scripts/redact-fixtures.py`), make
+   `packages/provider-gpt/tests/test_gpt_turnstile.py` pass against it, and port aurora's change if it has one.
+3. If jobs start failing at the sentinel (`gpt.http_error` before the send), drain gpt (`gpt.claims_enabled` false)
+   until the solver is fixed. The same holds when the proof of work changes.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `gpt.claims_enabled` | false | drain mode: no new job; the checks go on and keep the sessions rolling |
+| `gpt.render_deadline_s` | 900 | an undelivered job is given up then, refunded (min 300) |
+| `gpt.poll_interval_s` | 15 | between two reads of a taken job's conversation, 5-120 |
+| `gpt.account_min_gap_s` | 30 | the image pool's rest after a send, 0-3600 |
+| `gpt.image_lost_after_s` | 600 | a conversation with no image this long after the send fails, refunded; 120-3600 |
+| `gpt.page_max_age_s` | 3600 | the home page's build id and `sdk.js` address are reused this long, 300-86400 |
+| `gpt.signed_out_rest_s` | 600 | the rest after a signed-out read, then a recheck |
+| `gpt.signed_out_gap_s` | 540 | a signed-out read this soon after the last counted strike adds none |
+| `gpt.network_rest_s` | 300 | the rest after the proxy could not reach chatgpt.com in a submit |
+| `gpt.challenge_rest_s` | 3600 | the rest after prepare asked for a challenge or a new login |
+| `gpt.alert_turnstile_rate` | 0.2 | drift alert: share of the last 24 h jobs sent with an empty Turnstile answer (0 to 1) |
+| `gpt.refusal_max_accounts` | 2 | accounts one job may try on an image limit or a challenge before it fails refunded (`gpt.unavailable`), 1-9 |
+| `gpt.prices`, `gpt.costs` | 1 per job | points per `gpt-image` job; one job of the image budget |
+| `gpt.pools` | image: free 3, pro 40, ultra 100 a day | images per account per day by tier |
+| `gpt.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
+
+Fixed in code: one job at a time per account, 3 attempts, 3 strikes, a 4000-character prompt.
+
 ## The box runbook
 
 Relay runs on the LAN box, in its own compose project `relay`, next to projects that are not ours (`portfolio` and
