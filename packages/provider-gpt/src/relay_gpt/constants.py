@@ -16,11 +16,13 @@ SITE_HOST = "chatgpt.com"                         # every cookie the account nee
 SESSION_COOKIE = "__Secure-next-auth.session-token"   # the bare name, or its parts `.0`, `.1`, ...
 UPLOAD_HOST_SUFFIX = ".oaiusercontent.com"        # where an input image is PUT (the host comes from files create)
 ESTUARY_PATH = "/backend-api/estuary/content"     # a result's bytes: fetched with the bearer, chatgpt.com only
-# The fingerprint and the headers of macOS Chrome 152, as the spike sent them (gptc.py): the UA must match the profile.
-IMPERSONATE = "chrome152_macos"
+# The fingerprint and the headers of macOS Chrome 150: the newest Chrome profile of the locked curl_cffi 0.16.3 (its
+# `chrome150` is macOS Tahoe; the spike's `chrome152_macos` is 0.17-only and curl_cffi is not bumped). The UA and the
+# client hints are the ones that profile sends itself, so the headers match the TLS fingerprint.
+IMPERSONATE = "chrome150"
 USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-              "Chrome/152.0.0.0 Safari/537.36")
-SEC_CH_UA = '"Chromium";v="152", "Google Chrome";v="152", "Not)A;Brand";v="99"'
+              "Chrome/150.0.0.0 Safari/537.36")
+SEC_CH_UA = '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"'
 SEC_CH_UA_PLATFORM = '"macOS"'
 LANGUAGE = "en-US"
 TIMEZONE = "Asia/Ho_Chi_Minh"
