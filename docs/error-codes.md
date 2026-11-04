@@ -92,6 +92,18 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `gemini.upstream_failed` | `generation_failed` | 503 | api_error | no | yes | yes | 0 | yes | gemini said something went wrong on its side or it had too many requests; nothing was made, it is sent again |
 | `gemini.video_limit` | `temporarily_unavailable` | 502 | api_error | yes | yes | no | 0 | yes | the gemini account reached its video limit for now; the charge is returned |
 
+## `gpt.*`
+
+| Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|---|
+| `gpt.challenge_required` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | chatgpt.com asked the account for a challenge or a new login before the send; nothing was sent, it goes to another account |
+| `gpt.http_error` | `temporarily_unavailable` | 502 | api_error | no | yes | yes | 0 | yes | chatgpt.com answered with an error before the order was sent |
+| `gpt.image_limit` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | the chatgpt.com account used up its images for now; nothing was sent, it goes to another account |
+| `gpt.image_lost` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | chatgpt.com lost the image while it was drawn; the charge is returned |
+| `gpt.output_missing` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | the image chatgpt.com made could not be downloaded; the charge is returned |
+| `gpt.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | chatgpt.com answered in words without an image; try a different prompt; the charge is returned |
+| `gpt.unavailable` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | chatgpt.com refused the order on every account tried; nothing was made, the charge is returned |
+
 ## `input.*`
 
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |

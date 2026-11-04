@@ -10,6 +10,7 @@ members = [
     "relay-dola",
     "relay-flow",
     "relay-gemini",
+    "relay-gpt",
     "relay-meta",
     "relay-muse",
     "relay-qwen",
@@ -1042,6 +1043,21 @@ dependencies = [
 requires-dist = [{ name = "relay-core", editable = "packages/relay-core" }]
 
 [[package]]
+name = "relay-gpt"
+version = "0.0.0"
+source = { editable = "packages/provider-gpt" }
+dependencies = [
+    { name = "curl-cffi" },
+    { name = "relay-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "curl-cffi" },
+    { name = "relay-core", editable = "packages/relay-core" },
+]
+
+[[package]]
 name = "relay-meta"
 version = "0.0.0"
 source = { editable = "packages/provider-meta" }
@@ -1110,6 +1126,7 @@ dependencies = [
     { name = "relay-dola" },
     { name = "relay-flow" },
     { name = "relay-gemini" },
+    { name = "relay-gpt" },
     { name = "relay-meta" },
     { name = "relay-muse" },
     { name = "relay-qwen" },
@@ -1135,6 +1152,7 @@ requires-dist = [
     { name = "relay-dola", editable = "packages/provider-dola" },
     { name = "relay-flow", editable = "packages/provider-flow" },
     { name = "relay-gemini", editable = "packages/provider-gemini" },
+    { name = "relay-gpt", editable = "packages/provider-gpt" },
     { name = "relay-meta", editable = "packages/provider-meta" },
     { name = "relay-muse", editable = "packages/provider-muse" },
     { name = "relay-qwen", editable = "packages/provider-qwen" },
