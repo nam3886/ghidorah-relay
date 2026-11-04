@@ -217,3 +217,17 @@ def test_the_kit_session_answers_from_its_routes_logs_in_order_and_cuts_a_stream
     j = job(image=True)
     assert (j.operation, j.params["kind"], [r.object_key for r in asyncio.run(j.inputs())]) == (
         "image_to_image", "image", ["inputs/one.png"])
+
+
+def test_build_engine_has_poll_reconcile_and_no_probe():
+    from relay_gpt.engine import GptEngine, build_engine
+    engine = build_engine(SPEC, settings(poll_interval_s=42))
+    assert isinstance(engine, GptEngine)
+    assert hasattr(engine, "poll") == SPEC.caps.has_poll is True
+    assert hasattr(engine, "reconcile") == SPEC.caps.has_reconcile is True
+    assert hasattr(engine, "probe_proxy") == SPEC.caps.has_probe_proxy is False
+    # the delegates bind the worker's settings: a job with no conversation yet is read again after gpt.poll_interval_s
+    polled = asyncio.run(engine.poll(Ctx(), job())).outcome
+    assert (polled.next_in_s, polled.answered) == (42, False)
+    with pytest.raises(ValueError, match="gpt runs no command"):
+        asyncio.run(engine.run_command(Ctx(), "anything", {}))

@@ -4,7 +4,7 @@ version = "0.0.0"
 requires-python = ">=3.13,<3.14"
 description = "The relay command: serve, worker, migrate, admin"
 dependencies = ["relay-core", "relay-dola", "relay-vibes", "relay-meta", "relay-flow", "relay-gemini",
-                "relay-qwen", "relay-muse"]
+                "relay-qwen", "relay-muse", "relay-gpt"]
 
 [build-system]
 requires = ["uv_build>=0.9,<0.10"]
@@ -22,3 +22,4 @@ relay-flow = { workspace = true }
 relay-gemini = { workspace = true }
 relay-qwen = { workspace = true }
 relay-muse = { workspace = true }
+relay-gpt = { workspace = true }

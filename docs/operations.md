@@ -108,7 +108,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse` = the provider workers;
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt` = the provider workers;
   `tunnel` = the Cloudflare Tunnel (see "Internet access" in the box runbook). A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
@@ -551,7 +551,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |

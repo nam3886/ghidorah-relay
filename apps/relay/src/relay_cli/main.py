@@ -26,7 +26,8 @@ from relay_core.redact import install_log_redaction, redact, redact_text
 
 # The provider registry is an explicit list; entry-point discovery is not used.
 PROVIDERS = {"dola": "relay_dola", "vibes": "relay_vibes", "meta": "relay_meta", "flow": "relay_flow",
-             "gemini": "relay_gemini", "qwen": "relay_qwen", "muse": "relay_muse"}
+             "gemini": "relay_gemini", "qwen": "relay_qwen", "muse": "relay_muse",
+             "gpt": "relay_gpt"}
 EXIT_OK, EXIT_FAILED, EXIT_REFUSED = 0, 1, 2
 LISTEN_PORT = 8100           # fixed: deploy/compose.yml publishes and health-checks this port
 API_POOL_MAX = 15            # the api's pool; a worker's is 10

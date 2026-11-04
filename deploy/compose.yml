@@ -4,7 +4,7 @@
 # `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
 # (I20); tests/test_deploy.py parses this file to keep it so.
 # `migrate` and `api` sit in the profile `app`, provider workers in `dola`, `vibes`, `meta`, `flow`, `gemini`,
-# `qwen` and `muse`:
+# `qwen`, `muse` and `gpt`:
 # `docker compose --profile app --profile dola up -d` starts the api and the dola worker, and nothing in this
 # file changes when a provider is enabled. A bare `docker compose up` starts only Postgres and MinIO.
 # Every compose command needs GIT_SHA (and the two passwords) in the environment or in deploy/.env, because
@@ -189,6 +189,18 @@ services:
     cpus: ${MUSE_CPUS:-1}
     mem_limit: ${MUSE_MEM_LIMIT:-1g}
     pids_limit: ${MUSE_PIDS_LIMIT:-256}
+
+  worker-gpt:
+    <<: *app
+    profiles: [gpt]
+    image: relay-worker-gpt:${GIT_SHA:?set GIT_SHA}
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
+    env_file: [worker-gpt.env]
+    command: ["relay", "worker", "--provider", "gpt"]
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, DEFAULT_GRACE_S) plus a minute; no browser, no volume
+    cpus: ${GPT_CPUS:-1}
+    mem_limit: ${GPT_MEM_LIMIT:-1g}
+    pids_limit: ${GPT_PIDS_LIMIT:-256}
 
   tunnel:
     # Cloudflare Tunnel: an outbound connection to Cloudflare, no open port. The public hostname and its target

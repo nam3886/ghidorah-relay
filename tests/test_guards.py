@@ -256,7 +256,7 @@ def run_py(code: str) -> str:
 LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
           "for m in sys.modules if m.split('.')[0] in "
           "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow', "
-          "'relay_gemini', 'relay_qwen', 'relay_muse') and "
+          "'relay_gemini', 'relay_qwen', 'relay_muse', 'relay_gpt') and "
           "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
@@ -282,6 +282,7 @@ def test_http_worker_loads_no_browser():
     # qwen runs the browser image, but its engine opens Chrome only for a mint: the kit loads then, not at start
     assert loaded_after("worker", "--provider", "qwen") == "['relay_qwen.engine']"
     assert loaded_after("worker", "--provider", "muse") == "['relay_muse.engine']"
+    assert loaded_after("worker", "--provider", "gpt") == "['relay_gpt.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',
@@ -299,6 +300,7 @@ def test_browser_worker_loads_only_its_own_engine():
     ("dola", "['relay_browser', 'relay_dola.e2e', 'relay_dola.engine']"),
     ("vibes", "['relay_vibes.e2e', 'relay_vibes.engine']"),
     ("muse", "['relay_muse.e2e', 'relay_muse.engine']"),
+    ("gpt", "['relay_gpt.e2e', 'relay_gpt.engine']"),
 ])
 def test_e2e_loads_its_provider_engine_and_e2e_module(provider, expected):
     assert loaded_after("e2e", "--provider", provider) == expected
