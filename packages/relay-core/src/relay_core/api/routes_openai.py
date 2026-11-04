@@ -108,6 +108,7 @@ async def _stream(gate: Gate, base_url: str, key_id, job_id, model: str) -> Asyn
 async def chat_completions(request: Request, key: ApiKey = Depends(require_key), gate: Gate = Depends(get_gate),
                            idempotency_key: str | None = Header(default=None),
                            x_stainless_retry_count: str | None = Header(default=None)):
+    began = time.monotonic()
     body = validated(ChatBody, await read_json(request))
     prompt, refs = extract(body)
     made = await create_job_for(gate, key, DoorRequest(
@@ -118,7 +119,8 @@ async def chat_completions(request: Request, key: ApiKey = Depends(require_key),
     if body.stream:
         return StreamingResponse(_stream(gate, base_url, key.id, made.job_id, body.model),
                                  media_type="text/event-stream", headers=fc.SSE_HEADERS)
-    state = await fc.hold(gate.pool, made.job_id, request.is_disconnected)
+    state = await fc.hold(gate.pool, made.job_id, request.is_disconnected,
+                          fc.hold_budget(request.app.state.settings.get("non_stream_hold_s"), began))
     if state is not None and state[0] == "failed":
         raise ApiError(fc.failure_code(state))
     text, finished = await fc.result_text(gate.pool, base_url, key.id, made.job_id, state)

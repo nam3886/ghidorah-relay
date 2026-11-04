@@ -17,6 +17,7 @@ the right image on the Mac (arm64) and on the box (amd64). Recorded 2026-10-01.
 | `python:3.13-slim` | `deploy/Dockerfile` | `sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b` |
 | `ghcr.io/astral-sh/uv:0.9` | `deploy/Dockerfile` | `sha256:538e0b39736e7feae937a65983e49d2ab75e1559d35041f9878b7b7e51de91e4` |
 | `node:24-slim` | `deploy/Dockerfile` (web stages, on demand) | `sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20` |
+| `cloudflare/cloudflared:2026.10.0` | `deploy/compose.yml` (`tunnel`; recorded 2026-11-04, pulled again from Docker Hub, no off-box copy) | `sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07` |
 
 `tests/test_deploy.py` fails on any image in these files that has no digest (images built here, `relay-*`, excepted).
 A pin moves only by a deliberate edit of every place above, of `scripts/restore-images.sh` and of this table.
@@ -107,7 +108,8 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse` = the provider workers. A bare `docker compose up`
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse` = the provider workers;
+  `tunnel` = the Cloudflare Tunnel (see "Internet access" in the box runbook). A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
 - Every service has its own env file (`deploy/<service>.env`, gitignored), copied from `deploy/<service>.env.example`
@@ -345,8 +347,16 @@ Environment (names only; the template is `deploy/api.env.example`):
 
 Nothing else is a variable (owner, 25/10): the api listens on 8100 (fixed; the compose file publishes it as
 `API_PORT`, default 8100); the base of the media URLs is the setting `public_address` (empty: built from the
-request); the proxies whose `X-Forwarded-For` is believed are the setting `trusted_proxies` (empty: none, and there is
-no reverse proxy in the compose file); the billing day's timezone is the pin `relay migrate` wrote.
+request); the proxies whose `X-Forwarded-For` is believed are the setting `trusted_proxies` (on the box the tunnel's
+fixed address, `172.30.0.10`); the billing day's timezone is the pin `relay migrate` wrote.
+
+A non-stream `/v1/chat/completions` or `generateContent` holds the request until its job ends, at most the setting
+`non_stream_hold_s` (default 540, at most 540: below the OpenAI SDK's 600 s timeout), counted from the start of the
+request; then it answers with the poll hint and the job runs on. Behind Cloudflare it is 80: Cloudflare cuts a request
+that has sent nothing for 100 s (a 524, which the SDK re-sends). A stream says it is alive every 5 s and is not cut.
+Not covered: the job is created before the hold or the stream starts, and its input images given as URLs are fetched
+one after another (20 s each at most), so a request with many slow image URLs can still pass 100 s before its first
+byte; a 524 then, with the job created and charged.
 
 A status read of a `waiting` job may run one median query over recent finished jobs of its model and duration: at most one per shape every 5 minutes, in its own transaction with a 500 ms statement timeout; if it fails or is slow the answer is still served (progress by stage, no estimated finish) and the api log carries a one-line warning. It needs no index at today's volume; past about 200 000 rows in `jobs`, add a partial index on `(provider, model, finished_at DESC) WHERE status = 'done'`, built concurrently outside a migration transaction.
 
@@ -1293,6 +1303,25 @@ into, inspects beyond metadata, or prunes anything foreign; relay removes only w
 | Live-window marker | `~/relay-deploy/live-window` |
 | Logs of replaced containers | `~/relay-logs/<service>/<UTC time>-<random>.log.gz`, kept by `deploy.sh`/`rollback.sh` (see "Logs") |
 | Profiles of the dola worker | the named volume `profiles-dola`, mounted at `/profiles` (`PROFILE_ROOT` in `relay_browser/session.py`) |
+
+### Internet access (Cloudflare Tunnel)
+
+Since 04/11 the relay is reachable at `https://yasuo.ieltsjoy.com` through a Cloudflare Tunnel: the `tunnel` service
+opens an outbound connection to Cloudflare, so the box opens no port and the router forwards nothing.
+
+- Cloudflare side (dashboard, account of ieltsjoy.com): the tunnel `relay-box`, its public hostname
+  `yasuo.ieltsjoy.com` → `http://api:8100`, and the Access application `Relay admin` that locks `/admin` and `/manage`
+  behind a one-time PIN mailed to the owner (policy `Owner`, 24 h sessions). The customer API, `/healthz` and
+  `/reference` stay open; the API keys guard the API.
+- Box side: `deploy/tunnel.env` holds `TUNNEL_TOKEN` (the token of `relay-box`; a rotation is a new token from the
+  dashboard there, then `up -d tunnel`). The tunnel sits on the network `edge` (`172.30.0.0/28`) at `172.30.0.10`,
+  with the api; the settings are `public_address = https://yasuo.ieltsjoy.com`, `trusted_proxies = ["172.30.0.10"]`
+  and `non_stream_hold_s = 80`.
+- Start or restart: `docker compose -p relay -f deploy/compose.yml --profile tunnel up -d tunnel` in `~/relay-deploy`
+  (with `GIT_SHA` set like any compose command). `scripts/deploy.sh` does not touch it; recreating the api changes
+  nothing for it (it reaches `api` by name).
+- Limits of Cloudflare's free plan: a request body of at most 100 MB (the relay takes up to 170 MB: ten 12 MB images
+  as base64 do not pass; image URLs do) and the 100 s silence above.
 
 ### Deploy and rollback
 

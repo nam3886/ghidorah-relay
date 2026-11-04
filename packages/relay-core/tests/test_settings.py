@@ -130,7 +130,7 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3, "dead_check_interval_h": 24,
         "alert_pool_drift": 5,
         "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh", "public_address": "",
-        "trusted_proxies": []}
+        "trusted_proxies": [], "non_stream_hold_s": 540}
 
 
 @mutation(S, "return dict(self._registry.specs)", "return {}", expect="the listing must hold every setting")
@@ -294,7 +294,7 @@ def test_every_core_setting_states_what_it_allows():
         "dead_check_interval_h": "at least 1", "alert_pool_drift": "at least 0",
         "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh",
         "public_address": "empty, or an http(s) address with no query",
-        "trusted_proxies": "a list of IP addresses or CIDR networks"}
+        "trusted_proxies": "a list of IP addresses or CIDR networks", "non_stream_hold_s": "5–540"}
     with pytest.raises(SettingsError, match="must not be empty"):
         REGISTRY.specs["filename_pattern"].validate("  ")
 

@@ -75,7 +75,8 @@ def test_the_non_stream_hold_stays_below_the_sdk_timeout_and_a_stream_keeps_1800
     assert fc.HOLD_LIMIT_S == 1800
 
 
-@mutation(FC, "limit=min(HOLD_LIMIT_S, NON_STREAM_HOLD_S)", "limit=HOLD_LIMIT_S", expect="within the non-stream hold")
+@mutation(FC, "limit=min(HOLD_LIMIT_S, NON_STREAM_HOLD_S, budget)", "limit=HOLD_LIMIT_S",
+          expect="within the non-stream hold")
 def test_a_non_stream_request_ends_at_its_own_hold_with_the_poll_hint_while_the_job_runs_on(db, monkeypatch):
     monkeypatch.setattr(fc, "POLL_S", 0.05)
     monkeypatch.setattr(fc, "NON_STREAM_HOLD_S", 0.4)
@@ -268,3 +269,33 @@ def test_a_refunded_job_that_a_recheck_charged_again_is_not_refunded_in_status(d
     assert status["status"] == "running" and status["refunded"] is False, (
         "refunded must be false once the job was charged again: %s" % status)
     assert db.one("SELECT count(*) FROM ledger WHERE job_id = %s AND scope = '*' AND entry = 'refund'", job_id) == (1,)
+
+
+# ---- the non_stream_hold_s setting (a proxy in front cuts a silent request: Cloudflare after 100 s) ------------
+@mutation(FC, "    return max(0.0, min(NON_STREAM_HOLD_S, float(setting)) - (time.monotonic() - began))",
+          "    return NON_STREAM_HOLD_S", expect="counts from the start of the request")
+def test_the_setting_shortens_the_non_stream_hold_and_counts_from_the_start_of_the_request(db, monkeypatch):
+    monkeypatch.setattr(fc, "POLL_S", 0.05)
+    monkeypatch.setattr(fc, "HOLD_LIMIT_S", 6.0)        # a wrong hold still ends, so a red run ends
+
+    async def scenario(env):
+        await env.settings.set("non_stream_hold_s", 5)
+        assert fc.hold_budget(5, time.monotonic() - 2.0) <= 3.0, "the budget counts from the start of the request"
+        assert fc.hold_budget(600, time.monotonic()) <= fc.NON_STREAM_HOLD_S, "never past NON_STREAM_HOLD_S"
+        for name, path, body_of, _, finish_of in FACADES:
+            key = await env.new_key()
+            began = time.monotonic()
+            r = await env.client.post(path, json=body_of(), headers=key.headers)
+            took = time.monotonic() - began
+            assert 4.0 <= took < 5.9, "%s: the setting (5 s) is the hold: %.1f s" % (name, took)
+            assert r.status_code == 200 and finish_of(r.json()) in ("length", "MAX_TOKENS"), (name, r.text)
+            [(job_id, status)] = jobs(db, key.id)
+            assert status == "queued" and "poll job %s" % job_id in r.text, "the poll hint, the job runs on"
+
+    run_app(db, scenario)
+
+
+def test_the_setting_is_bounded_by_the_sdk_timeout():
+    from relay_core.settings import REGISTRY
+    spec = REGISTRY.spec("non_stream_hold_s")
+    assert spec.default == fc.NON_STREAM_HOLD_S and spec.max <= fc.NON_STREAM_HOLD_S < 600 and spec.min >= 1

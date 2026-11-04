@@ -240,6 +240,10 @@ REGISTRY = Registry(
          "The address customers reach the relay at, such as https://relay.example.com: the links to a job's media are "
          "built on it. Empty: from the address of each request.",
          rule=Rule("empty, or an http(s) address with no query", _public_address)),
+    Spec("non_stream_hold_s", int, 540,
+         "Seconds a non-stream /v1/chat/completions or generateContent request waits for its job before it answers "
+         "with the poll hint (the job runs on). Behind Cloudflare keep it under 100: a request silent that long is "
+         "cut with a 524.", min=5, max=540),
     Spec("trusted_proxies", list, [],
          "The proxies in front of the API (addresses or CIDR networks, such as 172.16.0.0/12) whose X-Forwarded-For "
          "names the caller. Empty: none is trusted, the caller is the direct peer.",

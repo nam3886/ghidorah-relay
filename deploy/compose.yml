@@ -1,4 +1,5 @@
-# One box, one compose. Runs on the LAN box by IP and port; no reverse proxy.
+# One box, one compose. Runs on the LAN box by IP and port; the internet reaches the api only through `tunnel`
+# (Cloudflare Tunnel, profile `tunnel`), on its own network `edge` at a fixed address (the setting trusted_proxies).
 # No service shares an env file: every service names its own `<service>.env`, copied from its
 # `<service>.env.example` (variable names only). `api` and `migrate` never see the private credential key
 # (I20); tests/test_deploy.py parses this file to keep it so.
@@ -86,6 +87,7 @@ services:
     env_file: [api.env]
     command: ["relay", "serve"]
     ports: ["${API_PORT:-8100}:8100"]
+    networks: [default, edge]     # edge: reached by `tunnel` only
     stop_grace_period: 30s    # in-flight requests finish; the kill comes after
     cpus: ${API_CPUS:-2}
     mem_limit: ${API_MEM_LIMIT:-2g}
@@ -187,6 +189,25 @@ services:
     cpus: ${MUSE_CPUS:-1}
     mem_limit: ${MUSE_MEM_LIMIT:-1g}
     pids_limit: ${MUSE_PIDS_LIMIT:-256}
+
+  tunnel:
+    # Cloudflare Tunnel: an outbound connection to Cloudflare, no open port. The public hostname and its target
+    # (http://api:8100) and the Access lock on /admin and /manage live in the Cloudflare dashboard; tunnel.env holds
+    # TUNNEL_TOKEN. Not built: started once with `--profile tunnel up -d tunnel`, a deploy of the api leaves it be.
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    env_file: [tunnel.env]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    networks: {edge: {ipv4_address: 172.30.0.10}}   # the one address in the setting trusted_proxies
+    logging: *logging
+    restart: unless-stopped
+    cpus: ${TUNNEL_CPUS:-1}
+    mem_limit: ${TUNNEL_MEM_LIMIT:-256m}
+    pids_limit: ${TUNNEL_PIDS_LIMIT:-256}
+
+networks:
+  edge:
+    ipam: {config: [{subnet: 172.30.0.0/28}]}
 
 volumes:
   pgdata:

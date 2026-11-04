@@ -9,6 +9,7 @@ Base64 may be url-safe and unpadded, and is then decoded strictly. Errors have t
 inside a stream.
 """
 
+import time
 from collections.abc import AsyncIterator
 from typing import Any, Literal
 
@@ -127,6 +128,7 @@ async def _stream(gate: Gate, base_url: str, key_id, job_id, model: str) -> Asyn
 
 async def _generate(request: Request, model: str, key: ApiKey, gate: Gate, idem: str | None, retries: str | None,
                     *, stream: bool):
+    began = time.monotonic()
     body = validated(GenerateBody, await read_json(request))
     prompt, refs = extract(body)
     made = await create_job_for(gate, key, DoorRequest("gemini", "facade", model, prompt, images=refs, idem_key=idem,
@@ -136,7 +138,8 @@ async def _generate(request: Request, model: str, key: ApiKey, gate: Gate, idem:
     if stream:
         return StreamingResponse(_stream(gate, base_url, key.id, made.job_id, model), media_type="text/event-stream",
                                  headers=fc.SSE_HEADERS)
-    state = await fc.hold(gate.pool, made.job_id, request.is_disconnected)
+    state = await fc.hold(gate.pool, made.job_id, request.is_disconnected,
+                          fc.hold_budget(request.app.state.settings.get("non_stream_hold_s"), began))
     if state is not None and state[0] == "failed":
         raise ApiError(fc.failure_code(state))
     text, finished = await fc.result_text(gate.pool, base_url, key.id, made.job_id, state)

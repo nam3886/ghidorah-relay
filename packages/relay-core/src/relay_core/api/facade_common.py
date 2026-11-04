@@ -62,11 +62,18 @@ async def watch(pool: AsyncConnectionPool, job_id,
         await asyncio.sleep(POLL_S)
 
 
-async def hold(pool: AsyncConnectionPool, job_id,
-               gone: Callable[[], Awaitable[bool]] | None = None) -> tuple[str, str | None] | None:
-    """Wait for the job: its terminal (status, error code), or None when NON_STREAM_HOLD_S passed first or the
-    database failed (see `watch`)."""
-    async for kind, value in watch(pool, job_id, gone, limit=min(HOLD_LIMIT_S, NON_STREAM_HOLD_S)):
+def hold_budget(setting: int, began: float) -> float:
+    """What is left of a non-stream hold: the `non_stream_hold_s` setting, never past NON_STREAM_HOLD_S, counted from
+    `began` (the handler's start, so the job's creation and its image downloads count too). A proxy in front cuts a
+    silent request (Cloudflare after 100 s, with a 524 the SDK re-sends): the setting is set below that there."""
+    return max(0.0, min(NON_STREAM_HOLD_S, float(setting)) - (time.monotonic() - began))
+
+
+async def hold(pool: AsyncConnectionPool, job_id, gone: Callable[[], Awaitable[bool]] | None = None,
+               budget: float = NON_STREAM_HOLD_S) -> tuple[str, str | None] | None:
+    """Wait for the job: its terminal (status, error code), or None when `budget` (see `hold_budget`) passed first or
+    the database failed (see `watch`)."""
+    async for kind, value in watch(pool, job_id, gone, limit=min(HOLD_LIMIT_S, NON_STREAM_HOLD_S, budget)):
         if kind == "end":
             return value
     return None

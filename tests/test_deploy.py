@@ -3,6 +3,7 @@
 The real stack is checked again on the box at deploy time; this is the part that needs no box.
 """
 
+import ipaddress
 import re
 import textwrap
 from pathlib import Path
@@ -16,7 +17,8 @@ import guards
 
 G = "tests/guards.py"
 DEPLOY = guards.REPO / "deploy"
-COMPOSE = yaml.safe_load((DEPLOY / "compose.yml").read_text(encoding="utf-8"))["services"]
+_COMPOSE_DOC = yaml.safe_load((DEPLOY / "compose.yml").read_text(encoding="utf-8"))
+COMPOSE, COMPOSE_NETWORKS = _COMPOSE_DOC["services"], _COMPOSE_DOC["networks"]
 PRIVATE = guards.PRIVATE_KEY_VAR
 
 
@@ -39,11 +41,12 @@ def test_every_service_has_its_own_env_file_and_services_sit_in_their_profiles()
     files = [f for svc in COMPOSE.values() for f in guards._service_env_files(svc)]
     assert sorted(files) == sorted(set(files)) == sorted(
         ["api.env", "migrate.env", "worker-dola.env", "worker-vibes.env", "worker-meta.env", "worker-flow.env",
-         "worker-gemini.env", "worker-qwen.env", "worker-muse.env"])
+         "worker-gemini.env", "worker-qwen.env", "worker-muse.env", "tunnel.env"])
     for p in ("dola", "vibes", "meta", "flow", "gemini", "qwen", "muse"):
         assert COMPOSE["worker-" + p]["profiles"] == [p]
     # a bare `docker compose up` starts only Postgres and MinIO; the app services start on purpose
     assert COMPOSE["api"]["profiles"] == COMPOSE["migrate"]["profiles"] == ["app"]
+    assert COMPOSE["tunnel"]["profiles"] == ["tunnel"]
     assert "profiles" not in COMPOSE["postgres"] and "profiles" not in COMPOSE["minio"]
 
 
@@ -65,6 +68,7 @@ LIMIT_DEFAULTS = {"worker-dola": (8, "12g", 2048), "postgres": (4, "4g", 512), "
 NOT_STARTED = {"worker-meta": (4, "6g", 1024), "worker-vibes": (1, "1g", 256),
                "worker-flow": (1, "1g", 256), "worker-gemini": (1, "1g", 256),
                "worker-qwen": (2, "3g", 1024), "worker-muse": (1, "1g", 256)}      # their profiles are off for now
+SIDECARS = {"tunnel": (1, "256m", 256)}      # not counted in the half of the box: a connector, idle but for traffic
 
 
 def _default(value) -> str:
@@ -83,7 +87,7 @@ def test_every_service_has_cpu_memory_and_pid_limits_from_the_environment():
         for key in ("cpus", "mem_limit", "pids_limit"):
             assert key in svc, "a limit was missing: %s has no %s" % (name, key)
             _default(svc[key])
-    for name, (cpus, mem, pids) in {**LIMIT_DEFAULTS, **NOT_STARTED}.items():
+    for name, (cpus, mem, pids) in {**LIMIT_DEFAULTS, **NOT_STARTED, **SIDECARS}.items():
         got = (float(_default(COMPOSE[name]["cpus"])), _default(COMPOSE[name]["mem_limit"]),
                int(_default(COMPOSE[name]["pids_limit"])))
         assert got == (cpus, mem, pids), (name, got)
@@ -354,3 +358,21 @@ def test_the_browser_tier_runner_is_pinned_to_the_gate_cores_when_the_cap_applie
     text = (guards.REPO / IN_CONTAINER).read_text(encoding="utf-8")
     assert '${RELAY_GATE_CPUSET:+--cpuset-cpus "$RELAY_GATE_CPUSET"}' in text, "the browser-tier runner is not pinned"
     assert "--cpus " not in text
+
+
+TUNNEL_ADDRESS = "networks: {edge: {ipv4_address: 172.30.0.10}}"
+
+
+@mutation(COMPOSE_FILE, TUNNEL_ADDRESS, "networks: [edge]", expect="fixed address")
+@mutation(COMPOSE_FILE, "subnet: 172.30.0.0/28", "subnet: 172.30.0.0/29", expect="in edge's subnet")
+@mutation(COMPOSE_FILE, "    networks: [default, edge]", "    networks: [default]", expect="the api on edge")
+def test_the_tunnel_reaches_only_the_api_from_a_fixed_address_on_its_own_network():
+    """trusted_proxies names one address, the tunnel's. A tunnel on the default network, or at an address docker
+    picks, would make that setting trust another container (or none) for X-Forwarded-For."""
+    tunnel = COMPOSE["tunnel"]
+    assert tunnel["networks"] == {"edge": {"ipv4_address": "172.30.0.10"}}, "fixed address on edge only"
+    assert "edge" in COMPOSE["api"]["networks"], "the api on edge"
+    assert [n for n, s in COMPOSE.items() if "edge" in (s.get("networks") or ())] == ["api", "tunnel"]
+    assert "build" not in tunnel and "ports" not in tunnel and tunnel["image"].startswith("cloudflare/cloudflared:")
+    [subnet] = [c["subnet"] for c in COMPOSE_NETWORKS["edge"]["ipam"]["config"]]
+    assert ipaddress.ip_address("172.30.0.10") in ipaddress.ip_network(subnet), "the address lies in edge's subnet"
