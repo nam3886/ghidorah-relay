@@ -1,6 +1,7 @@
 """The gpt credential: what an import accepts, the one sealed shape, and the session write-back and its merge."""
 
 import json
+from urllib.parse import urlsplit
 
 import pytest
 from gptkit import BLOB, SESSION0, SESSION1, assert_no_secret, export
@@ -14,6 +15,8 @@ NEEDS_SESSION = "    if not any(c[\"value\"] for c in kept if is_session_part(c[
 NO_SESSION_CHECK = "    if False and not any(c[\"value\"] for c in kept if is_session_part(c[\"name\"])):"
 NEWER_WINS = "    newer = mine if _renewed_at(mine) >= _renewed_at(stored) else stored"
 OLDER_WINS = "    newer = mine if _renewed_at(mine) < _renewed_at(stored) else stored"
+URL_CAUGHT = "        except ValueError:\n            raise ValueError(\"the url is not a URL\") from None"
+URL_UNCAUGHT = "        except TypeError:\n            raise ValueError(\"the url is not a URL\") from None"
 S0, S1 = SESSION_COOKIE + ".0", SESSION_COOKIE + ".1"
 
 
@@ -116,3 +119,19 @@ def test_errors_never_carry_a_cookie_value():
         with pytest.raises(ValueError) as e:
             jar_of(blob)
         assert_no_secret(str(e.value))
+
+
+@mutation(CRED_FILE, URL_CAUGHT, URL_UNCAUGHT, expect="the url parser's message leaked")
+def test_a_url_the_parser_refuses_never_echoes_its_login():
+    url = "https://user:eyJ-PLANTED-pw@chatgpt\uff1a.com/"
+    with pytest.raises(ValueError) as parser:          # the parser's own message holds the authority
+        urlsplit(url)
+    assert "PLANTED" in str(parser.value)
+    try:
+        parse_credential(json.dumps({"url": url, "cookies": export()}).encode())
+    except Exception as e:          # noqa: BLE001 - whatever escapes must not carry the login
+        assert "PLANTED" not in str(e), "the url parser's message leaked"
+        assert type(e) is ValueError and e.__cause__ is None and e.__suppress_context__
+        assert_no_secret(str(e))
+    else:
+        raise AssertionError("a url the parser refuses must refuse the credential")

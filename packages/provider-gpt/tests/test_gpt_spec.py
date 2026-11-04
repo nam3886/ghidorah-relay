@@ -41,6 +41,9 @@ COST_ONE = "DEFAULT_COSTS = {IMAGE_MODEL: 1}"
 COST_TWO = "DEFAULT_COSTS = {IMAGE_MODEL: 2}"
 REFUSED_PUBLIC = "public_code=core_errors.CONTENT_REFUSED"
 REFUSED_AS_FAILED = "public_code=core_errors.GENERATION_FAILED"
+KIT_FILE = "packages/provider-gpt/tests/gptkit.py"
+KIT_FIXED = '"planted %s leaked in text #%d" % (name, at)'
+KIT_ECHO = '"planted %s leaked: %r" % (name, text)'
 IMG = MediaIn("0" * 64, "image/png", 9)
 
 
@@ -175,6 +178,15 @@ def test_the_kit_plants_a_token_that_names_the_user_the_workspace_and_the_plan()
     assert all("PLANTED" in p for p in PLANTED)
     with pytest.raises(AssertionError):
         assert_no_secret("x " + ACCESS.split(".")[1])
+
+
+@mutation(KIT_FILE, KIT_FIXED, KIT_ECHO, expect="the helper echoed the leak")
+def test_the_secret_helper_names_the_leak_but_never_prints_it():
+    for planted in PLANTED:
+        with pytest.raises(AssertionError) as e:
+            assert_no_secret("fine", "before %s after" % planted)
+        assert "PLANTED" not in str(e.value) and planted not in str(e.value), "the helper echoed the leak"
+        assert "text #1" in str(e.value)
 
 
 def test_the_kit_session_answers_from_its_routes_logs_in_order_and_cuts_a_stream():

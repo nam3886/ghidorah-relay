@@ -66,7 +66,10 @@ def _parts(data: object) -> tuple[list[dict], float]:
     default, renewed_at = None, 0.0
     if isinstance(data, Mapping):
         url = data.get("url")
-        default = (urlsplit(url).hostname or None) if isinstance(url, str) else None
+        try:            # a parser's message may repeat the url's authority (a login in it): never let it through
+            default = (urlsplit(url).hostname or None) if isinstance(url, str) else None
+        except ValueError:
+            raise ValueError("the url is not a URL") from None
         stamp = data.get("renewed_at", 0.0)
         if not isinstance(stamp, int | float) or isinstance(stamp, bool) or stamp < 0:
             raise ValueError("renewed_at is not a time")

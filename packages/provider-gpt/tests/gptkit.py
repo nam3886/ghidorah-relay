@@ -50,12 +50,15 @@ PLANTED: tuple[str, ...] = (SESSION0, SESSION1, ACCESS, SENTINEL, CONDUIT, TURNS
 
 
 def assert_no_secret(*texts: object) -> None:
-    """No planted value (nor any piece of the access token) in any of `texts` (each read as `str`)."""
-    for text in texts:
+    """No planted value (nor any piece of the access token) in any of `texts` (each read as `str`). The failure names
+    which planted value and which text, never the text itself (it would print the leak again)."""
+    names = ("SESSION0", "SESSION1", "ACCESS", "SENTINEL", "CONDUIT", "TURNSTILE", "PROXY.auth", "ACCESS payload",
+             "ACCESS signature")
+    for at, text in enumerate(texts):
         text = str(text)
-        assert "PLANTED" not in text, "a planted secret leaked: %r" % text[:200]
-        for piece in (*PLANTED, *ACCESS.split(".")[1:]):
-            assert piece not in text, "a planted secret leaked: %r" % text[:200]
+        for name, piece in zip(names, (*PLANTED, *ACCESS.split(".")[1:]), strict=True):
+            assert piece not in text, "planted %s leaked in text #%d" % (name, at)
+        assert "PLANTED" not in text, "a PLANTED value leaked in text #%d" % at
 
 
 def fixture(name: str) -> dict:
