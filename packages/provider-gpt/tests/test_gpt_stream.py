@@ -61,7 +61,8 @@ def test_t2i_stream_gives_one_image_and_the_conversation():
     assert r.images == [Image("sediment://file_0000000087cc820797dbca5224902b9c",
                               "file_0000000087cc820797dbca5224902b9c", 1254, 1254)]
     assert r.conversation == "6aeb5d96-8c24-83ec-a04c-92c10e5e0702"
-    assert r.complete and not r.blocked and r.title == "Generate Ramen Image"
+    # the image turn's last assistant message ends with end_turn false: not "complete", the image decides
+    assert not r.complete and not r.blocked and r.title == "Generate Ramen Image"
     assert r.user_message == "1b4326f5-8fe9-409d-8f62-4906eb968b28"      # t5A echoes the user message
     assert verdict(r) == "image"
     wide = read(lines_of("sse_t2i_16x9"))

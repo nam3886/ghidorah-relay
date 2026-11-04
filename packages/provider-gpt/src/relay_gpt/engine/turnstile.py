@@ -6,10 +6,11 @@ Ported line by line from aurora-develop/aurora, commit cbfbabc9c14c7278e4dd91cf8
 `internal/turnstile/turnstile.go`. The browser fingerprint aurora reads from `internal/browserfp` (Win32 profiles)
 is replaced here by one macOS profile that matches the relay's own headers (Chrome 150 on macOS, `MacIntel`, an
 Apple GPU behind ANGLE Metal, device pixel ratio 2), on the page `https://chatgpt.com/` with the page's own sentinel
-script address, read from the requirements token. Values keep the Go shapes: numbers are floats, JS objects are dicts that
-carry their key order under `__ordered_keys__`, a Go `[]string` is a tuple. Changes from the Go code: the clock
-and `Math.random` are injected (`clock`, `rand`), a step overflow and every other failure raise `TurnstileError`
-with a fixed kind (never program text), and a function turns into a fixed text where Go prints its address.
+script address, read from the requirements token. Values keep the Go shapes: numbers are floats, JS objects are
+dicts that carry their key order under `__ordered_keys__`, a Go `[]string` is a tuple. Changes from the Go code: the
+clock and `Math.random` are injected (`clock`, `rand`), a step overflow and every other failure raise
+`TurnstileError` with a fixed kind (never program text), and a function turns into a fixed text where Go prints its
+address.
 
 aurora's licence:
 
