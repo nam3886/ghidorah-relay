@@ -43,6 +43,8 @@ NO_REDIRECTS = "allow_redirects=False"
 REDIRECTS = "allow_redirects=True"
 WRITE_BACK = "with_session(ctx.account.credential, parts, "
 NO_WRITE_BACK = "with_session(ctx.account.credential, web.start_parts, "
+STAMP_AT_RESET = "parts, web.parts_at)"
+STAMP_AT_EXIT = "parts, time.time())"
 PLUS_PRO = '"plus": "pro"'
 PLUS_FREE = '"plus": "free"'
 ONLY_ZERO = "remaining != 0"
@@ -311,6 +313,28 @@ def test_a_re_set_session_cookie_is_written_back_merged():
     ctx = Ctx(maker.log)
     run(token_of(ctx, Sessions(clock=Clock()), maker))
     assert ctx.renewed == []
+
+
+@mutation(WEB_FILE, STAMP_AT_RESET, STAMP_AT_EXIT, expect="the cookie given later must win")
+def test_overlapping_runs_keep_the_cookie_given_last_not_the_run_ended_last():
+    # run A gets its cookie first and keeps going (a long stream); run B gets a newer one and ends first; A ends last
+    new_a, new_b = "eyJ-PLANTED-session-run-a", "eyJ-PLANTED-session-run-b"
+    clock = Clock()
+    answers = [Resp(json_body=session_body(), cookies={S0: new, S1: ""}) for new in (new_a, new_b)]
+    maker = Maker(routes(**{"GET /api/auth/session": answers}))
+    ctx = Ctx(maker.log)
+
+    async def go():
+        async with Web(ctx.account, ctx.settings, Sessions(clock=clock), ctx, make_session=maker) as a:
+            clock.t = NOW + 100
+            await a.session()
+            async with Web(ctx.account, ctx.settings, Sessions(clock=clock), ctx, make_session=maker) as b:
+                clock.t = NOW + 200
+                await b.session()
+            clock.t = NOW + 300
+    run(go())
+    assert len(ctx.renewed) == 2
+    assert session_parts(jar_of(ctx.stored)) == {S0: new_b}, "the cookie given later must win"
 
 
 def test_a_signed_out_run_writes_nothing_back():

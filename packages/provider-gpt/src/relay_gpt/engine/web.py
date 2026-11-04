@@ -179,6 +179,10 @@ class Web:
         self.session_id = str(uuid.uuid4())
         self.token: str | None = None
         self.signed_out = False
+        # the session parts the jar held after the last answer, and when an answer last changed them (the stamp of
+        # the write-back: two overlapping runs keep the set chatgpt.com gave LAST, not the one whose run ended last)
+        self.seen_parts = self.start_parts
+        self.parts_at: float | None = None
 
     async def __aenter__(self) -> "Web":
         return self
@@ -196,6 +200,10 @@ class Web:
             resp = await session.request(method, url, headers=headers, timeout=timeout, allow_redirects=False, **kw)
         except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
+        if session is self.s:
+            parts = self.session_now()
+            if parts != self.seen_parts:
+                self.seen_parts, self.parts_at = parts, self.sessions.clock()
         if resp.status_code == 401:
             self._signed_out()
         return resp
@@ -347,6 +355,10 @@ class Web:
         finally:
             await _close(bare)
 
+    def session_now(self) -> dict[str, str]:
+        """The session parts the jar holds now (a part set empty counts as deleted)."""
+        return {n: v for n, v in session_parts(self.cookies()).items() if v}
+
     def cookies(self) -> dict[str, str]:
         """The chatgpt.com cookies the session holds now (what chatgpt.com set included)."""
         return {c.name: c.value for c in self.s.cookies.jar if on_site(c.domain or SITE_HOST)}
@@ -375,16 +387,17 @@ async def _close(thing, method: str = "close") -> None:
 
 async def keep_rotated(ctx, web: Web) -> bool:
     """Write the session cookie chatgpt.com re-set during the run back into the account's sealed jar, the whole set
-    of its parts (`with_session`), merged with what is stored now (`merge_blobs`: the set renewed later wins). Nothing
+    of its parts (`with_session`) stamped with when an answer re-set them (`Web.parts_at`, never the exit time),
+    merged with what is stored now (`merge_blobs`: the set chatgpt.com gave later wins). Nothing
     after a signed-out answer, and nothing when the set did not change (a deleted part counts as gone). Cut at
     `RENEW_TIMEOUT_S`. True when written. Never raises; logs names only."""
     async def renew() -> bool:
         if web.signed_out:
             return False
-        parts = {n: v for n, v in session_parts(web.cookies()).items() if v}
-        if not parts or parts == web.start_parts:
+        parts = web.session_now()
+        if not parts or parts == web.start_parts or web.parts_at is None:
             return False
-        written = await ctx.renew_credential(with_session(ctx.account.credential, parts, time.time()), merge_blobs)
+        written = await ctx.renew_credential(with_session(ctx.account.credential, parts, web.parts_at), merge_blobs)
         if written is not None:
             log.info("gpt account %s: the re-set session cookie written back (%s)", ctx.account.id,
                      ", ".join(sorted(parts)))
