@@ -49,15 +49,16 @@ def test_the_recorded_schema_matches_what_wire_pins():
     assert drift.diff(drift.decode_schema(bundle()), drift.PINNED) == []
 
 
-@mutation(DRIFT_FILE, MOVED_CHECK, "            elif False:")
+@mutation(DRIFT_FILE, MOVED_CHECK, "            elif False:", expect="a moved field number is named")
 def test_a_moved_field_number_is_named():
     found = copy.deepcopy(drift.decode_schema(bundle()))
     number, kind = found["Attachment"]["mime_type"]
     found["Attachment"]["mime_type"] = (number + 1, kind)
-    assert drift.diff(found, drift.PINNED) == ["Attachment.mime_type: pinned 6 string, found 7 string"]
+    assert drift.diff(found, drift.PINNED) == ["Attachment.mime_type: pinned 6 string, found 7 string"], \
+        "a moved field number is named"
 
 
-@mutation(DRIFT_FILE, GONE_CHECK, "        if False:")
+@mutation(DRIFT_FILE, GONE_CHECK, "        if False:", expect="KeyError: 'PromptId'")
 def test_a_missing_field_message_and_enum_value_are_named():
     found = copy.deepcopy(drift.decode_schema(bundle()))
     del found["Response"]["is_final_chunk"]
@@ -66,7 +67,7 @@ def test_a_missing_field_message_and_enum_value_are_named():
     assert drift.diff(found, drift.PINNED) == [
         "PromptId: missing",
         "Response.is_final_chunk: missing",
-        "AttachmentType.ATTACHMENT_TYPE_IMAGE: pinned 1 value, found 9 value"]
+        "AttachmentType.ATTACHMENT_TYPE_IMAGE: pinned 1 value, found 9 value"], "a missing message is named"
 
 
 def test_a_changed_field_type_is_named():
@@ -75,13 +76,14 @@ def test_a_changed_field_type_is_named():
     assert drift.diff(found, drift.PINNED) == ["Prompt.content: pinned 2 string, found 2 bytes"]
 
 
-@mutation(DRIFT_FILE, PACKAGE_CHECK, "            if False:")
+@mutation(DRIFT_FILE, PACKAGE_CHECK, "            if False:", expect="another package is ignored")
 def test_other_packages_and_junk_strings_are_ignored():
     junk = 'a="C' + "g" * 300 + '";b="Cg' + "A" * 300 + '"'
     other = enc([(1, "o.proto"), (2, "other.pkg"), (4, [(1, "Attachment"), (2, [(1, "z" * 300), (3, 1), (5, 9)])])])
     foreign = 'c="%s"' % base64.b64encode(other).decode()
     assert len(foreign) > 200       # long enough for the bundle scan to take it
-    assert drift.decode_schema(bundle() + ";" + junk + ";" + foreign) == drift.decode_schema(bundle())
+    assert drift.decode_schema(bundle() + ";" + junk + ";" + foreign) == drift.decode_schema(bundle()), \
+        "another package is ignored"
 
 
 def test_pinned_covers_every_field_the_wire_sends_and_reads():
@@ -117,8 +119,8 @@ def test_the_recorded_excerpts_hold_the_gateway_app_id():
     assert drift.check_constants(full_constants()) == []
 
 
-@mutation(DRIFT_FILE, APPID_CHECK, "    if False:")
-@mutation(DRIFT_FILE, STRING_CHECK, "              if False]")
+@mutation(DRIFT_FILE, APPID_CHECK, "    if False:", expect="gateway query x-dgw-appid: not in the bundle")
+@mutation(DRIFT_FILE, STRING_CHECK, "              if False]", expect="product_context 1.1.2: not in the bundle")
 def test_a_missing_gateway_constant_is_named():
     without = full_constants().replace(GATEWAY_QUERY["x-dgw-appid"], "")
     assert drift.check_constants(without) == ["gateway query x-dgw-appid: not in the bundle",

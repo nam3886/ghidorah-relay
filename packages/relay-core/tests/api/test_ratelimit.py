@@ -172,11 +172,11 @@ def test_the_fifth_big_request_waits_for_a_slot_then_gets_429_with_retry_after()
     asyncio.run(main())
 
 
-@mutation(RL, '            and self.held.get(who, 0) < settings.get("api_big_body_slots_per_key"))',
+@mutation(RL, '            and self.held.get(who, 0) < settings.get("api_big_body_slots_per_client"))',
           ")", expect="per key")
 def test_one_key_holds_at_most_its_slots_and_another_key_still_gets_one():
     async def main():
-        g = Gate(api_big_body_slots_per_key=2)
+        g = Gate(api_big_body_slots_per_client=2)
         held = [g.hold("a%d" % i, key="a") for i in range(2)]
         await settle()
         assert (await g.call("a3", key="a"))[0] == 429, "per key"
@@ -194,7 +194,7 @@ def test_one_key_holds_at_most_its_slots_and_another_key_still_gets_one():
 @mutation(RL, "        self.total -= 1\n", "        pass\n", expect="given back")
 def test_a_slot_is_given_back_after_an_error_a_disconnect_and_a_cancel():
     async def main():
-        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_client=1)
         for boom in (RuntimeError("crash"), ClientDisconnect()):
             with pytest.raises(type(boom)):
                 await g.call("x", boom=boom)
@@ -214,7 +214,7 @@ def test_a_slot_is_given_back_after_an_error_a_disconnect_and_a_cancel():
           expect="no Content-Length")
 def test_small_requests_never_wait_and_a_body_without_length_counts_as_big():
     async def main():
-        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_client=1)
         held = g.hold("big")
         await settle()
         assert (await g.call("small", length=1000))[0] == 200, "a small body never waits"
@@ -230,10 +230,11 @@ def test_small_requests_never_wait_and_a_body_without_length_counts_as_big():
 
 @mutation(RL, "                release()                   # the whole body is in",
           "                pass  # the whole body is in", expect="once its body is read")
-@mutation(RL, "            if holding:\n", "            if True:\n")
+@mutation(RL, "            if holding:\n", "            if True:\n",
+          expect="a big upload goes on once its body is read")
 def test_a_request_that_holds_after_reading_its_body_frees_its_slot_once():
     async def main():
-        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_client=1)
         held = g.hold("chat", read=True)            # a held or streamed chat: body read, answer minutes later
         await settle()
         assert (await g.call("next"))[0] == 200, "a big upload goes on once its body is read"
@@ -249,7 +250,7 @@ def test_a_request_that_holds_after_reading_its_body_frees_its_slot_once():
 def test_a_waiter_is_woken_by_a_cancelled_holder_and_by_a_raised_slot_setting():
     async def main():
         loop = asyncio.get_running_loop()
-        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=5, api_big_body_wait_s=10)
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_client=5, api_big_body_wait_s=10)
         holder = g.hold("holder")
         await settle()
         waiter = asyncio.create_task(g.call("waiter", key="k2"))
@@ -294,7 +295,7 @@ def test_the_upload_gate_answers_upload_busy_with_cors_and_retry_after(db):
     release = asyncio.Event()
 
     async def scenario(env):
-        await env.settings.set("api_big_body_slots_per_key", 1)
+        await env.settings.set("api_big_body_slots_per_client", 1)
         await env.settings.set("api_big_body_wait_s", 0)
         key = await env.new_key()
         body = b"x" * (8 << 20)

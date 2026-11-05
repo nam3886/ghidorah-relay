@@ -263,7 +263,7 @@ REGISTRY = Registry(
          "A request body of at least this many MiB (or a body sent without Content-Length) waits for an upload slot "
          "before it is read.", min=1, max=1_000),
     Spec("api_big_body_slots", int, 4, "Large request bodies the API reads at once, over all keys.", min=1, max=1_000),
-    Spec("api_big_body_slots_per_key", int, 2, "Large request bodies one API key may send at once.",
+    Spec("api_big_body_slots_per_client", int, 2, "Large request bodies one API key may send at once.",
          min=1, max=1_000),
     Spec("api_big_body_wait_s", int, 30,
          "Seconds a large request waits for an upload slot before it gets 429 quota.upload_busy.", min=0, max=90),

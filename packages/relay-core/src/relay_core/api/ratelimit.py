@@ -5,7 +5,7 @@
   bucketed. An empty bucket answers 429 `quota.rate_limited` with `Retry-After`; the request does no other work.
 - `BigBodyGate`: ASGI middleware. A public request whose body is large (`Content-Length` at least `api_big_body_mb`
   MiB, or a request other than GET/HEAD with no `Content-Length`) takes an upload slot before its body is read: at
-  most `api_big_body_slots` in the process and `api_big_body_slots_per_key` per credential. It waits up to
+  most `api_big_body_slots` in the process and `api_big_body_slots_per_client` per credential. It waits up to
   `api_big_body_wait_s` for one, then answers 429 `quota.upload_busy`. The slot is given back once the body is read
   (or the answer starts, or the request ends, whatever comes first), so a held or streamed chat keeps none.
 
@@ -85,7 +85,7 @@ class RateLimiter:
 class BigBodyGate:
     """`is_gated(path)`: the paths whose big bodies take a slot (the public keyed ones). The per-key count is by the
     credential's hash, not a looked-up key: the body has not been read, and no database is asked. Requests with no
-    credential share one count, so they hold at most `api_big_body_slots_per_key` slots together.
+    credential share one count, so they hold at most `api_big_body_slots_per_client` slots together.
     ponytail: a client sending many made-up keys can still fill the process slots; Cloudflare's per-IP limit is the
     answer to that, a key lookup here if it is not enough."""
 
@@ -107,7 +107,7 @@ class BigBodyGate:
 
     def _free(self, who: str, settings) -> bool:
         return (self.total < settings.get("api_big_body_slots")
-                and self.held.get(who, 0) < settings.get("api_big_body_slots_per_key"))
+                and self.held.get(who, 0) < settings.get("api_big_body_slots_per_client"))
 
     async def _take(self, who: str, settings, wait_s: float) -> bool:
         """Take a slot, waiting up to `wait_s`. The check and the take have no await between them, so no lock.

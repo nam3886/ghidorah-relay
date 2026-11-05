@@ -132,7 +132,7 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh", "public_address": "",
         "trusted_proxies": [], "non_stream_hold_s": 540,
         "api_read_rate": 20, "api_read_burst": 100, "api_create_rate": 5, "api_create_burst": 50,
-        "api_big_body_mb": 8, "api_big_body_slots": 4, "api_big_body_slots_per_key": 2, "api_big_body_wait_s": 30}
+        "api_big_body_mb": 8, "api_big_body_slots": 4, "api_big_body_slots_per_client": 2, "api_big_body_wait_s": 30}
 
 
 @mutation(S, "return dict(self._registry.specs)", "return {}", expect="the listing must hold every setting")
@@ -299,7 +299,7 @@ def test_every_core_setting_states_what_it_allows():
         "trusted_proxies": "a list of IP addresses or CIDR networks", "non_stream_hold_s": "5–540",
         "api_read_rate": "1–10000", "api_read_burst": "1–100000", "api_create_rate": "1–10000",
         "api_create_burst": "1–100000", "api_big_body_mb": "1–1000", "api_big_body_slots": "1–1000",
-        "api_big_body_slots_per_key": "1–1000", "api_big_body_wait_s": "0–90"}
+        "api_big_body_slots_per_client": "1–1000", "api_big_body_wait_s": "0–90"}
     with pytest.raises(SettingsError, match="must not be empty"):
         REGISTRY.specs["filename_pattern"].validate("  ")
 

@@ -80,6 +80,7 @@ NOT_SHOWN = {
              "storage.INPUT_LINK_TTL"),
     **excuse("plumbing: a connection, a loop tick, a batch size or a shutdown detail that no admin decision depends on",
              "api.facade_common.HEARTBEAT_S", "api.facade_common.POLL_S", "api.runners.STOP_WAIT_S",
+             "api.ratelimit.SWEEP_EVERY_S", "api.ratelimit.LOG_EVERY_S", "api.ratelimit.RECHECK_S",
              "db.migrate.LOCK_KEY", "db.pool.TX_HOLD_S", "db.pool.GETCONN_TIMEOUT_S", "jobs.checks.TIMEOUT_SHARE",
              "jobs.engine.TICK_S", "jobs.engine.LAG_CHECK_S", "jobs.engine.LAG_WARN_S", "jobs.engine.WRITE_RESERVE_S",
              "jobs.poller.TICK_S", "jobs.reconcile.BOUND_SHARE", "jobs.sweeps.BATCH",

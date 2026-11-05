@@ -102,7 +102,7 @@ def test_a_frame_round_trips_and_a_short_or_long_length_is_refused():
 
 
 # ---- sending ------------------------------------------------------------------------------------------------------
-@mutation(WIRE, '("1.2.2", vid)', '("1.2.2", 1)')
+@mutation(WIRE, '("1.2.2", vid)', '("1.2.2", 1)', expect="the viewer id twice")
 def test_the_built_request_has_exactly_the_captured_browser_leaves():
     got = list(leaves(build(), SKELETON_MESSAGES))
     assert [(p, w) for p, w, _ in got] == [(r["path"], r["wire"]) for r in SKELETON]
@@ -113,7 +113,7 @@ def test_the_built_request_has_exactly_the_captured_browser_leaves():
     by = {}
     for path, _, value in got:
         by.setdefault(path, []).append(value)
-    assert by["1.2.1"] == by["1.2.2"] == [int(VIEWER)]
+    assert by["1.2.1"] == by["1.2.2"] == [int(VIEWER)], "the viewer id twice"
     assert by["2.2"] == [b"a red fox in the snow"]
     assert by["1.1.5.5.1"] == by["2.1.2.1"] == by["1.10.4"] == [CID.encode()]
     assert by["2.1.2.3"] == [otid(NOW, 12345)] == [(NOW << 22) | 12345]
@@ -125,7 +125,7 @@ def test_the_built_request_has_exactly_the_captured_browser_leaves():
     assert len({by[p][0] for p in ("1.6", "1.10.1", "1.10.3", "2.1.1")}) == 4   # a fresh id each
 
 
-@mutation(WIRE, '(2, 1), (3, b"")', '(2, 2), (3, b"")')
+@mutation(WIRE, '(2, 1), (3, b"")', '(2, 2), (3, b"")', expect="an image attachment")
 def test_attachments_go_in_order_after_the_text_with_their_media_ids():
     atts = (Attachment("1111111111111111", "image/jpeg", "a.jpg"), Attachment("2222222222222222", "image/png", "b.png"),
             Attachment("3333333333333333", "image/webp", "c.webp"))
@@ -136,7 +136,8 @@ def test_attachments_go_in_order_after_the_text_with_their_media_ids():
     for raw, att in zip(entries, atts, strict=True):
         got = {f: v for f, _, v in dec(raw, 0)}
         assert list(values(raw, (1, 1))) == [int(att.media_id)]
-        assert got[2] == 1 and got[3] == b"" and got[6] == att.mime.encode() and got[7] == att.name.encode()
+        assert got[2] == 1 and got[3] == b"" and got[6] == att.mime.encode() and got[7] == att.name.encode(), \
+            "an image attachment"
 
 
 def test_the_send_frame_is_one_data_frame_with_the_00_80_prefix_and_base64_request():
@@ -175,7 +176,8 @@ def test_the_captured_text_to_image_answers_read_done_with_n_finals_and_no_previ
     assert [(o.ref, o.mime, o.idx) for o in outs] == [(u, "image/webp", i) for i, u in enumerate(a.finals)]
 
 
-@mutation(WIRE, "cls, key = link_class(url), urlsplit(url).path", "cls, key = link_class(url), url")
+@mutation(WIRE, "cls, key = link_class(url), urlsplit(url).path", "cls, key = link_class(url), url",
+          expect="one result")
 def test_a_final_link_repeated_in_later_frames_is_one_result():
     r = read(captured("t2i_n1"))
     first = r.answer("image").finals
@@ -184,7 +186,7 @@ def test_a_final_link_repeated_in_later_frames_is_one_result():
     assert repeats > 1                                  # meta repeats the final link in later frames
     url = first[0].split("?")[0]
     r.feed(response(at(FINAL_PATH, url + "?_nc_ohc=other&amp;oh=2")))
-    assert r.answer("image").finals == first
+    assert r.answer("image").finals == first, "one result"
 
 
 def test_the_captured_videos_read_as_one_mp4_and_an_image_in_a_video_job_is_other():
@@ -208,16 +210,17 @@ def test_the_captured_refusal_reads_done_with_no_media_and_the_policy_error():
     assert a.text.startswith("I wasn't able")
 
 
-@mutation(WIRE, 'if isinstance(d, dict) and ("failure_kind" in d or "error_code" in d):', "if isinstance(d, dict):")
+@mutation(WIRE, 'if isinstance(d, dict) and ("failure_kind" in d or "error_code" in d):', "if isinstance(d, dict):",
+          expect="not an error")
 def test_a_success_status_at_the_tool_result_path_is_not_an_error():
     ok = json.dumps({"file_path": "/mnt/data/gallery/x.webp", "status": "Generated 1 image(s)"})
     r = read([response(at((1, 4, 6, 4), ok)), response(at((1, 2, 4), ok))])
-    assert r.answer("image").error is None
+    assert r.answer("image").error is None, "not an error"
     r.feed(response(at((1, 2, 4), json.dumps({"error_code": "x"}))))
     assert r.answer("image").error == {"error_code": "x"}
 
 
-@mutation(WIRE, "max(0, len(self._previews) - len(finals))", "len(self._previews)")
+@mutation(WIRE, "max(0, len(self._previews) - len(finals))", "len(self._previews)", expect="previews left")
 def test_previews_without_their_finals_are_counted():
     raws = captured("t2i_n2")
     cut = next(i for i, raw in enumerate(raws) if raw[0] == DATA and any(values(parse_frame(raw)[2][2:], FINAL_PATH)))
@@ -227,16 +230,16 @@ def test_previews_without_their_finals_are_counted():
     first = read(raws).answer("image").finals[0]
     r.feed(response(at(FINAL_PATH, first)))
     a = r.answer("image")
-    assert len(a.finals) == 1 and a.previews == 1
+    assert len(a.finals) == 1 and a.previews == 1, "previews left"
     assert read(raws).answer("image").previews == 0
 
 
-@mutation(CONSTANTS, "FINAL_CHUNK_FIELD = 3", "FINAL_CHUNK_FIELD = 2")
+@mutation(CONSTANTS, "FINAL_CHUNK_FIELD = 3", "FINAL_CHUNK_FIELD = 2", expect="done is the final chunk only")
 def test_done_is_the_final_chunk_only():
     raws = captured("t2v")
     last = max(i for i, raw in enumerate(raws) if raw[0] == DATA)
-    assert not read(raws[:last]).answer("video").done
-    assert read(raws).answer("video").done
+    assert not read(raws[:last]).answer("video").done, "done is the final chunk only"
+    assert read(raws).answer("video").done, "done is the final chunk only"
 
 
 def test_a_data_frame_that_does_not_decode_raises_frame_error():
@@ -248,7 +251,8 @@ def test_a_data_frame_that_does_not_decode_raises_frame_error():
     Reader().feed(frame(0x0c, 0, b"\x00\x00"))           # an ack is no data
 
 
-@mutation(WIRE, "    if not host_allowed(url, MEDIA_HOSTS, default_port_only=True):", "    if False:")
+@mutation(WIRE, "    if not host_allowed(url, MEDIA_HOSTS, default_port_only=True):", "    if False:",
+          expect="only the media hosts")
 def test_link_classes():
     assert link_class(CDN + "/v/t39.105495-1/1_2_3_n.webp?_nc_ht=x&oh=y") == "image"
     assert link_class(CDN + "/v/t39.105495-1/1_2_3_n.mp4?_nc_ht=x") == "video"
@@ -256,9 +260,10 @@ def test_link_classes():
     assert link_class(CDN + "/v/t58.90637-1/1_2_3_n.mp4") == "preview"
     assert link_class(CDN + "/m1/v/t0.71334-6/abc") == "input"
     assert link_class(CDN + "/v/t39.30808-6/1_2_3_n.jpg") == "other"            # the avatar
-    assert link_class("https://evil.example/v/t39.105495-1/1_2_3_n.webp") == "other"
-    assert link_class("https://scontent.fbcdn.net.evil.example/v/t39.105495-1/1_n.webp") == "other"
-    assert link_class("http://scontent.xx.fbcdn.net/v/t39.105495-1/1_2_3_n.webp") == "other"
+    assert link_class("https://evil.example/v/t39.105495-1/1_2_3_n.webp") == "other", "only the media hosts"
+    assert link_class("https://scontent.fbcdn.net.evil.example/v/t39.105495-1/1_n.webp") == "other", \
+        "only the media hosts"
+    assert link_class("http://scontent.xx.fbcdn.net/v/t39.105495-1/1_2_3_n.webp") == "other", "only the media hosts"
     final = CDN + "/v/t39.105495-1/1_n.webp"
     assert is_final(final, "image") and not is_final(final, "video")
 
