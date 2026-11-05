@@ -42,15 +42,29 @@ function setMenu(open, focus) {
   ai.toggle.setAttribute('aria-expanded', String(open));
   if (open) items()[0].focus(); else if (focus) ai.toggle.focus();
 }
-async function copy(text, label) {
-  const old = label.textContent;
-  try { await navigator.clipboard.writeText(await text()); label.textContent = 'Copied'; } catch { label.textContent = 'Copy failed'; }
-  setTimeout(() => { label.textContent = old; }, 1500);
+// The label each button restores to is fixed here: a second click while "Copied" shows must not save that word.
+const LABELS = { 'ai-copy-label': 'Copy page', 'ai-link-label': 'Copy Markdown link' };
+const timers = {};
+const fetchMarkdown = () => fetch('/llms-full.txt').then((r) => {
+  if (!r.ok) throw new Error('llms-full.txt ' + r.status);
+  return r.text();
+});
+async function copy(write, label) {
+  try { await write(); label.textContent = 'Copied'; } catch { label.textContent = 'Copy failed'; }
+  clearTimeout(timers[label.id]);
+  timers[label.id] = setTimeout(() => { label.textContent = LABELS[label.id]; }, 1500);
 }
+// Safari refuses writeText after an await (outside the click): hand the clipboard a promise of the Blob instead.
+const copyMarkdown = () => (window.ClipboardItem && navigator.clipboard.write
+  ? navigator.clipboard.write([new ClipboardItem({
+    'text/plain': fetchMarkdown().then((t) => new Blob([t], { type: 'text/plain' })),
+  })])
+  : fetchMarkdown().then((t) => navigator.clipboard.writeText(t)));
 document.getElementById('ai-copy').addEventListener('click', () =>
-  copy(() => fetch('/llms-full.txt').then((r) => r.text()), document.getElementById('ai-copy-label')));
+  copy(copyMarkdown, document.getElementById('ai-copy-label')));
 document.getElementById('ai-link').addEventListener('click', () =>
-  copy(async () => origin + '/llms-full.txt', document.getElementById('ai-link-label')));
+  copy(() => navigator.clipboard.writeText(origin + '/llms-full.txt'), document.getElementById('ai-link-label')));
+ai.list.addEventListener('click', (e) => { if (e.target.closest('[role=menuitem]')) setMenu(false); });
 ai.toggle.addEventListener('click', () => setMenu(ai.list.hidden, false));
 document.addEventListener('click', (e) => { if (!document.getElementById('ai').contains(e.target)) setMenu(false); });
 document.addEventListener('keydown', (e) => {
@@ -58,5 +72,8 @@ document.addEventListener('keydown', (e) => {
   const all = items(), at = all.indexOf(document.activeElement);
   if (e.key === 'Escape') { setMenu(false, true); } else if (e.key === 'ArrowDown') {
     e.preventDefault(); all[(at + 1) % all.length].focus();
-  } else if (e.key === 'ArrowUp') { e.preventDefault(); all[(at + all.length - 1) % all.length].focus(); }
+  } else if (e.key === 'ArrowUp') { e.preventDefault(); all[(at + all.length - 1) % all.length].focus();
+  } else if (e.key === 'Home') { e.preventDefault(); all[0].focus();
+  } else if (e.key === 'End') { e.preventDefault(); all[all.length - 1].focus();
+  } else if (e.key === 'Tab') { setMenu(false); }
 });

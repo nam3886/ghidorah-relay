@@ -222,17 +222,86 @@ def test_the_copy_page_split_button_copies_the_markdown_and_its_menu_has_the_fou
         expect(page.locator("#ai-link-label")).to_have_text("Copied")
         link = page.evaluate("window.__copied", isolated_context=False)[-1]
         assert link == origin + "/llms-full.txt", "Markdown link"
+        assert menu.is_hidden(), "a chosen item closes the menu"
         # Escape closes and returns focus to the chevron; an outside click closes too
+        toggle.click()
         page.keyboard.press("Escape")
         assert menu.is_hidden(), "Escape closes the menu"
         assert page.evaluate("document.activeElement.id") == "ai-toggle", "Escape"
         toggle.click()
         page.keyboard.press("ArrowDown")
-        assert page.evaluate("document.activeElement.id") == "ai-view"
+        assert page.evaluate("document.activeElement.id") == "ai-link"
         page.mouse.click(300, 400)
         assert menu.is_hidden(), "outside click closes the menu"
         assert toggle.get_attribute("aria-expanded") == "false"
         page.csp.check()
         assert not page.problems, page.problems
+    finally:
+        context.close()
+
+
+WRITE_STUB = """() => { window.__copied = [];
+  const write = (items) => items[0].getType('text/plain').then((b) => b.text())
+    .then((t) => { window.__copied.push(t); });
+  const writeText = () => Promise.reject(new Error('gesture'));
+  Object.defineProperty(navigator, 'clipboard', {value: {write, writeText}}); }"""
+
+
+@pytest.mark.browser
+@mutation(REFERENCE_JS, "label.textContent = LABELS[label.id];", "label.textContent = 'Copied';", expect="Copy page")
+@mutation(REFERENCE_JS, "if (!r.ok) throw new Error('llms-full.txt ' + r.status);", "", expect="error body")
+@mutation(REFERENCE_JS, "navigator.clipboard.write([new ClipboardItem(",
+          "navigator.clipboard.writeText([new ClipboardItem(", expect="Copied")
+@pytest.mark.parametrize("stub", [CLIPBOARD_STUB, WRITE_STUB], ids=["writeText", "ClipboardItem"])
+def test_the_copy_button_restores_its_label_after_a_double_click_and_never_copies_an_error_body(app, stub):
+    context, page = app.new_page()
+    try:
+        page.goto("/reference")
+        page.evaluate(stub, isolated_context=False)
+        main = page.locator("#ai-copy")
+        full = page.evaluate("fetch('/llms-full.txt').then(r => r.text())")
+        main.click()
+        main.click()                                   # the second click must not save "Copied" as the label
+        expect(main).to_have_text("Copied")
+        expect(main).to_have_text("Copy page", timeout=4000)
+        assert page.evaluate("window.__copied", isolated_context=False) == [full, full], "ClipboardItem"
+        page.route("**/llms-full.txt", lambda route: route.fulfill(status=500, body="boom"))
+        page.evaluate("window.__copied.length = 0", isolated_context=False)
+        main.click()
+        expect(main).to_have_text("Copy failed")
+        assert page.evaluate("window.__copied", isolated_context=False) == [], "error body copied"
+        expect(main).to_have_text("Copy page", timeout=4000)
+    finally:
+        context.close()
+
+
+@pytest.mark.browser
+@mutation(REFERENCE_JS, "} else if (e.key === 'Tab') { setMenu(false); }", "}", expect="Tab")
+@mutation(REFERENCE_JS, "e.key === 'Home'", "e.key === 'Hom'", expect="Home")
+@mutation(REFERENCE_JS, "e.key === 'End'", "e.key === 'En'", expect="End")
+@mutation(REFERENCE_JS,
+          "ai.list.addEventListener('click', (e) => { if (e.target.closest('[role=menuitem]')) setMenu(false); });",
+          "", expect="chosen item")
+def test_the_menu_jumps_with_home_and_end_closes_on_tab_and_after_any_item_is_chosen(app):
+    context, page = app.new_page()
+    try:
+        page.goto("/reference")
+        page.evaluate(CLIPBOARD_STUB, isolated_context=False)
+        menu, toggle = page.locator("#ai-list"), page.locator("#ai-toggle")
+        toggle.click()
+        page.keyboard.press("End")
+        assert page.evaluate("document.activeElement.id") == "ai-claude", "End"
+        page.keyboard.press("Home")
+        assert page.evaluate("document.activeElement.id") == "ai-link", "Home"
+        page.keyboard.press("Tab")
+        assert menu.is_hidden(), "Tab"
+        assert toggle.get_attribute("aria-expanded") == "false"
+        toggle.click()
+        page.locator("#ai-link").click()
+        assert menu.is_hidden(), "chosen item: copy link"
+        toggle.click()
+        with page.expect_popup():
+            page.locator("#ai-view").click()
+        assert menu.is_hidden(), "chosen item: link followed"
     finally:
         context.close()
