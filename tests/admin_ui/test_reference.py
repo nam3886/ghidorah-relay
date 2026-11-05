@@ -5,7 +5,9 @@ names the API and links to nothing locked) and follows the stored theme. Browser
 
 import base64
 import hashlib
+import os
 import re
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -98,7 +100,7 @@ def test_the_public_bar_shows_the_logo_and_the_title_and_links_to_nothing_locked
     page = (STATIC / "reference.html").read_text()
     bar = re.search(r'<header id="bar">(.*?)</header>', page, re.S).group(1)
     assert 'id="logo"' in bar and '<span id="bar-title">API reference</span>' in bar, bar
-    assert "<a " not in bar and "/manage" not in page, "the public page links to the locked dashboard"
+    assert "/manage" not in page, "the public page links to the locked dashboard"
     assert "#back" not in (STATIC / "reference.js").read_text() + (STATIC / "reference.css").read_text()
 
 
@@ -157,3 +159,80 @@ def test_a_renderer_that_fails_to_load_or_does_not_match_its_pin_shows_the_fallb
             expect(page.locator("#bar-title")).to_have_text("API reference")
         finally:
             context.close()
+
+
+@mutation(REFERENCE_HTML, 'href="/llms.txt"', 'href="/llm.txt"', expect="no-JS text")
+@mutation(REFERENCE_HTML, '<a href="/openapi.json">/openapi.json</a>.</p>\n  </noscript>',
+          '/openapi.json.</p>\n  </noscript>', expect="no-JS text")
+def test_the_page_tells_a_reader_without_javascript_where_the_machine_readable_docs_are():
+    page = (STATIC / "reference.html").read_text()
+    noscript = re.search(r"<noscript>(.*?)</noscript>", page, re.S).group(1)
+    for path in ("/llms.txt", "/llms-full.txt", "/openapi.json"):
+        assert 'href="%s"' % path in noscript, "no-JS text: " + path
+
+
+MENU = ["Copy Markdown link", "View as Markdown", "Open in ChatGPT", "Open in Claude"]
+CLIPBOARD_STUB = """() => { window.__copied = [];
+  const writeText = (t) => { window.__copied.push(t); return Promise.resolve(); };
+  Object.defineProperty(navigator, 'clipboard', {value: {writeText}}); }"""
+
+
+@pytest.mark.browser
+@mutation(REFERENCE_JS, "'https://claude.ai/new?q=' + prompt", "'https://claude.ai/new?q=x'", expect="Claude prompt")
+@mutation(REFERENCE_JS, "origin + '/llms-full.txt'", "origin + '/llms.txt'", expect="Markdown link")
+@mutation(REFERENCE_JS, "if (e.key === 'Escape')", "if (e.key === 'Esc')", expect="Escape")
+@mutation(REFERENCE_JS, "if (!document.getElementById('ai').contains(e.target)) setMenu(false);", "", expect="outside")
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_the_copy_page_split_button_copies_the_markdown_and_its_menu_has_the_four_targets(app, scheme):
+    context, page = app.new_page(scheme)
+    try:
+        page.goto("/reference")
+        page.evaluate(CLIPBOARD_STUB, isolated_context=False)
+        wait_rendered(page)
+        origin = page.evaluate("location.origin")
+        full = page.evaluate("fetch('/llms-full.txt').then(r => r.text())")
+        main = page.locator("#ai-copy")
+        expect(main).to_have_text("Copy page")
+        main.click()
+        expect(main).to_have_text("Copied")
+        copied = page.evaluate("window.__copied", isolated_context=False)
+        assert copied == [full], "the main button copies /llms-full.txt"
+        toggle = page.locator("#ai-toggle")
+        menu = page.locator("#ai-list")
+        expect(menu).to_be_hidden()
+        assert toggle.get_attribute("aria-expanded") == "false"
+        toggle.click()
+        expect(menu).to_be_visible()
+        assert toggle.get_attribute("aria-expanded") == "true" and menu.get_attribute("role") == "menu"
+        items = menu.get_by_role("menuitem")
+        assert [t.strip() for t in items.all_inner_texts()] == MENU
+        shots = os.environ.get("RELAY_SCREENSHOTS_DIR")
+        if shots:
+            page.screenshot(path=os.path.join(shots, "reference-copy-menu-%s.png" % scheme))
+        prompt = urllib.parse.quote("Read " + origin + "/llms.txt so I can ask questions about the Ghidorah API.",
+                                    safe="")
+        assert page.locator("#ai-view").get_attribute("href") == "/llms-full.txt"
+        assert page.locator("#ai-chatgpt").get_attribute("href") == "https://chatgpt.com/?q=" + prompt
+        claude = page.locator("#ai-claude").get_attribute("href")
+        assert claude == "https://claude.ai/new?q=" + prompt, "Claude prompt"
+        for link in ("view", "chatgpt", "claude"):
+            assert page.locator("#ai-" + link).get_attribute("target") == "_blank"
+            assert "noopener" in page.locator("#ai-" + link).get_attribute("rel")
+        page.locator("#ai-link").click()
+        expect(page.locator("#ai-link-label")).to_have_text("Copied")
+        link = page.evaluate("window.__copied", isolated_context=False)[-1]
+        assert link == origin + "/llms-full.txt", "Markdown link"
+        # Escape closes and returns focus to the chevron; an outside click closes too
+        page.keyboard.press("Escape")
+        assert menu.is_hidden(), "Escape closes the menu"
+        assert page.evaluate("document.activeElement.id") == "ai-toggle", "Escape"
+        toggle.click()
+        page.keyboard.press("ArrowDown")
+        assert page.evaluate("document.activeElement.id") == "ai-view"
+        page.mouse.click(300, 400)
+        assert menu.is_hidden(), "outside click closes the menu"
+        assert toggle.get_attribute("aria-expanded") == "false"
+        page.csp.check()
+        assert not page.problems, page.problems
+    finally:
+        context.close()

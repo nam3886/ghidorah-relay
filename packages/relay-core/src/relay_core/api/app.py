@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import PlainTextResponse
 from psycopg_pool import AsyncConnectionPool
 from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -35,6 +36,7 @@ from relay_core.admin import (
 from relay_core.admin.router import AdminGuard, AdminHeaders, build_admin_router
 from relay_core.api import errors_http, routes_catalog, routes_gemini, routes_media, routes_native, routes_openai
 from relay_core.api.doors import public_base
+from relay_core.api.llms_docs import llms_full, llms_txt
 from relay_core.api.openapi_docs import live, public_schema
 from relay_core.api.request_log import RequestLogMiddleware
 from relay_core.providers import ProviderRegistry
@@ -98,6 +100,17 @@ def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectSt
         # the non-stream wait the reference states (`non_stream_hold_s`)
         held = live(schema, request.app.state.settings.get("non_stream_hold_s"))
         return {**held, "servers": [{"url": public_base(request)}]}
+
+    MARKDOWN = "text/markdown; charset=utf-8"
+
+    @health.get("/llms.txt", include_in_schema=False)
+    async def llms_short(request: Request) -> PlainTextResponse:
+        hold = request.app.state.settings.get("non_stream_hold_s")
+        return PlainTextResponse(llms_txt(public_base(request), int(hold)), media_type=MARKDOWN)
+
+    @health.get("/llms-full.txt", include_in_schema=False)
+    async def llms_long(request: Request) -> PlainTextResponse:
+        return PlainTextResponse(llms_full(await openapi_json(request), public_base(request)), media_type=MARKDOWN)
 
     app.include_router(health)
     app.include_router(pages.router)

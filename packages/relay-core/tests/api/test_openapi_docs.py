@@ -23,6 +23,7 @@ for _spec in sorted(_REPO.glob("packages/provider-*/src/relay_*/spec.py")):
     importlib.import_module(_spec.parent.name + ".spec")
 
 DOCS = "packages/relay-core/src/relay_core/api/openapi_docs.py"
+LLMS = "packages/relay-core/src/relay_core/api/llms_docs.py"
 SCHEMAS = "packages/relay-core/src/relay_core/api/schemas.py"
 NATIVE = "packages/relay-core/src/relay_core/api/routes_native.py"
 JOB_CALLS = {
@@ -627,3 +628,61 @@ def test_the_served_schema_is_a_valid_openapi_document(db):
         validate(schema)
     except Exception as e:      # the validator's own error class differs between its versions
         raise AssertionError("not a valid OpenAPI document: %s" % e) from None
+
+
+async def markdown(env, path: str):
+    r = await env.client.get(path)             # no key: public like /openapi.json
+    assert r.status_code == 200, path
+    assert r.headers["content-type"] == "text/markdown; charset=utf-8", path
+    return r.text
+
+
+@mutation(LLMS, '"Never send a create call again while', '"Send a create call again while', expect="never re-send")
+@mutation(LLMS, '"Poll the status call every 10 to 30 seconds, never in a tight loop.",', "", expect="poll 10 to 30")
+@mutation(LLMS, '"Branch on `error.code`, never on the message text.",', "", expect="branch on error.code")
+@mutation(LLMS, '"Take model names from `GET /v1/models`', '"Take model names from your notes', expect="models list")
+@mutation(LLMS, '    rules = "\\n".join("- " + r % hold_s if "%s" in r else "- " + r for r in AGENT_RULES)',
+          '    rules = "\\n".join("- " + r.replace("%s", "540") for r in AGENT_RULES)', expect="the hold setting")
+def test_llms_txt_is_public_markdown_with_the_base_url_the_live_hold_and_the_agent_rules(db):
+    async def scenario(env):
+        first = await markdown(env, "/llms.txt")
+        await env.settings.set("non_stream_hold_s", 80)
+        return first, await markdown(env, "/llms.txt"), str(env.client.base_url).rstrip("/")
+
+    first, second, base = run_app(db, scenario)
+    assert first.startswith("# Ghidorah API\n\n> ")
+    assert "Base URL: " + base in first
+    for text, seconds in ((first, 540), (second, 80)):
+        assert "waits at most %d seconds" % seconds in text, "the hold setting"
+        assert "%s" not in text and openapi_docs.HOLD_MARK not in text
+    assert "## Instructions for AI agents" in first
+    assert "Never send a create call again while its job is `queued` or `running`" in first, "never re-send"
+    assert "every 10 to 30 seconds, never in a tight loop" in first, "poll 10 to 30"
+    assert "Branch on `error.code`, never on the message text" in first, "branch on error.code"
+    assert "Take model names from `GET /v1/models`" in first, "models list"
+    for word in ("Bearer", "X-API-Key", "x-goog-api-key", "/llms-full.txt", "/openapi.json", "/reference"):
+        assert word in first, word
+    assert "/admin" not in first
+
+
+@mutation(LLMS, '    for path, ops in schema["paths"].items():',
+          '    for path, ops in list(schema["paths"].items())[1:]:', expect="every public path")
+@mutation(LLMS, "for code, (helps, text) in errors.PUBLIC_CODES.items()]", "for code, (helps, text) in []]",
+          expect="every public code")
+@mutation(LLMS, '    out += ["", "Request body (JSON):"]', '    out += ["", "Body:"]', expect="request body fields")
+def test_llms_full_lists_every_public_operation_field_and_code_and_nothing_of_the_admin(db):
+    async def scenario(env):
+        return await fetch(env), await markdown(env, "/llms-full.txt")
+
+    schema, text = run_app(db, scenario)
+    assert "/admin" not in text and "X-Admin-Session" not in text
+    for path, ops in schema["paths"].items():
+        for method in ops:
+            assert "## %s %s\n" % (method.upper(), path) in text, "every public path: %s %s" % (method, path)
+    for code in errors.PUBLIC_CODES:
+        assert "- `%s`:" % code in text, "every public code: " + code
+    assert "Request body (JSON):" in text, "request body fields"
+    assert "- `prompt` (string, required)" in text and "- `duration`" in text and "- `callback_url`" in text
+    assert "`input.bad_model`" in text, "the request-time codes of an operation"
+    assert "waits for its job at most 540 seconds" in text and openapi_docs.HOLD_MARK not in text
+    assert "# Ghidorah API (full documentation)" in text

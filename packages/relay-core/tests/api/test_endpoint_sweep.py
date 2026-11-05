@@ -28,7 +28,7 @@ PUBLIC = {
     "GET /v1/video/generations/{job_id}/content", "GET /v1/video/generations/{job_id}/content/{idx}",
     "GET /v1/images/generations/{job_id}/content/{idx}",
 }
-NOT_IN_SCHEMA = {"GET /openapi.json"}
+NOT_IN_SCHEMA = {"GET /openapi.json", "GET /llms.txt", "GET /llms-full.txt"}
 ADMIN = {
     "GET /admin/accounts", "POST /admin/accounts/import", "PATCH /admin/accounts/{account_id}",
     "DELETE /admin/accounts/{account_id}", "POST /admin/accounts/{account_id}/check",
@@ -60,7 +60,7 @@ ADMIN = {
     "PUT /admin/frames/{provider}/{kind}/{model}/lock", "POST /admin/frames/{provider}/{kind}/apply-all",
     "POST /admin/frames/preview",
 }
-KEYLESS = {"GET /healthz", "GET /m/{token}", "GET /openapi.json"}
+KEYLESS = {"GET /healthz", "GET /m/{token}", "GET /openapi.json", "GET /llms.txt", "GET /llms-full.txt"}
 OPEN_ADMIN = {"POST /admin/login"}            # answers before there is a session
 ENDS_SESSION = {"POST /admin/logout"}         # called last
 OK_VALUE = {"idx": "0", "provider": "fake", "model": "fake-video", "key": "log_retention_days"}
@@ -81,7 +81,8 @@ def fill(path: str, junk: bool = False, **given: str) -> str:
 
 def bad(r) -> bool:
     # the schema names internal_error among the codes a job can end with: only its status counts
-    return r.status_code >= 500 or ("internal_error" in r.text and r.url.path != "/openapi.json")
+    docs = ("/openapi.json", "/llms-full.txt")
+    return r.status_code >= 500 or ("internal_error" in r.text and r.url.path not in docs)
 
 
 @mutation(APP, "PUBLIC_ROUTES = (routes_native, routes_media, routes_catalog,",

@@ -29,3 +29,20 @@ html body.light-mode, html body.dark-mode { --scalar-color-accent: var(--rl-acce
 #fallback[hidden] { display: none; }
 #fallback a { color: var(--rl-accent); }
 #fallback h2 { margin-top: 0; }
+
+/* "Copy page" split button and its menu */
+#ai { position: relative; margin-left: auto; }
+#ai-split { display: flex; border: 1px solid var(--rl-line); border-radius: 8px; overflow: hidden; background: var(--rl-surface); }
+#ai-split button, #ai-list button, #ai-list a { font: inherit; color: var(--rl-fg); background: transparent; border: 0; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; text-decoration: none; }
+#ai-copy { padding: 5px 10px; }
+#ai-toggle { padding: 5px 7px; border-left: 1px solid var(--rl-line) !important; }
+#ai-split button:hover, #ai-list button:hover, #ai-list a:hover { background: var(--rl-bg); }
+#ai-list { position: absolute; right: 0; top: calc(100% + 6px); min-width: 210px; padding: 4px; background: var(--rl-surface);
+  border: 1px solid var(--rl-line); border-radius: 10px; box-shadow: 0 8px 24px rgba(23, 19, 33, 0.16); }
+#ai-list[hidden] { display: none; }
+#ai-list button, #ai-list a { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 6px; text-align: left; }
+#ai-list .ext { margin-left: auto; color: var(--rl-muted); }
+#machine-docs { margin: 0; padding: 12px 16px; color: var(--rl-fg); }
+#machine-docs a { color: var(--rl-accent); }
+@media (max-width: 639px) { #ai-copy-label { display: none; } }

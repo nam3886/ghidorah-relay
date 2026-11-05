@@ -14,7 +14,23 @@
       <img class="logo-dark" src="/ui/app/brand/ghidorah-logo-dark.svg" alt="Ghidorah">
     </span>
     <span id="bar-title">API reference</span>
+    <div id="ai">
+      <div id="ai-split">
+        <button id="ai-copy" type="button"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3.5" y="2.5" width="9" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 2.5h4v2H6z" fill="currentColor"/></svg><span id="ai-copy-label">Copy page</span></button>
+        <button id="ai-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ai-list" aria-label="More options for AI tools"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div id="ai-list" role="menu" hidden>
+        <button id="ai-link" type="button" role="menuitem"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="ai-link-label">Copy Markdown link</span></button>
+        <a id="ai-view" role="menuitem" href="/llms-full.txt" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.75" y="3.25" width="12.5" height="9.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4 10V6l2 2.5L8 6v4M11 6v4m0 0l-1.4-1.4M11 10l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>View as Markdown<svg class="ext" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 3.5H3.5v9h9V10M9 3h4v4M13 3L7.5 8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a id="ai-chatgpt" role="menuitem" href="#" target="_blank" rel="noopener">Open in ChatGPT<svg class="ext" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 3.5H3.5v9h9V10M9 3h4v4M13 3L7.5 8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a id="ai-claude" role="menuitem" href="#" target="_blank" rel="noopener">Open in Claude<svg class="ext" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 3.5H3.5v9h9V10M9 3h4v4M13 3L7.5 8.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
   </header>
+  <noscript>
+    <p id="machine-docs">This page needs JavaScript. Machine-readable docs: <a href="/llms.txt">/llms.txt</a>,
+       <a href="/llms-full.txt">/llms-full.txt</a> (the whole API in Markdown) and <a href="/openapi.json">/openapi.json</a>.</p>
+  </noscript>
   <div id="fallback" hidden>
     <h2>API reference could not load</h2>
     <p>The renderer is a file served by this host and it failed to load. The API itself is unaffected.</p>
