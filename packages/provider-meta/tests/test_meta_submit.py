@@ -1,1341 +1,674 @@
-"""meta's image submit and fetch, driven by the redacted captures of the live run (fixtures/meta/spike-261023) and a
-scripted page: no Chrome, no meta.ai, no real cookie. Each money rule has a test here and a mutation that breaks it."""
+"""meta's submit over HTTP, driven by the 05/11 captures (fixtures/meta/http-261105) through a fake curl_cffi session
+and socket: no meta.ai, no real cookie. Each money rule has a test here and a mutation that breaks it."""
 
 import asyncio
 import base64
-import contextlib
+import dataclasses
+import itertools
 import json
-import re
-import time
-from dataclasses import replace
-from datetime import UTC, datetime, timedelta
-from html import unescape
-from pathlib import Path
+import logging
+from datetime import timedelta
 from types import SimpleNamespace
-from urllib.parse import urlsplit
 
-import pytest
+from metakit import (
+    NOW,
+    PROXY,
+    Clock,
+    Ctx,
+    FakeSocket,
+    Net,
+    Resp,
+    assert_no_secret,
+    frames,
+    job,
+    page,
+    settings,
+)
 
-from relay_browser.evidence import EvidenceWriter
-from relay_core import errors, frames
-from relay_core.net import FetchFailed, UnsafeUrl
-from relay_core.pool import RepeatRest
+from relay_core import errors
+from relay_core import frames as core_frames
 from relay_core.providers import (
     REFUSED_BY,
     Ambiguous,
     Balance,
     Completed,
     Cooldown,
-    Dead,
     Fail,
     MediaRef,
     NotTaken,
-    Proxy,
+    ProxyBad,
     Retry,
     Success,
     Suspect,
 )
-from relay_core.testing.fake_media import MediaSite, public_resolver
-from relay_core.testing.fake_provider import FakeSettings
 from relay_core.testing.mutation import mutation
-from relay_meta.engine import check as check_module
-from relay_meta.engine import fetch as fetch_mod
+from relay_meta.constants import FINAL_PATH, GATEWAY_URL, SITE_URL, TEXT_PATH, UPLOAD_URL
 from relay_meta.engine import submit as S
-from relay_meta.engine.check import SIGNALS_JS
+from relay_meta.engine import wire
+from relay_meta.engine.web import Sessions, ip_key, read_page
 from relay_meta.spec import SPEC
 
-FIX = Path(__file__).resolve().parents[3] / "fixtures" / "meta" / "spike-261023"
 SUBMIT_FILE = "packages/provider-meta/src/relay_meta/engine/submit.py"
+WIRE_FILE = "packages/provider-meta/src/relay_meta/engine/wire.py"
 CONSTANTS = "packages/provider-meta/src/relay_meta/constants.py"
 ERRORS_FILE = "packages/provider-meta/src/relay_meta/errors.py"
-FETCH_FILE = "packages/provider-meta/src/relay_meta/engine/fetch.py"
-NOW = datetime(2026, 10, 23, 8, 0, tzinfo=UTC)
-JAR = json.dumps({"cookies": [{"name": "ecto_1_sess", "value": "v-fake", "domain": ".meta.ai", "session": True}]})
-EDITABLE, TEXTAREA = "the hydrated composer", "the placeholder textarea"
-
-
-# ---- the captures ------------------------------------------------------------------------------------------------
-def capture(folder: str) -> SimpleNamespace:
-    """One scenario of the live run: the prompt, the sign-in signals, the GraphQL calls and the final answer."""
-    base = FIX / folder
-    http = json.loads((base / "http.json").read_text())["http"]
-    events = [SimpleNamespace(kind="http", method="POST", status=200, path="/api/graphql",
-                              req=json.dumps({"doc_id": e["doc_id"], "variables": e["variables"]}),
-                              body=e["body"]) for e in http if e.get("doc_id")]
-    # the image upload's requests (rupload.meta.ai), in the order the page sent them: they arrive on the file choice
-    uploads = [SimpleNamespace(kind="http", method=e["method"], status=e["status"] or 0, path=urlsplit(e["url"]).path,
-                               req="", body=e.get("body") or "") for e in http if "rupload.meta.ai" in e["url"]]
-    loaded = json.loads((base / "loaded.state.json").read_text())
-    signals = {"menu": loaded["signals"]["user_menu_visible"], "out": False, "name": "",
-               "title": loaded["state"]["title"], "failed": "Failed to verify" in loaded.get("page_text", "")}
-    final = base / "final.dom.html"
-    answer = final.read_text().split("<!-- composer")[0] if final.exists() else ""
-    send = base / "send.json"
-    prompt = json.loads(send.read_text())["prompt"] if send.exists() else ""
-    if folder == T2V:
-        # The capture pressed Enter 0.1 s after typing, before meta's `warmupConversation` (1.2-1.5 s after the typing
-        # in every other capture), so it holds none; the engine's own live text->video run saw it (FINDINGS.md). The
-        # call of image-1-acc1 stands in, naming the chat this capture opened.
-        chat = S.chat_id(json.loads((base / "timeline.json").read_text())[0]["url"])
-        warm = next(e for e in capture("image-1-acc1").events if S.warmup_id(e))
-        events.insert(0, SimpleNamespace(**{**vars(warm), "req": warm.req.replace(S.warmup_id(warm), chat)}))
-    return SimpleNamespace(events=events, uploads=uploads, signals=signals, answer=answer, prompt=prompt)
-
-
-def streaming(html: str) -> str:
-    """The same answer while meta still draws: STREAMING, and the tiles show the low-res preview."""
-    done = 'data-streaming-state="DONE" data-streaming-complete="true"'
-    return html.replace(done, 'data-streaming-state="STREAMING"').replace("/t39.105495-1/", "/t58.90637-1/")
-
+HOME = ("GET", SITE_URL + "/")
+WS = ("WS", GATEWAY_URL)
+UPLOAD = ("POST", UPLOAD_URL)
+IP = ip_key(PROXY)
+FOX = "a red fox sitting in a snowy forest"
+LIMIT_TEXT = "You’ve reached your limit for creating images today. Please come back later."
+CDN = "https://scontent.xx.fbcdn.net/v/"
 
-def warmed_uuid(cap) -> str:
-    return next(S.warmup_id(e) for e in cap.events if S.warmup_id(e))
 
+# ---- the kit -----------------------------------------------------------------------------------------------------
+def at(path, value) -> list:
+    for f in reversed(path[1:]):
+        value = [(f, value)]
+    return [(path[0], value)]
 
-# ---- a scripted page ---------------------------------------------------------------------------------------------
-class Recorder:
-    """The page's network log: the list itself, so what the page adds later (the upload) shows up."""
 
-    def __init__(self, events):
-        self._events = events
+def response(*fields, done=False) -> bytes:
+    """A gateway data frame holding the protobuf `fields` (lists of `at(...)`), `is_final_chunk` when `done`."""
+    return wire.frame(wire.DATA, 0, b"\x00\x00" + wire.enc([f for fs in fields for f in fs] +
+                                                             ([(3, 1)] if done else [])))
 
-    def now(self):
-        return 0.0
 
-    def events(self, since=0.0):
-        return list(self._events)
+def estab_answer(code=200) -> bytes:
+    return wire.frame(wire.ESTAB, 0, json.dumps({"code": code}).encode())
 
-    async def wait_for(self, predicate, timeout, since=0.0):
-        return next((e for e in self._events if predicate(e)), None)
-
-    async def dump_async(self, redact, since=0.0):
-        return redact("POST /api/graphql cookie: ecto_1_sess=v-fake-secret")
 
+def gateway(name=None, *, answer=(), code=200) -> FakeSocket:
+    """A socket that answers the EstabStream `code`, then the capture `name`'s frames (its own answer), or `answer`."""
+    if name is not None:
+        return FakeSocket(frames(name))
+    return FakeSocket([b"\x0a", estab_answer(code), *answer])
 
-class FileInput:
-    """The composer's file input: choosing a file shows its thumbnail at once and starts the upload, whose requests
-    reach the network log only when meta answers (`page.upload_answers`)."""
-
-    def __init__(self, page):
-        self.page = page
-        self.first = self
-
-    async def count(self):
-        return self.page.file_inputs
-
-    async def set_input_files(self, payload):
-        self.page.log.append("attach")
-        files = payload if isinstance(payload, list) else [payload]
-        self.page.chosen.extend(files)
-        for _ in files[:self.page.upload_answers]:      # meta answers the first `upload_answers` uploads
-            self.page.events.extend(self.page.uploads)
-        self.page.uploaded = len(files) <= self.page.upload_answers
-
-
-class Attached:
-    def __init__(self, page):
-        self.page = page
-
-    async def count(self):
-        if not self.page.chosen:
-            return 0
-        shown = self.page.thumbnails
-        if isinstance(shown, list):     # one count per read, the last one repeats
-            return shown.pop(0) if len(shown) > 1 else shown[0]
-        return shown
-
-
-class Keyboard:
-    def __init__(self, page):
-        self.page = page
-
-    async def insert_text(self, text):
-        self.page.typed[self.page.focus] = self.page.typed.get(self.page.focus, "") + text
-
-    async def press(self, key):
-        await self.page.press(key)
-
-
-class Box:
-    """A locator: a selector that does not ask for the contenteditable reaches the placeholder textarea, which comes
-    first in the DOM (fixtures/meta/spike-261023/*/final.dom.html)."""
-
-    def __init__(self, page, selector):
-        self.page = page
-        self.target = EDITABLE if '[contenteditable="true"]' in selector else TEXTAREA
-
-    async def wait_for(self, state="visible", timeout=None):
-        await asyncio.sleep(self.page.composer_hang_s)
-        if self.target == EDITABLE and not self.page.hydrates:
-            raise TimeoutError("Timeout %sms exceeded" % timeout)
-
-    async def click(self):
-        self.page.focus = self.target
-        self.page.log.append("click " + self.target)
-
-    async def element_handle(self, timeout=None):
-        assert self.target == EDITABLE, "the placeholder textarea is never sent from"
-        if self.page.composer == "gone":        # meta re-rendered it away: Playwright's wait times out
-            raise TimeoutError("Timeout %sms exceeded" % timeout)
-        return Handle(self.page)
-
-    async def press(self, key):
-        await self.page.press(key)
-
-
-class Handle:
-    """The composer as one element (an ElementHandle): it stays that element; `page.detached` is meta re-rendering
-    it (the handle then points at a node out of the DOM, which cannot take the focus)."""
-
-    def __init__(self, page):
-        self.page = page
-
-    async def is_visible(self):
-        return self.page.composer != "hidden"
-
-    async def is_editable(self):
-        return True
-
-    async def inner_text(self):
-        # a node out of the DOM still has its text: only the focus tells it is gone
-        return "" if self.page.composer == "empty" else self.page.typed.get(EDITABLE, "")
-
-    async def evaluate(self, script):
-        assert script is S.FOCUS_JS, "an unexpected script"
-        if self.page.focus_error:
-            raise self.page.focus_error
-        if self.page.detached:
-            return None
-        self.page.focus = EDITABLE
-        return await self.inner_text()
-
-
-class Page:
-    def __init__(self, log, cap, *, answers=None, hydrates=True, opens="warmed", press_error=None,
-                 upload_answers=9, thumbnails=1, file_inputs=1, shrunk=b"small-jpeg"):
-        self.log, self.signals, self.hydrates, self.press_error = log, cap.signals, hydrates, press_error
-        self.url = "https://www.meta.ai/"
-        self.opens = warmed_uuid(cap) if opens == "warmed" and cap.events else (None if opens == "warmed" else opens)
-        self.answers = list(answers if answers is not None else ["", streaming(cap.answer), cap.answer])
-        self.typed, self.focus = {}, None
-        self.keyboard = Keyboard(self)
-        self.events, self.uploads = list(cap.events), cap.uploads
-        self.upload_answers, self.thumbnails, self.file_inputs = upload_answers, thumbnails, file_inputs
-        self.chosen, self.uploaded, self.shrunk = [], False, shrunk
-        self.lands = None       # where meta sends a goto instead of its address (None: the address itself)
-        self.shot_error = None  # what a screenshot and the page HTML raise (a capture that fails)
-        self.shot_hang_s = 0.0  # how long a screenshot takes
-        self.goto_s = 0.0       # how long the page load takes (real time)
-        self.read_hang_s = 0.0  # how long a read of meta's answer takes (real time)
-        self.composer_hang_s = 0.0   # how long the wait for the composer takes (real time)
-        self.composer = None    # right before the send: "gone", "hidden" or "empty" (re-rendered without the text)
-        self.detached = False   # the composer element typed into is out of the DOM (meta re-rendered it)
-        self.focus_error = None     # what the page script on the composer raises (the page went away)
-
-    async def press(self, key):
-        """The keyboard (or a locator) pressing `key` into the page."""
-        self.log.append(key)
-        if self.press_error:
-            raise self.press_error
-        # meta ignores Enter while an upload is pending (FINDINGS.md), and an Enter whose composer was re-rendered
-        # away goes nowhere: nothing is sent, the address stays
-        if key == "Enter" and not self.detached and self.opens is not None and (not self.chosen or self.uploaded):
-            self.url = "https://www.meta.ai/prompt/" + self.opens
-
-    async def screenshot(self, type="png", **kw):
-        await asyncio.sleep(self.shot_hang_s)
-        if self.shot_error:
-            raise self.shot_error
-        return type.encode()
-
-    async def content(self):
-        if self.shot_error:
-            raise self.shot_error
-        return '<html><script>token="v-fake-secret"</script>' + (self.answers[-1] or "") + "</html>"
-
-    async def goto(self, url, **kw):
-        self.log.append("goto " + url)
-        await asyncio.sleep(self.goto_s)
-        self.url = self.lands or url
-
-    def locator(self, selector):
-        if selector == S.SEL_FILE_INPUT:
-            return FileInput(self)
-        if selector == S.SEL_ATTACHED:
-            return Attached(self)
-        return Box(self, selector)
-
-    async def evaluate(self, script, arg=None):
-        if script is SIGNALS_JS:
-            return self.signals
-        if script is S.ANSWER_JS:
-            await asyncio.sleep(self.read_hang_s)
-            return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
-        if script is S.SHRINK_JS:
-            self.log.append("shrink")
-            return base64.b64encode(self.shrunk).decode() if self.shrunk else ""
-        raise AssertionError("an unexpected script")
-
-
-class Cookies:
-    def __init__(self):
-        self.jar = []
-
-    async def clear_cookies(self):
-        self.jar = []
-
-    async def add_cookies(self, cookies):
-        self.jar = list(cookies)
-
-    async def cookies(self, url):
-        return self.jar
-
-
-class Ctx:
-    def __init__(self, log, provider_state=None):
-        self.log = log
-        self.account = SimpleNamespace(id="acct-meta-1", credential=JAR.encode(), credential_gen=1, proxy=None,
-                                       provider_state=provider_state or {})
-        self.browser_token = object()
-        self.events = []
-        self.kept = []              # the debug files: (name, data, mime)
-        self.keep_error = None
-
-    async def evidence(self, name, data, mime):
-        if self.keep_error:
-            raise self.keep_error
-        self.kept.append((name, data, mime))
-
-    async def report_ref(self, ref, state):
-        self.log.append("report_ref %s" % ref)
-        assert state == {"conversation_id": ref}
-
-    async def mark_sent(self):
-        self.log.append("mark_sent")
-
-    async def fence(self):
-        self.log.append("fence")
-
-    async def event(self, text, stage, source):
-        self.events.append((text, stage, source))
-
-
-class Clock:
-    def __init__(self):
-        self.t = 0.0
-
-    def __call__(self):
-        return self.t
-
-    async def sleep(self, s):
-        self.t += s
-
-
-INPUT = b"RIFF-webp-560k"     # the input image of a video job, as the object store hands it out
-
-
-DEFAULT_OP = {"image": "text_to_image", "video": "image_to_video"}
-
-
-def run(page, cap, *, log=None, ctx=None, kind="image", op=None, image=(INPUT, "image/webp"), ratio=None,
-        sent=None, real_time=None, n=None, images=None, state=None, source=None, **settings):
-    """`real_time` = (close_s, bound_s, deps): a real clock, a browser close of `close_s` and the core's own bound
-    (`asyncio.timeout`, the kind's submit timeout) of `bound_s` around the submit."""
-    log = page.log if log is None else log
-    ctx = ctx or Ctx(log)
-
-    @contextlib.asynccontextmanager
-    async def fake_open(site, account, **kw):
-        assert kw["purpose"] == "submit" and kw["images"] is True
-        recorder = Recorder(page.events)
-        try:
-            yield SimpleNamespace(page=page, ctx=Cookies(), recorder=recorder,
-                                  evidence=EvidenceWriter(kw["redact"], recorder, clock=lambda: 1.0))
-        finally:
-            if real_time:
-                await asyncio.sleep(real_time[0])      # the browser's close
-
-    op = op or DEFAULT_OP[kind]
-
-    given = list(images or [image])
-
-    async def inputs():
-        return [MediaRef(i, "inputs/job/%d" % i, m, len(d)) for i, (d, m) in enumerate(given)] if op in S.FROM_IMAGE \
-            else []
+
+def final(i, ext="webp") -> str:
+    return CDN + "t39.105495-1/%d_n.%s?_nc_ht=x" % (i, ext)
+
+
+def preview(i) -> str:
+    return CDN + "t58.90637-1/%d_n.webp?_nc_ht=x" % i
+
+
+def said(text) -> list:
+    return at(TEXT_PATH, text)
+
+
+def shown(*urls) -> list:
+    return [f for u in urls for f in (at(FINAL_PATH, u) if "/t39." in u else at((1, 9), u))]
+
+
+def signed_in(**cookies):
+    return Resp(200, page("page_signed_in"), cookies=cookies)
+
+
+class ProxyError(Exception):
+    """Named like curl_cffi's: the proxy refused."""
+
+
+def go(name="t2i_n2", *, op="text_to_image", n=2, ratio=None, sockets=None, routes=None, ctx=None, sessions=None,
+       clk=None, inputs=(), shrink=None, sent_text=FOX, state=None, source=None, held=False, uuids=None,
+       margin=S.HOLD_MARGIN_S, bound_s=10.0, **over):
+    """One submit. `sockets`: the FakeSockets the gateway gives, in order (default: the capture `name`). `held`: the
+    account's token is cached (fresh). `bound_s`: real seconds the run may take."""
+    clk = clk or Clock()
+    ctx = ctx or Ctx(settings_=settings(**over))
+    sessions = sessions or Sessions(clk)
+    if held:
+        sessions.keep(ctx.account.id, ctx.account.credential_gen, read_page(200, page("page_signed_in")))
+    socks = list(sockets) if sockets is not None else [gateway(name)]
+    net = Net({HOME: signed_in(), UPLOAD: Resp(200, json_body={"media_id": "7001"}), WS: list(socks), **(routes or {})})
+    uuids = uuids if uuids is not None else ("00000000-0000-4000-8000-%012d" % i for i in itertools.count(1))
+    reads = []
 
     async def read_media(ref):
-        assert ref.object_key == "inputs/job/%d" % ref.idx
-        return given[ref.idx][0]
+        reads.append(ref)
+        return b"img%d" % ref.idx
 
-    clock = Clock()
-    deps = S.Deps(open_session=fake_open, read_media=read_media, sleep=clock.sleep, clock=clock, now=lambda: NOW,
-                  signal_wait_s=0, composer_wait_s=1, warmup_wait_s=0, receipt_wait_s=2, tiles_grace_s=3,
-                  upload_wait_s=0, attached_wait_s=1, evidence_wait_s=0.5)
-    params = {"kind": kind, **({"ratio": ratio} if ratio else {}), **({"n": n} if n else {})}
-    sent = "%s [7100]" % (cap.prompt or "a lighthouse") if sent is None else sent
-    job = SimpleNamespace(provider="meta", params=params, operation=op, sent_text=sent, inputs=inputs,
-                          provider_state=state or {}, source=source)
-    if real_time is None:
-        return asyncio.run(S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps)), ctx
-    _, bound_s, more = real_time
-    deps = replace(deps, sleep=asyncio.sleep, clock=time.monotonic, **more)
-    settings["meta__%s_submit_timeout_s" % kind] = bound_s
-
-    async def bounded():
-        async with asyncio.timeout(bound_s):
-            return await S.submit(ctx, job, FakeSettings(SPEC, **settings), deps=deps)
-    return asyncio.run(bounded()), ctx
+    async def same(data, mime):
+        return data, mime
+    deps = S.Deps(make_session=net.make_session, read_media=read_media, shrink=shrink or same, clock=clk, now=clk.now,
+                  uuid4=lambda: next(uuids), rand22=lambda: 7, hold_margin_s=margin)
+    j = job(op, sent_text=sent_text, n=n if op.endswith("image") else None, ratio=ratio, state=state, inputs=inputs)
+    if source is not None:
+        j = dataclasses.replace(j, source=source)
+    try:
+        result = asyncio.run(asyncio.wait_for(S.submit(ctx, j, ctx.settings, sessions, deps=deps), bound_s))
+    except TimeoutError:
+        raise AssertionError("the verdict was lost: not within the core's bound") from None
+    return SimpleNamespace(result=result, ctx=ctx, net=net, socks=socks, sessions=sessions, clk=clk, reads=reads)
 
 
-def sent(log) -> list[str]:
-    """The irreversible part of the log: the image choice, the chat id, mark_sent and every Enter, in order."""
-    return [x for x in log if x.startswith("report_ref") or x in ("attach", "mark_sent", "Enter")]
+def data_frames(k) -> list[bytes]:
+    return [f for s in k.socks for f in s.data_frames()]
 
 
-# ---- the captures, read the way the engine reads the page ---------------------------------------------------------
-IMAGE_RUNS = (("image-1-acc1", 1), ("image-1-acc2", 1), ("image-2x169-acc1", 2), ("image-2x169-acc2", 2))
+def request(k) -> bytes:
+    """The Request protobuf of the one data frame sent."""
+    (raw,) = data_frames(k)
+    _, _, payload = wire.parse_frame(raw)
+    assert payload[:2] == b"\x00\x80"
+    return base64.b64decode(json.loads(payload[2:])["payload"])
 
 
-def test_the_captured_answers_read_as_done_with_their_final_images_and_never_a_preview():
-    for folder, count in IMAGE_RUNS:
-        cap = capture(folder)
-        answer = S.read_answer(cap.answer)
-        assert answer.done and len(answer.media) == count and answer.previews == 0, (folder, answer)
-        assert all("/t39.105495-1/" in u and u.startswith("https://scontent.xx.fbcdn.net/") for u in answer.media)
-        drawing = S.read_answer(streaming(cap.answer))
-        assert not drawing.done and drawing.media == () and drawing.previews == count, folder
-    assert S.read_answer("") == S.Answer(False, (), 0)
-    assert not S.is_final_image("https://scontent.xx.fbcdn.net/v/t58.90637-1/x.webp")
-    assert not S.is_final_image("https://evil.example/v/t39.105495-1/x.webp")
+def sent_text(k) -> str:
+    return next(wire.values(request(k), (2, 2))).decode()
 
 
-def test_the_conversation_id_is_the_warmed_up_one_and_the_address_after_enter_names_it():
-    cap = capture("image-1-acc1")
-    assert warmed_uuid(cap) == "90308813-ac0b-4fe6-9315-d603c8ddc37b"
-    assert [S.warmup_id(e) for e in cap.events].count(None) == len(cap.events) - 1, "only warmupConversation names it"
-    assert S.chat_id("https://www.meta.ai/prompt/90308813-ac0b-4fe6-9315-d603c8ddc37b") == warmed_uuid(cap)
-    assert S.chat_id("https://www.meta.ai/") is None and S.chat_id("https://www.meta.ai/prompt/x") is None
+def steps(k) -> list[str]:
+    return [c[0] for c in k.ctx.calls if c[0] in ("report_ref", "mark_sent")]
+
+
+def page_gets(k) -> int:
+    return sum(1 for c in k.net.calls if c.method == "GET" and c.url.startswith(SITE_URL))
+
+
+def opened(k) -> int:
+    return sum(1 for c in k.net.calls if c.method == "WS")
+
+
+def refs(n=1, mime="image/png"):
+    return [MediaRef(i, "in/%d" % i, mime, 10) for i in range(n)]
+
+
+def stale(clk, sessions, ctx, gate_closed=False):
+    """The account's token was read past `meta.token_reread_s`; `gate_closed`: a page was loaded on its IP just now."""
+    sessions.keep(ctx.account.id, ctx.account.credential_gen, read_page(200, page("page_signed_in")))
+    clk.advance(3601)
+    if gate_closed:
+        sessions.gate.take(IP, 300)
+
+
+def unsent(k):
+    assert data_frames(k) == [] and "mark_sent" not in steps(k), "nothing is sent"
 
 
 # ---- the send ----------------------------------------------------------------------------------------------------
-@mutation(SUBMIT_FILE, '        await self._core(self.ctx.mark_sent)\n        self.sent = True\n',
-          '        await page.keyboard.press("Enter")\n        await self._core(self.ctx.mark_sent)\n'
-          '        self.sent = True\n', expect="mark_sent right before the one Enter")
-@mutation(SUBMIT_FILE, '        await self._core(lambda: ctx.report_ref(conversation, '
-          '{"conversation_id": conversation}))\n', "", expect="the chat id before the send")
-def test_a_signed_in_page_persists_the_chat_id_marks_sent_presses_enter_once_and_delivers_the_final_images():
-    for folder, count in IMAGE_RUNS:
-        cap = capture(folder)
-        page = Page([], cap)
-        result, ctx = run(page, cap, n=count if count > 1 else None)
-        uuid = warmed_uuid(cap)
-        assert sent(page.log)[:1] == ["report_ref " + uuid], "the chat id before the send: %s" % sent(page.log)
-        assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"], (
-            "mark_sent right before the one Enter: %s" % sent(page.log))
-        assert isinstance(result.job, Completed) and len(result.job.outputs) == count, (folder, result.job)
-        assert [o.mime for o in result.job.outputs] == ["image/webp"] * count
-        assert all(o.meta == {"conversation_id": uuid} and S.is_final_image(o.ref) for o in result.job.outputs)
-        assert result.account == (Success(),)
-        lead = "Create %d images: " % count if count > 1 else ""
-        assert page.typed == {EDITABLE: "%s%s [7100]" % (lead, cap.prompt)}
+REPORT = '        await self._core(lambda: self.ctx.report_ref(conversation, {"conversation_id": conversation}))\n'
+REPORT_MARK = ('        await self._core(lambda: self.ctx.report_ref(conversation, '
+               '{"conversation_id": conversation}))\n'
+               "        await self._core(self.ctx.mark_sent)\n")
+MARK_REPORT = ("        await self._core(self.ctx.mark_sent)\n"
+               '        await self._core(lambda: self.ctx.report_ref(conversation, '
+               '{"conversation_id": conversation}))\n')
+MARK_SEND = "        await self._core(self.ctx.mark_sent)\n        self.sent = True\n        await sock.send(data)\n"
+SEND_MARK = "        await sock.send(data)\n        await self._core(self.ctx.mark_sent)\n        self.sent = True\n"
 
 
-@mutation(CONSTANTS, """SEL_COMPOSER = ('[data-testid="composer-input"][contenteditable="true"]'""",
-          """SEL_COMPOSER = ('[data-testid="composer-input"]'""", expect="placeholder")
-def test_the_placeholder_textarea_is_never_typed_into_and_a_composer_that_never_hydrates_sends_nothing():
-    cap = capture("image-1-acc1")
-    page = Page([], cap)
-    run(page, cap)
-    assert TEXTAREA not in page.typed and "click " + TEXTAREA not in page.log, "typed into the placeholder"
-    late = Page([], cap, hydrates=False)
-    result, _ = run(late, cap)
-    assert result.job == Retry("meta.ui_page_not_ready") and sent(late.log) == [] and not late.typed
+@mutation(SUBMIT_FILE, REPORT_MARK, MARK_REPORT, expect="report_ref < mark_sent < send")
+@mutation(SUBMIT_FILE, REPORT, "", expect="report_ref < mark_sent < send")
+@mutation(SUBMIT_FILE, MARK_SEND, SEND_MARK, expect="report_ref < mark_sent < send")
+def test_a_text_to_image_reports_the_ref_marks_sent_sends_one_frame_and_delivers_n_images():
+    log = []
+    ctx = Ctx()
+    step = ctx._step
+    ctx._step = lambda *call: (log.append(call[0]), step(*call))
+    sock = gateway("t2i_n2")
+    send = sock.send
+
+    async def logged(data):
+        log.append("send%02x" % data[0])
+        await send(data)
+    sock.send = logged
+    k = go(ctx=ctx, sockets=[sock])
+    flow = [x for x in log if x in ("report_ref", "mark_sent", "send0d")]
+    assert flow == ["report_ref", "mark_sent", "send0d"], "report_ref < mark_sent < send: %r" % (flow,)
+    assert log.index("send0f") < log.index("report_ref"), "the stream opens before anything is reported"
+    assert len(data_frames(k)) == 1
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 2
+    conv = k.ctx.refs[0][0]
+    assert k.ctx.refs == [(conv, {"conversation_id": conv})]
+    assert [(o.idx, o.mime, o.meta) for o in k.result.job.outputs] == [
+        (i, "image/webp", {"conversation_id": conv}) for i in range(2)]
+    assert next(wire.values(request(k), (2, 1, 2, 1))).decode() == conv, "the Request names the reported chat"
+    assert Success() in k.result.account
+    assert all(PROXY.host in c.proxies["https"] and c.allow_redirects is False for c in k.net.calls), \
+        "every call through the proxy, never a redirect"
+    assert sock.closed
 
 
-@mutation(SUBMIT_FILE, "        if conversation is None:", "        if False:", expect="no chat id, no send")
-def test_without_a_warmed_up_conversation_nothing_is_sent():
-    cap = capture("image-1-acc1")
-    cap.events = [e for e in cap.events if S.warmup_id(e) is None]
-    page = Page([], cap, opens="11111111-2222-3333-4444-555555555555")
-    result, _ = run(page, cap)
-    assert sent(page.log) == [], "no chat id, no send: %s" % sent(page.log)
-    assert result.job == Retry("meta.ui_send_failed")
+@mutation(SUBMIT_FILE, "        self.conversation = self.deps.uuid4()\n",
+          "        self.conversation = '00000000-0000-4000-8000-000000000001'\n", expect="a fresh chat per run")
+def test_each_run_uses_a_fresh_conversation_uuid():
+    clk = Clock()
+    sessions = Sessions(clk)
+    uuids = ("00000000-0000-4000-8000-%012d" % i for i in itertools.count(1))
+    one = go(clk=clk, sessions=sessions, uuids=uuids)
+    two = go(clk=clk, sessions=sessions, uuids=uuids)
+    assert isinstance(one.result.job, Completed) and isinstance(two.result.job, Completed)
+    assert one.ctx.refs[0][0] != two.ctx.refs[0][0], "a fresh chat per run"
 
 
-# ---- after the Enter: unknown, never a second Enter ---------------------------------------------------------------
-@mutation(SUBMIT_FILE, '            return await self._unknown("the page showed no %s address within %g s of Enter"',
-          '            await self.page.locator(SEL_COMPOSER).press("Enter")\n'
-          '            return await self._unknown("the page showed no %s address within %g s of Enter"',
-          expect="one Enter")
-@mutation(SUBMIT_FILE, "        if self.sent:\n", "        if False:\n", expect="never a Retry after mark_sent")
-def test_whatever_goes_wrong_after_the_enter_is_unknown_and_never_a_second_enter():
-    cap = capture("image-1-acc1")
-    uuid = warmed_uuid(cap)
-    cases = {
-        "no address": Page([], cap, opens=None),
-        "never done": Page([], cap, answers=[streaming(cap.answer)]),
-        "a browser error at the Enter": Page([], cap, press_error=RuntimeError("Target page closed")),
-    }
-    for what, page in cases.items():
-        result, _ = run(page, cap)
-        assert page.log.count("Enter") == 1, "%s: one Enter, got %s" % (what, page.log)
-        assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"], what
-        assert isinstance(result.job, Ambiguous), "%s: never a Retry after mark_sent: %r" % (what, result.job)
-
-
-# ---- the composer re-rendered between the typing and the Enter (prod c10170ab, 31/10) -------------------------------
-@mutation(SUBMIT_FILE, '        if not isinstance(held, str) or " ".join(held.split()) != self.text:',
-          "        if False:", expect="re-checked before mark_sent")
-@mutation(SUBMIT_FILE, "            ready = await handle.is_visible() and await handle.is_editable()",
-          "            ready = True", expect="hidden")
-@mutation(SUBMIT_FILE, "            held = await handle.evaluate(FOCUS_JS) if ready else None",
-          "            held = await handle.inner_text() if ready else None", expect="detached")
-def test_a_composer_gone_hidden_emptied_or_detached_just_before_the_send_is_a_retry_and_never_marked_sent():
-    cap = capture("image-1-acc1")
-    for what in ("gone", "hidden", "empty", "detached", "page went away"):
-        page = Page([], cap)
-        page.composer = what
-        page.detached = what == "detached"
-        page.focus_error = RuntimeError("Execution context was destroyed") if what == "page went away" else None
-        result, _ = run(page, cap)
-        assert sent(page.log) == ["report_ref " + warmed_uuid(cap)], "%s: re-checked before mark_sent: %s" % (
-            what, page.log)
-        assert result.job == Retry("meta.ui_send_failed"), "%s: %r" % (what, result.job)
-
-
-class DetachingCtx(Ctx):
-    """meta re-renders the composer while `mark_sent` runs: the element typed into leaves the DOM."""
-
-    def __init__(self, page):
-        super().__init__(page.log)
-        self.page = page
-
-    async def mark_sent(self):
-        await super().mark_sent()
-        self.page.detached = True
-
-
-def test_a_composer_detached_after_mark_sent_or_an_enter_that_fails_stays_unknown_never_a_requeue():
-    cap = capture("image-1-acc1")
-    uuid = warmed_uuid(cap)
-    detached = Page([], cap)
-    cases = {
-        "detached after mark_sent": (detached, DetachingCtx(detached)),
-        "the Enter fails": (Page([], cap, press_error=TimeoutError("Timeout 30000ms exceeded")), None),
-    }
-    for what, (page, ctx) in cases.items():
-        result, _ = run(page, cap, ctx=ctx)
-        assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"], "%s: %s" % (what, page.log)
-        assert isinstance(result.job, Ambiguous), "%s: %r" % (what, result.job)
-
-
-def test_an_address_other_than_the_warmed_up_one_is_persisted_too_without_a_send():
-    cap = capture("image-1-acc1")
-    page = Page([], cap, opens="11111111-2222-3333-4444-555555555555")
-    result, _ = run(page, cap)
-    assert sent(page.log) == ["report_ref " + warmed_uuid(cap), "mark_sent", "Enter",
-                              "report_ref 11111111-2222-3333-4444-555555555555"]
-    assert isinstance(result.job, Completed)
-
-
-def test_a_done_answer_without_an_image_fails_refunded_and_previews_only_stay_unknown():
-    cap = capture("image-1-acc1")
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    result, _ = run(Page([], cap, answers=[bare]), cap)
-    assert result.job == Fail("meta.no_image", "meta finished its answer with no image")
-    r = errors.rule("meta.no_image")
-    assert (r.terminal, r.refund) == (True, True)
-    previews = streaming(cap.answer).replace('data-streaming-state="STREAMING"',
-                                             'data-streaming-state="DONE" data-streaming-complete="true"')
-    result, _ = run(Page([], cap, answers=[previews]), cap)
-    assert isinstance(result.job, Ambiguous), "a preview is never delivered"
-
-
-LIMIT_ANSWER = ('<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true">'
-                "<p>You’ve reached your limit for creating images today. Please come back later.</p></div>")
-LIMIT_MOVES = "            outcome = account_refused(self.job, self.ctx.account.id, self.settings, "
-LIMIT_REST = "            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))\n"
-
-
-@mutation(SUBMIT_FILE, "        if is_limit(answer_text(self.answer_html)):\n", "        if False:\n",
-          expect="the job did not go to another account")
-@mutation(SUBMIT_FILE, "    def handle_data(self, data) -> None:\n        self.words.append(data)\n",
-          "    def handle_data(self, data) -> None:\n        pass\n", expect="the job did not go to another account")
-@mutation(SUBMIT_FILE, LIMIT_REST, "            return _result(outcome)\n", expect="the pool was not emptied")
-@mutation(SUBMIT_FILE, "not_taken=POOL_OUT_OF_POINTS,", "not_taken=errors.NO_IMAGE,",
-          expect="the job did not go to another account")
-def test_a_limit_answer_with_no_media_moves_the_job_to_another_account_and_empties_the_kinds_pool():
-    """meta's limit words in a DONE answer with no media: nothing was made in that chat, the limit is the account's.
-    The job goes back to the queue with no attempt used (a new chat on another account); the pool of its kind reads 0
-    for meta.limit_rest_s. A plain answer with no media stays a failure of the order, refunded at once."""
-    cap = capture("image-1-acc1")
-    page = Page([], cap, answers=[LIMIT_ANSWER])
-    result, ctx = run(page, cap)
-    assert result.job == NotTaken("pool.account_out_of_points", {REFUSED_BY: ["acct-meta-1"]}), \
-        "the job did not go to another account: %r" % (result.job,)
-    assert page.log.count("Enter") == 1
-    r = errors.rule("pool.account_out_of_points")
-    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False)
-    assert Balance("image", 0, NOW + timedelta(hours=4)) in result.account, \
-        "the pool was not emptied: %s" % (result.account,)
-    assert any("another account" in text for text, _, _ in ctx.events)
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    plain = run(Page([], cap, answers=[bare]), cap)[0]
-    assert plain.job == Fail("meta.no_image", "meta finished its answer with no image")
-    assert not any(isinstance(e, Balance) for e in plain.account), "a plain refusal empties no pool"
-
-
-@mutation(SUBMIT_FILE, LIMIT_MOVES,
-          "            outcome = (lambda *a, **k: NotTaken(POOL_OUT_OF_POINTS, {REFUSED_BY: []}))(self.job, "
-          "self.ctx.account.id, self.settings, ", expect="the last account's limit did not end the job")
-def test_the_limit_on_the_last_account_or_on_a_pinned_job_fails_it_refunded_with_todays_code():
-    cap = capture("image-1-acc1")
-    second = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, state={REFUSED_BY: ["acct-meta-0"]})[0]
-    assert isinstance(second.job, Fail) and second.job.code == "meta.no_image", \
-        "the last account's limit did not end the job: %r" % (second.job,)
-    assert second.job.detail == ("meta finished its answer with no image (refused on 2 account(s), the most "
-                                 "meta.refusal_max_accounts allows)")
-    assert second.job.state_patch == {REFUSED_BY: ["acct-meta-0", "acct-meta-1"]}
-    assert Balance("image", 0, NOW + timedelta(hours=4)) in second.account
-    r = errors.rule("meta.no_image")
-    assert (r.terminal, r.refund) == (True, True)
-    wider = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, state={REFUSED_BY: ["acct-meta-0"]},
-                meta__refusal_max_accounts=3)[0]
-    assert isinstance(wider.job, NotTaken), "at 3 the second limit goes to a third account"
-    pinned = run(Page([], cap, answers=[LIMIT_ANSWER]), cap, source=SimpleNamespace(job_id="src", idx=0))[0]
-    assert isinstance(pinned.job, Fail) and pinned.job.code == "meta.no_image", "a pinned job runs on one account"
-    vcap = capture(VIDEO)
-    video = run(Page([], vcap, answers=[LIMIT_ANSWER]), vcap, kind="video", state={REFUSED_BY: ["acct-meta-0"]})[0]
-    assert isinstance(video.job, Fail) and video.job.code == "meta.no_video"
-    assert Balance("video", 0, NOW + timedelta(hours=4)) in video.account
-
-
-def test_meta_refusal_max_accounts_is_a_live_setting_from_1_to_9_defaulting_to_2():
-    s = SPEC.settings()["meta.refusal_max_accounts"]
-    assert (s.type, s.default, s.min, s.max) == (int, 2, 1, 9)
-    assert "limit" in s.description and "refund" in s.description
-
-
-@mutation(SUBMIT_FILE, "        if answer.previews:\n            # a part delivery",
-          "        if False:\n            # a part delivery", expect="part of the answer")
-def test_a_done_answer_with_one_final_image_and_one_preview_left_is_unknown_never_a_part_delivery():
-    cap = capture("image-2x169-acc1")
-    head, _, tail = cap.answer.rpartition("/t39.105495-1/")
-    half = head + "/t58.90637-1/" + tail                    # the second tile still shows its preview
-    answer = S.read_answer(half)
-    assert answer.done and len(answer.media) == 1 and answer.previews == 1
-    page = Page([], cap, answers=[half])
-    result, _ = run(page, cap)
-    assert isinstance(result.job, Ambiguous), "part of the answer was delivered, the other image lost: %r" % (
-        result.job,)
-    assert page.log.count("Enter") == 1
-
-
-# ---- before the Enter: the page's state ---------------------------------------------------------------------------
-@mutation(SUBMIT_FILE, '        if state == "checkpoint":', "        if False:", expect="meta.checkpoint")
-@mutation(ERRORS_FILE, '    Rule(CHECKPOINT, 503, "api_error", False, False, False, True,',
-          '    Rule(CHECKPOINT, 503, "api_error", True, True, False, True,',
-          expect="never a job failure")
-def test_a_checkpoint_sends_nothing_rests_the_account_with_a_recheck_and_never_fails_or_charges_the_job(monkeypatch):
-    monkeypatch.setattr(check_module, "CHECKPOINTS", RepeatRest())
-    cap = capture("checkpoint-acc1")
-    page = Page([], cap, opens=None)
-    result, _ = run(page, cap, meta__checkpoint_rest_s=1200)
-    assert result.job == Retry("meta.checkpoint"), "a checkpoint is meta.checkpoint: %r" % (result.job,)
-    assert sent(page.log) == [] and not page.typed
-    assert result.account == (Cooldown("browser checkpoint (seen by a submit), to be checked again in 1200 s",
-                                       NOW + timedelta(seconds=1200), recheck=True),)
-    again, _ = run(Page([], cap, opens=None), cap, meta__checkpoint_rest_s=1200)
-    assert again.account[0].until == NOW + timedelta(seconds=2400), "a repeat seen by a submit rests longer"
-    assert not any(isinstance(e, Suspect | Dead | Success) for e in result.account), "a rest, never a strike"
-    r = errors.rule("meta.checkpoint")
-    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False), "never a job failure: %r" % (r,)
-
-
-def test_a_signed_out_page_is_a_strike_and_a_rest_and_sends_nothing():
-    cap = capture("image-1-acc1")
-    cap.signals = {"menu": False, "out": True, "name": "", "title": "Meta AI", "failed": False}
-    page = Page([], cap)
-    result, _ = run(page, cap)
-    assert result.job == Retry("pool.account_logged_out") and sent(page.log) == []
-    assert [type(e) for e in result.account] == [Suspect, Cooldown]
-
-
-def test_the_codes_meta_uses_are_registered_with_their_rules():
-    assert set(SPEC.codes()) == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed", "meta.no_image",
-                                 "meta.no_video"}
-    assert all(errors.RULES[c] == r for c, r in SPEC.codes().items()) and errors.violations(errors.RULES) == []
-    for code in ("meta.ui_page_not_ready", "meta.ui_send_failed"):
-        r = errors.rule(code)
-        assert (r.terminal, r.counts_attempt, r.refund, errors.hidden(r)) == (False, True, True, True), code
-
-
-def test_a_job_of_another_kind_or_an_operation_of_another_kind_is_refused_before_anything_opens():
-    with pytest.raises(ValueError, match="image or a video"):
-        asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": "audio"}, sent_text="x"), None))
-    for kind, op in (("image", "text_to_video"), ("video", "image_to_image"), ("video", None)):
-        with pytest.raises(ValueError, match="cannot be"):
-            asyncio.run(S.submit(Ctx([]), SimpleNamespace(params={"kind": kind}, operation=op, sent_text="x"), None))
-
-
-# ---- image to video ----------------------------------------------------------------------------------------------
-VIDEO = "i2v-acc2"
-I2I = "i2i-acc1"
-T2V = "t2v-acc1"
-FROM_IMAGE_RUNS = ((VIDEO, "video", "image_to_video"), (I2I, "image", "image_to_image"))   # the jobs that upload
-
-
-def test_the_captured_video_answer_reads_as_done_with_its_mp4_and_the_upload_answer_is_the_post():
-    cap = capture(VIDEO)
-    answer = S.read_answer(cap.answer, "video")
-    assert answer.done and len(answer.media) == 1 and answer.previews == 0
-    assert answer.media[0].startswith("https://scontent.xx.fbcdn.net/v/t39.105495-1/") and ".mp4?" in answer.media[0]
-    assert S.read_answer(cap.answer, "image") == S.Answer(True, (), 0, 1), "a video job's answer holds no image"
-    blob = cap.answer.replace(answer.media[0], "blob:https://www.meta.ai/1234")
-    assert S.read_answer(blob, "video") == S.Answer(True, (), 1), "a blob: player source is never delivered"
-    assert [S.upload_done(e) for e in cap.uploads] == [False, False, True], "GET, OPTIONS, then the POST {media_id}"
-    stalled = capture("i2v-upload-stall-acc1").uploads
-    assert stalled and not any(S.upload_done(e) for e in stalled), "the stalled POST never answered"
-
-
-def test_a_video_job_types_attaches_waits_for_the_upload_then_marks_sent_presses_enter_once_and_delivers_the_mp4():
-    cap = capture(VIDEO)
-    page = Page([], cap)
-    result, _ = run(page, cap, kind="video")
-    uuid = warmed_uuid(cap)
-    assert uuid == "6f281912-e3c0-4b47-afdc-612c73f1a2c8"
-    assert sent(page.log) == ["attach", "report_ref " + uuid, "mark_sent", "Enter"], sent(page.log)
-    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT}]
-    assert "shrink" not in page.log, "a small webp goes up unchanged"
-    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
-    out = result.job.outputs[0]
-    assert (out.mime, out.idx, out.meta) == ("video/mp4", 0, {"conversation_id": uuid}) and S.is_final_video(out.ref)
-    assert result.account == (Success(),)
-    assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}
-
-
-UPLOAD_WAIT = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < want:"
-UPLOAD_NO_WAIT = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < 0:"
-UPLOAD_WAIT_ONE = "        while (done := sum(1 for e in recorder.events(since) if upload_done(e))) < 1:"
-
-
-@mutation(SUBMIT_FILE, UPLOAD_WAIT, UPLOAD_NO_WAIT, expect="upload finished before Enter")
-def test_an_upload_meta_never_answers_sends_nothing():
-    for folder, kind, op in FROM_IMAGE_RUNS:
-        cap = capture(folder)
-        page = Page([], cap, upload_answers=False)
-        result, _ = run(page, cap, kind=kind, op=op)
-        assert sent(page.log) == ["attach"], "upload finished before Enter: %s %s" % (op, sent(page.log))
-        assert result.job == Retry("meta.ui_send_failed"), op
-
-
-def test_a_composer_without_exactly_one_attached_image_sends_nothing():
-    for folder, kind, op in FROM_IMAGE_RUNS:
-        cap = capture(folder)
-        for what, page in {"no thumbnail": Page([], cap, thumbnails=0), "two thumbnails": Page([], cap, thumbnails=2),
-                           "no file input": Page([], cap, file_inputs=0)}.items():
-            result, _ = run(page, cap, kind=kind, op=op)
-            assert "mark_sent" not in page.log and "Enter" not in page.log, (
-                "%s %s: exactly one image: %s" % (op, what, page.log))
-            assert result.job == Retry("meta.ui_send_failed"), (op, what)
-
-
-@mutation(SUBMIT_FILE, "        if images and (shown := await page.locator(SEL_ATTACHED).count()) != len(images):",
-          "        if False:", expect="read again before the send")
-def test_a_thumbnail_dropped_or_doubled_after_the_attach_is_read_again_before_the_send_and_nothing_is_sent():
-    for folder, kind, op in FROM_IMAGE_RUNS:
-        cap = capture(folder)
-        for what, counts in (("dropped", [1, 0]), ("doubled", [1, 2])):
-            page = Page([], cap, thumbnails=counts)
-            result, _ = run(page, cap, kind=kind, op=op)
-            assert "mark_sent" not in page.log and "Enter" not in page.log, (
-                "%s %s: read again before the send: %s" % (op, what, sent(page.log)))
-            assert result.job == Retry("meta.ui_send_failed"), (op, what)
-
-
-@mutation(SUBMIT_FILE, "        if len(data) <= UPLOAD_MAX_BYTES and mime in UPLOAD_AS_IS:", "        if True:",
-          expect="re-encoded")
-def test_a_large_input_is_reencoded_by_the_browser_before_meta_loads_and_one_that_cannot_be_sends_nothing():
-    big = (b"P" * (S.UPLOAD_MAX_BYTES + 1), "image/png")
-    for folder, kind, op in FROM_IMAGE_RUNS:
-        cap = capture(folder)
-        page = Page([], cap)
-        result, _ = run(page, cap, kind=kind, op=op, image=big)
-        assert page.chosen == [{"name": "upload.jpg", "mimeType": "image/jpeg", "buffer": b"small-jpeg"}], (
-            "re-encoded: %s %r" % (op, [{**c, "buffer": c["buffer"][:12]} for c in page.chosen]))
-        assert page.log.index("shrink") < page.log.index("goto " + S.SITE_URL), "before meta's page loads"
-        assert isinstance(result.job, Completed), op
-        page = Page([], cap, shrunk=b"")
-        result, _ = run(page, cap, kind=kind, op=op, image=big)
-        assert result.job == Retry("meta.ui_send_failed") and sent(page.log) == [] and not page.chosen, op
-
-
-def test_a_video_that_never_finishes_is_unknown_after_one_enter_and_a_done_answer_without_one_fails_refunded():
-    cap = capture(VIDEO)
-    page = Page([], cap, answers=[streaming(cap.answer)])
-    result, _ = run(page, cap, kind="video", meta__video_submit_timeout_s=120)
-    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    result, _ = run(Page([], cap, answers=[bare]), cap, kind="video")
-    assert result.job == Fail("meta.no_video", "meta finished its answer with no video")
-    r = errors.rule("meta.no_video")
-    assert (r.terminal, r.refund) == (True, True)
-
-
-# ---- text to video -----------------------------------------------------------------------------------------------
-def test_the_captured_text_to_video_answer_reads_as_done_with_its_mp4():
-    cap = capture(T2V)
-    answer = S.read_answer(cap.answer, "video")
-    assert answer.done and len(answer.media) == 1 and answer.previews == 0, answer
-    assert answer.media[0].startswith("https://scontent.xx.fbcdn.net/v/t39.105495-1/") and ".mp4?" in answer.media[0]
-    assert cap.uploads == [], "nothing was uploaded"
-
-
-@mutation(SUBMIT_FILE, '        lead = VIDEO_FROM_TEXT if self.operation == "text_to_video" else (',
-          '        lead = "" if self.operation == "text_to_video" else (', expect="asks for a video")
-@mutation(SUBMIT_FILE, "        images = await self._input_images() if self.operation in FROM_IMAGE else ()",
-          '        images = await self._input_images() if self.kind == "video" else ()', expect="text alone")
-def test_a_video_from_text_alone_asks_for_a_video_attaches_nothing_marks_sent_presses_enter_once_and_delivers_the_mp4():
-    cap = capture(T2V)
-    page = Page([], cap)
-    result, _ = run(page, cap, kind="video", op="text_to_video")
-    uuid = warmed_uuid(cap)
-    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, "text alone: %r" % (result.job,)
-    assert sent(page.log) == ["report_ref " + uuid, "mark_sent", "Enter"] and not page.chosen, sent(page.log)
-    assert page.typed == {EDITABLE: "Create a short video: %s [7100]" % cap.prompt}, "asks for a video: %r" % (
-        page.typed,)
-    out = result.job.outputs[0]
-    assert (out.mime, out.idx, out.meta) == ("video/mp4", 0, {"conversation_id": uuid}) and S.is_final_video(out.ref)
-    assert result.account == (Success(),)
-
-
-def test_only_a_video_from_text_alone_gets_the_video_wording():
-    for folder, kind, op in (("image-1-acc1", "image", "text_to_image"), *FROM_IMAGE_RUNS):
-        cap = capture(folder)
-        page = Page([], cap)
-        run(page, cap, kind=kind, op=op)
-        assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, op
-
-
-# ---- several images in one chat ----------------------------------------------------------------------------------
+# ---- the words ---------------------------------------------------------------------------------------------------
 LEAD = '            count_lead(self.n) if self.operation == "text_to_image" else "")'
 
 
 @mutation(SUBMIT_FILE, LEAD, '            "")', expect="asks for the count")
-@mutation(SUBMIT_FILE, "    return IMAGE_FROM_TEXT if n == 1 else IMAGES_FROM_TEXT % n", "    return \"\" if n == 1 "
-          "else IMAGES_FROM_TEXT % n", expect="n=1 asks for one")
-def test_an_image_job_from_text_asks_for_the_count_it_paid_for_before_the_text_n_1_included():
-    cap = capture("image-2x169-acc1")
-    page = Page([], cap)
-    result, _ = run(page, cap, n=2, ratio="16:9")
-    assert page.typed == {EDITABLE: "Create 2 images: %s [7100], 16:9" % cap.prompt}, "asks for the count: %r" % (
-        page.typed,)
-    assert isinstance(result.job, Completed) and [o.idx for o in result.job.outputs] == [0, 1]
-    assert sent(page.log) == ["report_ref " + warmed_uuid(cap), "mark_sent", "Enter"]
-    one = capture("image-1-acc1")
-    page = Page([], one)
-    run(page, one, n=1)
-    assert page.typed == {EDITABLE: "Create 1 image: %s [7100]" % one.prompt}, "n=1 asks for one: %r" % (page.typed,)
+@mutation(SUBMIT_FILE, "    return IMAGE_FROM_TEXT if n == 1 else IMAGES_FROM_TEXT % n",
+          '    return "" if n == 1 else IMAGES_FROM_TEXT % n', expect="asks for the count")
+def test_an_image_job_asks_for_the_count_it_paid_for_before_the_text_n_1_included():
+    k = go(ratio="9:16")
+    assert sent_text(k) == "Create 2 images: %s, 9:16" % FOX, "asks for the count: %r" % sent_text(k)
+    k = go("t2i_n1", n=1, sent_text="a red   fox\nin the snow")
+    assert sent_text(k) == "Create 1 image: a red fox in the snow", "asks for the count: %r" % sent_text(k)
 
 
-@mutation(SUBMIT_FILE, "                 for i, url in enumerate(tuple(urls)[:n]))", "                 for i, url in "
-          "enumerate(urls))", expect="at most the n asked")
-def test_a_job_delivers_at_most_the_n_images_it_asked_and_paid_for_the_first_in_page_order():
-    cap = capture("image-2x169-acc1")       # meta drew 2
-    every = S.read_answer(cap.answer).media
-    page = Page([], cap)
-    result, _ = run(page, cap, n=1)
-    assert [o.ref for o in result.job.outputs] == [every[0]], "at most the n asked: %r" % (result.job.outputs,)
-    assert [o.ref for o in S.media_outputs(every, "c", "image", 4)] == list(every), "fewer than n: all of them"
-
-
-LEGACY_LEAD = "    if n is None:\n        return \"\"\n"
-LEGACY_COUNTED = "    if n is None:\n        return IMAGE_FROM_TEXT\n"
-
-
-@mutation(SUBMIT_FILE, LEGACY_LEAD, LEGACY_COUNTED, expect="from before n")
-@mutation(SUBMIT_FILE, '        self.n = job.params.get("n")', '        self.n = job.params.get("n") or 1',
-          expect="from before n")
-def test_an_image_job_queued_before_n_existed_types_no_count_and_delivers_every_image_as_before():
-    cap = capture("image-2x169-acc1")       # its prompt asks 2 itself; the job has no n
-    page = Page([], cap)
-    result, _ = run(page, cap)
-    assert page.typed == {EDITABLE: "%s [7100]" % cap.prompt}, "from before n: %r" % (page.typed,)
-    assert len(result.job.outputs) == 2, "from before n: %r" % (result.job.outputs,)
-
-
+@mutation(SUBMIT_FILE, '        lead = VIDEO_FROM_TEXT if self.operation == "text_to_video" else (',
+          '        lead = "" if self.operation == "text_to_video" else (', expect="asks for a video")
 @mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',
-          "        if False:", expect="the ratio is typed")
-@mutation(CONSTANTS, 'RATIO_TAIL = ", %s"', 'RATIO_TAIL = " %s"', expect="the ratio is typed")
-def test_a_ratio_is_typed_after_the_final_text_and_only_when_the_job_has_one():
-    for folder, kind, op, head in (("image-1-acc1", "image", "text_to_image", ""),
-                                   (T2V, "video", "text_to_video", "Create a short video: ")):
-        cap = capture(folder)
-        page = Page([], cap)
-        result, _ = run(page, cap, kind=kind, op=op, ratio="9:16")
-        assert page.typed == {EDITABLE: "%s%s [7100], 9:16" % (head, cap.prompt)}, "the ratio is typed: %r" % (
-            page.typed,)
-        assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, op
+          '        if job.params.get("ratio"):', expect="a 16:9 video goes with no tail")
+@mutation(CONSTANTS, 'RATIO_UNTYPED = (("video", "16:9"),)', "RATIO_UNTYPED = ()",
+          expect="a 16:9 video goes with no tail")
+@mutation(CONSTANTS, 'RATIO_TAIL = ", %s"', 'RATIO_TAIL = " %s"', expect="the ratio")
+def test_only_a_video_from_text_gets_the_video_wording_and_16_9_video_gets_no_tail():
+    k = go("t2v", op="text_to_video", ratio="16:9")
+    assert sent_text(k) == "Create a short video: " + FOX, "asks for a video; a 16:9 video goes with no tail: %r" % (
+        sent_text(k),)
+    assert isinstance(k.result.job, Completed) and k.result.job.outputs[0].mime == "video/mp4"
+    k = go("t2v", op="text_to_video", ratio="9:16")
+    assert sent_text(k) == "Create a short video: %s, 9:16" % FOX, "the ratio: %r" % sent_text(k)
+    assert sent_text(go("i2v", op="image_to_video", inputs=refs(1))) == FOX
+    assert sent_text(go("edit", op="image_to_image", n=1, inputs=refs(1))) == FOX
 
 
 @mutation(SUBMIT_FILE, '            self.text += RATIO_TAIL % job.params["ratio"]',
           '            self.text = (RATIO_TAIL % job.params["ratio"]).lstrip(", ") + " " + self.text',
           expect="the frame first, the ratio tail second")
-def test_an_admin_frame_is_typed_first_and_the_ratio_tail_after_it():
-    """The core renders the frame (the shipped default or an admin's); the engine types it, then `, <ratio>`."""
+def test_an_admin_frame_is_sent_first_and_the_ratio_tail_after_it():
     admin = "Style: watercolor. {{client_prompt}} {{tracking_code}} Keep it calm."
     for frame in (SPEC.frames.defaults["image"], admin):
-        cap = capture("image-1-acc1")
-        page = Page([], cap)
-        text = frames.render(frame, cap.prompt, "7100", SPEC.frames.verbatim)
-        result, _ = run(page, cap, kind="image", op="text_to_image", ratio="4:3", sent=text)
-        assert page.typed == {EDITABLE: text + ", 4:3"}, "the frame first, the ratio tail second: %r" % (page.typed,)
-        assert isinstance(result.job, Completed) and page.log.count("Enter") == 1
+        text = core_frames.render(frame, FOX, "7100", SPEC.frames.verbatim)
+        k = go("t2i_n1", n=None, ratio="4:3", sent_text=text)
+        assert sent_text(k) == " ".join(text.split()) + ", 4:3", "the frame first, the ratio tail second: %r" % (
+            sent_text(k),)
 
 
-@mutation(SUBMIT_FILE, '        if job.params.get("ratio") and (self.kind, job.params["ratio"]) not in RATIO_UNTYPED:',
-          '        if job.params.get("ratio"):', expect="a 16:9 video goes with no tail")
-@mutation(CONSTANTS, 'RATIO_UNTYPED = (("video", "16:9"),)', "RATIO_UNTYPED = ()",
-          expect="a 16:9 video goes with no tail")
-def test_a_16_9_video_is_sent_with_no_tail_since_meta_draws_text_to_video_at_16_9_itself():
-    cap = capture(T2V)
-    page = Page([], cap)
-    result, _ = run(page, cap, kind="video", op="text_to_video", ratio="16:9")
-    assert page.typed == {EDITABLE: "Create a short video: %s [7100]" % cap.prompt}, (
-        "a 16:9 video goes with no tail: %r" % (page.typed,))
-    assert isinstance(result.job, Completed) and page.log.count("Enter") == 1
+@mutation(WIRE_FILE, "                 for i, url in enumerate(tuple(urls)[:n]))",
+          "                 for i, url in enumerate(urls))", expect="at most the n asked")
+@mutation(SUBMIT_FILE, '    if n is None:\n        return ""\n', "    if n is None:\n        return IMAGE_FROM_TEXT\n",
+          expect="from before n")
+@mutation(SUBMIT_FILE, '        self.n = job.params.get("n")', '        self.n = job.params.get("n") or 1',
+          expect="from before n")
+def test_a_job_delivers_at_most_n_the_first_in_order_and_a_job_from_before_n_every_image():
+    every = wire.Reader()
+    for raw in frames("t2i_n4"):
+        every.feed(raw)
+    finals = every.answer("image").finals
+    k = go("t2i_n4", n=2)
+    assert [o.ref for o in k.result.job.outputs] == list(finals[:2]), "at most the n asked: %r" % (k.result.job,)
+    k = go("t2i_n2", n=None)
+    assert sent_text(k) == FOX, "from before n: %r" % sent_text(k)
+    assert len(k.result.job.outputs) == 2, "from before n: %r" % (k.result.job,)
 
 
-def test_a_video_from_text_that_never_finishes_is_unknown_after_one_enter():
-    cap = capture(T2V)
-    page = Page([], cap, answers=[streaming(cap.answer)])
-    result, _ = run(page, cap, kind="video", op="text_to_video", meta__video_submit_timeout_s=120)
-    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1
+# ---- the inputs --------------------------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, "        for i, (data, mime) in enumerate(images):\n            name =",
+          "        for i, (data, mime) in enumerate(images[:1]):\n            name =", expect="every reference")
+def test_an_edit_uploads_every_reference_in_order_before_the_send_and_attaches_their_media_ids():
+    ups = [Resp(200, json_body={"media_id": "700%d" % i}) for i in (1, 2, 3)]
+    k = go("edit", op="image_to_image", n=1, inputs=refs(3, "image/jpeg"), routes={UPLOAD: ups})
+    posts = [i for i, c in enumerate(k.net.calls) if c.method == "POST" and c.url.startswith(UPLOAD_URL)]
+    assert len(posts) == 3, "every reference: %d uploads" % len(posts)
+    ws = next(i for i, c in enumerate(k.net.calls) if c.method == "WS")
+    assert max(posts) < ws, "every upload is answered before the socket opens"
+    assert [k.net.calls[i].data for i in posts] == [b"img0", b"img1", b"img2"], "in the client's order"
+    assert all(k.net.calls[i].cookies == {} for i in posts), "the upload carries no cookie"
+    ids = list(wire.values(request(k), (2, 3, 1, 1)))
+    assert ids == [7001, 7002, 7003], "every reference attached by its media id, in order: %r" % (ids,)
+    assert [x.decode() for x in wire.values(request(k), (2, 3, 7))] == ["upload.jpg", "upload1.jpg", "upload2.jpg"]
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 1
 
 
-# ---- image to image ----------------------------------------------------------------------------------------------
-# the input image's layer in the captured slider: `aria-hidden` on its wrapper
-HIDDEN_WRAPPER = '<div aria-hidden="true" style="clip-path: inset(0px 100% 0px 0px);"><img alt=""'
+def test_an_upload_not_answered_sends_nothing_and_is_a_retry():
+    for answer in (Resp(500, "no"), Resp(200, json_body={"status": "ok"}), ConnectionError("reset")):
+        k = go("edit", op="image_to_image", n=1, inputs=refs(2), routes={UPLOAD: answer})
+        assert k.result.job == Retry("meta.http_error"), (answer, k.result.job)
+        assert opened(k) == 0
+        unsent(k)
 
 
-def edit_shapes(answer: str) -> dict[str, str]:
-    """The captured edit (the input image under an `aria-hidden` wrapper), the same with `aria-hidden` on the input
-    `img` itself, and the same with the input image shown (no `aria-hidden` at all)."""
-    assert answer.count(HIDDEN_WRAPPER) == 1
-    shown = '<div style="clip-path: inset(0px 100% 0px 0px);"><img alt=""'
-    return {"hidden wrapper": answer,
-            "hidden img": answer.replace(HIDDEN_WRAPPER, shown.replace("<img ", '<img aria-hidden="true" ')),
-            "input shown": answer.replace(HIDDEN_WRAPPER, shown)}
+@mutation(SUBMIT_FILE, "            if mime is None:\n", "            if False:\n", expect="input_unusable")
+def test_an_input_that_cannot_be_shrunk_fails_refunded_and_opens_nothing():
+    async def never(data, mime):
+        return None
+    k = go("i2v", op="image_to_video", inputs=refs(1), shrink=never)
+    assert isinstance(k.result.job, Fail) and k.result.job.code == "meta.input_unusable", \
+        "input_unusable: %r" % (k.result.job,)
+    assert k.net.calls == [], "nothing opened"
+    unsent(k)
+    r = errors.rule("meta.input_unusable")
+    assert (r.terminal, r.refund) == (True, True)
 
 
-def edited(cap) -> str:
-    """The edited image's link in the captured slider (its `gallery/` img), read with a plain pattern."""
-    return unescape(re.search(r'<img alt="gallery/[^"]*"[^>]*? src="([^"]+)"', cap.answer).group(1))
+def test_a_small_input_is_uploaded_as_it_is():
+    from relay_meta.engine.shrink import shrink
+    assert asyncio.run(shrink(b"tiny", "image/webp")) == (b"tiny", "image/webp")
+    k = go("i2v", op="image_to_video", inputs=refs(1, "image/webp"), shrink=shrink)
+    up = next(c for c in k.net.calls if c.method == "POST")
+    assert up.data == b"img0" and up.headers["Content-Type"] == "image/webp"
 
 
-@mutation(SUBMIT_FILE, '                              slider or (a.get("role") == "slider" and a.get("aria-label") == '
-          'COMPARE_LABEL)))', '                              slider))', expect="the edited image")
-@mutation(SUBMIT_FILE, "            elif hidden:\n", "            elif False:\n", expect="never the input image")
-@mutation(SUBMIT_FILE, '            hidden = hidden or a.get("aria-hidden") == "true"', "            hidden = hidden",
-          expect="never the input image")
-def test_the_captured_edit_reads_as_done_with_the_edited_image_never_the_input_image_in_either_slider_shape():
-    cap = capture(I2I)
-    for shape, html in list(edit_shapes(cap.answer).items())[:2]:
-        answer = S.read_answer(html)
-        assert answer == S.Answer(True, (edited(cap),), 0, 0), (
-            "%s: the edited image, never the input image: %r" % (shape, answer))
-    assert "/t39.105495-1/" in edited(cap) and edited(cap).startswith("https://scontent.xx.fbcdn.net/")
-    drawing = S.read_answer(streaming(cap.answer))
-    assert not drawing.done and drawing.media == () and drawing.previews == 1
-    assert S.read_answer(cap.answer, "video") == S.Answer(True, (), 0, 1), "an edit holds no video"
+# ---- the token ---------------------------------------------------------------------------------------------------
+def test_a_cached_fresh_token_sends_with_no_page_load():
+    k = go(held=True)
+    assert page_gets(k) == 0 and isinstance(k.result.job, Completed)
+    k = go()
+    assert page_gets(k) == 1 and isinstance(k.result.job, Completed), "no token: one page read"
 
 
-def test_an_edit_delivers_only_the_edited_image_whichever_way_the_input_image_is_hidden():
-    cap = capture(I2I)
-    for shape, html in list(edit_shapes(cap.answer).items())[:2]:
-        page = Page([], cap, answers=[html])
-        result, _ = run(page, cap, kind="image", op="image_to_image")
-        assert isinstance(result.job, Completed), (shape, result.job)
-        assert [o.ref for o in result.job.outputs] == [edited(cap)], shape
+@mutation(SUBMIT_FILE, "        except GateClosed as closed:\n            if held is not None:\n",
+          "        except GateClosed as closed:\n            if False:\n", expect="keeps the old token")
+def test_a_stale_token_rereads_the_page_and_a_closed_gate_keeps_the_old_token():
+    clk, ctx = Clock(), Ctx()
+    sessions = Sessions(clk)
+    stale(clk, sessions, ctx)
+    k = go(clk=clk, ctx=ctx, sessions=sessions)
+    assert page_gets(k) == 1 and isinstance(k.result.job, Completed), "a stale token is read again"
+    clk, ctx = Clock(), Ctx()
+    sessions = Sessions(clk)
+    stale(clk, sessions, ctx, gate_closed=True)
+    k = go(clk=clk, ctx=ctx, sessions=sessions)
+    assert page_gets(k) == 0 and isinstance(k.result.job, Completed), "keeps the old token: %r" % (k.result.job,)
 
 
-@mutation(SUBMIT_FILE, '                if (a.get("alt") or "").startswith(RESULT_ALT):', "                if True:",
-          expect="never both")
-def test_a_slider_that_shows_the_input_image_too_is_unknown_never_both_delivered():
-    cap = capture(I2I)
-    html = edit_shapes(cap.answer)["input shown"]
-    answer = S.read_answer(html)
-    assert answer.previews == 1, "never both: %r" % (answer,)
-    page = Page([], cap, answers=[html])
-    result, _ = run(page, cap, kind="image", op="image_to_image")
-    assert isinstance(result.job, Ambiguous), "never both: %r" % (result.job,)
-    assert page.log.count("Enter") == 1
+WAIT = "        return _result(Retry(errors.CHECKPOINT if marked else errors.PAGE_WAIT), rest)\n"
 
 
-def test_an_edit_attaches_the_image_waits_for_the_upload_marks_sent_presses_enter_once_and_delivers_the_edited_image():
-    cap = capture(I2I)
-    page = Page([], cap)
-    result, _ = run(page, cap, kind="image", op="image_to_image")
-    uuid = warmed_uuid(cap)
-    assert uuid == "55165934-9729-4a72-9083-64f3e7a6fc5e"
-    assert sent(page.log) == ["attach", "report_ref " + uuid, "mark_sent", "Enter"], sent(page.log)
-    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT}]
-    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
-    out = result.job.outputs[0]
-    assert (out.mime, out.idx, out.meta) == ("image/webp", 0, {"conversation_id": uuid}) and S.is_final_image(out.ref)
-    assert out.ref == S.read_answer(cap.answer).media[0]
-    assert result.account == (Success(),)
+@mutation(SUBMIT_FILE, WAIT, "        return _result(Retry(errors.HTTP_ERROR), rest)\n", expect="page_wait")
+@mutation(SUBMIT_FILE, WAIT, "        return _result(Retry(errors.CHECKPOINT if marked else errors.PAGE_WAIT))\n",
+          expect="a cooldown")
+@mutation(ERRORS_FILE, '    Rule(PAGE_WAIT, 503, "api_error", False, False, False, True,',
+          '    Rule(PAGE_WAIT, 503, "api_error", True, True, False, True,', expect="no attempt")
+def test_no_token_and_a_closed_gate_is_page_wait_with_a_cooldown_and_no_attempt():
+    clk = Clock()
+    sessions = Sessions(clk)
+    sessions.gate.take(IP, 300)
+    clk.advance(100)
+    k = go(clk=clk, sessions=sessions)
+    assert k.result.job == Retry("meta.page_wait"), "page_wait: %r" % (k.result.job,)
+    assert page_gets(k) == 0 and opened(k) == 0
+    unsent(k)
+    assert [type(e) for e in k.result.account] == [Cooldown], "a cooldown until the gate opens: %r" % (
+        k.result.account,)
+    assert k.result.account[0] == Cooldown(k.result.account[0].reason, NOW + timedelta(seconds=300), recheck=True)
+    r = errors.rule("meta.page_wait")
+    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False), "no attempt"
 
 
-REFS = [(INPUT, "image/webp"), (b"PNG-second", "image/png"), (b"JPG-third", "image/jpeg")]
+@mutation(SUBMIT_FILE, WAIT, "        return _result(Retry(errors.CHECKPOINT if marked else errors.PAGE_WAIT), rest, "
+          "*signed_out_effects(self.deps.now()))\n", expect="no strike")
+@mutation(ERRORS_FILE, '    Rule(CHECKPOINT, 503, "api_error", False, False, False, True,',
+          '    Rule(CHECKPOINT, 503, "api_error", True, True, False, True,', expect="never a job failure")
+def test_a_vercel_page_with_a_token_still_sends_and_without_one_is_checkpoint_with_a_cooldown():
+    vercel = {HOME: Resp(429, page("page_vercel"))}
+    clk, ctx = Clock(), Ctx()
+    sessions = Sessions(clk)
+    stale(clk, sessions, ctx)
+    k = go(clk=clk, ctx=ctx, sessions=sessions, routes=vercel)
+    assert page_gets(k) == 1 and isinstance(k.result.job, Completed), "a held token still sends: %r" % (k.result.job,)
+    k = go(routes=vercel)
+    assert k.result.job == Retry("meta.checkpoint"), k.result.job
+    assert not any(isinstance(e, Suspect) for e in k.result.account), "no strike"
+    (rest,) = k.result.account
+    assert isinstance(rest, Cooldown) and rest.recheck is True and rest.until == NOW + timedelta(seconds=600)
+    unsent(k)
+    r = errors.rule("meta.checkpoint")
+    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False), "never a job failure"
 
 
-def test_the_captured_edit_from_two_references_reads_as_its_one_drawn_image_never_an_input():
-    """25/10: a fox and a lighthouse attached together gave one picture of both, in the same before/after slider."""
-    html = (FIX.parent / "spike-261025" / "i2i-2refs-acc3.dom.html").read_text()
-    answer = S.read_answer(html)
-    assert answer.done and answer.previews == 0 and answer.other == 0, answer
-    assert len(answer.media) == 1 and "/t39.105495-1/" in answer.media[0] and "/m1/" not in answer.media[0]
+@mutation(SUBMIT_FILE, '        if said == "unauthorized":\n', "        if False:\n", expect="reread once")
+@mutation(SUBMIT_FILE, '        if said == "unauthorized":\n', '        while said == "unauthorized":\n',
+          expect="never twice")
+def test_a_refused_estab_rereads_once_on_a_new_socket_and_never_twice():
+    first, second = gateway(code=401), gateway("t2i_n2")
+    k = go(held=True, sockets=[first, second])
+    assert isinstance(k.result.job, Completed), "reread once: %r" % (k.result.job,)
+    assert page_gets(k) == 1 and opened(k) == 2 and first.closed
+    assert [f[0] for f in first.sent] == [wire.ESTAB] and [f[0] for f in second.sent] == [wire.ESTAB, wire.DATA]
+    clk = Clock()
+    k = go(held=True, clk=clk, sockets=[gateway(code=401), gateway(code=401), gateway(code=401)])
+    assert k.result.job == Retry("meta.http_error"), "never twice: %r" % (k.result.job,)
+    assert page_gets(k) == 1 and opened(k) == 2, "never twice"
+    unsent(k)
+    # Review Focus 1: the token died while the gate is closed and no other token exists
+    clk = Clock()
+    sessions = Sessions(clk)
+    sessions.gate.take(IP, 300)
+    k = go(held=True, clk=clk, sessions=sessions, sockets=[gateway(code=401), gateway("t2i_n2")])
+    assert k.result.job == Retry("meta.page_wait") and isinstance(k.result.account[0], Cooldown), k.result
+    assert page_gets(k) == 0 and opened(k) == 1
+    unsent(k)
+    assert sessions.token(k.ctx.account.id, k.ctx.account.credential_gen) is None, "the dead token is forgotten"
 
 
-def test_an_edit_from_several_references_attaches_them_in_order_waits_for_every_upload_and_sends_once():
-    cap = capture(I2I)
-    page = Page([], cap, thumbnails=3)
-    result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
-    assert sent(page.log) == ["attach", "report_ref " + warmed_uuid(cap), "mark_sent", "Enter"], sent(page.log)
-    assert page.chosen == [{"name": "upload.webp", "mimeType": "image/webp", "buffer": INPUT},
-                           {"name": "upload1.png", "mimeType": "image/png", "buffer": b"PNG-second"},
-                           {"name": "upload2.jpg", "mimeType": "image/jpeg", "buffer": b"JPG-third"}], page.chosen
-    assert isinstance(result.job, Completed) and len(result.job.outputs) == 1, result.job
+def test_an_estab_answered_with_anything_else_is_a_retry():
+    k = go(held=True, sockets=[gateway(code=500)])
+    assert k.result.job == Retry("meta.http_error")
+    unsent(k)
 
 
-@mutation(SUBMIT_FILE, UPLOAD_WAIT, UPLOAD_WAIT_ONE, expect="every upload")
-@mutation(SUBMIT_FILE, "        while await attached.count() != want and self.deps.clock() < grace:",
-          "        while await attached.count() != 1 and self.deps.clock() < grace:", expect="all shown")
-def test_an_edit_whose_uploads_are_not_all_answered_or_shown_sends_nothing():
-    cap = capture(I2I)
-    for what, page in (("every upload", Page([], cap, thumbnails=3, upload_answers=2)),
-                       ("all shown", Page([], cap, thumbnails=[1, 1, 1, 3, 3]))):
-        result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
-        if what == "all shown":       # the thumbnails came late: the grace waits for all three, then it is sent
-            assert isinstance(result.job, Completed) and page.log.count("Enter") == 1, "%s: %s" % (what, page.log)
-            continue
-        assert "mark_sent" not in page.log and "Enter" not in page.log, "%s: %s" % (what, sent(page.log))
-        assert result.job == Retry("meta.ui_send_failed"), what
-    page = Page([], cap, thumbnails=2)       # one of three dropped before the send
-    result, _ = run(page, cap, kind="image", op="image_to_image", images=REFS)
-    assert result.job == Retry("meta.ui_send_failed") and "Enter" not in page.log
+@mutation(SUBMIT_FILE, "                                           *signed_out_effects(self.deps.now())))",
+          "))", expect="a strike and a rest")
+def test_a_signed_out_page_is_a_strike_and_a_rest_and_sends_nothing():
+    k = go(routes={HOME: Resp(200, page("page_signed_out"))})
+    assert k.result.job == Retry("pool.account_logged_out")
+    kinds = [type(e) for e in k.result.account]
+    assert kinds == [Suspect, Cooldown] and k.result.account[1].recheck, "a strike and a rest: %r" % (
+        k.result.account,)
+    assert opened(k) == 0
+    unsent(k)
 
 
-@mutation(SUBMIT_FILE, "            elif PREVIEW_MARK in urlsplit(src).path:", "            elif False:",
-          expect="a preview outside")
-def test_an_edit_done_with_its_preview_still_shown_is_unknown_never_delivered_nor_failed():
-    cap = capture(I2I)
-    done = 'data-streaming-state="DONE" data-streaming-complete="true"'
-    in_slider = streaming(cap.answer).replace('data-streaming-state="STREAMING"', done)
-    # the preview meta showed before the slider (an "Inline image" at 16 s in the capture), not yet in a slider
-    outside = (cap.answer.split('<div tabindex="0" role="slider"')[0] + '<img alt="Inline image" src="https://'
-               'scontent.xx.fbcdn.net/v/t58.90637-1/x_n.webp?stp=dst-webp"></div>')
-    assert S.read_answer(outside) == S.Answer(True, (), 1), "a preview outside the slider is counted"
-    for what, html in (("in the slider", in_slider), ("a preview outside the slider", outside)):
-        page = Page([], cap, answers=[html])
-        result, _ = run(page, cap, kind="image", op="image_to_image")
-        assert isinstance(result.job, Ambiguous), "%s: %r" % (what, result.job)
-        assert page.log.count("Enter") == 1
+@mutation(SUBMIT_FILE, "        if isinstance(exc, NetError) and exc.proxy:", "        if False:",
+          expect="proxy_failed")
+def test_a_proxy_failure_before_the_send_is_proxy_failed_with_a_300_s_rest():
+    for routes in ({HOME: ProxyError("refused")}, {WS: ProxyError("refused")}):
+        k = go(routes=routes)
+        assert k.result.job == Retry("pool.proxy_failed"), "proxy_failed: %r" % (k.result.job,)
+        assert ProxyBad in [type(e) for e in k.result.account]
+        assert Cooldown("proxy failed", NOW + timedelta(seconds=300)) in k.result.account
+        unsent(k)
+    k = go(routes={HOME: ConnectionError("reset")})
+    assert k.result.job == Retry("meta.http_error")
 
 
-# ---- an answer of the other kind ---------------------------------------------------------------------------------
-@mutation(SUBMIT_FILE, "        if answer.other:", "        if False:", expect="never a refund at once")
-def test_a_done_answer_with_only_the_other_kind_is_unknown_never_a_refund_and_one_with_nothing_still_fails():
-    image, video, edit = capture("image-1-acc1"), capture(T2V), capture(I2I)
-    cases = (("a video from text answered with an image", T2V, "video", "text_to_video", image.answer),
-             ("a video from an image answered with an edit", VIDEO, "video", "image_to_video", edit.answer),
-             ("an edit answered with a video", I2I, "image", "image_to_image", video.answer),
-             ("an image answered with a video", "image-1-acc1", "image", "text_to_image", video.answer))
-    for what, folder, kind, op, html in cases:
-        cap = capture(folder)
-        assert S.read_answer(html, kind).other >= 1, what
-        page = Page([], cap, answers=[html])
-        result, _ = run(page, cap, kind=kind, op=op)
-        assert isinstance(result.job, Ambiguous), "%s: meta took it, never a refund at once: %r" % (what, result.job)
-        assert page.log.count("Enter") == 1
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    result, _ = run(Page([], video, answers=[bare]), video, kind="video", op="text_to_video")
-    assert result.job == Fail("meta.no_video", "meta finished its answer with no video")
+def test_an_unreadable_page_is_a_retry():
+    k = go(routes={HOME: Resp(200, "<html>nothing</html>")})
+    assert k.result.job == Retry("meta.http_error")
+    unsent(k)
 
 
-# ---- fetch -------------------------------------------------------------------------------------------------------
-def drain(ref, site, proxy=None) -> bytes:
-    async def go():
-        ctx = SimpleNamespace(account=SimpleNamespace(proxy=proxy))
-        out = SimpleNamespace(ref=ref)
-        return b"".join([p async for p in fetch_mod.fetch(ctx, out, media_transport=site,
-                                                          media_resolver=public_resolver)])
-    return asyncio.run(go())
-
-
-@mutation(FETCH_FILE, "proxy=proxy_url(ctx.account.proxy),", "proxy=None,",
-          expect="the meta media went direct although the account has a proxy")
-def test_fetch_takes_fbcdn_links_only_through_the_account_proxy_when_it_has_one():
-    ref = S.read_answer(capture("image-1-acc1").answer).media[0]
-    site = MediaSite(b"direct-bytes", b"webp-bytes")
-    proxy = Proxy("proxy.example", 8080, "user:p@ss")
-    assert drain(ref, site, proxy) == b"webp-bytes" and site.routes == ["http://user:p%40ss@proxy.example:8080"], \
-        "the meta media went direct although the account has a proxy: %r" % site.routes
-    failing = MediaSite(b"direct-bytes", 500)
-    with pytest.raises(FetchFailed):
-        drain(ref, failing, proxy)
-    assert failing.routes == ["http://user:p%40ss@proxy.example:8080"], \
-        "the meta media went direct although the account has a proxy: %r" % failing.routes
-    plain = MediaSite(b"webp-bytes")
-    assert drain(ref, plain) == b"webp-bytes" and plain.routes == [None]
-    with pytest.raises(UnsafeUrl):
-        drain("https://evil.example/v/t39.105495-1/x.webp", MediaSite(b"x"))
-
-
-# ---- debug files: diagnostics only -------------------------------------------------------------------------------
-UI_ERROR = (".png", ".html.txt", ".network.txt")
-
-
-def failure_shapes(cap):
-    """Each way a run ends without a delivery: its debug-file tag -> (a page that ends so, whether meta's answer was
-    in)."""
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    previews = streaming(cap.answer).replace('data-streaming-state="STREAMING"',
-                                             'data-streaming-state="DONE" data-streaming-complete="true"')
-    return {
-        "meta_ui_page_not_ready": (lambda: Page([], cap, hydrates=False), False),
-        "no_receipt": (lambda: Page([], cap, opens=None), False),
-        "not_done": (lambda: Page([], cap, answers=[streaming(cap.answer)]), False),
-        "no_media": (lambda: Page([], cap, answers=[bare]), True),
-        "previews": (lambda: Page([], cap, answers=[previews]), True),
-        "browser_error": (lambda: Page([], cap, press_error=RuntimeError("Target page closed")), False),
+# ---- after the send ----------------------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, '        if self.sent:\n            return await self._unknown("the run failed after the send',
+          '        if False:\n            return await self._unknown("the run failed after the send',
+          expect="never a Retry after the send")
+@mutation(SUBMIT_FILE, "        if self.sent:\n            return await self._unknown(why)\n",
+          "        if False:\n            return await self._unknown(why)\n", expect="never a Retry after the send")
+def test_whatever_breaks_after_the_send_is_ambiguous_and_never_a_second_frame():
+    bad = wire.frame(wire.DATA, 0, b"\x00\x00\x0b\x01")
+    cases = {
+        "socket closed": dict(sockets=[gateway(answer=[ConnectionError("closed")])]),
+        "unreadable frame": dict(sockets=[gateway(answer=[bad])]),
+        "end of data before the final chunk": dict(sockets=[gateway(answer=[wire.frame(wire.EOD, 0, b"")])]),
+        "deadline": dict(sockets=[gateway(answer=[])], margin=59.9, image_submit_timeout_s=60),
     }
+    for what, kw in cases.items():
+        k = go(**kw)
+        assert isinstance(k.result.job, Ambiguous), "%s: never a Retry after the send: %r" % (what, k.result.job)
+        assert len(data_frames(k)) == 1, what
+        assert steps(k) == ["report_ref", "mark_sent"], what
+        if what == "unreadable frame":
+            assert any("unreadable gateway frame" in e[0] for e in k.ctx.events)
 
 
-@mutation(SUBMIT_FILE, "        self._evidence(None)      # meta's answer is in", "        pass  #",
-          expect="the after-send picture")
-@mutation(SUBMIT_FILE, "                await self._captures()      # after the verdict", "                pass  #",
-          expect="the after-send picture")
-def test_a_delivered_answer_keeps_one_after_send_jpeg_and_nothing_else():
-    cap = capture("image-1-acc1")
-    result, ctx = run(Page([], cap), cap)
-    assert isinstance(result.job, Completed)
-    assert ctx.kept == [("after-send-1000.jpg", b"jpeg", "image/jpeg")], "the after-send picture: %s" % ctx.kept
-
-
-@mutation(SUBMIT_FILE, "        self._evidence(code)\n", "", expect="meta_ui_page_not_ready")
-@mutation(SUBMIT_FILE, "        self._evidence(tag)\n", "", expect="no_receipt")
-@mutation(SUBMIT_FILE, '        self._evidence("no-media")\n', "", expect="no_media")
-@mutation(SUBMIT_FILE, '                self._evidence("browser-error")', "                pass",
-          expect="browser_error")
-def test_each_failure_keeps_a_png_the_html_and_the_network_log_and_an_answer_that_is_in_its_jpeg_too():
-    cap = capture("image-1-acc1")
-    for tag, (make, answered) in failure_shapes(cap).items():
-        result, ctx = run(make(), cap)
-        names = [n for n, _, _ in ctx.kept]
-        want = (["after-send-1000.jpg"] if answered else []) + ["ui-error-%s-1000%s" % (tag, ext) for ext in UI_ERROR]
-        if tag == "not_done":
-            want = []       # it waited up to the deadline: no time is left for captures, the verdict had it all
-        assert names == want, "%s: %s" % (tag, names)
-        assert not isinstance(result.job, Completed), tag
-
-
-@mutation(SUBMIT_FILE, "        except Exception as exc:      # noqa: BLE001 - diagnostics never fail the order\n"
-          '            log.warning("evidence', "        except ZeroDivisionError as exc:\n"
-          '            log.warning("evidence', expect="the same verdict")
-@mutation(SUBMIT_FILE, "            async with asyncio.timeout(budget):",
-          "            async with asyncio.timeout(None):", expect="bounded")
-def test_a_capture_that_fails_or_hangs_changes_no_verdict_and_holds_it_back_at_most_the_bound():
-    cap = capture("image-1-acc1")
-    shapes = {"delivered": (lambda: Page([], cap), True), **failure_shapes(cap)}
-    for tag, (make, _) in shapes.items():
-        clean = make()
-        want, _ = run(clean, cap)
-        for how in ("screenshot", "store", "hang"):
-            page = make()
-            ctx = Ctx(page.log)
-            if how == "screenshot":
-                page.shot_error = RuntimeError("Target page closed")
-            elif how == "store":
-                ctx.keep_error = RuntimeError("object store down")
-            else:
-                page.shot_hang_s = 5.0
-            t0 = time.monotonic()
-            result, _ = run(page, cap, ctx=ctx)
-            assert time.monotonic() - t0 < 3, "%s/%s: a capture is bounded" % (tag, how)
-            assert (result.job, result.account) == (want.job, want.account), "%s/%s: the same verdict" % (tag, how)
-            assert sent(page.log) == sent(clean.log), "%s/%s: the same sends" % (tag, how)
-
-
-@mutation(SUBMIT_FILE, "images=True, redact=redact_text) as session:", "images=True, redact=str) as session:",
-          expect="redacted")
-def test_the_html_and_the_network_log_go_through_the_core_redactor():
-    cap = capture("image-1-acc1")
-    _, ctx = run(Page([], cap, opens=None), cap)
-    text = {n.split(".", 1)[1]: d.decode() for n, d, _ in ctx.kept if n.endswith(".txt")}
-    assert set(text) == {"html.txt", "network.txt"}, ctx.kept
-    for what, body in text.items():
-        assert "v-fake-secret" not in body and "[redacted]" in body, "%s is redacted: %s" % (what, body[:200])
-
-
-BOUND = "        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))"
-UNBOUND = "        bound = asyncio.timeout(None)"
-
-
-# The core's submit bound around a run whose captures all hang and whose browser takes half its close allowance to
-# close, scaled down: a 3 s bound (240 s), a 1.2 s close allowance (30 s), 1 s of evidence per job (10 s).
-CLOSE_S, BOUND_S, SCALED = 0.6, 3.0, {"hold_margin_s": 1.2, "evidence_wait_s": 1.0, "receipt_wait_s": 0.5,
-                                      "tiles_grace_s": 0.5}
-
-
-@mutation(SUBMIT_FILE, "            self.evidence_left -= self.deps.clock() - t0", "            pass",
-          expect="one shared cap")
-def test_hanging_captures_and_a_slow_close_never_cost_a_verdict_to_the_core_submit_bound():
-    cap = capture("image-1-acc1")
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    cases = {   # what -> (a page, the deps, the verdict)
-        "delivered": (lambda: Page([], cap), {}, Completed),
-        "never done": (lambda: Page([], cap, answers=[streaming(cap.answer)]), {}, Ambiguous),
-        # the verdict comes past the point where a capture would reach into the close allowance
-        "late, no receipt": (lambda: Page([], cap, opens=None), {"receipt_wait_s": 2.0}, Ambiguous),
-        "no media": (lambda: Page([], cap, answers=[bare]), {"tiles_grace_s": 0.0}, Fail),
-        "browser error": (lambda: Page([], cap, press_error=RuntimeError("Target page closed")), {}, Ambiguous),
-    }
-    for what, (make, deps, verdict) in cases.items():
-        page = make()
-        page.shot_hang_s = 60.0
-        t0 = time.monotonic()
-        try:
-            result, _ = run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, **deps}))
-        except TimeoutError:
-            raise AssertionError("%s: the verdict was lost: not within the core's bound" % what) from None
-        took = time.monotonic() - t0
-        assert isinstance(result.job, verdict), "%s: %r" % (what, result.job)
-        assert page.log.count("Enter") == 1, what
-        if what == "no media":
-            # two captures (the after-send picture, then the UI error): one shared cap, never one each
-            assert took < 1.0 + CLOSE_S + 0.3, "%s: one shared cap for the job's captures, took %.2f s" % (what, took)
-
-
-# the receipt wait (`_step`) and the bound of the run both stop at the deadline: only a deadline in the close allowance
-# loses the verdict
+@mutation(SUBMIT_FILE, "        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))",
+          "        bound = asyncio.timeout(None)", expect="the verdict was lost")
 @mutation(SUBMIT_FILE, '"meta.%s_submit_timeout_s" % self.kind) - deps.hold_margin_s',
           '"meta.%s_submit_timeout_s" % self.kind) + deps.hold_margin_s', expect="the verdict was lost")
-def test_a_slow_setup_and_a_receipt_that_never_comes_still_return_the_verdict_within_the_core_bound():
-    cap = capture("image-1-acc1")
-    page = Page([], cap, opens=None)
-    page.goto_s = 1.5           # the load took most of the window: the deadline (1.8 s) is near at the Enter
-    try:
-        result, _ = run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, "receipt_wait_s": 5.0}))
-    except TimeoutError:
-        raise AssertionError("slow setup: the verdict was lost: not within the core's bound") from None
-    assert isinstance(result.job, Ambiguous) and page.log.count("Enter") == 1, result.job
+def test_the_verdict_comes_within_the_core_bound_whatever_hangs():
+    k = go(sockets=[gateway(answer=[])], margin=59.5, image_submit_timeout_s=60, bound_s=2.0)
+    assert isinstance(k.result.job, Ambiguous) and len(data_frames(k)) == 1, k.result.job
+    # before the send: a socket that never answers the EstabStream is a retry, within the bound
+    hung = FakeSocket([])
+    k = go(held=True, sockets=[hung], margin=59.5, image_submit_timeout_s=60, bound_s=2.0)
+    assert k.result.job == Retry("meta.http_error"), "nothing was sent: %r" % (k.result.job,)
+    unsent(k)
 
 
-@mutation(SUBMIT_FILE, "        left = self.deadline - self.deps.clock()",
-          "        left = self.deadline - EVIDENCE_WAIT_S - self.deps.clock()", expect="last 10 s")
-def test_an_answer_that_turns_final_in_the_last_10_s_before_the_deadline_is_still_a_verdict():
-    cap = capture("image-1-acc1")
-    bare = '<div data-testid="assistant-message" data-streaming-state="DONE" data-streaming-complete="true"><p>No.</p>'
-    late = int((240 - S.HOLD_MARGIN_S - 5) / S.STEP_S)       # reads every 0.5 s: final 5 s before the deadline
-    for final, verdict in ((cap.answer, Completed), (bare, Fail)):
-        page = Page([], cap, answers=[streaming(cap.answer)] * late + [final])
-        result, _ = run(page, cap)
-        assert isinstance(result.job, verdict), "final in the last 10 s: %r" % (result.job,)
+POLICY_IF = '    if error.get("failure_kind") in POLICY_KINDS or error.get("error_code") in POLICY_CODES:\n'
 
 
+# ---- the verdict -------------------------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, '        if verdict == "policy":\n', "        if False:\n", expect="content_refused")
+@mutation(SUBMIT_FILE, POLICY_IF, "    if False:\n", expect="content_refused")
+def test_a_policy_refusal_fails_at_once_refunded_with_content_refused():
+    k = go("refusal", n=1)
+    assert isinstance(k.result.job, Fail) and k.result.job.code == "meta.content_refused", \
+        "content_refused: %r" % (k.result.job,)
+    assert not any(isinstance(e, Balance) for e in k.result.account), "a refusal empties no pool"
+    assert len(data_frames(k)) == 1
+    r = errors.rule("meta.content_refused")
+    assert (r.terminal, r.refund) == (True, True)
+    # on a second account too: never moved to a third
+    k = go("refusal", n=1, state={REFUSED_BY: ["acc-0"]}, refusal_max_accounts=9)
+    assert isinstance(k.result.job, Fail) and k.result.job.code == "meta.content_refused"
 
 
-def bounded_run(page, cap, what, **deps):
-    try:
-        return run(page, cap, real_time=(CLOSE_S, BOUND_S, {**SCALED, **deps}))[0]
-    except TimeoutError:
-        raise AssertionError("%s: the verdict was lost: not within the core's bound" % what) from None
+LIMIT_IF = "    if error.get(\"failure_kind\") in LIMIT_KINDS or (answer.error is None and is_limit(answer.text)):\n"
+LIMIT_MOVES = "            outcome = account_refused(self.job, self.account.id, self.settings, "
+LIMIT_REST = "            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))\n"
 
 
-@mutation(SUBMIT_FILE, BOUND, UNBOUND, expect="the verdict was lost")
-def test_a_read_of_the_answer_that_hangs_after_the_enter_is_ambiguous_within_the_core_bound():
-    cap = capture("image-1-acc1")
-    page = Page([], cap)
-    page.read_hang_s = 60.0
-    result = bounded_run(page, cap, "a hung read")
-    assert isinstance(result.job, Ambiguous) and sent(page.log)[-2:] == ["mark_sent", "Enter"], result.job
+def limit(**kw):
+    return go(sockets=[gateway(answer=[response(said(LIMIT_TEXT), done=True)])], **kw)
 
 
-@mutation(SUBMIT_FILE, BOUND, UNBOUND, expect="the verdict was lost")
-@mutation(SUBMIT_FILE, "Ambiguous(why) if self.sent else", "Ambiguous(why) if True else", expect="nothing was sent")
-def test_a_composer_wait_that_hangs_before_the_enter_sends_nothing_and_is_a_retry_within_the_core_bound():
-    cap = capture("image-1-acc1")
-    page = Page([], cap)
-    page.composer_hang_s = 60.0
-    result = bounded_run(page, cap, "a hung composer", composer_wait_s=60.0)
-    assert result.job == Retry("meta.ui_page_not_ready"), "nothing was sent: %r" % (result.job,)
-    assert sent(page.log) == []
+@mutation(SUBMIT_FILE, LIMIT_IF, "    if False:\n", expect="the job did not go to another account")
+@mutation(SUBMIT_FILE, "    return any(p in t for p in LIMIT_PHRASES)", "    return False",
+          expect="the job did not go to another account")
+@mutation(SUBMIT_FILE, LIMIT_REST, "            return _result(outcome)\n", expect="the pool was not emptied")
+@mutation(SUBMIT_FILE, "not_taken=POOL_OUT_OF_POINTS,", "not_taken=errors.NO_IMAGE,",
+          expect="the job did not go to another account")
+def test_a_limit_answer_moves_the_job_to_another_account_and_empties_the_pool():
+    k = limit()
+    assert k.result.job == NotTaken("pool.account_out_of_points", {REFUSED_BY: ["acc-1"]}), \
+        "the job did not go to another account: %r" % (k.result.job,)
+    assert len(data_frames(k)) == 1
+    r = errors.rule("pool.account_out_of_points")
+    assert (r.terminal, r.refund, r.counts_attempt) == (False, False, False)
+    assert Balance("image", 0, NOW + timedelta(hours=4)) in k.result.account, \
+        "the pool was not emptied: %r" % (k.result.account,)
+    assert any("another account" in e[0] for e in k.ctx.events)
+    assert S.is_limit("You've hit your  LIMIT for today") and not S.is_limit("Here is your fox")
 
 
-@mutation(SUBMIT_FILE, "        budget = min(self.evidence_left, self.deadline - self.deps.clock())",
-          "        budget = self.evidence_left", expect="the verdict was lost")
-def test_a_capture_that_hangs_after_a_verdict_late_in_the_window_keeps_that_verdict_within_the_core_bound():
-    cap = capture("image-1-acc1")
-    page = Page([], cap)        # done at the third read, 1 s in, 0.8 s before the deadline
-    page.shot_hang_s = 60.0
-    result = bounded_run(page, cap, "a hung capture", evidence_wait_s=2.0)
-    assert isinstance(result.job, Completed), result.job
+@mutation(SUBMIT_FILE, LIMIT_MOVES,
+          "            outcome = (lambda *a, **k: NotTaken(POOL_OUT_OF_POINTS, {REFUSED_BY: []}))(self.job, "
+          "self.account.id, self.settings, ", expect="the last account's limit did not end the job")
+def test_the_limit_on_the_last_account_fails_it_refunded_with_todays_code():
+    k = limit(state={REFUSED_BY: ["acc-0"]})
+    assert isinstance(k.result.job, Fail) and k.result.job.code == "meta.no_image", \
+        "the last account's limit did not end the job: %r" % (k.result.job,)
+    assert k.result.job.detail == ("meta finished its answer with no image (refused on 2 account(s), the most "
+                                   "meta.refusal_max_accounts allows)")
+    assert k.result.job.state_patch == {REFUSED_BY: ["acc-0", "acc-1"]}
+    assert Balance("image", 0, NOW + timedelta(hours=4)) in k.result.account
+    assert isinstance(limit(state={REFUSED_BY: ["acc-0"]}, refusal_max_accounts=3).result.job, NotTaken)
+    pinned = limit(source=SimpleNamespace(job_id="src", idx=0)).result.job
+    assert isinstance(pinned, Fail) and pinned.code == "meta.no_image", "a pinned job runs on one account"
+    video = go(op="text_to_video", state={REFUSED_BY: ["acc-0"]},
+               sockets=[gateway(answer=[response(said(LIMIT_TEXT), done=True)])]).result
+    assert isinstance(video.job, Fail) and video.job.code == "meta.no_video"
+    assert Balance("video", 0, NOW + timedelta(hours=4)) in video.account
 
 
-# ---- Vercel's challenge pass is kept, never the session ------------------------------------------------------------
-class ChallengedCookies(Cookies):
-    """The read-back after the injection sees the jar as given; later reads see a rotated session and `rd_challenge`."""
-
-    def __init__(self):
-        super().__init__()
-        self.reads = 0
-
-    async def cookies(self, url):
-        self.reads += 1
-        if self.reads == 1:
-            return self.jar
-        return [{**c, "value": "v-rotated"} for c in self.jar] + [
-            {"name": "rd_challenge", "value": "rc-pass", "domain": ".meta.ai", "path": "/", "expires": -1}]
+@mutation(SUBMIT_FILE, '    return "empty"\n', '    return "unknown"\n', expect="no_image")
+def test_a_done_answer_with_no_media_and_no_reason_fails_refunded():
+    k = go(sockets=[gateway(answer=[response(said("No."), done=True)])])
+    assert k.result.job == Fail("meta.no_image", "meta finished its answer with no image"), "no_image: %r" % (
+        k.result.job,)
+    assert not any(isinstance(e, Balance) for e in k.result.account), "a plain refusal empties no pool"
+    other = json.dumps({"failure_kind": "tool_error", "error_code": "x"})
+    k = go(sockets=[gateway(answer=[response(at((1, 4, 6, 4), other), done=True)])])
+    assert k.result.job.code == "meta.no_image" and any("tool_error" in e[0] for e in k.ctx.events)
+    r = errors.rule("meta.no_image")
+    assert (r.terminal, r.refund) == (True, True)
 
 
-class RenewingCtx(Ctx):
-    def __init__(self, log, error=None):
-        super().__init__(log)
-        self.writes, self.error = [], error
-
-    async def renew_credential(self, blob, merge=None):
-        if self.error:
-            raise self.error
-        self.writes.append({c["name"]: c["value"] for c in json.loads(blob)["cookies"]})
-        return blob
+DONE_IF = ('        return "done" if answer.previews == 0 or (n is not None and len(answer.finals) >= n) '
+           'else "unknown"\n')
 
 
-SIGNED_IN_RENEW = "                if self.signed_in:"
+@mutation(SUBMIT_FILE, DONE_IF, '        return "done"\n', expect="never a part delivery")
+@mutation(SUBMIT_FILE, DONE_IF, '        return "done" if answer.previews == 0 else "unknown"\n', expect="a draft")
+@mutation(SUBMIT_FILE, '    if answer.previews or answer.other:\n        return "unknown"\n',
+          '    if False:\n        return "unknown"\n', expect="never a refund")
+def test_previews_left_or_only_the_other_kind_is_ambiguous_never_a_part_delivery():
+    part = response(shown(preview(1), preview(2), final(1)), done=True)
+    k = go(sockets=[gateway(answer=[part])], n=2)
+    assert isinstance(k.result.job, Ambiguous), "never a part delivery: %r" % (k.result.job,)
+    k = go(sockets=[gateway(answer=[part])], n=None)
+    assert isinstance(k.result.job, Ambiguous), "never a part delivery (a job from before n): %r" % (k.result.job,)
+    # n finals with a draft preview left (an edit's thinking step): complete
+    k = go(sockets=[gateway(answer=[part])], op="image_to_image", n=1, inputs=refs(1))
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 1, "a draft: %r" % (k.result.job,)
+    for answer in ([response(shown(final(1, "mp4")), done=True)], [response(shown(preview(1)), done=True)]):
+        k = go(sockets=[gateway(answer=answer)], n=1)
+        assert isinstance(k.result.job, Ambiguous), "never a refund at once: %r" % (k.result.job,)
+    assert S.judge(wire.Answer(False, (final(1),), 0, 0, None, ""), "image", 1) == "unknown"
 
 
-@mutation("packages/provider-meta/src/relay_meta/engine/submit.py", SIGNED_IN_RENEW, "                if False:",
-          expect="challenge pass")
-def test_a_signed_in_submit_keeps_the_challenge_pass_and_a_failed_write_changes_nothing(monkeypatch):
-    monkeypatch.setitem(globals(), "Cookies", ChallengedCookies)
-    cap = capture("image-1-acc1")
-    page = Page([], cap)
-    result, ctx = run(page, cap, ctx=RenewingCtx(page.log))
-    assert isinstance(result.job, Completed)
-    assert ctx.writes == [{"ecto_1_sess": "v-fake", "rd_challenge": "rc-pass"}], (
-        "the challenge pass was not written back, or the session was: %s" % ctx.writes)
-    page = Page([], cap)
-    result, ctx = run(page, cap, ctx=RenewingCtx(page.log, error=RuntimeError("database down")))
-    assert isinstance(result.job, Completed) and result.account == (Success(),), "a failed write changed the run"
+def test_the_captured_answers_of_every_kind_complete():
+    for name, op, n, inputs in (("t2i_n1", "text_to_image", 1, ()), ("t2i_n4", "text_to_image", 4, ()),
+                                ("t2v", "text_to_video", None, ()), ("i2v", "image_to_video", None, refs(1)),
+                                ("edit", "image_to_image", 1, refs(1))):
+        k = go(name, op=op, n=n, inputs=inputs)
+        assert isinstance(k.result.job, Completed), (name, k.result.job)
+        assert len(k.result.job.outputs) == (n or 1) and k.ctx.evidences == [], name
 
 
-@mutation("packages/provider-meta/src/relay_meta/engine/submit.py", SIGNED_IN_RENEW, "                if True:",
-          expect="a signed-out run")
-def test_a_signed_out_submit_writes_nothing(monkeypatch):
-    monkeypatch.setitem(globals(), "Cookies", ChallengedCookies)
-    cap = capture("image-1-acc1")
-    cap.signals = {"menu": False, "out": True, "name": "", "title": "Meta AI", "failed": False}
-    page = Page([], cap)
-    result, ctx = run(page, cap, ctx=RenewingCtx(page.log))
-    assert result.job == Retry("pool.account_logged_out") and ctx.writes == [], "a signed-out run was written back"
+# ---- evidence and secrets ----------------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, "    if not isinstance(outcome.job, Completed) and run.reader.frames:\n",
+          "    if False:\n", expect="frame summary")
+def test_a_failed_job_keeps_a_redacted_frame_summary_and_a_delivered_one_none():
+    k = go("refusal", n=1)
+    assert [(n, m) for n, _, m in k.ctx.evidences] == [("gateway-frames.json", "application/json")], \
+        "frame summary: %r" % (k.ctx.evidences,)
+    rows = json.loads(k.ctx.evidences[0][1])
+    assert any(r.get("text", "") and r["text"].startswith("I wasn't able") for r in rows)
+    assert go().ctx.evidences == []
+    assert go(routes={HOME: Resp(200, page("page_signed_out"))}).ctx.evidences == [], "no frames, no evidence"
+
+    async def broken(*a):
+        raise RuntimeError("store down")
+    ctx = Ctx()
+    ctx.evidence = broken
+    assert isinstance(go("refusal", n=1, ctx=ctx).result.job, Fail), "evidence never fails the run"
+
+
+def test_no_token_viewer_or_socket_url_reaches_an_event_evidence_or_log(caplog):
+    caplog.set_level(logging.DEBUG)
+    texts = []
+    for kw in ({"name": "refusal", "n": 1}, {"sockets": [gateway(answer=[ConnectionError("wss://x?Authorization=y")])]},
+               {"held": True, "sockets": [gateway(code=401), gateway(code=401)]},
+               {"routes": {HOME: ProxyError("http://user:PLANTED-pw@10.0.0.9:3128")}},
+               {"routes": {HOME: Resp(200, page("page_signed_out"))}}):
+        k = go(**kw)
+        texts += [k.result, *k.ctx.events, *(e[1].decode() for e in k.ctx.evidences), *k.ctx.refs]
+    texts += [r.getMessage() for r in caplog.records]
+    assert_no_secret(*texts)
+    assert not any(GATEWAY_URL in str(t) for t in texts), "the socket URL is never kept"
+
+
+def test_a_lost_lease_at_report_ref_or_mark_sent_propagates_and_sends_nothing():
+    for gate in ("report_ref", "mark_sent"):
+        ctx = Ctx(fail=gate)
+        try:
+            go(ctx=ctx)
+        except RuntimeError as e:
+            assert str(e) == "lease lost"
+        else:
+            raise AssertionError("the core's verdict was swallowed at %s" % gate)
