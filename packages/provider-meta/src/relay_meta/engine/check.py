@@ -1,146 +1,87 @@
-"""Account check: open the account in a browser, load meta.ai and read whether it is signed in.
+"""Account check over HTTP: read the www.meta.ai page (gate permitting), then open one gateway socket and send one
+EstabStream with no prompt. It spends nothing and sends no data frame.
 
-Signed in: the user-menu button is visible (it carries the display name). Signed out: a login button or the signed-out
-card is visible, or meta moved the tab to a login or checkpoint URL or off meta.ai. Neither within
-`CHECK_SIGNAL_TIMEOUT_S` is an unknown read. It spends nothing and sends nothing.
-
-A signed-out read is never a verdict by itself (a checkpoint can pass, a page can be read mid-redirect): it is an
-`unknown` read with one spaced strike and a rest that asks for a recheck. Only the strike threshold of the caps, reached
-by separate reads, ends the account.
-
-Vercel's browser checkpoint (same URL; the page says "Failed to verify your browser") is neither signed in nor signed
-out: the browser is in doubt, not the account. It rests `meta.checkpoint_rest_s` and is checked again, with no strike;
-each repeat within a day, seen by a check or by a submit, doubles the rest up to `meta.checkpoint_rest_max_s`
-(`CHECKPOINTS`). A checkpoint never ends the account.
+Signed in and an accepted estab is `alive`; its identity is `viewer_hash(viewerId)` (also kept as
+`provider_state["viewer"]`, which is what the cookie write-back compares). A signed-out page is never a verdict by
+itself: an `unknown` read with one spaced strike and a rest that asks for a recheck (`signed_out_effects`). A Vercel
+page is the proxy IP's problem, never the account's: the account rests (no strike) only when it has no token to
+check with. A refused estab (401) forgets the token and is `unknown`.
 """
 
 import asyncio
 import logging
-import time
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlsplit
 
-from relay_browser.session import SiteProfile, open_session
-from relay_browser.ui import inject_cookies, renew_jar
-from relay_core.pool import RepeatRest
-from relay_core.providers import Cooldown, Health, Suspect
-from relay_core.redact import redact_text
-from relay_meta.constants import (
-    CHALLENGE_COOKIES,
-    CHALLENGE_DOMAINS,
-    CHECK_SIGNAL_TIMEOUT_S,
-    CHECKPOINT_FAILED_TEXT,
-    CHECKPOINT_TITLE,
-    LOGGED_OUT_URL_MARKS,
-    PAGE_LOAD_TIMEOUT_S,
-    SEL_LOGGED_OUT,
-    SEL_USER_MENU,
-    SESSION_COOKIES,
-    SIGNED_OUT_GAP_S,
-    SIGNED_OUT_REST_S,
-    SITE_URL,
-)
-from relay_meta.engine.site import META_SITE
+from relay_core.providers import Cooldown, Health
+from relay_meta.constants import ESTAB_WAIT_S
+from relay_meta.credential import viewer_hash
+from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, real_session, signed_out_effects
+from relay_meta.engine.wire import ESTAB, FrameError, estab, estab_answer, parse_frame
 
 log = logging.getLogger("relay_meta.check")
-SIGNAL_POLL_S = 0.5
-
-# {menu: user menu visible, out: a signed-out sign visible, name: the menu's text or label, title: the page title,
-#  failed: the checkpoint's failure sentence is on the page}
-SIGNALS_JS = """([menu, outs, failedText]) => {
-  const shown = e => !!e && e.getClientRects().length > 0;
-  const m = document.querySelector(menu);
-  const name = shown(m) ? ((m.innerText || '').trim() || (m.getAttribute('aria-label') || '').trim()) : '';
-  const text = (document.body && document.body.innerText) || '';
-  return {menu: shown(m), out: outs.some(s => [...document.querySelectorAll(s)].some(shown)), name,
-          title: document.title || '', failed: text.includes(failedText)};
-}"""
+UNKNOWN = Health("unknown")
 
 
-async def keep_challenge_pass(browser_ctx, ctx) -> bool:
-    """After a signed-in read: write Vercel's challenge-pass cookies (`CHALLENGE_COOKIES`, at `/` on meta.ai or
-    www.meta.ai, added when missing) back to the account's jar, never any other cookie and never the session; nothing
-    when the jar holds more than one session cookie. Never raises (`renew_jar`)."""
-    return await renew_jar(browser_ctx, ctx, (SITE_URL,), only=CHALLENGE_COOKIES, domains=CHALLENGE_DOMAINS,
-                           at_most_one=SESSION_COOKIES, log=log)
-
-
-def signed_out_effects(now: datetime) -> tuple[Suspect, Cooldown]:
-    """What a signed-out read does to an account: one spaced strike, and a rest after which it is checked again."""
-    return (Suspect("not signed in: meta.ai showed a signed-out sign or URL", min_gap_s=SIGNED_OUT_GAP_S),
-            Cooldown("signed-out read, to be checked again", now + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True))
-
-
-CHECKPOINTS = RepeatRest()      # the checkpoints of each account in this worker, for the growing rest
-
-
-def checkpoint_rest(now: datetime, settings, account_id, why: str) -> Cooldown:
-    """A checkpoint rests the account (longer on a repeat) and asks for a recheck at its end; it is never a strike."""
-    rest_s = CHECKPOINTS.next_s(account_id, settings.get("meta.checkpoint_rest_s"),
-                                settings.get("meta.checkpoint_rest_max_s"))
-    return Cooldown("browser checkpoint (%s), to be checked again in %d s" % (why, rest_s),
-                    now + timedelta(seconds=rest_s), recheck=True)
-
-
-def verdict(url: str, host: str, seen: dict) -> str | None:
-    """`alive`, `signed_out`, `checkpoint`, or None while nothing is certain. Only a web URL is judged by its address:
-    an error page of the browser (a dead proxy) says nothing about the account."""
-    parts = urlsplit(url)
-    if parts.scheme in ("http", "https"):
-        hostname = (parts.hostname or "").lower()
-        if not (hostname == host or hostname.endswith("." + host)):
-            return "signed_out"
-        if any(mark in url for mark in LOGGED_OUT_URL_MARKS):
-            return "signed_out"
-    if seen.get("failed"):
-        return "checkpoint"
-    if seen.get("menu") and not seen.get("out"):
-        return "alive"
-    if seen.get("out") and not seen.get("menu"):
-        return "signed_out"
-    return None
-
-
-async def read_signals(page, host: str, wait_s: float, clock: Callable[[], float] = time.monotonic) -> tuple[str, str]:
-    """(state, display name), polled until a verdict or `wait_s`; then `checkpoint` when the page still carries the
-    checkpoint's title (its challenge did not pass), else `unknown`."""
-    deadline = clock() + wait_s
-    while True:
+async def _estab(web: Web, token: str) -> str:
+    """The gateway's answer to one EstabStream (`ok`, `unauthorized`, `other`); a socket that says nothing in
+    `ESTAB_WAIT_S` or sends a frame that does not decode is `other`."""
+    sock = await web.socket(token)
+    try:
+        await sock.send(estab(str(uuid.uuid4())))
+        async with asyncio.timeout(ESTAB_WAIT_S):
+            while True:
+                t, _stream, payload = parse_frame(await sock.recv())
+                if t == ESTAB:
+                    return estab_answer(payload)
+    except (TimeoutError, FrameError):
+        return "other"
+    finally:
         try:
-            seen = await page.evaluate(SIGNALS_JS, [SEL_USER_MENU, list(SEL_LOGGED_OUT), CHECKPOINT_FAILED_TEXT])
-        except Exception:      # noqa: BLE001 - the page is navigating: read again
-            seen = {}
-        seen = seen if isinstance(seen, dict) else {}
-        state = verdict(page.url or "", host, seen)
-        if state is not None:
-            return state, str(seen.get("name") or "") if state == "alive" else ""
-        if clock() >= deadline:
-            return "checkpoint" if seen.get("title") == CHECKPOINT_TITLE else "unknown", ""
-        await asyncio.sleep(SIGNAL_POLL_S)
+            await sock.close()
+        except Exception:      # noqa: BLE001 - a socket that will not close is dropped
+            pass
 
 
-async def check_account(ctx, settings, *, open_session=open_session, site: SiteProfile = META_SITE,
-                        url: str = SITE_URL, wait_s: float = CHECK_SIGNAL_TIMEOUT_S,
+async def check_account(ctx, settings, sessions: Sessions, *, make_session=real_session,
                         now: Callable[[], datetime] = lambda: datetime.now(UTC)) -> Health:
-    """The state of one account. `open_session`, `site`, `url`, `wait_s` and `now` are seams for tests."""
-    async with open_session(site, ctx.account, purpose="check", token=ctx.browser_token,
-                            redact=redact_text) as session:
-        page = session.page
-        # the cookies are for meta.ai whatever page the check loads; read back there
-        await inject_cookies(session.ctx, ctx.account.credential, SESSION_COOKIES, SITE_URL)
-        await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_LOAD_TIMEOUT_S * 1000)
-        state, name = await read_signals(page, site.host, wait_s)
+    """The state of one account. `make_session` and `now` are seams for tests."""
+    account = ctx.account
+    held = sessions.token(account.id, account.credential_gen)
+    async with Web(account, settings, sessions, ctx, make_session=make_session) as web:
         try:
-            shot = await page.screenshot(full_page=False)
-        except Exception:      # noqa: BLE001 - a picture is a bonus, never a reason to fail the check
-            shot = None
-        if state == "alive":      # keep Vercel's challenge pass, never the session (see CHALLENGE_COOKIES)
-            await keep_challenge_pass(session.ctx, ctx)
-            return Health("alive", display_name=name or None, screenshot=shot)
-        if state == "checkpoint":
-            return Health("unknown", screenshot=shot,
-                          effects=(checkpoint_rest(now(), settings, ctx.account.id, "seen by a check"),))
-        if state == "signed_out":
-            return Health("unknown", screenshot=shot, effects=signed_out_effects(now()))
-        return Health("unknown", screenshot=shot)
+            page = await web.page()
+        except GateClosed as gate:
+            if not gate.marked:
+                return UNKNOWN
+            page = None
+        except NetError as e:      # a dead proxy or an unreachable site says nothing about the account
+            log.warning("meta check of %s: %s", account.id, e)
+            return UNKNOWN
+        if page is not None and page.state == "out":
+            return Health("unknown", effects=signed_out_effects(now()))
+        if page is not None and page.state == "in":
+            sessions.keep(account.id, account.credential_gen, page)
+            token, viewer, name = page.token, page.viewer, page.name
+        elif page is None or page.state == "vercel":
+            if held is None:
+                until = sessions.gate.until(web.ip)
+                end = now() + timedelta(seconds=(until - sessions.clock()) if until is not None
+                                        else settings.get("meta.checkpoint_rest_s"))
+                return Health("unknown", effects=(Cooldown(
+                    "the proxy IP rests after a Vercel page, to be checked again", end, recheck=True),))
+            token, viewer, name = held.token, held.viewer, None
+        else:
+            return UNKNOWN
+        try:
+            answer = await _estab(web, token)
+        except NetError as e:
+            log.warning("meta check of %s: %s", account.id, e)
+            return UNKNOWN
+        if answer == "unauthorized":
+            sessions.forget(account.id)
+        if answer != "ok":
+            return UNKNOWN
+        identity = viewer_hash(viewer)
+        return Health("alive", identity=identity, display_name=name, state_patch={"viewer": identity})
