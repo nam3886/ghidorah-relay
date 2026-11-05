@@ -7,24 +7,13 @@ has one (never direct then: a failed proxy is a failed fetch, retried later) and
 
 import contextlib
 from collections.abc import AsyncIterator
-from urllib.parse import quote
 
 from relay_core.net import stream_download, system_resolver
 from relay_meta.constants import MEDIA_HOSTS
+from relay_meta.engine.web import proxy_url
 
 MEDIA_MAX_BYTES = 64 * 2**20     # a 2048x1152 webp is well under 1 MB
 MEDIA_DEADLINE_S = 120
-
-
-def proxy_url(proxy) -> str | None:
-    """`http://user:pass@host:port` for an HTTP client; None without a proxy. The user and password are quoted."""
-    if proxy is None:
-        return None
-    auth = ""
-    if proxy.auth:
-        user, _, secret = proxy.auth.partition(":")
-        auth = quote(user, safe="") + (":" + quote(secret, safe="") if secret else "") + "@"
-    return "http://%s%s:%d" % (auth, proxy.host, proxy.port)
 
 
 async def fetch(ctx, out, *, media_transport=None, media_resolver=system_resolver) -> AsyncIterator[bytes]:

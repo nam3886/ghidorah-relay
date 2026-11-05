@@ -1200,8 +1200,8 @@ pools are unchanged. Design: `plans/meta-http-design-261105/design.md`.
 - **Checkpoint = an IP rest**, not an account strike: a Vercel page marks the IP for `meta.checkpoint_rest_s`
   (doubling per repeat within a day up to `meta.checkpoint_rest_max_s`). Accounts behind it keep sending with their
   cached token; only an account that needs a page and cannot have one rests.
-- **Drift check**: `docker compose -p relay --profile meta exec -T worker-meta python -m relay_meta.drift --account
-  <name>` prints `OK` or the differences (names and numbers only) between meta's page and the wire format the code
+- **Drift check**: `docker compose -p relay --profile meta exec -T worker-meta python -m relay_meta.engine.drift
+  --account <name>` prints `OK` or the differences (names and numbers only) between meta's page and the wire format the code
   pins. It loads a page, so run it with meta drained or on a rested account. Run it when jobs end "unreadable gateway
   frame".
 - **`profiles-meta`** (the old Chrome profiles volume) is no longer declared in `deploy/compose.yml` and stays on the

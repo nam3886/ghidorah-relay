@@ -71,7 +71,7 @@ from relay_meta.constants import (
 )
 from relay_meta.engine import wire
 from relay_meta.engine.shrink import shrink as ffmpeg_shrink
-from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, real_session, signed_out_effects
+from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, quiet_close, real_session, signed_out_effects
 
 log = logging.getLogger("relay_meta.submit")
 
@@ -351,7 +351,7 @@ class _Run:
         self.conversation = self.deps.uuid4()
         sock, said = await self._estab(web, held.token)
         if said == "unauthorized":
-            await _quiet_close(sock)
+            await quiet_close(sock)
             self.sessions.forget(self.account.id)
             try:
                 held = await self._page(web, None)
@@ -359,12 +359,12 @@ class _Run:
                 return done.result
             sock, said = await self._estab(web, held.token)
         if said != "ok":
-            await _quiet_close(sock)
+            await quiet_close(sock)
             return await self._unsent(errors.HTTP_ERROR, "meta's gateway did not open the stream (%s)" % said)
         try:
             return await self._send(sock, held, attachments)
         finally:
-            await _quiet_close(sock)
+            await quiet_close(sock)
 
     # ---- the send: nothing after it sends ----
     async def _send(self, sock, held, attachments) -> SubmitResult:
@@ -438,13 +438,6 @@ class _Run:
         if not self.signed_in or any(isinstance(e, Success) for e in outcome.account):
             return outcome
         return replace(outcome, account=(Success(), *outcome.account))
-
-
-async def _quiet_close(sock) -> None:
-    try:
-        await sock.close()
-    except Exception:      # noqa: BLE001 - a socket that will not close is dropped
-        pass
 
 
 async def submit(ctx, job, settings, sessions: Sessions, *, deps: Deps | None = None) -> SubmitResult:

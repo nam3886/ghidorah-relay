@@ -50,6 +50,7 @@ def refused(model="meta-image", prompt="a lighthouse at dawn", **kw) -> InputErr
 def test_the_caps_say_an_http_provider_with_two_pools_that_reconciles_and_polls_what_it_found():
     c = SPEC.caps
     assert SPEC.name == "meta" and c.execution == "http" and "meta.browser_slots" not in SPEC.settings()
+    assert SPEC.ref_is_conversation is True, "the job reference is the chat uuid"
     assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "jobs")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
@@ -114,9 +115,9 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
 # ---- error rules -----------------------------------------------------------------------------------------------------
 def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
     meta_codes = {code for code in errors.RULES if code.startswith("meta.")}
-    assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed",
-                                               "meta.no_image", "meta.no_video", "meta.page_wait", "meta.http_error",
-                                               "meta.input_unusable", "meta.content_refused"}
+    assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.no_image", "meta.no_video",
+                                               "meta.page_wait", "meta.http_error", "meta.input_unusable",
+                                               "meta.content_refused"}
     assert not hasattr(meta_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
 
 

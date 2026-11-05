@@ -3,7 +3,7 @@
 Accepted input: a Cookie-Editor or EditThisCookie export (a JSON list of cookies), a Playwright `storage_state`
 (`{"cookies": [...], "origins": [...]}`) and a bare `Cookie:` header string (`a=b; c=d`). All of them become ONE sealed
 shape, the Cookie-Editor shape `{"cookies": [{name, value, domain, path, secure, httpOnly, sameSite, session,
-expirationDate}]}`, which `relay_browser.ui.cookies_for_playwright` reads. No function here logs or raises with a
+expirationDate}]}`, which the engine's HTTP session (`jar_of`) reads. No function here logs or raises with a
 cookie value.
 """
 

@@ -1,4 +1,4 @@
-"""The on-demand schema check: `python -m relay_meta.drift --account <label>`.
+"""The on-demand schema check: `python -m relay_meta.engine.drift --account <label>`.
 
 meta's deploys can move the protobuf field numbers, the gateway query constants or the `product_context` strings that
 `engine/wire.py` and `constants.py` rely on. This compares the live public bundle with what is pinned here: each message
@@ -248,7 +248,7 @@ async def _run(label: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m relay_meta.drift", description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(prog="python -m relay_meta.engine.drift", description=__doc__.splitlines()[0])
     ap.add_argument("--account", required=True, help="the label of a meta account (its proxy is used)")
     return asyncio.run(_run(ap.parse_args(argv).account))
 

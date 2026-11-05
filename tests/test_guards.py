@@ -283,6 +283,7 @@ def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "qwen") == "['relay_qwen.engine']"
     assert loaded_after("worker", "--provider", "muse") == "['relay_muse.engine']"
     assert loaded_after("worker", "--provider", "gpt") == "['relay_gpt.engine']"
+    assert loaded_after("worker", "--provider", "meta") == "['relay_meta.engine']"
 
 
 @mutation(M, 'return importlib.import_module(PROVIDERS[provider] + ".engine")',

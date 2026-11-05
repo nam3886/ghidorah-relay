@@ -144,6 +144,7 @@ class MetaSpec:
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
+    ref_is_conversation = True       # the job's reference is the uuid of the chat it was sent in
     limits = LIMITS + (
         FixedLimit("relay_meta.credential.MAX_COOKIES", MAX_COOKIES,
                    "far above a real meta.ai jar; a longer list is not a cookie export", "cookies"),

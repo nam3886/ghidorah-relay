@@ -16,8 +16,6 @@ PAGE_WAIT = "meta.page_wait"                   # a page was needed and the proxy
 HTTP_ERROR = "meta.http_error"                 # an HTTP step before the send failed (page, upload, EstabStream)
 INPUT_UNUSABLE = "meta.input_unusable"         # an input image cannot be made small enough to upload: nothing sent
 CONTENT_REFUSED = "meta.content_refused"       # meta's safety check refused the prompt (`policy_denied`)
-UI_PAGE_NOT_READY = "meta.ui_page_not_ready"  # no sign-in sign, or the composer never hydrated: nothing was sent
-UI_SEND_FAILED = "meta.ui_send_failed"         # the prompt did not go in, or no conversation id came: nothing was sent
 NO_IMAGE = "meta.no_image"                     # meta finished its answer with no image in it
 NO_VIDEO = "meta.no_video"                     # meta finished its answer with no video in it
 
@@ -46,8 +44,6 @@ CODES: dict[str, Rule] = {r.code: r for r in (
          public_code=core_errors.CONTENT_REFUSED,
          public_text="meta refused to make this. Sending the same request again will not help; change the prompt "
                      "or the images."),
-    _ui(UI_PAGE_NOT_READY, "meta's page showed no sign-in sign or no ready composer"),
-    _ui(UI_SEND_FAILED, "the prompt could not be sent on meta's page"),
     Rule(NO_IMAGE, 422, "invalid_request_error", True, True, False, True,
          "meta made no image for this order; the charge is returned", public_code=core_errors.GENERATION_FAILED,
          public_text="meta made no image for this request. Sending the request again may work; if it keeps "

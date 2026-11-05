@@ -152,8 +152,6 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `meta.no_image` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no image for this order; the charge is returned |
 | `meta.no_video` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no video for this order; the charge is returned |
 | `meta.page_wait` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | the meta account needs a page read and its proxy IP's page gate is closed; the job is tried again |
-| `meta.ui_page_not_ready` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | meta's page showed no sign-in sign or no ready composer |
-| `meta.ui_send_failed` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | the prompt could not be sent on meta's page |
 
 ## `model.*`
 

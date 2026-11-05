@@ -216,10 +216,10 @@ def real_session(proxies: dict[str, str] | None):
     return AsyncSession(impersonate=IMPERSONATE, proxies=proxies)
 
 
-async def _close(thing) -> None:
+async def quiet_close(thing) -> None:
     try:
         await thing.close()
-    except Exception:      # noqa: BLE001 - a session that will not close is dropped
+    except Exception:      # noqa: BLE001 - a session or socket that will not close is dropped
         pass
 
 
@@ -266,7 +266,7 @@ class Web:
             if self.ctx is not None and not isinstance(exc[1], asyncio.CancelledError):
                 await keep_rotated(self.ctx, self)
         finally:
-            await _close(self.s)
+            await quiet_close(self.s)
 
     async def _request(self, session, method: str, url: str, headers: dict[str, str], timeout: float, **kw):
         try:
@@ -306,7 +306,7 @@ class Web:
                 "is_abra_user": "true", "ecto_auth_token": "true", "Sec-Fetch-Site": "same-site",
                 "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}, UPLOAD_TIMEOUT_S, data=data)
         finally:
-            await _close(bare)
+            await quiet_close(bare)
         try:
             media_id = json.loads(resp.text).get("media_id") if resp.status_code == 200 else None
         except (ValueError, TypeError, AttributeError):

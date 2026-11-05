@@ -11,7 +11,6 @@ import pytest
 from metakit import FIX, TOKEN, VIEWER, Ctx, Net, Resp, assert_no_secret, page, settings
 
 from relay_core.testing.mutation import mutation
-from relay_meta import drift
 from relay_meta.constants import (
     FINAL_CHUNK_FIELD,
     FINAL_PATH,
@@ -22,9 +21,10 @@ from relay_meta.constants import (
     TEXT_PATH,
     TOOL_RESULT_PATHS,
 )
+from relay_meta.engine import drift
 from relay_meta.engine.wire import Attachment, build_request, dec, enc
 
-DRIFT_FILE = "packages/provider-meta/src/relay_meta/drift.py"
+DRIFT_FILE = "packages/provider-meta/src/relay_meta/engine/drift.py"
 MOVED_CHECK = "            elif now != (number, kind):"
 GONE_CHECK = "        if message not in found:"
 APPID_CHECK = '    if GATEWAY_QUERY["x-dgw-appid"] not in js_text:'

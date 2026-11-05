@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from relay_core.providers import Cooldown, Health
 from relay_meta.constants import ESTAB_WAIT_S
 from relay_meta.credential import viewer_hash
-from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, real_session, signed_out_effects
+from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, quiet_close, real_session, signed_out_effects
 from relay_meta.engine.wire import ESTAB, FrameError, estab, estab_answer, parse_frame
 
 log = logging.getLogger("relay_meta.check")
@@ -38,10 +38,7 @@ async def _estab(web: Web, token: str) -> str:
     except (TimeoutError, FrameError):
         return "other"
     finally:
-        try:
-            await sock.close()
-        except Exception:      # noqa: BLE001 - a socket that will not close is dropped
-            pass
+        await quiet_close(sock)
 
 
 async def check_account(ctx, settings, sessions: Sessions, *, make_session=real_session,
