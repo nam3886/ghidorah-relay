@@ -247,7 +247,7 @@ Read `GET /v1/points` to see what is left; these two answers carry no `Retry-Aft
 Requests are limited too, per key; a refused request does nothing and charges nothing:
 - **Requests per second**: a key may make a few reads (GET calls) and fewer create calls (POST calls) a second, with a
   short burst allowed. One more is refused `quota.rate_limited`.
-- **Large uploads**: a request body of several MiB (or a POST sent without `Content-Length`) waits for an upload slot,
+- **Large uploads**: a request body of several MiB (or a body sent without `Content-Length`) waits for an upload slot,
   of which a key has few at once. One that waits too long is refused `quota.upload_busy`.
 
 Both answer 429 with a `Retry-After` header (whole seconds): wait that long, then send the same request again.

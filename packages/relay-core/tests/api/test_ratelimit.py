@@ -111,6 +111,8 @@ class Gate:
     async def app(self, scope, receive, send):
         name = scope["name"]
         self.passed.append(name)
+        if scope.get("read"):
+            await receive()                 # the whole body (one message): a chat route then holds or streams
         if name in self.release:
             await self.release[name].wait()
         if scope.get("boom"):
@@ -119,14 +121,14 @@ class Gate:
         await send({"type": "http.response.body", "body": b""})
 
     async def call(self, name, *, key="k1", length: int | None = 9 << 20, method="POST", path="/v1/x", boom=None,
-                   hold=False):
+                   hold=False, read=False):
         if hold:
             self.release[name] = asyncio.Event()
         headers = [(b"authorization", b"Bearer " + key.encode())]
         if length is not None:
             headers.append((b"content-length", str(length).encode()))
         scope = {"type": "http", "method": method, "path": path, "headers": headers, "name": name, "boom": boom,
-                 "app": SimpleNamespace(state=SimpleNamespace(settings=self.settings))}
+                 "read": read, "app": SimpleNamespace(state=SimpleNamespace(settings=self.settings))}
         sent = []
 
         async def send(msg):
@@ -189,8 +191,7 @@ def test_one_key_holds_at_most_its_slots_and_another_key_still_gets_one():
     asyncio.run(main())
 
 
-@mutation(RL, "            self.total -= 1                 # no await before the counts are back",
-          "            pass                 # no await before the counts are back", expect="given back")
+@mutation(RL, "        self.total -= 1\n", "        pass\n", expect="given back")
 def test_a_slot_is_given_back_after_an_error_a_disconnect_and_a_cancel():
     async def main():
         g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
@@ -209,9 +210,9 @@ def test_a_slot_is_given_back_after_an_error_a_disconnect_and_a_cancel():
     asyncio.run(main())
 
 
-@mutation(RL, '            return request.method == "POST"\n', "            return False\n",
+@mutation(RL, "            return request.method not in READS\n", "            return False\n",
           expect="no Content-Length")
-def test_small_requests_never_wait_and_a_post_without_length_counts_as_big():
+def test_small_requests_never_wait_and_a_body_without_length_counts_as_big():
     async def main():
         g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
         held = g.hold("big")
@@ -220,8 +221,57 @@ def test_small_requests_never_wait_and_a_post_without_length_counts_as_big():
         assert (await g.call("get", length=None, method="GET"))[0] == 200, "a GET with no body never waits"
         assert (await g.call("other-path", path="/admin/x"))[0] == 200, "only the gated paths"
         assert (await g.call("chunked", length=None))[0] == 429, "a POST with no Content-Length is big"
+        assert (await g.call("put", length=None, method="PUT"))[0] == 429, "a PUT with no Content-Length is big"
         g.release["big"].set()
         await held
+
+    asyncio.run(main())
+
+
+@mutation(RL, "                release()                   # the whole body is in",
+          "                pass  # the whole body is in", expect="once its body is read")
+@mutation(RL, "            if holding:\n", "            if True:\n")
+def test_a_request_that_holds_after_reading_its_body_frees_its_slot_once():
+    async def main():
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=1)
+        held = g.hold("chat", read=True)            # a held or streamed chat: body read, answer minutes later
+        await settle()
+        assert (await g.call("next"))[0] == 200, "a big upload goes on once its body is read"
+        g.release["chat"].set()
+        await held
+        assert (g.gate.total, g.gate.held) == (0, {}), "given back once"
+
+    asyncio.run(main())
+
+
+@mutation(RL, "                woken.set_result(None)\n", "                pass\n", expect="woken at once")
+@mutation(RL, "timeout=min(left, RECHECK_S))", "timeout=left)", expect="a raised slot setting")
+def test_a_waiter_is_woken_by_a_cancelled_holder_and_by_a_raised_slot_setting():
+    async def main():
+        loop = asyncio.get_running_loop()
+        g = Gate(api_big_body_slots=1, api_big_body_slots_per_key=5, api_big_body_wait_s=10)
+        holder = g.hold("holder")
+        await settle()
+        waiter = asyncio.create_task(g.call("waiter", key="k2"))
+        await asyncio.sleep(0.05)
+        started = loop.time()
+        holder.cancel()
+        assert (await waiter)[0] == 200 and loop.time() - started < 0.5, "woken at once"
+
+        holder = g.hold("holder2")
+        await settle()
+        g.release["late"] = asyncio.Event()
+        waiter = asyncio.create_task(g.call("late", key="k3"))
+        await asyncio.sleep(0.05)
+        g.settings["api_big_body_slots"] = 2
+        for _ in range(40):                         # 2 s: the waiter looks again every RECHECK_S (1 s)
+            if "late" in g.passed:
+                break
+            await asyncio.sleep(0.05)
+        assert "late" in g.passed, "a raised slot setting"
+        for e in g.release.values():
+            e.set()
+        await asyncio.gather(holder, waiter, return_exceptions=True)
 
     asyncio.run(main())
 
@@ -308,6 +358,8 @@ def test_a_key_over_its_rate_gets_429_with_retry_after_cors_and_both_error_shape
     assert create.headers["x-should-retry"] == "false" and "x-should-retry" not in over.headers
 
 
+@mutation(DEPS, "        if limiter.log_due(key_id, request.method):\n", "        if True:\n",
+          expect="one row a second")
 def test_unknown_keys_and_keyless_paths_are_never_limited_and_refusals_log_once_a_second(db):
     async def scenario(env):
         clock = Clock()
@@ -330,4 +382,23 @@ def test_unknown_keys_and_keyless_paths_are_never_limited_and_refusals_log_once_
     assert keyless == [200, 200, 200, 200, 200, 404], "the keyless paths are not limited"
     assert statuses == [200] + [429] * 6
     refused = [r for r in request_logs(db) if r["status_code"] == 429]
-    assert len(refused) == 1 and refused[0]["key_id"] == key.id and refused[0]["error_code"] == "quota.rate_limited"
+    assert len(refused) == 1, "one row a second: %d" % len(refused)
+    assert refused[0]["key_id"] == key.id and refused[0]["error_code"] == "quota.rate_limited"
+
+
+@mutation(DEPS, "            _rate_limit(request, key.id)\n", "", expect="no job")
+def test_a_create_over_the_rate_is_refused_before_any_job_is_made(db):
+    async def scenario(env):
+        env.app.state.limiter = RateLimiter(clock=Clock())
+        await env.settings.set("api_create_burst", 1)
+        await env.settings.set("api_create_rate", 1)
+        key = await env.new_key()
+        body = {"model": "fake-video", "prompt": "a cat"}
+        made = await env.client.post("/v1/video/generations", json=body, headers=key.headers)
+        refused = await env.client.post("/v1/video/generations", json=body, headers=key.headers)
+        return key, made, refused
+
+    key, made, refused = run_app(db, scenario)
+    assert made.status_code < 300, made.text
+    assert refused.status_code == 429 and refused.json()["error"]["code"] == "quota.rate_limited", "no job"
+    assert db.one("SELECT count(*) FROM jobs WHERE key_id = %s", key.id)[0] == 1, "no job for the refused request"

@@ -260,7 +260,7 @@ REGISTRY = Registry(
     Spec("api_create_burst", int, 50, "Create calls one API key may make at once before its create rate applies.",
          min=1, max=100_000),
     Spec("api_big_body_mb", int, 8,
-         "A request body of at least this many MiB (or a POST with no Content-Length) waits for an upload slot "
+         "A request body of at least this many MiB (or a body sent without Content-Length) waits for an upload slot "
          "before it is read.", min=1, max=1_000),
     Spec("api_big_body_slots", int, 4, "Large request bodies the API reads at once, over all keys.", min=1, max=1_000),
     Spec("api_big_body_slots_per_key", int, 2, "Large request bodies one API key may send at once.",
