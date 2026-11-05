@@ -67,6 +67,8 @@ def test_the_saved_pages_read_as_signed_in_signed_out_rd_and_vercel():
     assert_no_secret(repr(p), str(p), repr(W.Held(TOKEN, VIEWER, 1.0)))
 
 
+@mutation(WEB_FILE, '        if solve and resp.status_code == 403 and RD_MARK in (resp.text or ""):',
+          '        if resp.status_code == 403 and RD_MARK in (resp.text or ""):', expect="never posts")
 def test_the_rd_challenge_is_passed_once_then_the_page_is_read():
     rd = Resp(403, page("page_rd_403"))
     net = Net({HOME: [rd, signed_in()], RD_POST: Resp(200, cookies={"rd_challenge": "rd-1"})})
@@ -78,6 +80,10 @@ def test_the_rd_challenge_is_passed_once_then_the_page_is_read():
     net = Net({HOME: Resp(403, page("page_rd_403")), RD_POST: Resp(200)})
     assert run(read(web(net))).state == "unreadable"
     assert net.methods() == ["GET", "POST", "GET"], "the rd page is passed once, never twice"
+
+    net = Net({HOME: [rd, signed_in()], RD_POST: Resp(200)})
+    state = run(web(net).page(solve=False)).state
+    assert (state, net.methods()) == ("unreadable", ["GET"]), "solve=False never posts the challenge"
 
 
 # ---- the proxy, no redirect -------------------------------------------------------------------------------------

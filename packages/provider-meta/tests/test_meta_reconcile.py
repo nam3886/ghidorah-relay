@@ -157,9 +157,35 @@ def test_a_closed_gate_or_a_signed_out_page_proves_nothing():
         assert gets_only(net)
 
 
+@mutation(RECONCILE_FILE, "        if note is not None:\n", "        if False:\n", expect="noted")
+def test_a_done_page_with_fewer_finals_than_paid_is_found_charged_in_full_and_noted(caplog):
+    html = page("prompt_page_t2i_n2")
+    second = finals("t2i_n2", "image")[1]
+    path = second.split("?")[0].split("/v/")[1]
+    short = html.replace("/v/" + path, "/v/" + path.replace("t39.105495-1", "t0.71334-1"))     # an input, ignored
+    done, found, left = R.parse_prompt_page(short, cid("t2i_n2"), "image", 2)
+    assert (done, len(found), left) == (True, 1, 0), "the page holds 1 final and no preview"
+    got, net, ctx, _ = run("t2i_n2", n=2, html=short)
+    assert isinstance(got, Found) and len(got.provider_state["outputs"]) == 1, got
+    note = "meta made 1 of the 2 images asked; all are charged (any output is a full charge)"
+    assert (note, "reconcile", "engine") in ctx.events, "noted: %r" % (ctx.events,)
+    assert any("job-1" in r.getMessage() and note in r.getMessage() for r in caplog.records), "noted in the log"
+    _, _, ctx, _ = run("t2i_n2", n=2)
+    assert ctx.events == [], "as paid: no note"
+
+
+@mutation(RECONCILE_FILE, "            page = await web.page(CHAT_PATH + conversation, solve=False)",
+          "            page = await web.page(CHAT_PATH + conversation)", expect="no POST")
+def test_a_challenged_chat_page_is_still_unknown_and_its_challenge_is_never_posted():
+    rd = Resp(403, page("page_rd_403"))
+    got, net, *_ = run("t2i_n1", n=1, answer=rd)
+    assert got == StillUnknown(answered=False), got
+    assert net.methods() == ["GET"], "no POST of the rd challenge: %r" % (net.methods(),)
+
+
 # ---- never a send -------------------------------------------------------------------------------------------------
-@mutation(RECONCILE_FILE, "from relay_meta.engine.wire import is_final, link_class, media_outputs",
-          "from relay_meta.engine.wire import is_final, link_class, media_outputs, send_frame",
+@mutation(RECONCILE_FILE, "from relay_meta.engine.wire import is_final, link_class, made_note, media_outputs",
+          "from relay_meta.engine.wire import is_final, link_class, made_note, media_outputs, send_frame",
           expect="reconcile never sends")
 def test_reconcile_never_imports_the_socket_or_the_upload():
     tree = ast.parse((Path(__file__).resolve().parents[3] / RECONCILE_FILE).read_text())

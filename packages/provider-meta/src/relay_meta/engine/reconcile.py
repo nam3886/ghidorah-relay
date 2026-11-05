@@ -3,8 +3,9 @@ delivers what a reconcile found.
 
 The submit persisted the conversation id (`external_ref`, also `provider_state.conversation_id`) before its one data
 frame. Reconcile reads `GET /prompt/<uuid>` through the account's proxy: a server-rendered page holding the chat's
-media links and `streamingState`. It only GETs (no socket, no upload, no frame), so nothing can be sent again. The
-page load takes the proxy IP's gate like any other www.meta.ai page.
+media links and `streamingState`. It only GETs (no socket, no upload, no frame, no POST of meta's `rd` challenge: a
+challenged page is `StillUnknown(answered=False)`), so nothing can be sent again. The page load takes the proxy IP's
+gate like any other www.meta.ai page.
 - signed in, every answer DONE and final links of the job's kind with no preview or unknown link left: `Found`
   (taken), with the links in `provider_state.outputs`;
 - anything else: `StillUnknown`, `answered` when the chat's own page was read. `NotSent` is never returned: a chat
@@ -16,6 +17,7 @@ Jobs the browser engine left unknown carry the same ref (the `/prompt/<uuid>` of
 `Found` moves the job to `waiting`; the poll then hands the recorded links to the fetcher, reading nothing upstream.
 """
 
+import logging
 import re
 from urllib.parse import urlsplit
 
@@ -23,7 +25,9 @@ from relay_core.net import host_allowed
 from relay_core.providers import Done, Found, Output, Pending, PollResult, StillUnknown
 from relay_meta.constants import CHAT_PATH, MEDIA_HOSTS
 from relay_meta.engine.web import GateClosed, NetError, Web, real_session
-from relay_meta.engine.wire import is_final, link_class, media_outputs
+from relay_meta.engine.wire import is_final, link_class, made_note, media_outputs
+
+log = logging.getLogger("relay_meta.reconcile")
 
 _UUID = re.compile(r"[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}")
 _STATE = re.compile(r'\\"streamingState\\":\\"([A-Za-z_]+)\\"')
@@ -71,7 +75,7 @@ async def reconcile(ctx, job, settings, sessions, *, make_session=real_session):
     account = ctx.account
     try:
         async with Web(account, settings, sessions, ctx, make_session=make_session) as web:
-            page = await web.page(CHAT_PATH + conversation)
+            page = await web.page(CHAT_PATH + conversation, solve=False)
     except (GateClosed, NetError):
         return StillUnknown(answered=False)
     if page.state != "in":
@@ -80,6 +84,13 @@ async def reconcile(ctx, job, settings, sessions, *, make_session=real_session):
     n = job.params.get("n")
     done, finals, left = parse_prompt_page(page.html, conversation, kind, n)
     if done and finals and not left:
+        note = made_note(len(finals), n, kind)
+        if note is not None:
+            log.warning("meta job %s: %s", job.id, note)
+            try:
+                await ctx.event(note, "reconcile", "engine")
+            except Exception as exc:      # noqa: BLE001 - diagnostics never fail the reconcile
+                log.warning("event not recorded: %s", type(exc).__name__)
         outputs = [{"ref": o.ref, "mime": o.mime} for o in media_outputs(finals, conversation, kind, n)]
         return Found(conversation, {"conversation_id": conversation, "outputs": outputs})
     return StillUnknown(answered=conversation in page.html)

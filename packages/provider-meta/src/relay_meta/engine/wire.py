@@ -252,6 +252,16 @@ def media_outputs(urls, conversation: str, kind: str = "image", n: int | None = 
                  for i, url in enumerate(tuple(urls)[:n]))
 
 
+def made_note(made: int, n: int | None, kind: str) -> str | None:
+    """The timeline line of a done job meta made more or fewer results for than the paid `n` (None: as paid, or a job
+    with no n). Fewer is still a full charge (any output is a full charge, as muse); more: the first n go out."""
+    if n is None or made == n:
+        return None
+    if made > n:
+        return "meta made %d %ss, %d were paid: the first %d are delivered, the rest are not" % (made, kind, n, n)
+    return "meta made %d of the %d %ss asked; all are charged (any output is a full charge)" % (made, n, kind)
+
+
 # ---- reading ------------------------------------------------------------------------------------------------------
 class Answer(NamedTuple):
     done: bool

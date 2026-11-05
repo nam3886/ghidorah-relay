@@ -26,7 +26,9 @@ Money rules (each has a test and a mutation):
   no media moves the job to another account (`account_refused`) up to `meta.refusal_max_accounts`, the pool empty for
   `meta.limit_rest_s`; a done answer with no media and no reason fails refunded;
 - an answer is complete with n finals of the job's kind (previews left then are a draft, never delivered); fewer
-  finals with previews left, or only the other kind, is `Ambiguous`; at most n results, the first in order;
+  finals with previews left, or only the other kind, is `Ambiguous`; at most n results, the first in order; fewer
+  finals with no preview left are delivered at the full charge (any output is a full charge), and more or fewer
+  than n is noted on the timeline and in the log (`wire.made_note`);
 - the run up to its verdict is bounded by the submit timeout less `HOLD_MARGIN_S`.
 
 Evidence: a run that read frames and is not `Completed` keeps the redacted frame summary (`wire.summary`), cut at
@@ -71,7 +73,16 @@ from relay_meta.constants import (
 )
 from relay_meta.engine import wire
 from relay_meta.engine.shrink import shrink as ffmpeg_shrink
-from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, quiet_close, real_session, signed_out_effects
+from relay_meta.engine.web import (
+    GateClosed,
+    NetError,
+    Sessions,
+    UploadFailed,
+    Web,
+    quiet_close,
+    real_session,
+    signed_out_effects,
+)
 
 log = logging.getLogger("relay_meta.submit")
 
@@ -216,6 +227,7 @@ class _Run:
         self.sent = False           # True from the moment `mark_sent` returned: meta may have the order
         self.conversation: str | None = None
         self.reader = wire.Reader()
+        self.outcome: SubmitResult | None = None    # the verdict of the send, kept if the deadline hits the close
 
     async def _say(self, text: str, stage: str = "submit") -> None:
         try:
@@ -273,6 +285,8 @@ class _Run:
         except TimeoutError:
             if not bound.expired():
                 raise
+            if self.outcome is not None:
+                return self.outcome
         why = "no verdict within %d s of the start (the submit timeout less %d s)" % (
             self.deadline - self.started, self.deps.hold_margin_s)
         if self.sent:
@@ -325,8 +339,8 @@ class _Run:
     async def _estab(self, web: Web, token: str):
         """A socket with the stream open on `self.conversation`: (socket, "ok" | "unauthorized" | "other")."""
         sock = await web.socket(token)
-        await sock.send(wire.estab(self.conversation))
         try:
+            await sock.send(wire.estab(self.conversation))
             async with asyncio.timeout(ESTAB_WAIT_S):
                 while True:
                     raw = await sock.recv()
@@ -336,6 +350,9 @@ class _Run:
                         return sock, wire.estab_answer(payload)
         except TimeoutError:
             return sock, "other"
+        except BaseException:
+            await quiet_close(sock)
+            raise
 
     async def _steps(self, web: Web, images) -> SubmitResult:
         try:
@@ -347,7 +364,13 @@ class _Run:
         attachments = []
         for i, (data, mime) in enumerate(images):
             name = "upload%s%s" % (i or "", _EXT.get(mime, ".jpg"))
-            attachments.append(wire.Attachment(await web.upload(held.token, data, mime, name), mime, name))
+            try:
+                media_id = await web.upload(held.token, data, mime, name)
+            except UploadFailed as refused:
+                if refused.status in (401, 403):     # the token is dead: the next job reads the page again
+                    self.sessions.forget(self.account.id)
+                raise
+            attachments.append(wire.Attachment(media_id, mime, name))
         self.conversation = self.deps.uuid4()
         sock, said = await self._estab(web, held.token)
         if said == "unauthorized":
@@ -362,7 +385,8 @@ class _Run:
             await quiet_close(sock)
             return await self._unsent(errors.HTTP_ERROR, "meta's gateway did not open the stream (%s)" % said)
         try:
-            return await self._send(sock, held, attachments)
+            self.outcome = await self._send(sock, held, attachments)
+            return self.outcome
         finally:
             await quiet_close(sock)
 
@@ -386,6 +410,10 @@ class _Run:
     async def _verdict(self, answer: wire.Answer) -> SubmitResult:
         verdict = judge(answer, self.kind, self.n)
         if verdict == "done":
+            note = wire.made_note(len(answer.finals), self.n, self.kind)
+            if note is not None:
+                log.warning("meta job %s: %s", self.job.id, note)
+                await self._say(note)
             return _result(Completed(wire.media_outputs(answer.finals, self.conversation, self.kind, self.n)),
                            Success())
         if verdict == "unknown":

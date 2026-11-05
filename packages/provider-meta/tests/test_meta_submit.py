@@ -322,6 +322,19 @@ def test_an_edit_uploads_every_reference_in_order_before_the_send_and_attaches_t
     assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 1
 
 
+@mutation(SUBMIT_FILE, "                if refused.status in (401, 403):", "                if False:",
+          expect="the dead token is forgotten")
+def test_an_upload_refused_401_or_403_forgets_the_token_so_the_next_job_reads_the_page():
+    for status in (401, 403):
+        k = go("edit", op="image_to_image", n=1, inputs=refs(1), held=True, routes={UPLOAD: Resp(status, "no")})
+        assert k.result.job == Retry("meta.http_error"), k.result.job
+        unsent(k)
+        assert k.sessions.token(k.ctx.account.id, k.ctx.account.credential_gen) is None, \
+            "the dead token is forgotten (%d)" % status
+    k = go("edit", op="image_to_image", n=1, inputs=refs(1), held=True, routes={UPLOAD: Resp(500, "no")})
+    assert k.sessions.token(k.ctx.account.id, k.ctx.account.credential_gen) is not None, "a 500 says nothing of it"
+
+
 def test_an_upload_not_answered_sends_nothing_and_is_a_retry():
     for answer in (Resp(500, "no"), Resp(200, json_body={"status": "ok"}), ConnectionError("reset")):
         k = go("edit", op="image_to_image", n=1, inputs=refs(2), routes={UPLOAD: answer})
@@ -442,6 +455,29 @@ def test_a_refused_estab_rereads_once_on_a_new_socket_and_never_twice():
     assert page_gets(k) == 0 and opened(k) == 1
     unsent(k)
     assert sessions.token(k.ctx.account.id, k.ctx.account.credential_gen) is None, "the dead token is forgotten"
+
+
+@mutation(SUBMIT_FILE, "        except BaseException:\n            await quiet_close(sock)\n            raise\n", "",
+          expect="the socket is closed")
+def test_a_socket_that_fails_during_the_estab_is_closed():
+    broken = FakeSocket([ConnectionError("reset")])
+    k = go(held=True, sockets=[broken])
+    assert k.result.job == Retry("meta.http_error"), k.result.job
+    unsent(k)
+    assert broken.closed, "the socket is closed"
+
+
+class HangingClose(FakeSocket):
+    async def close(self) -> None:
+        await asyncio.Event().wait()
+
+
+@mutation(SUBMIT_FILE, "            if self.outcome is not None:\n                return self.outcome\n", "",
+          expect="the verdict is kept")
+def test_a_deadline_hit_while_closing_the_socket_keeps_the_verdict():
+    k = go(sockets=[HangingClose(frames("t2i_n2"))], margin=59.5, image_submit_timeout_s=60, bound_s=3.0)
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 2, \
+        "the verdict is kept: %r" % (k.result.job,)
 
 
 def test_an_estab_answered_with_anything_else_is_a_retry():
@@ -619,6 +655,27 @@ def test_previews_left_or_only_the_other_kind_is_ambiguous_never_a_part_delivery
         k = go(sockets=[gateway(answer=answer)], n=1)
         assert isinstance(k.result.job, Ambiguous), "never a refund at once: %r" % (k.result.job,)
     assert S.judge(wire.Answer(False, (final(1),), 0, 0, None, ""), "image", 1) == "unknown"
+
+
+NOTE_LOG = '\n                log.warning("meta job %s: %s", self.job.id, note)'
+
+
+@mutation(SUBMIT_FILE, "            if note is not None:" + NOTE_LOG, "            if False:" + NOTE_LOG,
+          expect="noted")
+def test_more_or_fewer_finals_than_paid_are_delivered_up_to_n_charged_in_full_and_noted(caplog):
+    three = response(shown(final(1), final(2), final(3)), done=True)
+    k = go(sockets=[gateway(answer=[three])], n=4)
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 3, k.result.job
+    note = "meta made 3 of the 4 images asked; all are charged (any output is a full charge)"
+    assert note in [e[0] for e in k.ctx.events], "noted: %r" % (k.ctx.events,)
+    assert any("job-1" in r.getMessage() and note in r.getMessage() for r in caplog.records), "noted in the log"
+    k = go(sockets=[gateway(answer=[three])], n=2)
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 2
+    assert "meta made 3 images, 2 were paid: the first 2 are delivered, the rest are not" in [
+        e[0] for e in k.ctx.events], "noted"
+    for n in (3, None):
+        k = go(sockets=[gateway(answer=[three])], n=n)
+        assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 3 and k.ctx.events == []
 
 
 def test_the_captured_answers_of_every_kind_complete():

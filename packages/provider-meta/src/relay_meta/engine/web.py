@@ -87,9 +87,9 @@ class GateClosed(Exception):
 class UploadFailed(Exception):
     """rupload answered something else than a media id (the reason names the status, never a value)."""
 
-    def __init__(self, why: str):
+    def __init__(self, why: str, status: int):
         super().__init__(why)
-        self.why = why
+        self.why, self.status = why, status
 
 
 class Page(NamedTuple):
@@ -275,12 +275,13 @@ class Web:
         except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
 
-    async def page(self, path: str = "/") -> Page:
+    async def page(self, path: str = "/", solve: bool = True) -> Page:
         """`GET SITE_URL + path`, after the IP gate (GateClosed before any request). meta's `rd` 403 is passed once
-        (POST its challenge, GET again); a second one is `unreadable`. A Vercel page rests the IP."""
+        (POST its challenge, GET again) when `solve`; a second one, or one not solved, is `unreadable`. A Vercel page
+        rests the IP."""
         self.sessions.gate.take(self.ip, self.settings.get("meta.page_gap_s"))
         resp = await self._request(self.s, "GET", SITE_URL + path, _NAV, PAGE_TIMEOUT_S)
-        if resp.status_code == 403 and RD_MARK in (resp.text or ""):
+        if solve and resp.status_code == 403 and RD_MARK in (resp.text or ""):
             rd = _RD_PATH.search(resp.text)
             if rd:
                 await self._request(self.s, "POST", SITE_URL + rd.group(1),
@@ -314,7 +315,7 @@ class Web:
         if isinstance(media_id, int) and not isinstance(media_id, bool):
             media_id = str(media_id)
         if not isinstance(media_id, str) or not _MEDIA_ID.fullmatch(media_id):
-            raise UploadFailed("rupload answered %d with no media id" % resp.status_code)
+            raise UploadFailed("rupload answered %d with no media id" % resp.status_code, resp.status_code)
         return media_id
 
     async def socket(self, token: str) -> Socket:
