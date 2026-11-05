@@ -324,8 +324,8 @@ def test_a_page_without_the_script_takes_it_from_the_fixed_loader_once_per_page(
     assert url == "https://chatgpt.com" + SENTINEL_LOADER_PATH
     assert (h["Sec-Fetch-Dest"], h["Sec-Fetch-Mode"], h["Sec-Fetch-Site"]) == ("script", "no-cors", "same-origin")
     assert h["Referer"] == "https://chatgpt.com/" and "Authorization" not in h
-    # a page with the script: the loader is never asked
-    maker = Maker()
+    # a page with the script: the loader (answering here) is never asked
+    maker = Maker(routes(**{"GET " + SENTINEL_LOADER_PATH: Resp(text=LOADER)}))
     sessions = Sessions(clock=clock)
     assert run(home()).sdk_url == want.sdk_url
     assert SENTINEL_LOADER_PATH not in maker.paths(), "a page naming the script needs no loader"
