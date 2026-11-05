@@ -408,21 +408,30 @@ class _Run:
         return await self._verdict(self.reader.answer(self.kind))
 
     async def _verdict(self, answer: wire.Answer) -> SubmitResult:
+        """The result of meta's answer, kept in `self.outcome` BEFORE its timeline line is written: a deadline hit
+        during that write keeps the verdict."""
+        result, line, stage = self._judged(answer)
+        self.outcome = result
+        if line is not None:
+            await self._say(line, stage)
+        return result
+
+    def _judged(self, answer: wire.Answer) -> tuple[SubmitResult, str | None, str]:
+        """-> (the result, its timeline line or None, the line's stage)."""
         verdict = judge(answer, self.kind, self.n)
         if verdict == "done":
             note = wire.made_note(len(answer.finals), self.n, self.kind)
             if note is not None:
                 log.warning("meta job %s: %s", self.job.id, note)
-                await self._say(note)
             return _result(Completed(wire.media_outputs(answer.finals, self.conversation, self.kind, self.n)),
-                           Success())
+                           Success()), note, "submit"
         if verdict == "unknown":
-            return await self._unknown(
-                "meta's answer is not settled: done=%s, %d final %s(s), %d preview(s) left, %d of the other kind"
-                % (answer.done, len(answer.finals), self.kind, answer.previews, answer.other))
+            why = ("meta's answer is not settled: done=%s, %d final %s(s), %d preview(s) left, %d of the other kind"
+                   % (answer.done, len(answer.finals), self.kind, answer.previews, answer.other))
+            return _result(Ambiguous(why[:500])), why, "submit_error"
         if verdict == "policy":
-            await self._say("meta's safety check refused the prompt (%s)" % (answer.error or {}).get("failure_kind"))
-            return refusal_outcome(self.job, self.ctx, self.settings, self.kind)
+            return (refusal_outcome(self.job, self.ctx, self.settings, self.kind),
+                    "meta's safety check refused the prompt (%s)" % (answer.error or {}).get("failure_kind"), "submit")
         why = "meta finished its answer with no %s" % self.kind
         code = errors.NO_IMAGE if self.kind == "image" else errors.NO_VIDEO
         if verdict == "limit":
@@ -430,12 +439,11 @@ class _Run:
             # new chat (no attempt used) until `meta.refusal_max_accounts` refused it, then fails with `code`
             outcome = account_refused(self.job, self.account.id, self.settings, not_taken=POOL_OUT_OF_POINTS,
                                       final=code, detail=why)
-            if isinstance(outcome, NotTaken):
-                await self._say("meta's limit on %d account(s); the job goes to another account"
-                                % len(outcome.state_patch[REFUSED_BY]))
-            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))
-        await self._say("%s (failure kind: %s)" % (why, (answer.error or {}).get("failure_kind")))
-        return _result(Fail(code, why))
+            line = ("meta's limit on %d account(s); the job goes to another account"
+                    % len(outcome.state_patch[REFUSED_BY])) if isinstance(outcome, NotTaken) else None
+            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind)), line, "submit"
+        return (_result(Fail(code, why)), "%s (failure kind: %s)" % (why, (answer.error or {}).get("failure_kind")),
+                "submit")
 
     async def _evidence(self) -> None:
         """The redacted frame summary, diagnostics only: cut at `EVIDENCE_WAIT_S`, a failure logged and skipped."""

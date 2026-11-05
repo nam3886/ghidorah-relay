@@ -575,7 +575,8 @@ def test_a_policy_refusal_fails_at_once_refunded_with_content_refused():
 
 LIMIT_IF = "    if error.get(\"failure_kind\") in LIMIT_KINDS or (answer.error is None and is_limit(answer.text)):\n"
 LIMIT_MOVES = "            outcome = account_refused(self.job, self.account.id, self.settings, "
-LIMIT_REST = "            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind))\n"
+LIMIT_REST = ('            return _result(outcome, limit_balance(self.settings, self.deps.now(), self.kind)), '
+              'line, "submit"\n')
 
 
 def limit(**kw):
@@ -585,7 +586,8 @@ def limit(**kw):
 @mutation(SUBMIT_FILE, LIMIT_IF, "    if False:\n", expect="the job did not go to another account")
 @mutation(SUBMIT_FILE, "    return any(p in t for p in LIMIT_PHRASES)", "    return False",
           expect="the job did not go to another account")
-@mutation(SUBMIT_FILE, LIMIT_REST, "            return _result(outcome)\n", expect="the pool was not emptied")
+@mutation(SUBMIT_FILE, LIMIT_REST, '            return _result(outcome), line, "submit"\n',
+          expect="the pool was not emptied")
 @mutation(SUBMIT_FILE, "not_taken=POOL_OUT_OF_POINTS,", "not_taken=errors.NO_IMAGE,",
           expect="the job did not go to another account")
 def test_a_limit_answer_moves_the_job_to_another_account_and_empties_the_pool():
@@ -662,6 +664,7 @@ NOTE_LOG = '\n                log.warning("meta job %s: %s", self.job.id, note)'
 
 @mutation(SUBMIT_FILE, "            if note is not None:" + NOTE_LOG, "            if False:" + NOTE_LOG,
           expect="noted")
+@mutation(SUBMIT_FILE, "        if line is not None:\n", "        if False:\n", expect="noted")
 def test_more_or_fewer_finals_than_paid_are_delivered_up_to_n_charged_in_full_and_noted(caplog):
     three = response(shown(final(1), final(2), final(3)), done=True)
     k = go(sockets=[gateway(answer=[three])], n=4)
@@ -676,6 +679,20 @@ def test_more_or_fewer_finals_than_paid_are_delivered_up_to_n_charged_in_full_an
     for n in (3, None):
         k = go(sockets=[gateway(answer=[three])], n=n)
         assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 3 and k.ctx.events == []
+
+
+@mutation(SUBMIT_FILE, "        self.outcome = result\n", "", expect="the verdict is kept")
+def test_a_deadline_hit_while_the_note_is_written_keeps_the_verdict():
+    ctx = Ctx(settings_=settings(image_submit_timeout_s=60))
+
+    async def hangs(text, stage, source):
+        if text.startswith("meta made"):     # only the note's write hangs
+            await asyncio.Event().wait()
+    ctx.event = hangs
+    three = response(shown(final(1), final(2), final(3)), done=True)
+    k = go(ctx=ctx, sockets=[gateway(answer=[three])], n=4, margin=59.5, bound_s=3.0)
+    assert isinstance(k.result.job, Completed) and len(k.result.job.outputs) == 3, \
+        "the verdict is kept: %r" % (k.result.job,)
 
 
 def test_the_captured_answers_of_every_kind_complete():
