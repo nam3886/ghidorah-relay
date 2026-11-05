@@ -1332,7 +1332,8 @@ that cannot reach chatgpt.com fails the check (recorded as failed). **Team accou
 import is checked by hand before claims are turned on (identity names the right workspace, tier pro, one
 `RELAY_E2E_SPEND=yes relay e2e --provider gpt`).
 
-**Send.** All free steps first: the home page (its build id and the sentinel `sdk.js` address, reused for
+**Send.** All free steps first: the home page (its build id and the sentinel `sdk.js` address, the address taken from
+the page or, when the page names none, from the fixed loader `/backend-api/sentinel/sdk.js`; both reused for
 `gpt.page_max_age_s`), the access token, `conversation/init` (an `image_gen` limit of 0 stops here), the input image of
 an edit (uploaded to `*.oaiusercontent.com`), the sentinel (chat-requirements prepare, the relay's own proof of work,
 the Turnstile answer, finalize) and the conduit token (`f/conversation/prepare`). Then the client-made message id and

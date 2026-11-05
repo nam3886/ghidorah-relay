@@ -17,6 +17,10 @@ NEWER_WINS = "    newer = mine if _renewed_at(mine) >= _renewed_at(stored) else 
 OLDER_WINS = "    newer = mine if _renewed_at(mine) < _renewed_at(stored) else stored"
 URL_CAUGHT = "        except ValueError:\n            raise ValueError(\"the url is not a URL\") from None"
 URL_UNCAUGHT = "        except TypeError:\n            raise ValueError(\"the url is not a URL\") from None"
+SESSION_STRICT = "    if not all(_clean(c) for c in kept if is_session_part(c[\"name\"])):"
+SESSION_LAX = "    if False:"
+SKIP_UNCLEAN = "    return [c for c in kept if _clean(c)], renewed_at"
+KEEP_UNCLEAN = "    return kept, renewed_at"
 S0, S1 = SESSION_COOKIE + ".0", SESSION_COOKIE + ".1"
 
 
@@ -119,6 +123,26 @@ def test_errors_never_carry_a_cookie_value():
         with pytest.raises(ValueError) as e:
             jar_of(blob)
         assert_no_secret(str(e.value))
+
+
+@mutation(CRED_FILE, SESSION_STRICT, SESSION_LAX, expect="an unclean session part must refuse the import")
+@mutation(CRED_FILE, SKIP_UNCLEAN, KEEP_UNCLEAN, expect="an unclean non-session cookie must be dropped")
+def test_an_unclean_cookie_is_dropped_unless_it_is_a_session_part():
+    g_state = {**export()[2], "name": "g_state", "value":'{"a":7,"b":"x-PLANTED-g"}'}       # Google sign-in's JSON-shaped state
+    blob = parse([*export(), g_state])
+    assert "g_state" not in jar_of(blob) and "g_state" not in blob.decode(), \
+        "an unclean non-session cookie must be dropped"
+    assert jar_of(blob) == jar_of(BLOB)
+    for name in (S0, S1, SESSION_COOKIE):
+        bad = [c for c in export() if c["name"] != name] + [
+            {"domain": "chatgpt.com", "name": name, "value": '{"eyJ-PLANTED-y":1}; x=2'}]
+        try:
+            parse(bad)
+        except ValueError as e:
+            assert str(e) == "a chatgpt.com cookie holds characters a cookie cannot carry"
+            assert_no_secret(str(e))
+        else:
+            raise AssertionError("an unclean session part must refuse the import")
 
 
 @mutation(CRED_FILE, URL_CAUGHT, URL_UNCAUGHT, expect="the url parser's message leaked")

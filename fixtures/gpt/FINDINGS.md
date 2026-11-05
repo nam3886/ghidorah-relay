@@ -25,6 +25,9 @@ generation (the signed-out session, one sentinel prepare). Full report: `plans/g
 ## F2. Call sequence of one generation (all through the proxy, ~4–5 s before the send)
 0. `GET /` (navigate headers) → `data-build` (config[6]); the sentinel loader names
    `https://chatgpt.com/sentinel/20260810913b/sdk.js` (config[5]). Fixture `home` keeps only those two values.
+   05/11/2026: the home page still carries `data-build` but no longer names `/sentinel/<id>/sdk.js`; its bundle loads
+   the fixed `GET /backend-api/sentinel/sdk.js` (200, `text/javascript`, ~1.5 KB), whose body names
+   `/sentinel/20260810913b/sdk.js` (same build; the proof of work is unchanged).
 1. `GET /api/auth/session` → token (F1).
 2. `POST /backend-api/conversation/init` → `limits_progress` (optional, F8). Fixture `init_limits`.
 3. `POST /backend-api/sentinel/chat-requirements/prepare {"p": requirements token}` → `persona`, `prepare_token`,

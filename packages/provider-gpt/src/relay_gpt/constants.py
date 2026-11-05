@@ -16,6 +16,8 @@ SITE_HOST = "chatgpt.com"                         # every cookie the account nee
 SESSION_COOKIE = "__Secure-next-auth.session-token"   # the bare name, or its parts `.0`, `.1`, ...
 UPLOAD_HOST_SUFFIX = ".oaiusercontent.com"        # where an input image is PUT (the host comes from files create)
 ESTUARY_PATH = "/backend-api/estuary/content"     # a result's bytes: fetched with the bearer, chatgpt.com only
+SENTINEL_LOADER_PATH = "/backend-api/sentinel/sdk.js"   # names /sentinel/<id>/sdk.js when the home page does not
+                                                        # (live 05/11/2026)
 # The fingerprint and the headers of macOS Chrome 150: the newest Chrome profile of the locked curl_cffi 0.16.3 (its
 # `chrome150` is macOS Tahoe; the spike's `chrome152_macos` is 0.17-only and curl_cffi is not bumped). The UA and the
 # client hints are the ones that profile sends itself, so the headers match the TLS fingerprint.

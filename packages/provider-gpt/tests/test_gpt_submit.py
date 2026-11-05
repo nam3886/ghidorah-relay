@@ -46,7 +46,13 @@ from relay_core.providers import (
 )
 from relay_core.testing.mutation import mutation
 from relay_gpt import errors
-from relay_gpt.constants import INPUT_MAX_BYTES, STATE_CONVERSATION, STATE_MESSAGE, STATE_PROMPT
+from relay_gpt.constants import (
+    INPUT_MAX_BYTES,
+    SENTINEL_LOADER_PATH,
+    STATE_CONVERSATION,
+    STATE_MESSAGE,
+    STATE_PROMPT,
+)
 from relay_gpt.engine.submit import SEND_PATH, compose, submit
 from relay_gpt.engine.turnstile import TurnstileError
 from relay_gpt.engine.web import Sessions, proxy_url
@@ -399,6 +405,24 @@ def test_pre_send_signed_out_proxy_and_http_errors_retry_with_their_effects():
         assert not r.sends()
     for r in (signed_out, no_proxy):
         assert not r.sends() and "mark_sent" not in r.log and "report_ref" not in r.log
+
+
+def test_a_page_without_the_sentinel_script_sends_with_the_loaders_or_not_at_all():
+    no_sdk = '<html data-build="prod-9d3f0a1b2c"><body></body></html>'
+    loader = 'x.src="https://chatgpt.com/sentinel/20260810913b/sdk.js"'
+    r = Run(routes(**{"GET /": Resp(text=no_sdk), "GET " + SENTINEL_LOADER_PATH: Resp(text=loader)}))
+    assert isinstance(r.result.job, Completed) and len(r.sends()) == 1
+    asked = json.loads(base64.b64decode(json.loads(r.requests("POST", PREPARE)[0].data)["p"].removeprefix(
+        "gAAAAAC").removesuffix("~S")))
+    assert asked[5] == "https://chatgpt.com/sentinel/20260810913b/sdk.js" and asked[6] == "prod-9d3f0a1b2c"
+    for answer in (Resp(text="(function(){})()"), Resp(403, text="{}")):
+        r = Run(routes(**{"GET /": Resp(text=no_sdk), "GET " + SENTINEL_LOADER_PATH: answer}))
+        assert r.result.job == Retry(errors.HTTP_ERROR)
+        assert not r.sends() and "mark_sent" not in r.log and "report_ref" not in r.log
+        assert not r.requests("POST", PREPARE)
+        rests = [e.until for e in r.result.account if isinstance(e, Cooldown)]
+        assert rests == ([NOW_DT + timedelta(seconds=300)] if answer.status_code == 403 else []), \
+            "a 403 on the loader rests the account as any call before the send"
 
 
 def test_edit_uploads_through_the_proxy_to_the_azure_host_only():

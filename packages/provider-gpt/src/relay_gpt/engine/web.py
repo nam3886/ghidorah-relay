@@ -34,6 +34,7 @@ from relay_gpt.constants import (
     MEDIA_DEADLINE_S,
     SEC_CH_UA,
     SEC_CH_UA_PLATFORM,
+    SENTINEL_LOADER_PATH,
     SITE_HOST,
     TOKEN_MARGIN_S,
     UPLOAD_HOST_SUFFIX,
@@ -266,8 +267,8 @@ class Web:
 
     # ---- the page and the token ---------------------------------------------------------------------------------
     async def home(self) -> Page:
-        """`GET /` with navigate headers: the build id and the sentinel script address, cached for
-        `gpt.page_max_age_s`."""
+        """`GET /` with navigate headers: the build id and the sentinel script address (from the page, else from the
+        fixed loader `SENTINEL_LOADER_PATH`), cached together for `gpt.page_max_age_s`."""
         now = self.sessions.clock()
         page = self.sessions.page(now, self.settings.get("gpt.page_max_age_s"))
         if page is not None:
@@ -279,8 +280,17 @@ class Web:
             "Sec-Fetch-Site": "none", "Sec-Fetch-User": "?1", "Upgrade-Insecure-Requests": "1"}, API_TIMEOUT_S)
         html = resp.text if resp.status_code == 200 else ""
         build, sdk = _BUILD.search(html), _SDK.search(html)
-        if not build or not sdk:
-            raise BadAnswer(resp.status_code, "the home page (no build id or sentinel script)")
+        if not build:
+            raise BadAnswer(resp.status_code, "the home page (no build id)")
+        if not sdk:         # the page no longer names it (05/11/2026): its fixed loader does
+            resp = await self._request(self.s, "GET", BASE_URL + SENTINEL_LOADER_PATH, {
+                "User-Agent": USER_AGENT, "Accept": "*/*", "Accept-Language": LANGUAGE + ",en;q=0.9",
+                "Referer": BASE_URL + "/", "Sec-Ch-Ua": SEC_CH_UA, "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": SEC_CH_UA_PLATFORM, "Sec-Fetch-Dest": "script", "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "same-origin"}, API_TIMEOUT_S)
+            sdk = _SDK.search(resp.text if resp.status_code == 200 else "")
+            if not sdk:
+                raise BadAnswer(resp.status_code, "the home page (no sentinel script)")
         page = Page(build.group(1), BASE_URL + sdk.group(1))
         self.sessions.keep_page(page, now)
         return page

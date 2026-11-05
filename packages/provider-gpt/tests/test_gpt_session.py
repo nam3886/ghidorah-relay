@@ -28,7 +28,7 @@ from gptkit import (
 
 from relay_core.providers import Balance, Cooldown, Suspect, Tier
 from relay_core.testing.mutation import mutation
-from relay_gpt.constants import SESSION_COOKIE
+from relay_gpt.constants import SENTINEL_LOADER_PATH, SESSION_COOKIE
 from relay_gpt.credential import jar_of, parse_credential, session_parts
 from relay_gpt.engine.check import check_account, image_balance, tier_of
 from relay_gpt.engine.web import BadAnswer, NetError, Page, Sessions, SignedOut, Web, claims, proxy_url
@@ -54,6 +54,12 @@ S0, S1 = SESSION_COOKIE + ".0", SESSION_COOKIE + ".1"
 NEW0 = "eyJ-PLANTED-session-new-0"
 HOME = '<html data-build="ccbd58c87c3a77dcbef035020b701a5bc7c54b87"><script src="https://chatgpt.com/sentinel/' \
        '20260810913b/sdk.js"></script></html>'
+HOME_NO_SDK = '<html data-build="prod-9d3f0a1b2c"><script src="/cdn/assets/sentinel-x1.js"></script></html>'
+LOADER = '(function(){var s=document.createElement("script");s.src="/sentinel/20260810913b/sdk.js";' \
+         'document.head.appendChild(s)})()'
+LOADER_WHEN_ABSENT = "        if not sdk:         # the page no longer names it"
+NO_LOADER = "        if False:         # the page no longer names it"
+ALWAYS_LOADER = "        if True:         # the page no longer names it"
 
 
 def run(coro):
@@ -289,10 +295,47 @@ def test_home_reads_the_build_and_the_sdk_url_and_is_cached():
     clock.t += settings().get("gpt.page_max_age_s") + 1
     run(home())
     assert maker.paths().count("/") == 2
+    assert SENTINEL_LOADER_PATH not in maker.paths(), "a page naming the script needs no loader"
     sessions = Sessions(clock=clock)
     maker.table[("GET", "/")] = Resp(text="<html>no build</html>")
     with pytest.raises(BadAnswer):
         run(home())
+    assert SENTINEL_LOADER_PATH not in maker.paths()
+
+
+@mutation(WEB_FILE, LOADER_WHEN_ABSENT, NO_LOADER, expect="the loader must name the script the page does not")
+@mutation(WEB_FILE, LOADER_WHEN_ABSENT, ALWAYS_LOADER, expect="a page naming the script needs no loader")
+def test_a_page_without_the_script_takes_it_from_the_fixed_loader_once_per_page():
+    clock = Clock()
+    sessions = Sessions(clock=clock)
+    maker = Maker(routes(**{"GET /": Resp(text=HOME_NO_SDK), "GET " + SENTINEL_LOADER_PATH: Resp(text=LOADER)}))
+    ctx = Ctx(maker.log)
+
+    async def home():
+        async with Web(ctx.account, ctx.settings, sessions, ctx, make_session=maker) as web:
+            await web.access_token()          # a bearer held must not travel to a script fetch
+            return await web.home()
+    want = Page("prod-9d3f0a1b2c", "https://chatgpt.com/sentinel/20260810913b/sdk.js")
+    assert run(home()) == want, "the loader must name the script the page does not"
+    assert run(home()) == want
+    assert maker.paths().count("/") == 1 and maker.paths().count(SENTINEL_LOADER_PATH) == 1, \
+        "one loader fetch per page refresh"
+    _, url, h = next(e for e in maker.log if urlsplit(e[1]).path == SENTINEL_LOADER_PATH)
+    assert url == "https://chatgpt.com" + SENTINEL_LOADER_PATH
+    assert (h["Sec-Fetch-Dest"], h["Sec-Fetch-Mode"], h["Sec-Fetch-Site"]) == ("script", "no-cors", "same-origin")
+    assert h["Referer"] == "https://chatgpt.com/" and "Authorization" not in h
+    # a page with the script: the loader is never asked
+    maker = Maker()
+    sessions = Sessions(clock=clock)
+    assert run(home()).sdk_url == want.sdk_url
+    assert SENTINEL_LOADER_PATH not in maker.paths(), "a page naming the script needs no loader"
+    # neither names it: refused before anything else, and nothing is cached
+    for loader in (Resp(text="(function(){})()"), Resp(404, text="{}")):
+        maker = Maker(routes(**{"GET /": Resp(text=HOME_NO_SDK), "GET " + SENTINEL_LOADER_PATH: loader}))
+        sessions = Sessions(clock=clock)
+        with pytest.raises(BadAnswer) as e:
+            run(home())
+        assert "sentinel script" in str(e.value) and sessions.page(clock(), 600) is None
 
 
 def test_uploads_and_media_go_only_to_their_hosts():

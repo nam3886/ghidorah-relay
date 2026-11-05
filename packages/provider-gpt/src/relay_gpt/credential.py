@@ -1,8 +1,8 @@
 """gpt credentials: a cookie jar of chatgpt.com (a Cookie-Editor export), and its session write-back.
 
 Accepted input: a JSON list of cookies, `{"url": ..., "cookies": <list>}` (a cookie without a domain takes the url's
-host), or the sealed shape itself. Only cookies of chatgpt.com and its subdomains are kept; a session part must be
-there: `__Secure-next-auth.session-token` itself, or its split parts `.0`, `.1`, ... Everything becomes ONE sealed
+host), or the sealed shape itself. Only cookies of chatgpt.com and its subdomains are kept, and of those only the ones a
+`Cookie:` header can carry (an unclean session part refuses the import); a session part must be there: `__Secure-next-auth.session-token` itself, or its split parts `.0`, `.1`, ... Everything becomes ONE sealed
 shape: `{"cookies": <list of {name, value, domain, path}>, "renewed_at": <unix s>}`.
 
 chatgpt.com re-sets the session cookie on use, and may change how it is split (`.0/.1` -> a single `.0`, or the bare
@@ -62,7 +62,8 @@ def _clean(cookie: dict) -> bool:
 
 
 def _parts(data: object) -> tuple[list[dict], float]:
-    """The cookies (chatgpt.com's only, each clean) and `renewed_at` of any accepted shape."""
+    """The cookies (chatgpt.com's only, each clean) and `renewed_at` of any accepted shape. An unclean session part
+    refuses the whole credential; any other unclean cookie is skipped."""
     default, renewed_at = None, 0.0
     if isinstance(data, Mapping):
         url = data.get("url")
@@ -80,9 +81,10 @@ def _parts(data: object) -> tuple[list[dict], float]:
     if len(data) > MAX_COOKIES:
         raise ValueError("too many cookies")
     kept = [c for c in (_cookie(raw, default) for raw in data) if on_site(c["domain"])]
-    if not all(_clean(c) for c in kept):
+    if not all(_clean(c) for c in kept if is_session_part(c["name"])):
         raise ValueError("a chatgpt.com cookie holds characters a cookie cannot carry")
-    return kept, renewed_at
+    # any other cookie a header cannot carry (Google sign-in's JSON `g_state`) is dropped, not a refusal
+    return [c for c in kept if _clean(c)], renewed_at
 
 
 def _dump(cookies: list[dict], renewed_at: float) -> bytes:
