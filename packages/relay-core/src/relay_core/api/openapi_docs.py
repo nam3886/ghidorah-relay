@@ -260,7 +260,9 @@ job's code is its `error_code`, one of a small fixed set listed in the job statu
 `generation_failed`, `temporarily_unavailable`, `timeout`, `invalid_input` and `internal_error`. Its `error` says what
 happened and whether sending the request again can help. A held or streamed request on `/v1/chat/completions` or the
 Gemini routes whose job fails answers with the same code (see Chat and Gemini routes). On those routes an error answer
-carries `x-should-retry: false`, so an SDK does not send the request (and make a job) a second time.
+carries `x-should-retry: false`, so an SDK does not send the request (and make a job) a second time; only
+`quota.rate_limited` and `quota.upload_busy` carry `x-should-retry: true`: no job was made, so an SDK may send the
+request again after `Retry-After`.
 
 An answer that is not JSON (an HTML page with a 413, a 5xx or a 524) comes from Cloudflare in front of the relay, not
 from the relay. A 413 means the body is too large (see Request size). A 502, 503 or 524 means the relay could not be
@@ -420,7 +422,9 @@ _MEDIA_RESPONSES = {
 # The facade routes (OpenAI, Gemini): an error answer tells the SDK not to send again (`errors_http.NO_RETRY`).
 _RETRY_AFTER = _header("With quota.rate_limited or quota.upload_busy: whole seconds to wait before sending the "
                        "request again.", "1")
-_NO_RETRY = {"x-should-retry": _header("Always false: an SDK must not send the request again by itself.", "false")}
+_NO_RETRY = {"x-should-retry": _header(
+    "false: an SDK must not send the request again by itself. Only quota.rate_limited and quota.upload_busy say true "
+    "(no job was made): send again after Retry-After.", "false")}
 _SSE = {"text/event-stream": {"schema": {"type": "string"}}}
 _STREAM_NOTE = " A streamed answer is text/event-stream with Cache-Control: no-cache."
 

@@ -582,7 +582,7 @@ def test_the_title_version_changes_and_limits_are_documented(db):
         assert errors.http_status(code) == 429, code
     created = schema["paths"]["/v1/video/generations"]["post"]["responses"]["429"]["description"]
     assert "quota.too_many_queued" in created and "Retry-After" in created
-    for word in ("`quota.rate_limited`", "`quota.upload_busy`"):
+    for word in ("`quota.rate_limited`", "`quota.upload_busy`", "`x-should-retry: true`"):
         assert word in info["description"], word
     for code in ("quota.rate_limited", "quota.upload_busy"):
         assert errors.http_status(code) == 429, code

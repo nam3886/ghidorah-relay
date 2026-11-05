@@ -42,7 +42,7 @@ def quick(monkeypatch, *, hold=0.3):
 
 
 # ---- x-should-retry: false ---------------------------------------------------------------------------------
-@mutation(ERRORS, "        headers = {**(headers or {}), NO_RETRY[0]: NO_RETRY[1]}", "        pass",
+@mutation(ERRORS, "        headers = {**(headers or {}), NO_RETRY[0]: retry}", "        pass",
           expect="x-should-retry")
 def test_every_error_answer_of_a_facade_says_x_should_retry_false_and_a_native_one_does_not(db, monkeypatch):
     monkeypatch.setattr(fc, "POLL_S", 0.05)

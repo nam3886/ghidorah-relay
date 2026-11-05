@@ -16,6 +16,7 @@ from relay_core.testing.mutation import mutation
 RL = "packages/relay-core/src/relay_core/api/ratelimit.py"
 DEPS = "packages/relay-core/src/relay_core/api/deps.py"
 APP = "packages/relay-core/src/relay_core/api/app.py"
+ERR = "packages/relay-core/src/relay_core/api/errors_http.py"
 DEFAULTS = {k: s.default for k, s in REGISTRY.specs.items() if k.startswith("api_")}
 
 
@@ -266,6 +267,8 @@ def test_the_upload_gate_answers_upload_busy_with_cors_and_retry_after(db):
 
 
 @mutation(DEPS, "            _rate_limit(request, key.id)\n", "", expect="rate_limited")
+@mutation(ERR, '        retry = "true" if code in RETRY_SAFE else NO_RETRY[1]', "        retry = NO_RETRY[1]",
+          expect="x-should-retry true on a rate limit")
 def test_a_key_over_its_rate_gets_429_with_retry_after_cors_and_both_error_shapes(db):
     async def scenario(env):
         clock = Clock()
@@ -299,6 +302,10 @@ def test_a_key_over_its_rate_gets_429_with_retry_after_cors_and_both_error_shape
     assert create.status_code == 400, "creates have their own bucket"
     assert create_over.status_code == 429 and create_over.headers["retry-after"] == "1"
     assert again.status_code == 200, "a token is back after a second"
+    # no job was made: the chat and Gemini SDKs may send again; every other facade error keeps false
+    assert (gemini.headers["x-should-retry"], create_over.headers["x-should-retry"]) == ("true", "true"), \
+        "x-should-retry true on a rate limit"
+    assert create.headers["x-should-retry"] == "false" and "x-should-retry" not in over.headers
 
 
 def test_unknown_keys_and_keyless_paths_are_never_limited_and_refusals_log_once_a_second(db):

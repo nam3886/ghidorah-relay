@@ -67,6 +67,8 @@ def is_gemini_path(path: str) -> bool:
 
 FACADE_CREATE_PATH = "/v1/chat/completions"
 NO_RETRY = ("x-should-retry", "false")        # the openai SDK obeys it: no second send, so no second job
+# The refusals of the request limits (`ratelimit`): no job was made, so the SDK may send again after Retry-After.
+RETRY_SAFE = frozenset({"quota.rate_limited", "quota.upload_busy"})
 
 
 def is_facade_path(path: str) -> bool:
@@ -88,8 +90,9 @@ def error_response(path: str, code: str, param: str | None = None, *, status: in
     the framework made (a 405 keeps its status and its `Allow` header)."""
     admin = path == "/admin" or path.startswith("/admin/")         # the operator sees the internal code
     body = gemini_body(code, param) if is_gemini_path(path) else envelope(code, param, internal=admin)
-    if is_facade_path(path):                      # an SDK must not re-send a request whose job exists
-        headers = {**(headers or {}), NO_RETRY[0]: NO_RETRY[1]}
+    if is_facade_path(path):                      # an SDK must not re-send a request whose job exists...
+        retry = "true" if code in RETRY_SAFE else NO_RETRY[1]      # ...but may one refused before any job was made
+        headers = {**(headers or {}), NO_RETRY[0]: retry}
     if status is not None and is_gemini_path(path):
         body["error"]["code"] = status
         body["error"]["status"] = _GRPC.get(status, "UNKNOWN")
