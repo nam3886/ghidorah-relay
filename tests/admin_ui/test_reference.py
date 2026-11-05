@@ -229,8 +229,9 @@ def test_the_copy_page_split_button_copies_the_markdown_and_its_menu_has_the_fou
         assert menu.is_hidden(), "Escape closes the menu"
         assert page.evaluate("document.activeElement.id") == "ai-toggle", "Escape"
         toggle.click()
+        assert page.evaluate("document.activeElement.id") == "ai-link", "opening focuses the first item"
         page.keyboard.press("ArrowDown")
-        assert page.evaluate("document.activeElement.id") == "ai-link"
+        assert page.evaluate("document.activeElement.id") == "ai-view", "ArrowDown moves to the next item"
         page.mouse.click(300, 400)
         assert menu.is_hidden(), "outside click closes the menu"
         assert toggle.get_attribute("aria-expanded") == "false"
