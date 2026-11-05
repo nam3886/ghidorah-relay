@@ -219,7 +219,7 @@ worker() {   # worker P: restart it, then a heartbeat of the new process and Chr
   done
   [ "$ok" != 0 ] || fail "worker-$p wrote no fresh heartbeat within 2 minutes of its start"
   echo "worker-$p: fresh heartbeat"
-  case "$p" in dola | meta | qwen) echo "worker-$p: $(compose "$D" --profile "$p" exec -T "worker-$p" /opt/google/chrome/chrome --version)" ;; esac
+  case "$p" in dola | qwen) echo "worker-$p: $(compose "$D" --profile "$p" exec -T "worker-$p" /opt/google/chrome/chrome --version)" ;; esac
 }
 
 resume() { compose "$D" --profile app exec -T api relay provider resume "$1"; }

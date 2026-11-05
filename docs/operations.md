@@ -142,7 +142,7 @@ image) and must be cut off in under 2 s, so the timing assertion cannot pass vac
 
 ## The browser kit (`relay-browser`)
 
-Used by browser workers only (dola, meta, qwen). It reads no environment variable (owner, 25/10):
+Used by browser workers only (dola, qwen). It reads no environment variable (owner, 25/10):
 
 - **Chrome**: the image's pinned Google Chrome (`channel="chrome"`), headful under Xvfb. A test passes its own
   `executable_path` and `headless=True` on its `SiteProfile`.
@@ -165,10 +165,10 @@ Used by browser workers only (dola, meta, qwen). It reads no environment variabl
   browsing) is answered 502 at the local forwarder, so it never reaches an account proxy. Without a proxy
   there is no forwarder, so nothing is refused. `www.google.com` stays open by default (reCAPTCHA needs it).
   Images and fonts are off by launch flags unless the run attaches or reads images.
-- **Debug files** (Job drawer, "Debug files"): dola and meta keep an after-send JPEG once the site answered, and a PNG,
+- **Debug files** (Job drawer, "Debug files"): dola keeps an after-send JPEG once the site answered, and a PNG,
   the redacted HTML and the network log (`ui-error-<tag>-*`) when a send fails, gets no receipt, an answer is unclear,
-  refused or holds no media. meta's captures of a job get at most 10 s together, and only time left before the 30 s
-  close allowance ahead of the submit timeout (an answer never done gets none); a failed capture is only logged.
+  refused or holds no media; a failed capture is only logged. meta keeps none since it left the browser; jobs of its
+  browser era still show theirs.
 - **Environment**: Chrome gets an allow-list of variables (`PATH HOME USER LOGNAME LANG LANGUAGE TZ DISPLAY
   XAUTHORITY LC_* XDG_* FONTCONFIG_*`, plus its own `TMPDIR`), never the worker's environment. The worker also
   removes `CREDENTIAL_SEAL_PRIVATE_KEY` from its own environment once it has read the key, so nothing started
@@ -595,7 +595,7 @@ requeued by a graceful stop is claimed again at once by another worker.
 
 Setting `<p>.claims_enabled` (default true). While false, that provider's worker claims no job, runs no queued
 command (an admin Check or Wake waits for the resume), and does no catalog maintenance. **Still running:** the account
-checks at their usual interval (owner, 23/10: they keep sessions alive, e.g. flow's cookie rotation; a dola or meta
+checks at their usual interval (owner, 23/10: they keep sessions alive, e.g. flow's cookie rotation; a dola
 check still opens Chrome while drained), poller, fetcher, reconciler, reaper, the title sweep and webhooks, so open
 jobs finish, fail, refund and notify. To stop the checks of one account, disable it. Rollback of a provider go-live is drain mode
 (there is no fallback system).
@@ -1184,6 +1184,33 @@ the chat id is written to the job, `mark_sent`, and ONE `chat/completions`. An i
 | `qwen.image_budget`, `qwen.video_budget` | 1000, 40 | images per account per day; video credits per account per day |
 | `qwen.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
+## The meta provider (`relay worker --provider meta`)
+
+meta.ai (images and video) over plain HTTP, no browser: curl_cffi with Chrome's fingerprint, one WebSocket per job to
+the gateway, every call through the account's proxy (direct only for an account with none, never a fallback). The
+`http` image (`worker-meta`, 1 CPU, 1 GB, 256 pids, no volume, no Chrome, no `shm_size`). Catalog, plan, prices and
+pools are unchanged. Design: `plans/meta-http-design-261105/design.md`.
+
+- **Token cache** (in the worker process, never persisted): per account and credential generation, re-read from the
+  signed-in page when older than `meta.token_reread_s`, when the gateway refuses it, or after a re-import. After a
+  restart every account needs one page read.
+- **Page gate per proxy IP** (`meta.page_gap_s`): every www.meta.ai page load (token read, check, reconcile) on one proxy
+  `host:port` (accounts with no proxy count as one IP, "direct") is spaced by it. A job that needs a page while the gate
+  is closed waits (`meta.page_wait`: no attempt, no charge, the account rests until the gate opens).
+- **Checkpoint = an IP rest**, not an account strike: a Vercel page marks the IP for `meta.checkpoint_rest_s`
+  (doubling per repeat within a day up to `meta.checkpoint_rest_max_s`). Accounts behind it keep sending with their
+  cached token; only an account that needs a page and cannot have one rests.
+- **Drift check**: `docker compose -p relay --profile meta exec -T worker-meta python -m relay_meta.drift --account
+  <name>` prints `OK` or the differences (names and numbers only) between meta's page and the wire format the code
+  pins. It loads a page, so run it with meta drained or on a rested account. Run it when jobs end "unreadable gateway
+  frame".
+- **`profiles-meta`** (the old Chrome profiles volume) is no longer declared in `deploy/compose.yml` and stays on the
+  box. Remove it a week after a clean run. A rollback (`scripts/rollback.sh --workers meta`) brings back the previous
+  tree with the browser target, 4 CPU / 6 GB limits and this volume.
+- **Stored settings**: a stored `meta.browser_slots` row is ignored with an error log on every reload (delete it). A
+  stored `meta.send_gap_s` of 600 or `meta.checkpoint_rest_s` of 1800 keeps its old value, so the new defaults (60 and
+  600) do not apply until the row is deleted.
+
 ## The muse provider (`relay worker --provider muse`)
 
 muse.ai (Meta's agent app) over plain HTTP and a Noise tunnel, no browser. Models:
@@ -1578,7 +1605,7 @@ go-live log, and only inside the abort threshold.
 | `minio` | 2 (deployed: 1.5) | 2 GB | 512 |
 | `api` | 2 (deployed: 1.5) | 2 GB | 512 |
 | `migrate` (one-shot) | 1 | 1 GB | 256 |
-| `worker-meta` (not started) | 4 | 6 GB | 1024 |
+| `worker-meta` (not started) | 1 | 1 GB | 256 |
 | `worker-vibes` (not started) | 1 | 1 GB | 256 |
 | `worker-flow` (not started) | 1 | 1 GB | 256 |
 

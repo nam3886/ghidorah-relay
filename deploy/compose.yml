@@ -114,17 +114,13 @@ services:
     <<: *app
     profiles: [meta]
     image: relay-worker-meta:${GIT_SHA:?set GIT_SHA}
-    build: {context: .., dockerfile: deploy/Dockerfile, target: browser}
+    build: {context: .., dockerfile: deploy/Dockerfile, target: http}
     env_file: [worker-meta.env]
     command: ["relay", "worker", "--provider", "meta"]
-    shm_size: 1g
-    stop_grace_period: 780s   # the longest submit timeout meta's settings allow (720 s) plus a minute
-    # Warm profiles on the volume at /profiles (PROFILE_ROOT), like worker-dola; the number of browser slots is the
-    # live setting meta.browser_slots.
-    volumes: ["profiles-meta:/profiles"]
-    cpus: ${META_CPUS:-4}
-    mem_limit: ${META_MEM_LIMIT:-6g}
-    pids_limit: ${META_PIDS_LIMIT:-1024}
+    stop_grace_period: 780s   # the worker's own stop grace (720 s, DEFAULT_GRACE_S) plus a minute; no browser, no volume
+    cpus: ${META_CPUS:-1}
+    mem_limit: ${META_MEM_LIMIT:-1g}
+    pids_limit: ${META_PIDS_LIMIT:-256}
 
   worker-vibes:
     <<: *app
@@ -225,5 +221,4 @@ volumes:
   pgdata:
   miniodata:
   profiles-dola:
-  profiles-meta:
   profiles-qwen:

@@ -230,7 +230,7 @@ def test_help_describes_both_scripts():
           expect="built after the rotation")
 @mutation(DEPLOY, 'cp -p "$f"', 'cp "$f"', expect="an env file was not copied as it was")
 @mutation(DEPLOY, 'sed -i "s/^GIT_SHA=.*/GIT_SHA=$sha/"', "true", expect="the deploy failed")
-@mutation(DEPLOY, 'case "$p" in dola | meta | qwen) echo', 'case "$p" in nothing) echo', expect="no Chrome version")
+@mutation(DEPLOY, 'case "$p" in dola | qwen) echo', 'case "$p" in nothing) echo', expect="no Chrome version")
 def test_a_deploy_builds_first_rotates_starts_the_api_then_drains_waits_restarts_and_resumes_each_worker(tmp_path):
     box = Box(tmp_path)
     run = box.deploy(box.b, "--workers", "dola", STUB_SUBMITTING="2 0")
@@ -840,3 +840,13 @@ def test_a_provider_that_was_off_and_stopped_after_its_drain_stays_off_on_the_ne
     assert run.returncode == 0, run.stderr
     assert claims(box, "flow") == "false" and box.index("provider resume flow") == -1 and snapshot(box) is None, \
         "a provider that was off came back on: %s %s" % (snapshot(box), box.docker())
+
+
+@mutation(DEPLOY, 'case "$p" in dola | qwen) echo', 'case "$p" in dola | meta | qwen) echo',
+          expect="a Chrome line for meta")
+def test_a_meta_deploy_prints_its_heartbeat_and_no_chrome_version(tmp_path):
+    box = Box(tmp_path)
+    run = box.deploy(box.b, "--workers", "meta", STUB_SUBMITTING="0")
+    assert run.returncode == 0, "the deploy failed: %s %s" % (run.stdout, run.stderr)
+    assert "worker-meta: fresh heartbeat" in run.stdout, run.stdout
+    assert "Chrome" not in run.stdout, "a Chrome line for meta: " + run.stdout

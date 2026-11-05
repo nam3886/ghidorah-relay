@@ -57,7 +57,7 @@ def test_images_are_named_per_commit_and_every_worker_gets_a_stop_grace():
     for name in ("worker-dola", "worker-meta", "worker-vibes", "worker-flow", "worker-gemini", "worker-qwen",
                  "worker-muse", "worker-gpt"):
         assert int(COMPOSE[name]["stop_grace_period"].rstrip("s")) >= 720, name
-    for name in ("worker-dola", "worker-meta", "worker-qwen"):
+    for name in ("worker-dola", "worker-qwen"):
         assert COMPOSE[name]["shm_size"] == "1g"
     assert "healthcheck" in COMPOSE["minio"]
 
@@ -65,7 +65,7 @@ def test_images_are_named_per_commit_and_every_worker_gets_a_stop_grace():
 COMPOSE_FILE = "deploy/compose.yml"
 LIMIT_DEFAULTS = {"worker-dola": (8, "12g", 2048), "postgres": (4, "4g", 512), "minio": (2, "2g", 512),
                   "api": (2, "2g", 512), "migrate": (1, "1g", 256)}
-NOT_STARTED = {"worker-meta": (4, "6g", 1024), "worker-vibes": (1, "1g", 256),
+NOT_STARTED = {"worker-meta": (1, "1g", 256), "worker-vibes": (1, "1g", 256),
                "worker-flow": (1, "1g", 256), "worker-gemini": (1, "1g", 256),
                "worker-qwen": (2, "3g", 1024), "worker-muse": (1, "1g", 256),
                "worker-gpt": (1, "1g", 256)}      # their profiles are off for now
@@ -110,6 +110,21 @@ def test_the_api_gets_a_stop_grace_for_requests_in_flight():
 DOLA_VOLUME = 'volumes: ["profiles-dola:/profiles"]'
 
 
+@mutation(COMPOSE_FILE, "target: http}\n    env_file: [worker-meta.env]",
+          "target: browser}\n    env_file: [worker-meta.env]",
+          expect="worker-meta builds the http target")
+@mutation(COMPOSE_FILE, "    command: [\"relay\", \"worker\", \"--provider\", \"meta\"]\n",
+          "    command: [\"relay\", \"worker\", \"--provider\", \"meta\"]\n    volumes: [\"x:/profiles\"]\n",
+          expect="worker-meta holds no volume")
+@mutation(COMPOSE_FILE, "  profiles-qwen:\n", "  profiles-qwen:\n  profiles-meta:\n",
+          expect="the profiles-meta volume is declared")
+def test_worker_meta_is_an_http_container_with_no_volume_and_no_shm():
+    meta = COMPOSE["worker-meta"]
+    assert meta["build"]["target"] == "http", "worker-meta builds the http target"
+    assert "volumes" not in meta and "shm_size" not in meta, "worker-meta holds no volume"
+    assert "profiles-meta" not in _COMPOSE_DOC["volumes"], "the profiles-meta volume is declared"
+
+
 @mutation(COMPOSE_FILE, DOLA_VOLUME, 'volumes: ["profiles-dola:/tmp/profiles"]', expect="profile root of dola")
 @mutation(COMPOSE_FILE, "    shm_size: 1g\n    stop_grace_period: 780s   # the longest submit timeout (video",
           "    environment:\n      DOLA_BROWSER_SLOTS_MAX: 4\n    shm_size: 1g\n    stop_grace_period: 780s   # the "
@@ -117,7 +132,7 @@ DOLA_VOLUME = 'volumes: ["profiles-dola:/profiles"]'
 def test_the_browser_workers_keep_warm_profiles_on_their_volume_and_no_service_names_a_slot_ceiling():
     from relay_browser.session import PROFILE_ROOT
 
-    for p in ("dola", "meta", "qwen"):
+    for p in ("dola", "qwen"):
         assert "profiles-%s:%s" % (p, PROFILE_ROOT) in COMPOSE["worker-" + p]["volumes"], "profile root of %s" % p
     # the number of browser slots is the live setting dola.browser_slots: no variable sets or caps it
     named = [n for svc in COMPOSE.values() for n in guards._service_env_names(svc) if n.endswith("_BROWSER_SLOTS_MAX")]
