@@ -569,7 +569,7 @@ describe("the shell", () => {
       "separator",
       "menuitem",
     ]);
-    expect(menu.find(".menu-head").text()).toBe("Signed in as owner · LAN only");
+    expect(menu.find(".menu-head").text()).toBe("Signed in as owner");
     expect(menu.findAll('[role="menuitem"] .menu-item__text').map((i) => i.text())).toEqual([
       "API docs",
       "Dark theme",

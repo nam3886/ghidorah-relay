@@ -204,7 +204,7 @@ function openDocs(): void {
           @keydown="onPopupKey"
         >
           <span class="menu-head" role="presentation"
-            >Signed in as <b>{{ auth.user }}</b> · LAN only</span
+            >Signed in as <b>{{ auth.user }}</b></span
           >
           <button
             type="button"
