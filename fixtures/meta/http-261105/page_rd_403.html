@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Meta AI</title>
+</head>
+<body>
+<script>
+
+(function() {
+  if (document.readyState !== 'loading') {
+    executeChallenge();
+  } else {
+    document.addEventListener('DOMContentLoaded', executeChallenge);
+  }
+  function executeChallenge() {
+    fetch('/__rd_verify_Q_6hBQRwrxRm9TmslTNUpOTSaD4zSgBe_LgIRpCvANBl2kwYHw?challenge=x', {
+      method: 'POST',
+    })
+    .finally(() => window.location.reload());
+  }
+})();
+
+</script>
+</body>
+</html>

@@ -603,3 +603,28 @@ account value; redaction would break the XOR); `go_token_len` is the length of a
 - `gpt/spike-261104/files_uploaded.json` — synthetic `POST /backend-api/files/{id}/uploaded` answer.
 - `gpt/spike-261104/attachment_download.json` — synthetic attachment download answer (real key set).
 - `gpt/spike-261104/conversation_deleted_404.json` — synthetic 404 of a hidden conversation.
+
+## meta.ai over plain HTTP (05/11/2026)
+
+Redacted frames, pages and schema from the HTTP spike and Task 0 of the HTTP plan, all on the meta-acc4 jar through the spike proxy; `meta/http-261105/README.md` says which engine made each file and which markers tell the links apart.
+
+- `meta/http-261105/frames_t2i_n1.json` — HTTP job frames (sent ones rebuilt): text to 1 image.
+- `meta/http-261105/frames_t2i_n2.json` — HTTP job frames: text to 2 images, 9:16.
+- `meta/http-261105/frames_t2i_n4.json` — HTTP job frames: text to 4 images, 1:1.
+- `meta/http-261105/frames_t2v.json` — HTTP job frames: text to video.
+- `meta/http-261105/frames_i2v.json` — HTTP job frames: image to video (one attachment).
+- `meta/http-261105/frames_refusal.json` — HTTP job frames: a safety refusal (`policy_denied`, 0 media).
+- `meta/http-261105/frames_edit.json` — HTTP job frames: an edit from one reference image (1 final, 2 previews).
+- `meta/http-261105/request_skeleton.json` — one row per leaf of the browser's sent `Request`, with its kind (`const`, `account?`, ...).
+- `meta/http-261105/page_signed_in.html` — `GET /` signed in (token, viewerId, display name).
+- `meta/http-261105/page_signed_out.html` — `GET /` with no cookie after the `rd` pass.
+- `meta/http-261105/page_rd_403.html` — meta's 478-byte `rd` challenge page.
+- `meta/http-261105/page_vercel.html` — the Vercel Security Checkpoint page.
+- `meta/http-261105/prompt_page_t2i_n1.html` — `GET /prompt/<cid>` of the n = 1 job.
+- `meta/http-261105/prompt_page_t2i_n2.html` — `GET /prompt/<cid>` of the n = 2 job.
+- `meta/http-261105/prompt_page_t2i_n4.html` — `GET /prompt/<cid>` of the n = 4 job.
+- `meta/http-261105/prompt_page_i2v.html` — `GET /prompt/<cid>` of the image-to-video job.
+- `meta/http-261105/prompt_page_refusal.html` — `GET /prompt/<cid>` of the refused job.
+- `meta/http-261105/prompt_page_edit.html` — `GET /prompt/<cid>` of the HTTP edit job (input, preview and final links).
+- `meta/http-261105/schema_261105.json` — the two base64 FileDescriptorProtos of the gateway schema (public JS).
+- `meta/http-261105/gateway_constants.txt` — bundle excerpts holding `x-dgw-appid` and the `product_context` strings (public JS).

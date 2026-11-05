@@ -1,0 +1,337 @@
+[
+{
+"path": "1.1.1",
+"wire": 2,
+"kind": "const",
+"value": "KADABRA__HOME__UNIFIED_INPUT_BAR"
+},
+{
+"path": "1.1.2",
+"wire": 2,
+"kind": "const",
+"value": "1522763855472543"
+},
+{
+"path": "1.1.4",
+"wire": 2,
+"kind": "const",
+"value": "5a5b-8d4e-f054-99ef-b2de-db02-0d05-52c7"
+},
+{
+"path": "1.1.5.5.1",
+"wire": 2,
+"kind": "conversation"
+},
+{
+"path": "1.1.6",
+"wire": 0,
+"kind": "const",
+"value": 5
+},
+{
+"path": "1.1.7",
+"wire": 2,
+"kind": "const",
+"value": "HUMAN_AGENT"
+},
+{
+"path": "1.1.8.1",
+"wire": 2,
+"kind": "const",
+"value": "867051314767696"
+},
+{
+"path": "1.1.8.2",
+"wire": 2,
+"kind": "const",
+"value": "867051314767696"
+},
+{
+"path": "1.1.10",
+"wire": 2,
+"kind": "const",
+"value": "ECTO1"
+},
+{
+"path": "1.1.11",
+"wire": 2,
+"kind": "const",
+"value": "Abra Web Main Key"
+},
+{
+"path": "1.1.12.3.1",
+"wire": 0,
+"kind": "const",
+"value": 1000
+},
+{
+"path": "1.1.12.3.2",
+"wire": 2,
+"kind": "account?"
+},
+{
+"path": "1.1.12.4.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.1.13",
+"wire": 2,
+"kind": "const",
+"value": "Linux"
+},
+{
+"path": "1.1.14",
+"wire": 2,
+"kind": "const",
+"value": "user_input"
+},
+{
+"path": "1.1.15",
+"wire": 2,
+"kind": "account?"
+},
+{
+"path": "1.1.16",
+"wire": 2,
+"kind": "const",
+"value": "desktop_web"
+},
+{
+"path": "1.1.19.1",
+"wire": 2,
+"kind": "const",
+"value": "467ac00fac43b3f1e9b4405009b6a555e912c23d79e8c7f9bf1f2b668bec3fa3"
+},
+{
+"path": "1.1.19.2",
+"wire": 5,
+"kind": "account?"
+},
+{
+"path": "1.2.1",
+"wire": 0,
+"kind": "viewer"
+},
+{
+"path": "1.2.2",
+"wire": 0,
+"kind": "viewer"
+},
+{
+"path": "1.2.3",
+"wire": 0,
+"kind": "const",
+"value": 2
+},
+{
+"path": "1.3.4",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.4",
+"wire": 2,
+"kind": "const",
+"value": ""
+},
+{
+"path": "1.5.1",
+"wire": 0,
+"kind": "ms"
+},
+{
+"path": "1.5.3",
+"wire": 0,
+"kind": "ms"
+},
+{
+"path": "1.6",
+"wire": 2,
+"kind": "uuid"
+},
+{
+"path": "1.7",
+"wire": 2,
+"kind": "const",
+"value": ""
+},
+{
+"path": "1.9.2",
+"wire": 2,
+"kind": "const",
+"value": "en-US"
+},
+{
+"path": "1.10.1",
+"wire": 2,
+"kind": "uuid"
+},
+{
+"path": "1.10.3",
+"wire": 2,
+"kind": "uuid"
+},
+{
+"path": "1.10.4",
+"wire": 2,
+"kind": "conversation"
+},
+{
+"path": "1.15.4",
+"wire": 2,
+"kind": "account?"
+},
+{
+"path": "1.16.22",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "stocks"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "weather"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "meta_knowledge_search_carousel"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "meta_catalog_search_carousel"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "media_gallery"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "a2ui_meta_ai_catalog"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 3
+},
+{
+"path": "1.18.1",
+"wire": 2,
+"kind": "const",
+"value": "a2ui_card_stream"
+},
+{
+"path": "1.18.2.1",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "1.20",
+"wire": 2,
+"kind": "account?"
+},
+{
+"path": "1.23.1",
+"wire": 0,
+"kind": "const",
+"value": 5
+},
+{
+"path": "1.23.3",
+"wire": 2,
+"kind": "const",
+"value": "blocking_confirmation"
+},
+{
+"path": "1.26",
+"wire": 0,
+"kind": "const",
+"value": 0
+},
+{
+"path": "2.1.1",
+"wire": 2,
+"kind": "uuid"
+},
+{
+"path": "2.1.2.1",
+"wire": 2,
+"kind": "conversation"
+},
+{
+"path": "2.1.2.2",
+"wire": 0,
+"kind": "ms"
+},
+{
+"path": "2.1.2.3",
+"wire": 0,
+"kind": "otid"
+},
+{
+"path": "2.1.5",
+"wire": 0,
+"kind": "const",
+"value": 1
+},
+{
+"path": "2.2",
+"wire": 2,
+"kind": "text"
+},
+{
+"path": "2.4.1",
+"wire": 2,
+"kind": "const",
+"value": "0"
+}
+]
