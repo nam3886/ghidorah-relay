@@ -23,14 +23,65 @@ MEDIA_HOSTS = ("fbcdn.net",)                      # the final images: `scontent.
 # The query of the WebSocket URL, less `Authorization` (the token) and `x-dgw-app-clippy-request-id` (a uuid per job).
 GATEWAY_QUERY = {"x-dgw-appid": "1522763855472543", "x-dgw-appversion": "1.0.0", "x-dgw-authtype": "15:0",
                  "x-dgw-version": "5", "x-dgw-uuid": "0", "x-dgw-tier": "prod", "x-dgw-app-origin": "meta.ai"}
-# The fixed leaves of the Request's `product_context`, as (field path, value): to be copied from the `const` rows of
-# fixtures/meta/http-261105/request_skeleton.json (Task 0). Empty until that fixture is merged.
-PRODUCT_CONTEXT: tuple[tuple[str, str], ...] = ()
+# The fixed leaves of the Request, as (field path, value) in the browser's order: the `const` rows of
+# fixtures/meta/http-261105/request_skeleton.json (values found in the public bundle; small ints are enums or flags).
+# A str is length-delimited, an int a varint. The 1.18 pairs repeat: each `1.18.1` starts a new 1.18 entry.
+PRODUCT_CONTEXT: tuple[tuple[str, str | int], ...] = (
+    ("1.1.1", "KADABRA__HOME__UNIFIED_INPUT_BAR"),
+    ("1.1.2", "1522763855472543"),
+    ("1.1.4", "5a5b-8d4e-f054-99ef-b2de-db02-0d05-52c7"),
+    ("1.1.6", 5),
+    ("1.1.7", "HUMAN_AGENT"),
+    ("1.1.8.1", "867051314767696"),
+    ("1.1.8.2", "867051314767696"),
+    ("1.1.10", "ECTO1"),
+    ("1.1.11", "Abra Web Main Key"),
+    ("1.1.12.3.1", 1000),
+    ("1.1.12.4.1", 1),
+    ("1.1.13", "Linux"),
+    ("1.1.14", "user_input"),
+    ("1.1.16", "desktop_web"),
+    ("1.1.19.1", "467ac00fac43b3f1e9b4405009b6a555e912c23d79e8c7f9bf1f2b668bec3fa3"),
+    ("1.2.3", 2),
+    ("1.3.4", 1),
+    ("1.4", ""),
+    ("1.7", ""),
+    ("1.9.2", "en-US"),
+    ("1.16.22", 1),
+    ("1.18.1", "stocks"),
+    ("1.18.2.1", 1),
+    ("1.18.1", "weather"),
+    ("1.18.2.1", 1),
+    ("1.18.1", "meta_knowledge_search_carousel"),
+    ("1.18.2.1", 1),
+    ("1.18.1", "meta_catalog_search_carousel"),
+    ("1.18.2.1", 1),
+    ("1.18.1", "media_gallery"),
+    ("1.18.2.1", 1),
+    ("1.18.1", "a2ui_meta_ai_catalog"),
+    ("1.18.2.1", 3),
+    ("1.18.1", "a2ui_card_stream"),
+    ("1.18.2.1", 1),
+    ("1.23.1", 5),
+    ("1.23.3", "blocking_confirmation"),
+    ("1.26", 0),
+    ("2.1.5", 1),                                 # is_new_conversation: one chat per job
+    ("2.4.1", "0"),
+)
 TIME_ZONE = "Europe/Berlin"                       # the proxies are German; the browser era sent GMT+7
 LOCALE = "en-US"
 # The newest Chrome profile of the locked curl_cffi 0.16.3 (the spike's chrome152 is 0.17-only), and a Linux UA of it.
 IMPERSONATE = "chrome150"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+# The Request leaves the bundle does not hold (`account?` in the skeleton): what one account's browser sent, until the
+# live smoke on a second account settles them. A float is a fixed32, bytes are length-delimited as they are.
+UNSETTLED_LEAVES: tuple[tuple[str, str | float | bytes], ...] = (
+    ("1.1.12.3.2", "MODE_FAST"),                  # the mode string
+    ("1.1.15", UA),                               # the browser's User-Agent
+    ("1.1.19.2", 1.0),                            # a float beside the bloks id 1.1.19.1
+    ("1.15.4", TIME_ZONE),                        # the client's IANA time zone
+    ("1.20", b"\x03\x06"),                        # a packed list of two small enums
+)
 
 # ---- what the page and the answer look like ---------------------------------------------------------------------
 LOGGED_IN_MARK = '\\"isLoggedIn\\":true'          # the page's embedded JSON, escaped once
