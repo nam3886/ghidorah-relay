@@ -128,7 +128,8 @@ def test_errors_never_carry_a_cookie_value():
 @mutation(CRED_FILE, SESSION_STRICT, SESSION_LAX, expect="an unclean session part must refuse the import")
 @mutation(CRED_FILE, SKIP_UNCLEAN, KEEP_UNCLEAN, expect="an unclean non-session cookie must be dropped")
 def test_an_unclean_cookie_is_dropped_unless_it_is_a_session_part():
-    g_state = {**export()[2], "name": "g_state", "value":'{"a":7,"b":"x-PLANTED-g"}'}       # Google sign-in's JSON-shaped state
+    # Google sign-in's JSON-shaped state
+    g_state = {**export()[2], "name": "g_state", "value": '{"a":7,"b":"x-PLANTED-g"}'}
     blob = parse([*export(), g_state])
     assert "g_state" not in jar_of(blob) and "g_state" not in blob.decode(), \
         "an unclean non-session cookie must be dropped"

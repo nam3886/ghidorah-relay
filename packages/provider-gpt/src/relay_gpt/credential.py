@@ -2,8 +2,9 @@
 
 Accepted input: a JSON list of cookies, `{"url": ..., "cookies": <list>}` (a cookie without a domain takes the url's
 host), or the sealed shape itself. Only cookies of chatgpt.com and its subdomains are kept, and of those only the ones a
-`Cookie:` header can carry (an unclean session part refuses the import); a session part must be there: `__Secure-next-auth.session-token` itself, or its split parts `.0`, `.1`, ... Everything becomes ONE sealed
-shape: `{"cookies": <list of {name, value, domain, path}>, "renewed_at": <unix s>}`.
+`Cookie:` header can carry (an unclean session part refuses the import); a session part must be there:
+`__Secure-next-auth.session-token` itself, or its split parts `.0`, `.1`, ... Everything becomes ONE sealed shape:
+`{"cookies": <list of {name, value, domain, path}>, "renewed_at": <unix s>}`.
 
 chatgpt.com re-sets the session cookie on use, and may change how it is split (`.0/.1` -> a single `.0`, or the bare
 name). The engine writes the new value back through `RunCtx.renew_credential` with `with_session`, which replaces the
