@@ -23,7 +23,7 @@ BASIC = {
     "flow": {"claims_enabled", "prices", "disabled_models", "captcha_provider", "yescaptcha_key", "capsolver_key",
              "anticaptcha_key"},
     "gemini": {"claims_enabled", "prices", "disabled_models"},
-    "meta": {"claims_enabled", "prices", "disabled_models", "browser_slots"},
+    "meta": {"claims_enabled", "prices", "disabled_models"},
     "vibes": {"claims_enabled", "prices", "disabled_models"},
     "qwen": {"claims_enabled", "prices", "disabled_models"},
     "muse": {"claims_enabled", "prices", "disabled_models"},

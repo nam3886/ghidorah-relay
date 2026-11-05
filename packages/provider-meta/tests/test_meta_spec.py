@@ -47,9 +47,9 @@ def refused(model="meta-image", prompt="a lighthouse at dawn", **kw) -> InputErr
 
 
 # ---- caps, settings, catalog -----------------------------------------------------------------------------------------
-def test_the_caps_say_a_browser_provider_with_two_pools_that_reconciles_and_polls_what_it_found():
+def test_the_caps_say_an_http_provider_with_two_pools_that_reconciles_and_polls_what_it_found():
     c = SPEC.caps
-    assert SPEC.name == "meta" and c.execution == "browser"
+    assert SPEC.name == "meta" and c.execution == "http" and "meta.browser_slots" not in SPEC.settings()
     assert [(p.name, p.unit) for p in c.pools] == [("image", "jobs"), ("video", "jobs")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold) == (1, 3, 3)
     assert c.strike_effect == Dead("signed_out")
@@ -68,12 +68,28 @@ def test_meta_stays_drained_by_default_and_declares_the_settings_the_core_reads(
     assert s["meta.costs"].default == s["meta.prices"].default, "points 1:1 with the uses, one per image"
     for key in ("meta.image_submit_timeout_s", "meta.video_submit_timeout_s"):
         assert s[key].max == 720, "a submit timeout past the worker's stop grace"
-    rest = s["meta.checkpoint_rest_s"]
-    assert (rest.type, rest.default, rest.min) == (int, 1800, 300) and "checkpoint" in rest.description
     assert s["meta.checkpoint_rest_max_s"].default == 21600, "a repeated checkpoint rests at most 6 h"
-    gap = s["meta.send_gap_s"]
-    assert (gap.type, gap.default, gap.min) == (int, 600, 0), "a meta account takes a job at most every 10 min"
     assert _problems(SPEC) == []
+
+
+@mutation(SPEC_FILE, '_setting("token_reread_s", int, 3600,', '_setting("token_reread_s", int, 60,',
+          expect="token_reread_s")
+@mutation(SPEC_FILE, '             min=600, max=14400),', '             min=600, max=1440),', expect="token_reread_s")
+@mutation(SPEC_FILE, '_setting("page_gap_s", int, 300,', '_setting("page_gap_s", int, 30,', expect="page_gap_s")
+@mutation(SPEC_FILE, '             min=60, max=3600),', '             min=6, max=3600),', expect="page_gap_s")
+@mutation(SPEC_FILE, '_setting("checkpoint_rest_s", int, 600,', '_setting("checkpoint_rest_s", int, 1800,',
+          expect="checkpoint_rest_s")
+@mutation(SPEC_FILE, '_setting("send_gap_s", int, 60,', '_setting("send_gap_s", int, 600,', expect="send_gap_s")
+def test_the_http_settings_have_their_defaults_and_bounds():
+    s = SPEC.settings()
+    reread, page = s["meta.token_reread_s"], s["meta.page_gap_s"]
+    assert (reread.type, reread.default, reread.min, reread.max) == (int, 3600, 600, 14400), "token_reread_s"
+    assert (page.type, page.default, page.min, page.max) == (int, 300, 60, 3600), "page_gap_s"
+    rest = s["meta.checkpoint_rest_s"]
+    assert (rest.type, rest.default, rest.min, rest.max) == (int, 600, 300, 86400), "checkpoint_rest_s"
+    assert "proxy IP" in rest.description and "proxy IP" in s["meta.checkpoint_rest_max_s"].description
+    gap = s["meta.send_gap_s"]
+    assert (gap.type, gap.default, gap.min) == (int, 60, 0), "send_gap_s: a job loads no page, so 60 s is enough"
 
 
 def test_the_prices_setting_refuses_a_bad_table():
@@ -99,8 +115,24 @@ def test_the_registry_takes_meta_beside_dola_and_resolves_both_models():
 def test_meta_registers_the_codes_its_submit_uses_and_a_warning_is_no_rule():
     meta_codes = {code for code in errors.RULES if code.startswith("meta.")}
     assert set(SPEC.codes()) == meta_codes == {"meta.checkpoint", "meta.ui_page_not_ready", "meta.ui_send_failed",
-                                               "meta.no_image", "meta.no_video"}
+                                               "meta.no_image", "meta.no_video", "meta.page_wait", "meta.http_error",
+                                               "meta.input_unusable", "meta.content_refused"}
     assert not hasattr(meta_errors, "WARN_PRICE_FALLBACK"), "no price is a guess any more: there is no fallback"
+
+
+def test_meta_registers_the_http_codes_with_their_rules():
+    rules = {c: errors.RULES[c] for c in SPEC.codes()}
+    for code in ("meta.page_wait", "meta.checkpoint"):
+        r = rules[code]
+        assert (r.counts_attempt, r.refund, r.terminal) == (False, False, False), code
+        assert r.public_code == errors.TEMPORARILY_UNAVAILABLE
+    for code, public in (("meta.content_refused", errors.CONTENT_REFUSED),
+                         ("meta.input_unusable", errors.INVALID_INPUT)):
+        r = rules[code]
+        assert (r.refund, r.terminal, r.counts_attempt, r.http_status) == (True, True, False, 422), code
+        assert r.public_code == public
+    assert rules["meta.http_error"].counts_attempt is True
+    assert rules["meta.http_error"].public_code == errors.INTERNAL_ERROR
 
 
 # ---- plan ------------------------------------------------------------------------------------------------------------

@@ -146,8 +146,12 @@ The internal reference: a client never sees these codes nor their messages. It s
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|---|
 | `meta.checkpoint` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | the meta account met a browser checkpoint; the job is tried again |
+| `meta.content_refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta's safety check refused this prompt; the charge is returned |
+| `meta.http_error` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | an HTTP step to meta.ai failed before the send |
+| `meta.input_unusable` | `invalid_input` | 422 | invalid_request_error | yes | yes | no | 0 | yes | an input image could not be made small enough to upload; nothing was sent and the charge is returned |
 | `meta.no_image` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no image for this order; the charge is returned |
 | `meta.no_video` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | meta made no video for this order; the charge is returned |
+| `meta.page_wait` | `temporarily_unavailable` | 503 | api_error | no | no | no | 0 | yes | the meta account needs a page read and its proxy IP's page gate is closed; the job is tried again |
 | `meta.ui_page_not_ready` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | meta's page showed no sign-in sign or no ready composer |
 | `meta.ui_send_failed` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | the prompt could not be sent on meta's page |
 

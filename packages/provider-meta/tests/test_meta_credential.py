@@ -98,5 +98,25 @@ def test_malformed_input_is_refused_with_a_fixed_reason():
     assert refusal(b"[not json") == "the credential is not valid JSON"
     assert refusal([]) == "no cookies" and refusal({"origins": []}) == "no cookies"
     assert refusal([{"name": "ecto_1_sess", "value": SECRET}]) == "a cookie needs a name, a value and a domain"
+
+
+@mutation(CREDENTIAL_FILE, '            c["value"] = value', "            pass", expect="a rotated cookie is merged")
+@mutation(CREDENTIAL_FILE, '"domain": COOKIE_DOMAIN})', '"domain": "x.test"})', expect="a new cookie is for meta.ai")
+def test_a_rotated_cookie_is_merged_and_a_new_one_added_for_meta_ai():
+    blob = SPEC.parse_credential(json.dumps(editor()).encode()).blob
+    out = cred.with_cookies(blob, {"ecto_1_sess": "v2", "rd_challenge": "x"})
+    assert cred.jar_of(out) == {"ecto_1_sess": "v2", "datr": "d", "rd_challenge": "x"}, "a rotated cookie is merged"
+    added = [c for c in json.loads(out)["cookies"] if c["name"] == "rd_challenge"]
+    assert [c["domain"] for c in added] == [".meta.ai"], "a new cookie is for meta.ai"
+    assert cred.renewable("rd_challenge", "x") and not cred.renewable("a b", "x") and not cred.renewable("a", "x;y")
+
+
+@mutation(CREDENTIAL_FILE, "hexdigest()[:32]", "hexdigest()[:64]", expect="32 characters")
+@mutation(CREDENTIAL_FILE, "return hashlib.sha256(viewer_id.encode()).hexdigest()[:32]", "return viewer_id * 2",
+          expect="never the id")
+def test_viewer_hash_is_stable_and_never_the_id():
+    h = cred.viewer_hash("1234567890123456")
+    assert len(h) == 32, "the hash is 32 characters"
+    assert h == cred.viewer_hash("1234567890123456") and "1234567890123456" not in h, "never the id"
     assert refusal(["ecto_1_sess"]) == "a cookie must be an object"
     assert refusal(b"ecto_1_sess") == "a Cookie header holds name=value pairs"

@@ -27,8 +27,6 @@ from relay_core.settings import Spec, disabled_models
 from relay_meta import catalog as C
 from relay_meta import errors as codes
 from relay_meta.constants import (
-    BROWSER_SLOTS_MAX,
-    BROWSER_SLOTS_MIN,
     CHECK_INTERVAL_S,
     LIMITS,
     MAX_ATTEMPTS,
@@ -83,8 +81,6 @@ _SETTINGS = dict((
              "Drain mode off: when false meta claims no new job. Off until meta can submit.", basic=True),
     _setting("render_deadline_s", int, 900,
              "Seconds after the send before a meta job that has not delivered is given up.", min=60),
-    _setting("browser_slots", int, 2, "Browser sessions at once (live). Lowering retires idle slots.",
-             min=BROWSER_SLOTS_MIN, max=BROWSER_SLOTS_MAX, basic=True),
     (PROVIDER + ".prices", table_setting(
         PROVIDER + ".prices", "Points charged per job, keyed by its option. An option missing here is refused "
         "(model.unpriced), never charged a guess.", C.PRICE_KEYS, C.DEFAULT_PRICES, unit="points", basic=True)),
@@ -97,19 +93,25 @@ _SETTINGS = dict((
              "Hard bound on one image submit (meta takes 20 s to 3 min to draw).", min=60, max=SUBMIT_TIMEOUT_MAX_S),
     _setting("video_submit_timeout_s", int, 420,
              "Hard bound on one video submit (meta takes 1 to 2 min to render).", min=60, max=SUBMIT_TIMEOUT_MAX_S),
-    _setting("checkpoint_rest_s", int, 1800,
-             "Seconds a meta account rests after Vercel's browser checkpoint (\"Failed to verify your browser\") "
-             "before it is checked again. Nothing is sent, no job is charged or uses an attempt, and the account is "
-             "never ended for it; each repeat within a day doubles the rest, up to meta.checkpoint_rest_max_s.",
-             min=300, max=86400),
+    _setting("token_reread_s", int, 3600,
+             "Seconds a meta account's access token is used before meta.ai's page is read again for a new one "
+             "(a refused token is re-read at once). The same token was accepted for over an hour.",
+             min=600, max=14400),
+    _setting("page_gap_s", int, 300,
+             "Least seconds between two www.meta.ai page loads (token read, account check, reconcile) through one "
+             "proxy IP. A job that needs a page while the gap is closed goes back to the queue with no attempt used.",
+             min=60, max=3600),
+    _setting("checkpoint_rest_s", int, 600,
+             "Seconds a proxy IP's page loads rest after Vercel's browser checkpoint (\"Failed to verify your "
+             "browser\"). Jobs whose account holds a token keep sending; nothing is charged, no attempt is used, and "
+             "no account is ended for it. Each repeat within a day doubles the rest, up to "
+             "meta.checkpoint_rest_max_s.", min=300, max=86400),
     _setting("checkpoint_rest_max_s", int, 21600,
-             "The longest rest a repeated browser checkpoint gives a meta account (the rest doubles per repeat); "
-             "below checkpoint_rest_s it counts as checkpoint_rest_s.",
+             "The longest rest a repeated browser checkpoint gives a proxy IP (per IP; the rest doubles per "
+             "repeat); below checkpoint_rest_s it counts as checkpoint_rest_s.",
              min=300, max=86400),
-    _setting("send_gap_s", int, 600,
-             "Least seconds between two jobs one meta account takes. Every job loads meta.ai afresh and passes "
-             "Vercel's browser challenge; the third load within about 2 minutes met the checkpoint (25/10). "
-             "0 = no gap; "
+    _setting("send_gap_s", int, 60,
+             "Least seconds between two jobs one meta account takes. 0 = no gap; "
              "never more than half of unsent_deadline_s.", min=0, max=3600),
     _setting("limit_rest_s", int, 4 * 3600,
              "Seconds an account's image or video pool reads 0 (and rests) after meta answers with its limit or quota "
@@ -138,7 +140,7 @@ class MetaSpec:
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
     caps = Caps(
-        execution="browser", pools=POOLS,
+        execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
         strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True, has_reconcile=True, has_probe_proxy=False,
         titles=False, proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)

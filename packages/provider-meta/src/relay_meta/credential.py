@@ -7,7 +7,9 @@ expirationDate}]}`, which `relay_browser.ui.cookies_for_playwright` reads. No fu
 cookie value.
 """
 
+import hashlib
 import json
+import re
 from collections.abc import Mapping
 
 from relay_core.providers import ParsedCredential
@@ -93,3 +95,40 @@ def parse_credential(raw: bytes) -> ParsedCredential:
     blob = json.dumps({"cookies": cookies}, separators=(",", ":"), ensure_ascii=False).encode()
     # the hint is stored in plain text: no part of a session cookie goes into it (the admin names the account)
     return ParsedCredential(blob=blob, hint="meta")
+
+
+# ---- the sealed jar at run time ---------------------------------------------------------------------------------
+_COOKIE_VALUE = re.compile(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")
+_COOKIE_NAME = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+
+
+def jar_of(blob: bytes) -> dict[str, str]:
+    """name -> value of the sealed jar (the last one wins). ValueError (no value in it) when the blob is not one."""
+    try:
+        return {c["name"]: c["value"] for c in json.loads(blob)["cookies"]}
+    except (ValueError, TypeError, KeyError):
+        raise ValueError("the sealed meta credential is not readable") from None
+
+
+def renewable(name: object, value: object) -> bool:
+    """Can a cookie from a Set-Cookie go into the sealed jar (and so into a `Cookie:` header)?"""
+    return isinstance(name, str) and isinstance(value, str) and bool(value) and bool(_COOKIE_NAME.fullmatch(name)) \
+        and bool(_COOKIE_VALUE.fullmatch(value))
+
+
+def with_cookies(blob: bytes, updates: Mapping[str, str]) -> bytes:
+    """The sealed jar with these cookies set (a value meta rotated), a new name added for meta.ai, same shape."""
+    data = json.loads(blob)
+    cookies = data["cookies"]
+    for name, value in updates.items():
+        hits = [c for c in cookies if c["name"] == name]
+        for c in hits:
+            c["value"] = value
+        if not hits:
+            cookies.append({"name": name, "value": value, "domain": COOKIE_DOMAIN})
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def viewer_hash(viewer_id: str) -> str:
+    """The account identity kept for a viewerId: a hash, never the id."""
+    return hashlib.sha256(viewer_id.encode()).hexdigest()[:32]
