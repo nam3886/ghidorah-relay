@@ -248,6 +248,25 @@ REGISTRY = Registry(
          "The proxies in front of the API (addresses or CIDR networks, such as 172.16.0.0/12) whose X-Forwarded-For "
          "names the caller. Empty: none is trusted, the caller is the direct peer.",
          rule=Rule("a list of IP addresses or CIDR networks", _networks)),
+    # Per-key request limits of the public API (`api/ratelimit.py`): over them a request gets 429 with Retry-After.
+    Spec("api_read_rate", int, 20,
+         "Reads (GET calls) a second one API key may make over time; more get 429 quota.rate_limited.",
+         min=1, max=10_000),
+    Spec("api_read_burst", int, 100, "Reads one API key may make at once before its read rate applies.",
+         min=1, max=100_000),
+    Spec("api_create_rate", int, 5,
+         "Create calls (POST) a second one API key may make over time; more get 429 quota.rate_limited.",
+         min=1, max=10_000),
+    Spec("api_create_burst", int, 50, "Create calls one API key may make at once before its create rate applies.",
+         min=1, max=100_000),
+    Spec("api_big_body_mb", int, 8,
+         "A request body of at least this many MiB (or a POST with no Content-Length) waits for an upload slot "
+         "before it is read.", min=1, max=1_000),
+    Spec("api_big_body_slots", int, 4, "Large request bodies the API reads at once, over all keys.", min=1, max=1_000),
+    Spec("api_big_body_slots_per_key", int, 2, "Large request bodies one API key may send at once.",
+         min=1, max=1_000),
+    Spec("api_big_body_wait_s", int, 30,
+         "Seconds a large request waits for an upload slot before it gets 429 quota.upload_busy.", min=0, max=90),
 )
 
 

@@ -38,6 +38,7 @@ from relay_core.api import errors_http, routes_catalog, routes_gemini, routes_me
 from relay_core.api.doors import public_base
 from relay_core.api.llms_docs import llms_full, llms_txt
 from relay_core.api.openapi_docs import live, public_schema
+from relay_core.api.ratelimit import BigBodyGate, RateLimiter
 from relay_core.api.request_log import RequestLogMiddleware
 from relay_core.providers import ProviderRegistry
 from relay_core.settings import Settings
@@ -52,6 +53,11 @@ PUBLIC_PREFIXES = ("/v1", "/v1beta", "/models", "/m/")     # CORS paths; never /
 
 def _is_public(path: str) -> bool:
     return any(path == p or path.startswith(p.rstrip("/") + "/") for p in PUBLIC_PREFIXES)
+
+
+def _is_keyed(path: str) -> bool:
+    """The public paths that take an API key: every public one but the share links."""
+    return _is_public(path) and not path.startswith("/m/")
 
 
 class PublicCors:
@@ -81,6 +87,7 @@ def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectSt
     app.state.pool, app.state.settings, app.state.store, app.state.registry = pool, settings, store, registry
     app.state.container = dict(container) if container is not None else cgroup.own_limits()
     app.state.started_ms = int(time.time() * 1000)
+    app.state.limiter = RateLimiter()
     errors_http.install(app)
 
     health = APIRouter()
@@ -119,7 +126,9 @@ def create_app(*, pool: AsyncConnectionPool, settings: Settings, store: ObjectSt
     app.include_router(build_admin_router([*(m.router for m in ADMIN_ROUTES), *admin_routers]))
 
     # Last added is outermost: CORS wraps the admin headers, which wrap the admin guard (so its 401 and 413 carry
-    # them), which wraps the request log (so the log's own 500 answer carries both).
+    # them), which wraps the request log (so the log's own 500 answer carries both), which wraps the upload gate (so
+    # its 429 carries CORS; it names no key, so it writes no log row).
+    app.add_middleware(BigBodyGate, is_gated=_is_keyed)
     app.add_middleware(RequestLogMiddleware, pool=pool)
     app.add_middleware(AdminGuard)
     app.add_middleware(AdminHeaders)

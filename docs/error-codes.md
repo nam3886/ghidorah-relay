@@ -197,7 +197,9 @@ The internal reference: a client never sees these codes nor their messages. It s
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
 |---|---|---|---|---|---|---|---|---|---|
 | `quota.key_exceeded` | itself | 429 | rate_limit_error | yes | no | no | 0 | no | the API key's limit is reached |
+| `quota.rate_limited` | itself | 429 | rate_limit_error | yes | no | no | 0 | no | too many requests for this API key; send it again after Retry-After seconds |
 | `quota.too_many_queued` | itself | 429 | rate_limit_error | yes | no | no | 0 | no | too many unfinished jobs for this API key |
+| `quota.upload_busy` | itself | 429 | rate_limit_error | yes | no | no | 0 | no | too many large uploads at once; send it again after Retry-After seconds |
 
 ## `qwen.*`
 

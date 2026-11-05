@@ -233,7 +233,7 @@ delivers any output is `done` and keeps the whole charge. A job that delivers no
 given back: its status shows `refunded: true`. `GET /v1/points` shows the key's limits and spend.
 
 ## Limits
-Two limits apply to a key; both refuse a create call with 429 and charge nothing.
+Two limits apply to a key's jobs; both refuse a create call with 429 and charge nothing.
 - **Unfinished jobs**: a key holds at most `max_unfinished_jobs` jobs that are not yet `done` or `failed`
   (`GET /v1/points` shows it beside `unfinished_jobs`; null is no cap). One more is refused `quota.too_many_queued`.
   Send it again once one of your jobs ends.
@@ -242,8 +242,15 @@ Two limits apply to a key; both refuse a create call with 429 and charge nothing
   refused `quota.key_exceeded`. The day limit starts again each day at midnight in Asia/Ho_Chi_Minh time (UTC+7);
   the total limit does not.
 
-There is no per-second request limit, and no `Retry-After` or rate-limit header: read `GET /v1/points` to see what is
-left.
+Read `GET /v1/points` to see what is left; these two answers carry no `Retry-After`.
+
+Requests are limited too, per key; a refused request does nothing and charges nothing:
+- **Requests per second**: a key may make a few reads (GET calls) and fewer create calls (POST calls) a second, with a
+  short burst allowed. One more is refused `quota.rate_limited`.
+- **Large uploads**: a request body of several MiB (or a POST sent without `Content-Length`) waits for an upload slot,
+  of which a key has few at once. One that waits too long is refused `quota.upload_busy`.
+
+Both answer 429 with a `Retry-After` header (whole seconds): wait that long, then send the same request again.
 
 ## Errors
 Every error the relay sends has the body `{"error": {"code", "message", "type", "param"}}`; the Gemini routes use the
@@ -265,6 +272,8 @@ reached or did not answer within 100 seconds: a job may have been made, so send 
 from.
 
 ## Changes
+- **2026-11-05, 2026.11.05**: requests are limited per key (reads and create calls a second, and large uploads at
+  once): over a limit the answer is 429 `quota.rate_limited` or `quota.upload_busy`, with a `Retry-After` header.
 - **2026-11-04, 2026.11.04**: a request to `/v1/chat/completions` or `generateContent` without streaming waits at most
   {non_stream_hold_s} seconds from its start (it was always 540), then gives the poll hint while the job runs on.
   The reference now documents the poll hint, the HTTP status of a failed held request, model name suffixes, the
@@ -284,16 +293,16 @@ from.
 """
 
 API_TITLE = "Ghidorah Relay API"
-API_VERSION = "2026.11.04"   # bumped by hand with each entry of ## Changes above
+API_VERSION = "2026.11.05"   # bumped by hand with each entry of ## Changes above
 
 # Request-time refusals, by operation. The HTTP status of each code is its rule's (`relay_core.errors`).
-_KEY = ("auth.invalid_key", "auth.key_disabled")
+_KEY = ("auth.invalid_key", "auth.key_disabled", "quota.rate_limited")
 _FACADE_CREATE = _KEY + (
     "input.invalid", "input.empty_prompt", "input.prompt_too_long", "input.too_many_images", "input.image_unreadable",
     "input.bad_model", "input.bad_duration", "input.bad_ratio", "input.bad_style", "input.unsupported",
     "input.prompt_ratio_conflict", "input.prompt_duration_conflict", "input.too_costly", "auth.model_forbidden",
     "model.disabled", "model.unpriced", "model.uncosted", "model.unavailable", "input.idempotency_conflict",
-    "quota.key_exceeded", "quota.too_many_queued", "auth.permission_unknown")
+    "quota.key_exceeded", "quota.too_many_queued", "quota.upload_busy", "auth.permission_unknown")
 _NATIVE_CREATE = _FACADE_CREATE + ("input.bad_source", "input.source_unsupported")
 _NOT_FOUND = _KEY + ("resource.not_found",)
 _ERRORS: dict[tuple[str, str], tuple[str, ...]] = {
@@ -409,6 +418,8 @@ _MEDIA_RESPONSES = {
         "Content-Range": _header("bytes */ and the file's size.", "bytes */7340032")}},
 }
 # The facade routes (OpenAI, Gemini): an error answer tells the SDK not to send again (`errors_http.NO_RETRY`).
+_RETRY_AFTER = _header("With quota.rate_limited or quota.upload_busy: whole seconds to wait before sending the "
+                       "request again.", "1")
 _NO_RETRY = {"x-should-retry": _header("Always false: an SDK must not send the request again by itself.", "false")}
 _SSE = {"text/event-stream": {"schema": {"type": "string"}}}
 _STREAM_NOTE = " A streamed answer is text/event-stream with Cache-Control: no-cache."
@@ -445,10 +456,12 @@ def _error_responses(codes: tuple[str, ...], ref: str, headers: dict | None = No
     for status, found in sorted(by_status.items()):
         text = "Codes: %s." % ", ".join("`%s`" % c for c in found)
         if status == "429":
-            text += " See Limits in the introduction; no Retry-After header is sent."
+            text += " See Limits in the introduction; only quota.rate_limited and quota.upload_busy carry Retry-After."
         out[status] = {"description": text, "content": {"application/json": {"schema": {"$ref": ref}}}}
         if headers:
-            out[status]["headers"] = headers
+            out[status]["headers"] = copy.deepcopy(headers)
+        if status == "429":
+            out[status].setdefault("headers", {})["Retry-After"] = copy.deepcopy(_RETRY_AFTER)
     return out
 
 

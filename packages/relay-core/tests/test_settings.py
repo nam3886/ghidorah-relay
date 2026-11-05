@@ -130,7 +130,9 @@ def test_the_cut_back_global_keys_are_registered_with_their_defaults():
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3, "dead_check_interval_h": 24,
         "alert_pool_drift": 5,
         "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh", "public_address": "",
-        "trusted_proxies": [], "non_stream_hold_s": 540}
+        "trusted_proxies": [], "non_stream_hold_s": 540,
+        "api_read_rate": 20, "api_read_burst": 100, "api_create_rate": 5, "api_create_burst": 50,
+        "api_big_body_mb": 8, "api_big_body_slots": 4, "api_big_body_slots_per_key": 2, "api_big_body_wait_s": 30}
 
 
 @mutation(S, "return dict(self._registry.specs)", "return {}", expect="the listing must hold every setting")
@@ -294,7 +296,10 @@ def test_every_core_setting_states_what_it_allows():
         "dead_check_interval_h": "at least 1", "alert_pool_drift": "at least 0",
         "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh",
         "public_address": "empty, or an http(s) address with no query",
-        "trusted_proxies": "a list of IP addresses or CIDR networks", "non_stream_hold_s": "5–540"}
+        "trusted_proxies": "a list of IP addresses or CIDR networks", "non_stream_hold_s": "5–540",
+        "api_read_rate": "1–10000", "api_read_burst": "1–100000", "api_create_rate": "1–10000",
+        "api_create_burst": "1–100000", "api_big_body_mb": "1–1000", "api_big_body_slots": "1–1000",
+        "api_big_body_slots_per_key": "1–1000", "api_big_body_wait_s": "0–90"}
     with pytest.raises(SettingsError, match="must not be empty"):
         REGISTRY.specs["filename_pattern"].validate("  ")
 

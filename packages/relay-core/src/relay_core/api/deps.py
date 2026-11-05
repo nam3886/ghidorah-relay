@@ -12,7 +12,7 @@ from fastapi import Depends, Request
 from psycopg_pool import AsyncConnectionPool
 
 from relay_core import keys
-from relay_core.api.errors_http import ApiError
+from relay_core.api.errors_http import ApiError, retry_after
 from relay_core.billing import KeyDisabled
 from relay_core.keys import ApiKey, KeyRefused
 from relay_core.providers import ProviderRegistry
@@ -50,10 +50,12 @@ def credential(request: Request) -> str:
 async def require_key(request: Request, pool: AsyncConnectionPool = Depends(get_pool)) -> ApiKey:
     """The enabled key behind the request. Missing, unknown or malformed -> 401 `auth.invalid_key`; disabled ->
     403 `auth.key_disabled`, and only after the whole hash matched. A database error propagates (500): no
-    answer, no access."""
+    answer, no access. A known key over its request rate -> 429 `quota.rate_limited` (`ratelimit`), before any
+    write."""
     try:
         async with pool.connection() as conn:
             key = await keys.lookup(conn, credential(request))
+            _rate_limit(request, key.id)
             await keys.touch(conn, key.id, client_ip(request))
     except KeyRefused:
         raise ApiError("auth.invalid_key") from None
@@ -62,6 +64,15 @@ async def require_key(request: Request, pool: AsyncConnectionPool = Depends(get_
         raise ApiError("auth.key_disabled") from None
     request.state.key_id = key.id
     return key
+
+
+def _rate_limit(request: Request, key_id) -> None:
+    limiter = request.app.state.limiter
+    wait = limiter.take(key_id, request.method, request.app.state.settings)
+    if wait:
+        if limiter.log_due(key_id, request.method):
+            request.state.key_id = key_id       # the request log keeps one refusal a second, not one per request
+        raise ApiError("quota.rate_limited", headers=retry_after(wait))
 
 
 async def resolve_key_quietly(request: Request) -> ApiKey | None:

@@ -563,6 +563,10 @@ def test_every_operation_has_a_unique_camel_case_operation_id_named_after_its_ro
 
 @mutation(DOCS, "    schema[\"info\"].update(title=API_TITLE, version=API_VERSION, description=INTRO)\n",
           "    schema[\"info\"].update(description=INTRO)\n", expect="title and version")
+@mutation(DOCS, '_KEY = ("auth.invalid_key", "auth.key_disabled", "quota.rate_limited")',
+          '_KEY = ("auth.invalid_key", "auth.key_disabled")', expect="rate_limited on")
+@mutation(DOCS, '            out[status].setdefault("headers", {})["Retry-After"] = copy.deepcopy(_RETRY_AFTER)\n',
+          "            pass\n", expect="Retry-After on")
 def test_the_title_version_changes_and_limits_are_documented(db):
     async def scenario(env):
         return await fetch(env)
@@ -578,6 +582,17 @@ def test_the_title_version_changes_and_limits_are_documented(db):
         assert errors.http_status(code) == 429, code
     created = schema["paths"]["/v1/video/generations"]["post"]["responses"]["429"]["description"]
     assert "quota.too_many_queued" in created and "Retry-After" in created
+    for word in ("`quota.rate_limited`", "`quota.upload_busy`"):
+        assert word in info["description"], word
+    for code in ("quota.rate_limited", "quota.upload_busy"):
+        assert errors.http_status(code) == 429, code
+    for path, ops in schema["paths"].items():
+        for method, op in ops.items():
+            if "security" in op:
+                limited, where = op["responses"].get("429", {}), "%s %s" % (method, path)
+                assert "`quota.rate_limited`" in limited.get("description", ""), "rate_limited on " + where
+                assert "Retry-After" in limited["headers"], "Retry-After on " + where
+                assert ("`quota.upload_busy`" in limited["description"]) == (method == "post"), "upload_busy " + where
 
 
 MEDIA = ("/m/{token}", "/v1/video/generations/{job_id}/content", "/v1/video/generations/{job_id}/content/{idx}",
@@ -641,6 +656,7 @@ async def markdown(env, path: str):
 @mutation(LLMS, '"Poll the status call every 10 to 30 seconds, never in a tight loop.",', "", expect="poll 10 to 30")
 @mutation(LLMS, '"Branch on `error.code`, never on the message text.",', "", expect="branch on error.code")
 @mutation(LLMS, '"Take model names from `GET /v1/models`', '"Take model names from your notes', expect="models list")
+@mutation(LLMS, '"On a 429 with a `Retry-After` header', '"On a 429', expect="honour Retry-After")
 @mutation(LLMS, '    rules = "\\n".join("- " + r % hold_s if "%s" in r else "- " + r for r in AGENT_RULES)',
           '    rules = "\\n".join("- " + r.replace("%s", "540") for r in AGENT_RULES)', expect="the hold setting")
 def test_llms_txt_is_public_markdown_with_the_base_url_the_live_hold_and_the_agent_rules(db):
@@ -660,6 +676,7 @@ def test_llms_txt_is_public_markdown_with_the_base_url_the_live_hold_and_the_age
     assert "every 10 to 30 seconds, never in a tight loop" in first, "poll 10 to 30"
     assert "Branch on `error.code`, never on the message text" in first, "branch on error.code"
     assert "Take model names from `GET /v1/models`" in first, "models list"
+    assert "On a 429 with a `Retry-After` header" in first, "honour Retry-After"
     for word in ("Bearer", "X-API-Key", "x-goog-api-key", "/llms-full.txt", "/openapi.json", "/reference"):
         assert word in first, word
     assert "/admin" not in first

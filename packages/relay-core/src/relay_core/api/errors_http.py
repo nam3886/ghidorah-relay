@@ -11,6 +11,7 @@ Gemini doors (`/v1beta…`, `/models…`).
 """
 
 import logging
+import math
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -53,6 +54,11 @@ class ApiError(Exception):
     def __init__(self, code: str, param: str | None = None, *, headers: dict[str, str] | None = None):
         super().__init__(code)
         self.code, self.param, self.headers = code, clean_param(param), headers
+
+
+def retry_after(seconds: float) -> dict[str, str]:
+    """The `Retry-After` header of a 429 (`api/ratelimit.py`): whole seconds, at least 1."""
+    return {"Retry-After": str(max(1, math.ceil(seconds)))}
 
 
 def is_gemini_path(path: str) -> bool:

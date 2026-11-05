@@ -203,6 +203,11 @@ RULES: dict[str, Rule] = {r.code: r for r in (
 
     _r("quota.key_exceeded", 429, "rate_limit_error", message="the API key's limit is reached", **_pre),
     _r("quota.too_many_queued", 429, "rate_limit_error", message="too many unfinished jobs for this API key", **_pre),
+    # Per-key request limits in the api process (`api/ratelimit.py`): the answer carries Retry-After.
+    _r("quota.rate_limited", 429, "rate_limit_error",
+       message="too many requests for this API key; send it again after Retry-After seconds", **_pre),
+    _r("quota.upload_busy", 429, "rate_limit_error",
+       message="too many large uploads at once; send it again after Retry-After seconds", **_pre),
 
     # Our side: the job goes back to the queue, no attempt used, no refund.
     _r("pool.account_cannot_afford", 503, _API, message="no account has enough points for this job", **_BUSY),

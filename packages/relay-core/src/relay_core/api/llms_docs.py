@@ -14,6 +14,8 @@ AGENT_RULES = (
     "To retry safely, send the same `Idempotency-Key`.",
     "Poll the status call every 10 to 30 seconds, never in a tight loop.",
     "Branch on `error.code`, never on the message text.",
+    "On a 429 with a `Retry-After` header (`quota.rate_limited`, `quota.upload_busy`), wait that many seconds, then "
+    "send the same request again.",
     "Take model names from `GET /v1/models`: the list depends on the key and changes.",
     "A chat or Gemini request without streaming waits at most %s seconds; then the answer is a poll hint and the job "
     "runs on. Take its `job_id` (Gemini `responseId`) and poll.",
