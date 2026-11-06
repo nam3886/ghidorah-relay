@@ -269,8 +269,9 @@ def test_the_copy_button_restores_its_label_after_a_double_click_and_never_copie
         page.route("**/llms-full.txt", lambda route: route.fulfill(status=500, body="boom"))
         page.evaluate("window.__copied.length = 0", isolated_context=False)
         main.click()
-        expect(main).to_have_text("Copy failed")
+        expect(main).not_to_have_text("Copy page")     # the copy has finished, one way or the other
         assert page.evaluate("window.__copied", isolated_context=False) == [], "error body copied"
+        expect(main).to_have_text("Copy failed")
         expect(main).to_have_text("Copy page", timeout=4000)
     finally:
         context.close()
