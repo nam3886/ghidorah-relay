@@ -122,6 +122,9 @@ html:root {
   --p-gpt: #15803d;
   --p-gpt-soft: #dcfce7;
   --p-gpt-ink: #15803d;
+  --p-grok: #334155;
+  --p-grok-soft: #e2e8f0;
+  --p-grok-ink: #334155;
 }
 
 html.dark:root {
@@ -230,6 +233,9 @@ html.dark:root {
   --p-gpt: #86efac;
   --p-gpt-soft: #0d2e1a;
   --p-gpt-ink: #86efac;
+  --p-grok: #cbd5e1;
+  --p-grok-soft: #1e293b;
+  --p-grok-ink: #cbd5e1;
 }
 
 /* A provider's colours, by class (lib/providers.ts `providerClass`): --pc and --pi the ink (PF), --ps the fill (PB).
@@ -273,6 +279,11 @@ html.dark:root {
   --pc: var(--p-gpt);
   --ps: var(--p-gpt-soft);
   --pi: var(--p-gpt-ink);
+}
+.p-grok {
+  --pc: var(--p-grok);
+  --ps: var(--p-grok-soft);
+  --pi: var(--p-grok-ink);
 }
 .p-other {
   --pc: var(--rl-neutral);

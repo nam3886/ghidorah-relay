@@ -198,6 +198,7 @@ const PF = {
   qwen: ["#8a6700", "#fde047"],
   muse: ["#0369a1", "#7dd3fc"],
   gpt: ["#15803d", "#86efac"],
+  grok: ["#334155", "#cbd5e1"],
 };
 const PB = {
   dola: ["#ddf6f2", "#0f2e2b"],
@@ -208,6 +209,7 @@ const PB = {
   qwen: ["#fbf1d0", "#33290a"],
   muse: ["#e0f2fe", "#0c2a3d"],
   gpt: ["#dcfce7", "#0d2e1a"],
+  grok: ["#e2e8f0", "#1e293b"],
 };
 
 describe("the Ledger tokens", () => {
