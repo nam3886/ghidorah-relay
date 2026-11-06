@@ -433,7 +433,8 @@ def test_proxy_recheck_fails_without_a_proxy(db):
           expect="the exit read clears the flag")
 @mutation(COMMANDS, '"UPDATE accounts SET " + PROXY_ERROR_CLEARED + PROXY_OK_SET +',
           '"UPDATE accounts SET " + PROXY_OK_SET +', expect="the proxy error is cleared")
-@mutation(COMMANDS, '    if ip is None:\n        raise CommandError("the exit IP could not be read through the proxy")\n',
+@mutation(COMMANDS, '    if ip is None:\n'
+          '        raise CommandError("the exit IP could not be read through the proxy")\n',
           "", expect="a failed exit read changes nothing")
 @mutation(COMMANDS, '        raise CommandError("the exit IP could not be read through the proxy")\n',
           '        return {"ok": False, "reason": "no exit"}\n', expect="a failed exit read changes nothing")
