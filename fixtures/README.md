@@ -683,6 +683,7 @@ the user id (with and without dashes), the email and its local part, `sso` / `ss
 - `grok/spike-261106/imagine_moderated.json` — synthetic: Imagine WS job that completes `moderated:true` with no final (see Gaps).
 - `grok/spike-261106/imagine_stray_request.json` — synthetic: the n2 capture plus a final and a `completed` frame of another `request_id`.
 - `grok/spike-261106/imagine_limit_frame.json` — synthetic: Imagine WS `error` frame with `err_code`/`err_msg` (chenyme's shape; real one unseen).
+- `grok/spike-261106/imagine_rate_limit_frame.json` — captured 06/11 (redacted): the real Imagine WS `error` frame `rate_limit_exceeded` / "Image rate limit exceeded", sent 0.28 s after the request with no `session` frame first (FINDINGS F10).
 - `grok/spike-261106/ndjson_edit_moderated.json` — synthetic: the edit's progress-100 line with `moderated:true`, url kept.
 - `grok/spike-261106/ndjson_t2v_decoy.json` — synthetic: muhrifqie's decoy t2v lines (progress 20/45/70/90/100, no `rRated`).
 - `grok/spike-261106/rest_403_code7.json` — synthetic: REST 403 `code 7` anti-bot body (chenyme's).
