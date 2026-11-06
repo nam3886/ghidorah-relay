@@ -13,6 +13,7 @@ from grokkit import (
     FakeSocket,
     Resp,
     assert_no_secret,
+    fixture,
     job,
     names,
     settings,
@@ -24,6 +25,8 @@ from relay_core.providers import (
     Completion,
     CreateRequest,
     Dead,
+    Done,
+    Found,
     InputError,
     MediaIn,
     ProviderRegistry,
@@ -37,7 +40,9 @@ from relay_gemini.spec import SPEC as GEMINI
 from relay_gpt.spec import SPEC as GPT
 from relay_grok import errors as codes
 from relay_grok.catalog import DEFAULT_COSTS, DEFAULT_PRICES, MAX_N, PRICE_KEYS, image_key
-from relay_grok.constants import LIMITS, PROMPT_MAX_CHARS
+from relay_grok.constants import LIMITS, PROMPT_MAX_CHARS, RESPONSES_PATH, STATE_CONVERSATION, STATE_REQUEST
+from relay_grok.engine import GrokEngine
+from relay_grok.engine import submit as submit_module
 from relay_grok.spec import AFTER_SENT, POOL_DEFAULTS, SPEC
 from relay_meta.spec import SPEC as META
 from relay_muse.spec import SPEC as MUSE
@@ -66,7 +71,7 @@ def test_the_caps_say_an_http_provider_with_two_pools_held_and_reconciled_by_the
     assert SPEC.name == "grok" and c.execution == "http"
     assert [(p.name, p.unit) for p in c.pools] == [("image", "uses"), ("video", "uses")]
     assert (c.account_slots, c.max_attempts, c.suspect_threshold, c.strike_effect) == (1, 3, 3, Dead("signed_out"))
-    assert (c.has_poll, c.has_probe_proxy) == (False, False)
+    assert (c.has_poll, c.has_probe_proxy) == (True, False)
     assert c.has_reconcile == (AfterSent.RECONCILE in AFTER_SENT.values())
     assert (c.proxy_rest_s, c.check_interval_s) == (300, 3600)
     assert SPEC.max_prompt_chars == PROMPT_MAX_CHARS == 4000
@@ -323,3 +328,78 @@ def test_the_kit_plans_each_operation_and_the_clock_moves_only_when_told():
     clock = Clock()
     asyncio.run(clock.sleep(5))
     assert clock() == 1005.0 and (clock.now() - Clock().now()).total_seconds() == 5
+
+
+# ---- the engine (worker side) ----------------------------------------------------------------------------------------
+ENGINE_FILE = "packages/provider-grok/src/relay_grok/engine/__init__.py"
+T2I_CONVERSATION = "c0000000-0000-4000-8000-000000000008"     # the read-back fixture's text-to-image conversation
+
+
+def test_build_engine_matches_the_caps():
+    from relay_grok.engine import GrokEngine, build_engine
+    engine = build_engine(SPEC, settings())
+    assert isinstance(engine, GrokEngine)
+    assert hasattr(engine, "poll") == SPEC.caps.has_poll is True
+    assert hasattr(engine, "reconcile") == SPEC.caps.has_reconcile is True
+    assert hasattr(engine, "probe_proxy") == SPEC.caps.has_probe_proxy is False
+    with pytest.raises(ValueError, match="grok runs no command"):
+        asyncio.run(engine.run_command(Ctx(), "anything", {}))
+
+
+@mutation(SPEC_FILE, "strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True,",
+          "strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=False,", expect="a reconciled job is never delivered")
+def test_a_reconciled_job_ends_delivered():
+    """The core moves a `Found` job to `waiting`, and only a poll hands its outputs to the fetcher: without the poll a
+    job the reconcile found is never delivered (the render deadline refunds what was made)."""
+    s = FakeSession({("GET", RESPONSES_PATH % T2I_CONVERSATION): Resp(json_body=fixture("readback_t2i")["body"])})
+    engine = GrokEngine(settings(), make_session=s)
+    lost = job("t2i", n=2, state={STATE_REQUEST: "r-1", STATE_CONVERSATION: T2I_CONVERSATION})
+    found = asyncio.run(engine.reconcile(Ctx(), lost))
+    assert isinstance(found, Found) and found.taken
+    assert SPEC.caps.has_poll, "a reconciled job is never delivered"
+    waiting = job("t2i", n=2, state={**lost.provider_state, **found.provider_state})
+    done = asyncio.run(engine.poll(Ctx(), waiting)).outcome
+    assert isinstance(done, Done) and len(done.outputs) == 2
+    assert all(o.ref.startswith("https://imagine-public.x.ai/") and o.mime == "image/jpeg" for o in done.outputs)
+    assert s.requests and all(r.proxies == s.proxies for r in s.requests) and s.proxies is not None
+
+
+def test_statsig_off_builds_no_generator_and_the_submit_gets_none(monkeypatch):
+    s = FakeSession()
+    engine = GrokEngine(settings(), make_session=s)
+    seen = []
+
+    async def fake_submit(ctx, job_, settings_, *, deps):
+        seen.append(deps)
+        return "result"
+    monkeypatch.setattr(submit_module, "submit", fake_submit)
+    assert asyncio.run(engine.submit(Ctx(), job("t2i"))) == "result"
+    assert seen[0].statsig is None and seen[0].make_session is s
+    assert s.requests == [], "statsig off must send no header and read no page"
+
+
+@mutation(ENGINE_FILE, "statsig=self.statsig(ctx.account))", "statsig=None)",
+          expect="the statsig generator never reaches the submit")
+def test_statsig_generate_reads_the_page_once_through_the_account_proxy(monkeypatch):
+    s = FakeSession({("GET", "/imagine"): Resp(200, text=fixture("page_home.html")),
+                     ("GET", "/_next/static/"): Resp(200, text="var a=1;")})
+    engine = GrokEngine(settings(statsig_mode="generate"), make_session=s)
+    seen = []
+
+    async def fake_submit(ctx, job_, settings_, *, deps):
+        seen.append(await deps.statsig("POST", "/rest/app-chat/conversations/new") if deps.statsig else "none")
+        return "result"
+    monkeypatch.setattr(submit_module, "submit", fake_submit)
+    asyncio.run(engine.submit(Ctx(), job("t2i")))
+    asyncio.run(engine.submit(Ctx(), job("t2i")))
+    assert seen == [None, None], "the statsig generator never reaches the submit"   # 06/11's page has no seed
+    pages = [r for r in s.requests if r.path == "/imagine"]
+    assert len(pages) == 1, "the seed page is read once per max age, not once per job"
+    assert pages[0].has_cookie and s.proxies is not None and all(r.proxies == s.proxies for r in s.requests)
+    assert all(not r.has_cookie for r in s.requests if r.path.startswith("/_next/static/"))
+
+
+def test_an_unreadable_seed_page_gives_no_header_and_never_fails_the_job():
+    engine = GrokEngine(settings(statsig_mode="generate"), make_session=FakeSession())     # every GET is a 404
+    sign = engine.statsig(Ctx().account)
+    assert asyncio.run(sign("POST", "/rest/media/imagine/quota_info")) is None

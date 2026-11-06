@@ -162,7 +162,7 @@ class GrokSpec:
     caps = Caps(
         execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,
-        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=False,
+        strike_effect=Dead(STRIKE_DEAD_REASON), has_poll=True,
         has_reconcile=AfterSent.RECONCILE in AFTER_SENT.values(), has_probe_proxy=False,
         proxy_rest_s=PROXY_REST_S, check_interval_s=CHECK_INTERVAL_S)
     limits = LIMITS + (

@@ -16,6 +16,7 @@ import relay_dola
 import relay_flow
 import relay_gemini
 import relay_gpt
+import relay_grok
 import relay_meta
 import relay_muse
 import relay_qwen
@@ -26,6 +27,7 @@ from relay_dola.spec import SPEC as DOLA
 from relay_flow.spec import SPEC as FLOW
 from relay_gemini.spec import SPEC as GEMINI
 from relay_gpt.spec import SPEC as GPT
+from relay_grok.spec import SPEC as GROK
 from relay_meta.spec import SPEC as META
 from relay_muse.spec import SPEC as MUSE
 from relay_qwen.spec import SPEC as QWEN
@@ -115,7 +117,10 @@ NOT_SHOWN = {
              "relay_muse.constants.PROMPT_MAX_CHARS",
              "relay_gpt.constants.PROXY_REST_S", "relay_gpt.constants.CHECK_INTERVAL_S",
              "relay_gpt.constants.MAX_ATTEMPTS", "relay_gpt.constants.SUSPECT_THRESHOLD",
-             "relay_gpt.constants.PROMPT_MAX_CHARS"),
+             "relay_gpt.constants.PROMPT_MAX_CHARS",
+             "relay_grok.constants.PROXY_REST_S", "relay_grok.constants.CHECK_INTERVAL_S",
+             "relay_grok.constants.MAX_ATTEMPTS", "relay_grok.constants.SUSPECT_THRESHOLD",
+             "relay_grok.constants.PROMPT_MAX_CHARS"),
     **excuse("the catalog a customer reads from GET /v1/models",
              "relay_dola.catalog.DURATIONS_BY_MODEL", "relay_dola.catalog.VALID_DURATIONS",
              "relay_qwen.catalog.DURATIONS", "relay_qwen.catalog.DEFAULT_DURATION",
@@ -123,18 +128,19 @@ NOT_SHOWN = {
              "relay_flow.catalog.DEFAULT_DURATION", "relay_flow.catalog.MAX_IMAGE_REFS",
              "relay_flow.catalog.MAX_VIDEO_REFS", "relay_gemini.catalog.VIDEO_DURATION",
              "relay_muse.catalog.DURATIONS", "relay_muse.catalog.DEFAULT_DURATION",
-             "relay_gpt.catalog.MAX_IMAGE_INPUTS"),
+             "relay_gpt.catalog.MAX_IMAGE_INPUTS", "relay_grok.constants.VIDEO_DURATION_S"),
     **excuse("the default of the provider's prices setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_PRICES", "relay_meta.catalog.DEFAULT_PRICES",
              "relay_vibes.catalog.DEFAULT_PRICES", "relay_flow.catalog.DEFAULT_PRICES",
              "relay_gemini.catalog.DEFAULT_PRICES",
              "relay_qwen.catalog.DEFAULT_PRICES", "relay_muse.catalog.DEFAULT_PRICES",
-             "relay_gpt.catalog.DEFAULT_PRICES"),
+             "relay_gpt.catalog.DEFAULT_PRICES", "relay_grok.catalog.DEFAULT_PRICES"),
     **excuse("the default of the provider's costs setting, which the page already shows",
              "relay_dola.catalog.DEFAULT_COSTS", "relay_meta.catalog.DEFAULT_COSTS",
              "relay_vibes.catalog.DEFAULT_COSTS", "relay_flow.catalog.DEFAULT_COSTS",
              "relay_gemini.catalog.DEFAULT_COSTS", "relay_qwen.catalog.DEFAULT_COSTS",
-             "relay_muse.catalog.DEFAULT_COSTS", "relay_gpt.catalog.DEFAULT_COSTS"),
+             "relay_muse.catalog.DEFAULT_COSTS", "relay_gpt.catalog.DEFAULT_COSTS",
+             "relay_grok.catalog.DEFAULT_COSTS"),
     **excuse("the default and the upper bound of every provider's refusal_max_accounts setting, which the settings "
              "page already shows with its allowed range",
              "refusals.DEFAULT_MAX_ACCOUNTS", "refusals.MAX_ACCOUNTS_CEILING"),
@@ -146,6 +152,9 @@ NOT_SHOWN = {
              "relay_meta.constants.FINAL_CHUNK_FIELD", "relay_meta.constants.FINAL_PATH",
              "relay_meta.constants.MIME_PATH", "relay_meta.constants.TEXT_PATH",
              "relay_meta.constants.TOOL_RESULT_PATHS"),
+    **excuse("an upstream protocol code (grok's error codes in a refusal body), not a bound",
+             "relay_grok.constants.ANTIBOT_CODE", "relay_grok.constants.SIGNED_OUT_CODE",
+             "relay_grok.constants.BAD_BODY_CODE"),
     **excuse("an upstream protocol code (flow's aspect ratio and resolution numbers), not a bound",
              "relay_flow.catalog.ASPECTS", "relay_flow.catalog.VIDEO_ASPECTS", "relay_flow.catalog.OMNI_360P"),
     **excuse("an upstream fact: Anti-Captcha's own score queues, the values flow.anticaptcha_min_score may take",
@@ -196,7 +205,7 @@ def scanned_modules():
         if not info.name.startswith("relay_core.testing"):
             yield info.name.removeprefix("relay_core."), importlib.import_module(info.name)
     for provider in (relay_dola, relay_meta, relay_vibes, relay_flow, relay_gemini, relay_qwen,
-                     relay_muse, relay_gpt):
+                     relay_muse, relay_gpt, relay_grok):
         yield from ((m.__name__, m) for m in map(importlib.import_module, (
             "%s.%s" % (provider.__name__, i.name) for i in pkgutil.iter_modules(provider.__path__)
             if not i.ispkg and i.name != "e2e")))
@@ -214,7 +223,7 @@ def numeric_constants() -> dict[str, object]:
 def listed() -> dict[str, object]:
     return {f.name: f.value for f in (*CORE, *DOLA.limits, *META.limits, *VIBES.limits, *FLOW.limits,
                                              *GEMINI.limits, *QWEN.limits, *MUSE.limits,
-                                             *GPT.limits)}
+                                             *GPT.limits, *GROK.limits)}
 
 
 @mutation(LIMITS, MAX_INFLIGHT_ROW, "", expect="jobs.engine.MAX_INFLIGHT")

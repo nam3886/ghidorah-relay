@@ -256,7 +256,7 @@ def run_py(code: str) -> str:
 LOADED = ("import sys; print(sorted({m if m.endswith(('.engine', '.e2e')) else m.split('.')[0] "
           "for m in sys.modules if m.split('.')[0] in "
           "('relay_browser', 'patchright', 'relay_dola', 'relay_vibes', 'relay_meta', 'relay_flow', "
-          "'relay_gemini', 'relay_qwen', 'relay_muse', 'relay_gpt') and "
+          "'relay_gemini', 'relay_qwen', 'relay_muse', 'relay_gpt', 'relay_grok') and "
           "(m.endswith('.engine') or m.endswith('.e2e') or m.split('.')[0] in ('relay_browser', 'patchright'))}))")
 
 
@@ -283,6 +283,7 @@ def test_http_worker_loads_no_browser():
     assert loaded_after("worker", "--provider", "qwen") == "['relay_qwen.engine']"
     assert loaded_after("worker", "--provider", "muse") == "['relay_muse.engine']"
     assert loaded_after("worker", "--provider", "gpt") == "['relay_gpt.engine']"
+    assert loaded_after("worker", "--provider", "grok") == "['relay_grok.engine']"
     assert loaded_after("worker", "--provider", "meta") == "['relay_meta.engine']"
 
 
@@ -302,6 +303,7 @@ def test_browser_worker_loads_only_its_own_engine():
     ("vibes", "['relay_vibes.e2e', 'relay_vibes.engine']"),
     ("muse", "['relay_muse.e2e', 'relay_muse.engine']"),
     ("gpt", "['relay_gpt.e2e', 'relay_gpt.engine']"),
+    ("grok", "['relay_grok.e2e', 'relay_grok.engine']"),
 ])
 def test_e2e_loads_its_provider_engine_and_e2e_module(provider, expected):
     assert loaded_after("e2e", "--provider", provider) == expected
