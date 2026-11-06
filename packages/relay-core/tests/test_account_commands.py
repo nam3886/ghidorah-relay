@@ -432,13 +432,17 @@ def test_proxy_recheck_fails_without_a_proxy(db):
           expect="the exit read clears the flag")
 @mutation(COMMANDS, '"UPDATE accounts SET " + PROXY_ERROR_CLEARED + "proxy_ok = true, "',
           '"UPDATE accounts SET proxy_ok = true, "', expect="the proxy error is cleared")
-@mutation(COMMANDS, "return {\"ok\": ip is not None,", "return {\"ok\": True,",
-          expect="a failed exit read is a bad verdict")
+@mutation(COMMANDS, '    if ip is None:\n        raise CommandError("the exit IP could not be read through the proxy")\n',
+          "", expect="a failed exit read changes nothing")
+@mutation(COMMANDS, '        raise CommandError("the exit IP could not be read through the proxy")\n',
+          '        return {"ok": False, "reason": "no exit"}\n', expect="a failed exit read changes nothing")
 def test_proxy_recheck_of_a_provider_without_a_probe_reads_the_exit_through_the_proxy(db):
     stale = new_account(db, checked=True, due_s=3600, proxy=("10.0.2.1", 8080))
-    dead = new_account(db, checked=True, due_s=3600, proxy=("10.0.2.2", 8080))
+    unread = new_account(db, checked=True, due_s=3600, proxy=("10.0.2.2", 8080))
+    for name in ("video", "image"):
+        db.run("INSERT INTO account_pools (account_id, pool) VALUES (%s, %s)", unread, name)
     c_stale = new_command(db, "proxy_recheck", account_id=stale)
-    c_dead = new_command(db, "proxy_recheck", account_id=dead)
+    c_unread = new_command(db, "proxy_recheck", account_id=unread)
     engine = KitEngine()
 
     async def exits(proxy):
@@ -454,10 +458,18 @@ def test_proxy_recheck_of_a_provider_without_a_probe_reads_the_exit_through_the_
 
     worker(db, scenario)
     assert engine.probed == []
-    assert command(db, c_stale)["status"] == "done" and command(db, c_dead)["status"] == "done"
-    good, bad = account_row(db, stale), account_row(db, dead)
+    assert command(db, c_stale)["status"] == "done"
+    good = account_row(db, stale)
     assert good["proxy_ok"] is True, "the exit read clears the flag"
     assert good["last_error"] is None, "the proxy error is cleared"
-    assert bad["proxy_ok"] is False, "a failed exit read is a bad verdict"
-    for acct in (stale, dead):
-        assert db.one("SELECT check_due_at <= clock_timestamp() FROM accounts WHERE id = %s", acct)[0]
+    assert db.one("SELECT check_due_at <= clock_timestamp() FROM accounts WHERE id = %s", stale)[0]
+    failed = command(db, c_unread)
+    assert failed["status"] == "failed" and "exit IP could not be read" in failed["result"]["error"], (
+        "a failed exit read changes nothing, the command fails: %r" % (failed,))
+    left = account_row(db, unread)
+    assert (left["proxy_ok"], left["proxy_checked_at"], left["last_error"]) == (None, None, None), (
+        "a failed exit read changes nothing: %r" % (left,))
+    assert db.one("SELECT check_due_at > clock_timestamp() + interval '50 min' FROM accounts WHERE id = %s",
+                  unread)[0], "a failed exit read changes nothing (the account was made due)"
+    assert db.all("SELECT pool FROM account_pools WHERE account_id = %s AND rest_until IS NOT NULL", unread) == [], (
+        "a failed exit read changes nothing (the account rests)")

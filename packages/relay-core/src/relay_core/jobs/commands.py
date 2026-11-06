@@ -257,14 +257,17 @@ async def _check_one(env: Env, c: Claimed) -> dict:
 # ---- leased kinds -----------------------------------------------------------------------------------------------
 async def _probe(env: Env, ctx) -> dict:
     """The provider's own probe; a provider without one reads the exit address through the proxy, as a check does:
-    an address read is a working proxy, none a bad one."""
+    an address read is a working proxy. A failed read is no verdict (owner, 06/11: the echo service may be the one
+    down): the command fails and the account is left as it was."""
     if ctx.account.proxy is None:
         raise CommandError("the account has no proxy")
     if env.caps.has_probe_proxy:
         verdict = await env.engine.probe_proxy(ctx.account.proxy)
         return {"ok": verdict.ok, "reason": verdict.reason}
     ip, _ = await env.exit_probe(ctx.account.proxy)
-    return {"ok": ip is not None, "reason": "" if ip else "the exit address could not be read through the proxy"}
+    if ip is None:
+        raise CommandError("the exit IP could not be read through the proxy")
+    return {"ok": True, "reason": ""}
 
 
 async def _apply_probe(conn, env: Env, c: Claimed, verdict: Mapping[str, Any]) -> dict:
