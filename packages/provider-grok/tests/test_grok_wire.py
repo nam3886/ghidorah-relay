@@ -272,12 +272,14 @@ FAKE_JWT = "eyJFAKEhdr.eyJFAKEbody.FAKEsig"
 FAKE_OPAQUE = "FAKEopaque0123456789abcdefABCDEF+/xyz=="
 HEADER_LINE = '    text = _HEADER.sub(r"\\1\\2<secret>", text)\n'
 PAIR_LINE = '    text = _PAIR.sub(r"\\1\\2<secret>", text)\n'
+QUOTED_LINE = '    text = _QUOTED_HEADER.sub(r"\\1\\2<secret>", text)'
 
 
 @mutation(WIRE, HEADER_LINE, "", expect="a Cookie or Authorization value leaked")
 @mutation(WIRE, PAIR_LINE, "", expect="an sso= value leaked")
 @mutation(WIRE, '    text = _JWT.sub("<secret>", text)\n', "", expect="a JWT leaked")
-@mutation(WIRE, '    text = _TOKEN.sub("<secret>", text)\n', "", expect="an opaque token leaked")
+@mutation(WIRE, "    text = _TOKEN.sub(_token, text)", "    pass", expect="an opaque token leaked")
+@mutation(WIRE, QUOTED_LINE, "    pass", expect="a JSON-quoted header value")
 def test_redact_drops_cookies_jwts_and_opaque_tokens():
     echo = ("bad request: sso=%s; sso-rw=%s, header Cookie: a=%s\nAuthorization: Bearer %s\n"
             'json {"sso":"%s"} jwt %s token %s' % (FAKE_SSO, FAKE_SSO, FAKE_COOKIE, FAKE_BEARER, FAKE_SSO, FAKE_JWT,
@@ -289,6 +291,17 @@ def test_redact_drops_cookies_jwts_and_opaque_tokens():
     assert "FAKEopaque" not in out, "an opaque token leaked"
     assert out.startswith("bad request: sso=<secret>; sso-rw=<secret>")
     assert redact("You have reached your usage limit") == "You have reached your usage limit"
+
+    out = redact('Cookie: other="FAKEcookieValue"; session=FAKEsessionValue\nnext line')
+    assert out == "Cookie: <secret>\nnext line", "a Cookie or Authorization value leaked"
+    out = redact("Set-Cookie: a='FAKEcookieValue'; b=FAKEcookieValue")
+    assert "FAKE" not in out, "a Cookie or Authorization value leaked"
+    out = redact('{"cookie":"a=FAKEcookieValue; b=\\"FAKEcookieValue\\"","code":3}')
+    assert out == '{"cookie":"<secret>","code":3}', "a JSON-quoted header value must end at its own quote"
+    out = redact("token FAKEopaque" + "a" * 24 + "XYZ123456789 end")
+    assert out == "token <secret> end", "an opaque token leaked"
+    assert redact("id d0000000-0000-4000-8000-000000000001 hex " + "ab12" * 8) == "id <id> hex <id>"
+    assert redact("key streamingVideoGenerationResponseMetadataX") == "key streamingVideoGenerationResponseMetadataX"
 
     rows = json.loads(summary([json.dumps({"error": {"code": 3, "message": echo}})]))
     assert "FAKE" not in rows[0]["error"], "an sso= value leaked"

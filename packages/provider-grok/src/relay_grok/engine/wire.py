@@ -47,23 +47,34 @@ _URL = re.compile(r"https?://[^\s\"'<>]+")
 _USER_PATH = re.compile(r"users/[^\s\"'<>]+")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 _HEX = re.compile(r"[0-9a-f]{24,}", re.I)
-# a Cookie / Authorization header's whole value; a cookie's or a JSON key's value named like a credential
-_HEADER = re.compile(r"\b((?:set-)?cookie|authorization)([\"']?\s*[:=]\s*[\"']?)[^\r\n\"']+", re.I)
+# a Cookie / Authorization value: a JSON-quoted one to its own closing quote, a header's to the end of its line
+# (quotes included); a cookie's or a JSON key's value named like a credential
+_QUOTED_HEADER = re.compile(r"\b((?:set-)?cookie|authorization)([\"']\s*:\s*([\"']))(?:\\.|(?!\3)[^\\\r\n])*",
+                            re.I)
+_HEADER = re.compile(r"\b((?:set-)?cookie|authorization)(\s*[:=]\s*)[^\r\n]+", re.I)
 _PAIR = re.compile(r"\b(sso-rw|sso|x-userid|cf_clearance|[\w-]*(?:token|secret|password))([\"']?\s*[:=]\s*[\"']?)"
                    r"[^\s;,&\"'}]+", re.I)
 _JWT = re.compile(r"\beyJ[\w-]*\.[\w-]+(?:\.[\w-]*)?")
 _TOKEN = re.compile(r"(?<![\w+/-])(?=[\w+/-]*\d)[\w+/-]{32,}={0,2}")     # long base64 / opaque, a digit in it
+_ID_ONLY = re.compile(r"[0-9a-f-]+", re.I)
+
+
+def _token(m: re.Match) -> str:
+    """A whole long run: an id (hex and hyphens only) is `<id>`, anything else a credential."""
+    return "<id>" if _ID_ONLY.fullmatch(m.group(0)) else "<secret>"
 
 
 def redact(text: str) -> str:
     """An answer's text with no link (its host kept), no `users/<uid>/…` path, no id, no credential (a Cookie or
     Authorization value, an `sso=`-style pair, a JWT, a long opaque token); at most ERROR_TEXT_MAX chars."""
+    text = _QUOTED_HEADER.sub(r"\1\2<secret>", text)
     text = _HEADER.sub(r"\1\2<secret>", text)
     text = _PAIR.sub(r"\1\2<secret>", text)
     text = _JWT.sub("<secret>", text)
     text = _URL.sub(lambda m: "<%s>" % (urlsplit(m.group(0)).hostname or "link"), text)
-    text = _HEX.sub("<id>", _UUID.sub("<id>", _USER_PATH.sub("<path>", text)))
-    text = _TOKEN.sub("<secret>", text)
+    text = _USER_PATH.sub("<path>", text)
+    text = _TOKEN.sub(_token, text)         # whole tokens before the id rules, which would cut one into pieces
+    text = _HEX.sub("<id>", _UUID.sub("<id>", text))
     return text[:ERROR_TEXT_MAX]
 
 
