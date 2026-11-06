@@ -680,6 +680,12 @@ the user id (with and without dashes), the email and its local part, `sso` / `ss
 - `grok/spike-261106/post_list_removed.json` — `POST /rest/media/post/list`: 400 `code 9`, removed.
 - `grok/spike-261106/image_generations_empty.json` — `GET /rest/app-chat/image-generations`: empty.
 - `grok/spike-261106/page_home.html` — synthetic signed-in home page (see Gaps).
-- `grok/spike-261106/imagine_moderated.json`, `imagine_stray_request.json`, `imagine_limit_frame.json`,
-  `ndjson_edit_moderated.json`, `ndjson_t2v_decoy.json`, `rest_403_code7.json`, `rest_403_cloudflare.html`,
-  `rest_403_blocked.json`, `rest_429.json` — synthetic (see Gaps).
+- `grok/spike-261106/imagine_moderated.json` — synthetic: Imagine WS job that completes `moderated:true` with no final (see Gaps).
+- `grok/spike-261106/imagine_stray_request.json` — synthetic: the n2 capture plus a final and a `completed` frame of another `request_id`.
+- `grok/spike-261106/imagine_limit_frame.json` — synthetic: Imagine WS `error` frame with `err_code`/`err_msg` (chenyme's shape; real one unseen).
+- `grok/spike-261106/ndjson_edit_moderated.json` — synthetic: the edit's progress-100 line with `moderated:true`, url kept.
+- `grok/spike-261106/ndjson_t2v_decoy.json` — synthetic: muhrifqie's decoy t2v lines (progress 20/45/70/90/100, no `rRated`).
+- `grok/spike-261106/rest_403_code7.json` — synthetic: REST 403 `code 7` anti-bot body (chenyme's).
+- `grok/spike-261106/rest_403_blocked.json` — synthetic: REST 403 `blocked-user` phrases (real wording unknown).
+- `grok/spike-261106/rest_429.json` — synthetic: the send's real 429 `code 8` body as a REST read's answer.
+- `grok/spike-261106/rest_403_cloudflare.html` — synthetic: a "Just a moment" Cloudflare challenge page (see Gaps).
