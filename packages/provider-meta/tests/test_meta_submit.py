@@ -10,6 +10,7 @@ import logging
 from datetime import timedelta
 from types import SimpleNamespace
 
+from curl_cffi import WebSocketClosed
 from metakit import (
     CLOSE_4003,
     NOW,
@@ -50,6 +51,7 @@ from relay_meta.engine.web import Sessions, ip_key, read_page
 from relay_meta.spec import SPEC
 
 SUBMIT_FILE = "packages/provider-meta/src/relay_meta/engine/submit.py"
+WEB_FILE = "packages/provider-meta/src/relay_meta/engine/web.py"
 WIRE_FILE = "packages/provider-meta/src/relay_meta/engine/wire.py"
 CONSTANTS = "packages/provider-meta/src/relay_meta/constants.py"
 ERRORS_FILE = "packages/provider-meta/src/relay_meta/errors.py"
@@ -459,6 +461,8 @@ def test_a_refused_estab_rereads_once_on_a_new_socket_and_never_twice():
 
 
 @mutation(SUBMIT_FILE, "            return sock, closed.cause", "            raise", expect="a 4003 close rereads once")
+@mutation(WEB_FILE, "            raise GatewayClosed(b\"\") from None", "            raise",
+          expect="the close is named")
 def test_a_gateway_close_before_the_send_is_its_cause_and_a_4003_rereads_once():
     # 06/11 live: a stale token's socket is closed with 4003 right after the estab (it was a FrameError, a lost try)
     first = FakeSocket([b"\x0a", CLOSE_4003])
@@ -469,6 +473,10 @@ def test_a_gateway_close_before_the_send_is_its_cause_and_a_4003_rereads_once():
     assert k.result.job == Retry("meta.http_error"), k.result.job
     assert any("closed:1011" in e[0] for e in k.ctx.events) and "reason-PLANTED" not in repr(k.ctx.events)
     assert page_gets(k) == 0 and k.socks[0].closed
+    unsent(k)
+    k = go(held=True, sockets=[FakeSocket([b"\x0a", WebSocketClosed("gone")])])     # curl saw the close first
+    assert k.result.job == Retry("meta.http_error"), k.result.job
+    assert any("closed:none" in e[0] for e in k.ctx.events), "the close is named: %r" % (k.ctx.events,)
     unsent(k)
 
 
@@ -545,6 +553,7 @@ def test_whatever_breaks_after_the_send_is_ambiguous_and_never_a_second_frame():
         "socket closed": dict(sockets=[gateway(answer=[ConnectionError("closed")])]),
         "unreadable frame": dict(sockets=[gateway(answer=[bad])]),
         "gateway close": dict(sockets=[gateway(answer=[CLOSE_4003])]),
+        "curl saw it closed": dict(sockets=[gateway(answer=[WebSocketClosed("gone")])]),
         "end of data before the final chunk": dict(sockets=[gateway(answer=[wire.frame(wire.EOD, 0, b"")])]),
         "deadline": dict(sockets=[gateway(answer=[])], margin=59.9, image_submit_timeout_s=60),
     }

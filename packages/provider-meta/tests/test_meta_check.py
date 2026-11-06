@@ -5,6 +5,7 @@ import asyncio
 from urllib.parse import quote
 
 import pytest
+from curl_cffi import WebSocketClosed
 from metakit import (
     CLOSE_4003,
     NOW,
@@ -199,6 +200,13 @@ def test_a_socket_the_gateway_closes_is_its_close_code_never_a_frame_error(caplo
         caplog.clear()
         sessions = refused_with(caplog, FakeSocket([(close, 8)]), cause)
         assert sessions.token("acc-1", 1) is not None and "reason-PLANTED" not in caplog.text
+
+
+@mutation(WEB_FILE, "            raise GatewayClosed(b\"\") from None", "            raise", expect="WebSocketClosed")
+def test_a_socket_curl_already_saw_closed_is_closed_none_never_an_escape(caplog):
+    # the close came before curl handed it over as a message: curl's own WebSocketClosed, no code
+    sessions = refused_with(caplog, FakeSocket([b"\x0a", WebSocketClosed("gone")]), "closed:none")
+    assert sessions.token("acc-1", 1) is not None
 
 
 @mutation(CHECK_FILE, "                sessions.forget(account.id)", "                pass",

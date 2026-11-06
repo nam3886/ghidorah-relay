@@ -236,8 +236,14 @@ class Socket:
 
     async def recv(self) -> bytes:
         """The next gateway frame. A close frame (curl hands it over as a message with `CURLWS_CLOSE`) raises
-        `GatewayClosed`: its bytes are a close code and a reason, never a frame."""
-        data, flags = await self.ws.recv()
+        `GatewayClosed`: its bytes are a close code and a reason, never a frame. A socket curl already saw closed
+        (`WebSocketClosed`, no message handed over) is a close with no code."""
+        from curl_cffi import WebSocketClosed  # imported on first real use, as in `real_session`
+
+        try:
+            data, flags = await self.ws.recv()
+        except WebSocketClosed:
+            raise GatewayClosed(b"") from None
         if flags & _WS_CLOSE:
             raise GatewayClosed(data)
         return data
