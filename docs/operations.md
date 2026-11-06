@@ -1756,7 +1756,9 @@ after the live run is stable.
 
 ## Restore runbook
 
-**Not in use while there is no backup.** Kept for the day an off-box backup exists; nothing below has been drilled on the box.
+The off-box backup is `scripts/backup-db.sh` (daily `pg_dump -Fc`, encrypted, sent to the owner's Telegram; see its
+header); `scripts/restore-db.sh <file>` proves one restores into a throwaway container. Nothing below has been drilled on
+the box; start from the decrypted dump.
 
 Order matters: `restore_mark` writes whole tables and a running worker would claim jobs the dump knows nothing about.
 
