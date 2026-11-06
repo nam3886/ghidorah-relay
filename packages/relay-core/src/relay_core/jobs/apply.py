@@ -32,6 +32,7 @@ from relay_core.jobs.recheck import StoredOutput
 from relay_core.leases import LeaseLost
 from relay_core.providers import (
     REFUSED_BY,
+    REFUSED_FINAL,
     Accepted,
     Ambiguous,
     Caps,
@@ -119,9 +120,10 @@ def _merge_outputs(outputs: tuple[Output, ...]) -> _Raw:
     return _Raw("provider_state || %s::jsonb", (Jsonb(_outputs(outputs)),))
 
 
-# The part of a job's `provider_state` every requeue keeps, as SQL over the row: `REFUSED_BY` alone (or `{}`). The one
-# definition `_reset` and the reaper's requeue of an expired lease both use, so the two cannot drift.
-KEPT_ON_REQUEUE = "jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))" % (REFUSED_BY, REFUSED_BY)
+# The part of a job's `provider_state` every requeue keeps, as SQL over the row: `REFUSED_BY` and `REFUSED_FINAL`
+# (or `{}`). The one definition `_reset` and the reaper's requeue of an expired lease both use, so the two cannot drift.
+KEPT_ON_REQUEUE = "jsonb_strip_nulls(jsonb_build_object(%s))" % ", ".join(
+    "'%s', provider_state->'%s'" % (k, k) for k in (REFUSED_BY, REFUSED_FINAL))
 
 
 def _reset(patch: Mapping[str, Any]) -> dict:
@@ -312,17 +314,24 @@ SELECT a.id, a.tier FROM accounts a JOIN jobs j ON j.id = %(job)s AND a.provider
 """
 
 
-async def _another_account(conn: AsyncConnection, job: _Job, outcome: NotTaken, pools) -> bool:
-    """A refused job (`NotTaken.final`): is any account it was not refused on usable for its pool within the wait,
-    with balance left for it (unknown counts)? A plain read: the claim decides who takes it."""
-    refused = [str(a) for a in outcome.state_patch.get(REFUSED_BY) or ()] + [str(job.account_id)]
-    rows = await (await conn.execute(_USABLE, {"job": job.id, "refused": refused, "wait": outcome.wait_s,
-                                               "pool": job.pool})).fetchall()
-    if job.pool is None or not rows:
+async def usable_account(conn: AsyncConnection, job_id, pool_name: str | None, cost: int, refused: list[str],
+                         wait_s: float, pools) -> bool:
+    """A refused job: is any account of its provider not in `refused` usable for its pool within `wait_s`, with
+    balance left for it (unknown counts)? A plain read: the claim decides who takes it. Also the reaper's
+    (`Reaper._stranded_refusals`), for a refused job that waits in the queue."""
+    rows = await (await conn.execute(_USABLE, {"job": job_id, "refused": refused, "wait": wait_s,
+                                               "pool": pool_name})).fetchall()
+    if pool_name is None or not rows:
         return bool(rows)
-    cfgs = {job.pool: pools[job.pool]}
+    cfgs = {pool_name: pools[pool_name]}
     _now, states = await pool.pool_states(conn, {a: (tier, cfgs) for a, tier in rows})
-    return any(pool.can_afford(states[(a, job.pool)].standing.left, 0, job.account_cost) for a, _ in rows)
+    return any(pool.can_afford(states[(a, pool_name)].standing.left, 0, cost) for a, _ in rows)
+
+
+async def _another_account(conn: AsyncConnection, job: _Job, outcome: NotTaken, pools) -> bool:
+    """`usable_account` for the job a refusal is being applied to: its account counts as refused too."""
+    refused = [str(a) for a in outcome.state_patch.get(REFUSED_BY) or ()] + [str(job.account_id)]
+    return await usable_account(conn, job.id, job.pool, job.account_cost, refused, outcome.wait_s, pools)
 
 
 async def _unknown(conn: AsyncConnection, job: _Job, note: str, pools) -> str:
@@ -382,8 +391,11 @@ async def _submit_outcome(conn: AsyncConnection, job: _Job, outcome: SubmitOutco
         case NotTaken(final=Fail() as final) if not await _another_account(conn, job, outcome, pools):
             return await _submit_outcome(conn, job, Fail(final.code, final.detail, outcome.state_patch), caps, pools)
         case NotTaken():
+            # a refusal keeps its final outcome on the job: the reaper ends it so if every account goes away later
+            final = {} if outcome.final is None else {
+                REFUSED_FINAL: {"code": outcome.final.code, "detail": outcome.final.detail}}
             return await _requeue(conn, job, outcome.code, "upstream did not take the order", caps, pools,
-                                  patch=outcome.state_patch)
+                                  patch={**outcome.state_patch, **final})
         case Retry() if job.sent_at is None:
             return await _requeue(conn, job, outcome.code, "retry before send", caps, pools)
         case Retry():       # after mark_sent a retry could be a second order: it is ambiguous

@@ -30,7 +30,9 @@ really goes elsewhere even when the account's rest ends first; with no other acc
 until one is, or until `unsent_deadline_s` ends it with its refund. Unless none can: when no other account of the
 provider is usable for the job's pool within `refusal_wait_s` (available and checked, no cooldown or pool rest past
 the wait, balance left for the job, not in the list), the apply fails the job at once with `final` and its refund
-(`NotTaken.final`), instead of a wait in the queue that only ends in that same failure.
+(`NotTaken.final`), instead of a wait in the queue that only ends in that same failure. A job requeued because one
+was usable then keeps that outcome (`REFUSED_FINAL`), and the reaper fails it the same way once none is any more
+(`jobs.reaper`: every account went to rest after the requeue).
 
 The setting. Every provider that uses this declares `refusal_max_accounts_setting(provider, description)` in its
 `settings()`: `<provider>.refusal_max_accounts`, a live whole number from 1 (the first refusal ends the job) to

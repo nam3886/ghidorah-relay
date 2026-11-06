@@ -823,8 +823,10 @@ Rules an operator must know:
   `dola.refused_710022002` for 710022002, `dola.refused_on_accounts` otherwise. At 1 the first refusal ends the job.
   Every provider (06/11): a refusal before the last account also ends the job that way at once when no other account
   of the provider can take it within the core setting `refusal_wait_s` (default 60 s; 0 = only one free now): all
-  the others resting, cooling, out of balance for the job, dead, disabled or already refused. A customer never waits
-  in the queue for a failure.
+  the others resting, cooling, out of balance for the job, dead, disabled or already refused. A refused job that went
+  back to the queue because another account was free then is failed the same way by the reaper (every 30 s) once
+  none is any more (06/11: ten grok jobs, every account resting an hour seconds later). A customer never waits in the
+  queue for a failure.
   A 710022002 that came after dola made a conversation (the browser's receipt, an HTTP acknowledgement, a gated
   re-send) ends the job on any account: dola may still deliver there, and another account would be a second upstream
   order. Not refusals, so not counted: a proxy failure, a login doubt or signed-out page, a page fault, out of credit,

@@ -215,6 +215,9 @@ class Completed:
 # on, oldest first. `relay_core.refusals.account_refused` appends the account and sends the whole list back in its
 # patch (a patch that names it replaces it); the claim never gives the job to an account in it.
 REFUSED_BY = "refused_by"
+# Kept beside it by every requeue: a refused job's `NotTaken.final` as {"code", "detail"}, written by `jobs.apply` when
+# it requeues the refusal, so the reaper can end the job the same way once no account is left for it.
+REFUSED_FINAL = "refused_final"
 
 
 @dataclass(frozen=True)

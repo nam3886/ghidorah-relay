@@ -872,8 +872,7 @@ def test_a_job_requeued_after_not_taken_or_retry_waits_before_it_is_claimed_agai
 # ---- a requeue drops what the previous attempt's account made --------------------------------------------------------
 RESET_STATE = 'return dict(external_ref=None, provider_state=_Raw(KEPT_ON_REQUEUE + " || %s::jsonb", (_state(patch),)))'
 KEEP_STATE = 'return dict(provider_state=_Raw("provider_state || %s::jsonb", (_state(patch),)))'
-KEEP_REFUSED = ("KEPT_ON_REQUEUE = \"jsonb_strip_nulls(jsonb_build_object('%s', provider_state->'%s'))\" % "
-                "(REFUSED_BY, REFUSED_BY)\n")
+KEEP_REFUSED = 'KEPT_ON_REQUEUE = "jsonb_strip_nulls(jsonb_build_object(%s))" % ", ".join(\n'
 DROPPED_TEXT = 'return " (dropped reference %s)" % job.external_ref if job.external_ref else ""'
 
 
@@ -908,7 +907,7 @@ def test_a_requeue_clears_the_reference_and_state_of_the_previous_attempt_and_re
     assert any("conv-A" in t for t in texts), texts
 
 
-@mutation(A, KEEP_REFUSED, "KEPT_ON_REQUEUE = \"'{}'::jsonb\"\n",
+@mutation(A, KEEP_REFUSED, 'KEPT_ON_REQUEUE = "\'{}\'::jsonb" or ", ".join(\n',
           expect="a requeue reset the accounts that refused the job")
 @pytest.mark.parametrize("how", ["not_taken", "retry", "interrupted", "not_sent"])
 def test_the_accounts_that_refused_a_job_outlive_every_requeue_and_a_restart(db, how):

@@ -4,8 +4,9 @@ claim never gives the job back to an account that refused it."""
 
 import pytest
 from jobkit import PROVIDER, SPEC, account, claim, create, key, run, status, submit
+from lifecyclekit import reaper
 
-from relay_core import refusals
+from relay_core import failpoints, refusals
 from relay_core.errors import rule
 from relay_core.jobs import apply, store
 from relay_core.providers import REFUSED_BY, Fail, JobView, NotTaken, SourceJob, SubmitResult
@@ -17,8 +18,14 @@ from relay_core.testing.mutation import mutation
 R = "packages/relay-core/src/relay_core/refusals.py"
 K = "packages/relay-core/src/relay_core/jobs/claim.py"
 A = "packages/relay-core/src/relay_core/jobs/apply.py"
+P = "packages/relay-core/src/relay_core/jobs/reaper.py"
+STRANDED = '                           ("stranded_refusals", self._stranded_refusals),\n'
+STILL_USABLE = ("            if await usable_account(conn, job_id, name, cost, refused, "
+                "self.settings.get(refusals.WAIT_KEY), pools):\n")
+ONLY_REFUSED = "                   \"AND provider_state ? '\" + REFUSED_FINAL + \"' ORDER BY created_at, id\")\n"
+STILL_QUEUED = "                 \"WHERE id = %s AND status = 'queued' AND sent_at IS NULL FOR UPDATE SKIP LOCKED\")\n"
 ALONE = "        case NotTaken(final=Fail() as final) if not await _another_account(conn, job, outcome, pools):\n"
-AFFORD = "    return any(pool.can_afford(states[(a, job.pool)].standing.left, 0, job.account_cost) for a, _ in rows)\n"
+AFFORD = "    return any(pool.can_afford(states[(a, pool_name)].standing.left, 0, cost) for a, _ in rows)\n"
 REST_WAIT = "           AND c.rest_until > clock_timestamp() + make_interval(secs => %(wait)s)))\n"
 NOT_REFUSED = "   AND NOT a.id::text = ANY(%(refused)s::text[])\n"
 BELOW = "    if len(refused) < max_accounts(settings, job.provider):\n"
@@ -149,7 +156,9 @@ def test_a_refused_job_goes_to_another_account_uses_no_attempt_and_fails_refunde
 # ---- no other account can take it: the refusal ends the job at once ---------------------------------------------
 def rest(db, account_id, seconds, pool_name="video"):
     db.run("INSERT INTO account_pools (account_id, pool, rest_until) "
-           "VALUES (%s, %s, clock_timestamp() + make_interval(secs => %s))", account_id, pool_name, seconds)
+           "VALUES (%s, %s, clock_timestamp() + make_interval(secs => %s)) "
+           "ON CONFLICT (account_id, pool) DO UPDATE SET rest_until = EXCLUDED.rest_until",
+           account_id, pool_name, seconds)
 
 
 def refused_once(db, settings=None):
@@ -225,3 +234,105 @@ def test_an_account_that_already_refused_the_job_does_not_count(db):
     assert got == "failed", "an account that already refused the job counted: %s" % got
     assert db.one("SELECT error_code FROM jobs WHERE id = %s", job_id)[0] == FINAL
     assert ledger(db, job_id) == [("charge", 7), ("refund", 7)]
+
+
+# ---- refused jobs in the queue whose accounts all went to rest later: the reaper ends them --------------------------
+def refused_queued(db, n):
+    """n jobs, each claimed by its own account and refused there while the others were still free (06/11 21:29: ten
+    grok jobs): (accounts, job ids), every job queued with its refusal kept."""
+    k, accounts = key(db), [account(db) for _ in range(n)]
+
+    async def scenario(p):
+        ids = [(await create(p, k, "refused %d" % i, price=7)).job_id for i in range(n)]
+        claims = [await claim(p) for _ in range(n)]
+        assert len({c.account_id for c in claims}) == n, "premise: each job on its own account"
+        for got in claims:
+            assert await refused_by_its_account(p, got) == "queued", "premise: another account was free"
+        return ids
+
+    return accounts, run(db, scenario)
+
+
+def reap(db, times=1):
+    async def scenario(p):
+        for _ in range(times):
+            await reaper(p).tick()
+
+    run(db, scenario)
+
+
+@mutation(P, STRANDED, "", expect="a refused job waited with no account left for it")
+def test_refused_jobs_fail_at_once_refunded_once_when_every_account_went_to_rest(db):
+    accounts, ids = refused_queued(db, 3)
+    for a in accounts:
+        rest(db, a, 3600)                               # the hour-long grok rest that came seconds later
+    reap(db, times=2)
+    for job_id in ids:
+        assert status(db, job_id) == "failed", "a refused job waited with no account left for it"
+        code, error = db.one("SELECT error_code, error FROM jobs WHERE id = %s", job_id)
+        assert code == FINAL and "no other account can take it" in error, (code, error)
+        assert ledger(db, job_id) == [("charge", 7), ("refund", 7)], "the key was not refunded exactly once"
+
+
+@mutation(P, STILL_USABLE, "            if False:\n", expect="a refused job failed though an account could take it")
+def test_refused_jobs_wait_and_are_claimed_when_an_account_is_usable_within_the_wait(db):
+    accounts, ids = refused_queued(db, 3)
+    for a in accounts:
+        rest(db, a, 3600)
+    spare = account(db)
+    rest(db, spare, 30)                                 # free within refusal_wait_s (60)
+    reap(db)
+    assert [status(db, j) for j in ids] == ["queued"] * 3, "a refused job failed though an account could take it"
+    db.run("DELETE FROM account_pools WHERE account_id = %s", spare)
+
+    async def scenario(p):
+        return await claim(p)
+
+    got = run(db, scenario)
+    assert got is not None and got.account_id == spare and got.job_id in ids
+    assert all(ledger(db, j) == [("charge", 7)] for j in ids)
+
+
+@mutation(P, ONLY_REFUSED, "                   \"ORDER BY created_at, id\")\n",
+          expect="a job never refused was judged")
+def test_a_queued_job_never_refused_is_left_alone(db, caplog):
+    k, a = key(db), account(db)
+    rest(db, a, 3600)
+
+    async def scenario(p):
+        return (await create(p, k, "plain", price=7)).job_id
+
+    job_id = run(db, scenario)
+    reap(db)
+    assert status(db, job_id) == "queued" and ledger(db, job_id) == [("charge", 7)]
+    assert "could not be judged" not in caplog.text, "a job never refused was judged: %s" % caplog.text
+
+
+@mutation(P, STILL_QUEUED, "                 \"WHERE id = %s AND sent_at IS NULL FOR UPDATE SKIP LOCKED\")\n",
+          expect="a job a claim took was also failed")
+def test_a_claim_that_takes_the_job_while_the_reaper_judges_it_is_the_only_outcome(db, caplog):
+    k, first, second = key(db), account(db, used_ago_s=None), account(db, used_ago_s=60)
+
+    async def scenario(p):
+        made = await create(p, k, "raced", price=7)
+        got = await claim(p)
+        assert got.account_id == first and await refused_by_its_account(p, got) == "queued"
+        taken = []
+
+        async def claim_then_rest():                    # between the reaper's list and its lock
+            taken.append(await claim(p))
+            rest(db, first, 3600)
+            rest(db, second, 3600)
+
+        failpoints.arm("reaper.refused_listed", claim_then_rest)
+        try:
+            await reaper(p).tick()
+        finally:
+            failpoints.disarm("reaper.refused_listed")
+        return made.job_id, taken
+
+    job_id, taken = run(db, scenario)
+    assert taken[0].job_id == job_id and taken[0].account_id == second, "premise: the claim took the job"
+    assert status(db, job_id) == "submitting", "a job a claim took was also failed"
+    assert ledger(db, job_id) == [("charge", 7)]
+    assert "pass failed" not in caplog.text, caplog.text           # the pass itself ran through

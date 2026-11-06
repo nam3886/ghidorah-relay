@@ -23,6 +23,11 @@ worker) never both act:
   job's cost (`source.account_exhausted`); an unknown balance allows. A pause that passes (a cooldown, a rest, a busy
   slot, the send gap) only waits, up to `unsent_deadline_s`. Each job is its own transaction; one that fails to end is
   logged and the next is tried.
+- a `queued` job an account refused (`relay_core.refusals`: its `refused_by` list and the refusal's final outcome
+  `refused_final` kept by every requeue) fails at once with that outcome and its refund when no account of the
+  provider is usable for it within `refusal_wait_s` (`jobs.apply.usable_account`, the rule the refusal itself was
+  judged by): the accounts that were free when it was requeued all went to rest since (06/11: ten grok jobs, every
+  account resting an hour). A job never refused, or one a claim holds, is not touched.
 - a `waiting` or `unknown` job past `<provider>.render_deadline_s`, counted from `render_since` (from the send
   when it has none), so a Re-check that restarts the clock saves it (I17), fails with the spec's
   `deadline_cause` code, but only once a final read can no longer save it: a read that started after the deadline and
@@ -45,13 +50,20 @@ from typing import Any
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
-from relay_core import alerts, failpoints, leases, pool
+from relay_core import alerts, failpoints, leases, pool, refusals
 from relay_core.db import tx
 from relay_core.errors import RULES
-from relay_core.jobs.apply import KEPT_ON_REQUEUE, RENDER_BACKSTOP_S, UNCLEAR_SEND, UNKNOWN_FIRST_S, StartupGrace
+from relay_core.jobs.apply import (
+    KEPT_ON_REQUEUE,
+    RENDER_BACKSTOP_S,
+    UNCLEAR_SEND,
+    UNKNOWN_FIRST_S,
+    StartupGrace,
+    usable_account,
+)
 from relay_core.jobs.events import add_event
 from relay_core.jobs.fail import fail_in_tx
-from relay_core.providers import ProviderSpec
+from relay_core.providers import REFUSED_BY, REFUSED_FINAL, ProviderSpec
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +151,12 @@ _PINNED_QUEUED = ("SELECT id FROM jobs WHERE provider = %s AND status = 'queued'
 _PINNED_LOCK = ("SELECT j.pool, j.account_cost, j.pin_account_id, a.state FROM jobs j "
                 "JOIN accounts a ON a.id = j.pin_account_id WHERE j.id = %s AND j.status = 'queued' "
                 "FOR UPDATE OF j SKIP LOCKED")
+_REFUSED_QUEUED = ("SELECT id FROM jobs WHERE provider = %s AND status = 'queued' AND pin_account_id IS NULL "
+                   "AND provider_state ? '" + REFUSED_FINAL + "' ORDER BY created_at, id")
+# The job row first, `SKIP LOCKED`: one a claim holds is left to it (the claim locks the account, then the job SKIP
+# LOCKED, so neither waits); the status read here is the one the failure compares and sets.
+_REFUSED_LOCK = ("SELECT status, pool, account_cost, provider_state FROM jobs "
+                 "WHERE id = %s AND status = 'queued' AND sent_at IS NULL FOR UPDATE SKIP LOCKED")
 _LAST_TEXT = ("SELECT text FROM job_events WHERE job_id = %s AND source = 'upstream' AND at >= %s "
               "ORDER BY id DESC LIMIT 1")
 
@@ -165,6 +183,7 @@ class Reaper:
         for name, step in (("submit_lease", self._submit_leases), ("other_lease", self._other_leases),
                            ("stalled_command", self._stalled_commands),
                            ("never_started", self._never_started), ("blocked_pins", self._blocked_pins),
+                           ("stranded_refusals", self._stranded_refusals),
                            ("render_deadline", self._render_deadline),
                            ("visibility", self._visibility)):
             try:
@@ -324,6 +343,34 @@ class Reaper:
             else:
                 return False                # a pool the provider no longer declares: it waits
             return await fail_in_tx(conn, job_id, ("queued",), *why, pools)
+
+    # ---- refused jobs no account is left for ----------------------------------------------------------------------
+    async def _stranded_refusals(self) -> int:
+        async with tx(self.db) as conn:
+            ids = [r[0] for r in await (await conn.execute(_REFUSED_QUEUED, (self.spec.name,))).fetchall()]
+        await failpoints.hit("reaper.refused_listed")
+        failed = 0
+        for job_id in ids:
+            try:
+                failed += await self._end_stranded(job_id)
+            except Exception:
+                log.exception("reaper: the refused job %s could not be judged", job_id)
+        return failed
+
+    async def _end_stranded(self, job_id) -> bool:
+        pools = self._pools()
+        async with tx(self.db) as conn:
+            row = await (await conn.execute(_REFUSED_LOCK, (job_id,))).fetchone()
+            if row is None:
+                return False                # claimed, ended, or held by a claim right now
+            status, name, cost, state = row
+            final = state[REFUSED_FINAL]    # listed for it; every requeue keeps it
+            if name is not None and name not in pools:
+                return False                # a pool the provider no longer declares: it waits
+            refused = [str(a) for a in state.get(REFUSED_BY) or ()]
+            if await usable_account(conn, job_id, name, cost, refused, self.settings.get(refusals.WAIT_KEY), pools):
+                return False
+            return await fail_in_tx(conn, job_id, (status,), final["code"], final["detail"], pools)
 
     async def _never_started(self) -> int:
         return await self._fail_late(UNSENT_FROM, ("queued",), self.settings.get("unsent_deadline_s"),
