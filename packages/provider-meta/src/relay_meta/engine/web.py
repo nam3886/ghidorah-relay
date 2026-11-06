@@ -225,6 +225,17 @@ async def quiet_close(thing) -> None:
         pass
 
 
+async def _closed(io):
+    """`io` awaited; a socket curl already saw closed (`WebSocketClosed` from a send or a recv, no close frame handed
+    over) is a `GatewayClosed` with no code."""
+    from curl_cffi import WebSocketClosed  # imported on first real use, as in `real_session`
+
+    try:
+        return await io
+    except WebSocketClosed:
+        raise GatewayClosed(b"") from None
+
+
 class Socket:
     """curl_cffi's async WebSocket to the gateway: every send and the close are cut at `timeout`."""
 
@@ -232,18 +243,12 @@ class Socket:
         self.ws, self.timeout = ws, timeout
 
     async def send(self, data: bytes) -> None:
-        await asyncio.wait_for(self.ws.send(data), self.timeout)
+        await _closed(asyncio.wait_for(self.ws.send(data), self.timeout))
 
     async def recv(self) -> bytes:
         """The next gateway frame. A close frame (curl hands it over as a message with `CURLWS_CLOSE`) raises
-        `GatewayClosed`: its bytes are a close code and a reason, never a frame. A socket curl already saw closed
-        (`WebSocketClosed`, no message handed over) is a close with no code."""
-        from curl_cffi import WebSocketClosed  # imported on first real use, as in `real_session`
-
-        try:
-            data, flags = await self.ws.recv()
-        except WebSocketClosed:
-            raise GatewayClosed(b"") from None
+        `GatewayClosed`: its bytes are a close code and a reason, never a frame."""
+        data, flags = await _closed(self.ws.recv())
         if flags & _WS_CLOSE:
             raise GatewayClosed(data)
         return data

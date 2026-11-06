@@ -461,7 +461,10 @@ def test_a_refused_estab_rereads_once_on_a_new_socket_and_never_twice():
 
 
 @mutation(SUBMIT_FILE, "            return sock, closed.cause", "            raise", expect="a 4003 close rereads once")
-@mutation(WEB_FILE, "            raise GatewayClosed(b\"\") from None", "            raise",
+@mutation(WEB_FILE, "        await _closed(asyncio.wait_for(self.ws.send(data), self.timeout))",
+          "        await asyncio.wait_for(self.ws.send(data), self.timeout)",
+          expect="the close is named")
+@mutation(WEB_FILE, "        raise GatewayClosed(b\"\") from None", "        raise",
           expect="the close is named")
 def test_a_gateway_close_before_the_send_is_its_cause_and_a_4003_rereads_once():
     # 06/11 live: a stale token's socket is closed with 4003 right after the estab (it was a FrameError, a lost try)
@@ -473,6 +476,10 @@ def test_a_gateway_close_before_the_send_is_its_cause_and_a_4003_rereads_once():
     assert k.result.job == Retry("meta.http_error"), k.result.job
     assert any("closed:1011" in e[0] for e in k.ctx.events) and "reason-PLANTED" not in repr(k.ctx.events)
     assert page_gets(k) == 0 and k.socks[0].closed
+    unsent(k)
+    k = go(held=True, sockets=[FakeSocket([], refuse={wire.ESTAB: WebSocketClosed("gone")})])   # under the estab send
+    assert k.result.job == Retry("meta.http_error"), k.result.job
+    assert any("closed:none" in e[0] for e in k.ctx.events), "the close is named (estab send): %r" % (k.ctx.events,)
     unsent(k)
     k = go(held=True, sockets=[FakeSocket([b"\x0a", WebSocketClosed("gone")])])     # curl saw the close first
     assert k.result.job == Retry("meta.http_error"), k.result.job
@@ -566,6 +573,16 @@ def test_whatever_breaks_after_the_send_is_ambiguous_and_never_a_second_frame():
             assert any("unreadable gateway frame" in e[0] for e in k.ctx.events)
         if what == "gateway close":
             assert any("closed the socket (code 4003)" in e[0] for e in k.ctx.events), "the close code is told"
+
+
+@mutation(SUBMIT_FILE, "        self.sent = True\n        await sock.send(data)\n",
+          "        await sock.send(data)\n        self.sent = True\n", expect="never a Retry after the send")
+def test_a_close_raised_by_the_data_frame_send_is_ambiguous_and_never_a_second_frame():
+    # the gateway may have the order: mark_sent and sent=True come before the write, so a close under it is unknown
+    sock = FakeSocket([b"\x0a", estab_answer(200)], refuse={wire.DATA: WebSocketClosed("gone")})
+    k = go(sockets=[sock])
+    assert isinstance(k.result.job, Ambiguous), "never a Retry after the send: %r" % (k.result.job,)
+    assert len(data_frames(k)) == 1 and steps(k) == ["report_ref", "mark_sent"]
 
 
 @mutation(SUBMIT_FILE, "        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))",

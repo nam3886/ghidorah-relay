@@ -202,10 +202,18 @@ def test_a_socket_the_gateway_closes_is_its_close_code_never_a_frame_error(caplo
         assert sessions.token("acc-1", 1) is not None and "reason-PLANTED" not in caplog.text
 
 
-@mutation(WEB_FILE, "            raise GatewayClosed(b\"\") from None", "            raise", expect="WebSocketClosed")
+@mutation(WEB_FILE, "        raise GatewayClosed(b\"\") from None", "        raise", expect="WebSocketClosed")
 def test_a_socket_curl_already_saw_closed_is_closed_none_never_an_escape(caplog):
     # the close came before curl handed it over as a message: curl's own WebSocketClosed, no code
     sessions = refused_with(caplog, FakeSocket([b"\x0a", WebSocketClosed("gone")]), "closed:none")
+    assert sessions.token("acc-1", 1) is not None
+
+
+@mutation(WEB_FILE, "        await _closed(asyncio.wait_for(self.ws.send(data), self.timeout))",
+          "        await asyncio.wait_for(self.ws.send(data), self.timeout)", expect="WebSocketClosed")
+def test_a_socket_closed_under_the_estab_send_is_closed_none_never_an_escape(caplog):
+    # curl raises its own WebSocketClosed from the send when the gateway closed right after the socket opened
+    sessions = refused_with(caplog, FakeSocket([], refuse={ESTAB: WebSocketClosed("gone")}), "closed:none")
     assert sessions.token("acc-1", 1) is not None
 
 

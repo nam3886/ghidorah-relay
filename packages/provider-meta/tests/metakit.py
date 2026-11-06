@@ -189,11 +189,13 @@ class Cookies:
 
 class FakeSocket:
     """The gateway's side of one WebSocket: `incoming` raw frames (a `(bytes, curl flags)` tuple is received as it is,
-    as `CLOSE_4003`; an exception in it is raised by that `recv`; once they run out `recv` never returns). It records
-    each frame sent and fails the test on a second `0x0d` data frame and on any send after the `0x0d`."""
+    as `CLOSE_4003`; an exception in it is raised by that `recv`; once they run out `recv` never returns). `refuse`:
+    {frame type: exception} its send raises (the frame is recorded first). It records each frame sent and fails the
+    test on a second `0x0d` data frame and on any send after the `0x0d`."""
 
-    def __init__(self, incoming=()):
+    def __init__(self, incoming=(), refuse=None):
         self.incoming = list(incoming)
+        self.refuse = dict(refuse or {})       # frame type -> the exception its send raises (the frame is recorded)
         self.sent: list[bytes] = []
         self.url: str | None = None
         self.closed = False
@@ -201,6 +203,8 @@ class FakeSocket:
     async def send(self, data: bytes) -> None:
         assert 0x0d not in (f[0] for f in self.sent if f), "a frame sent after the 0x0d data frame"
         self.sent.append(bytes(data))
+        if data and data[0] in self.refuse:
+            raise self.refuse[data[0]]
 
     async def recv(self):
         if not self.incoming:
