@@ -104,6 +104,20 @@ The internal reference: a client never sees these codes nor their messages. It s
 | `gpt.refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | chatgpt.com answered in words without an image; try a different prompt; the charge is returned |
 | `gpt.unavailable` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | chatgpt.com refused the order on every account tried; nothing was made, the charge is returned |
 
+## `grok.*`
+
+| Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
+|---|---|---|---|---|---|---|---|---|---|
+| `grok.antibot` | `temporarily_unavailable` | 503 | api_error | no | no | no | 2 | yes | grok.com's anti-bot rules refused the request (code 7); nothing was sent, the job is tried again |
+| `grok.cloudflare` | `temporarily_unavailable` | 503 | api_error | no | no | no | 2 | yes | grok.com answered a Cloudflare challenge page; nothing was sent, the job is tried again |
+| `grok.content_refused` | `content_refused` | 422 | invalid_request_error | yes | yes | no | 0 | yes | grok's moderation refused this order; the charge is returned |
+| `grok.decoy_video` | `generation_failed` | 502 | api_error | yes | yes | no | 0 | yes | grok answered a stock clip instead of the video (no rRated, or done too fast); the charge is returned |
+| `grok.http_error` | `internal_error` | 500 | api_error | no | yes | yes | 0 | yes | an HTTP step to grok.com failed before the send |
+| `grok.input_unusable` | `invalid_input` | 422 | invalid_request_error | yes | yes | no | 0 | yes | grok.com refused an input image at upload; nothing was sent and the charge is returned |
+| `grok.limit` | `temporarily_unavailable` | 503 | api_error | yes | yes | no | 0 | yes | grok answered its limit on every account tried; nothing was made, the charge is returned |
+| `grok.no_image` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | grok made no image for this order; the charge is returned |
+| `grok.no_video` | `generation_failed` | 422 | invalid_request_error | yes | yes | no | 0 | yes | grok made no video for this order; the charge is returned |
+
 ## `input.*`
 
 | Code | Public | HTTP | Type | Terminal | Refund | Counts attempt | Free retries | Job | Message |
