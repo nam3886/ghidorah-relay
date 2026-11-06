@@ -5,7 +5,21 @@ import asyncio
 from urllib.parse import quote
 
 import pytest
-from metakit import NOW, PROXY, TOKEN, VIEWER, Clock, Ctx, FakeSocket, Net, Resp, assert_no_secret, page, settings
+from metakit import (
+    CLOSE_4003,
+    NOW,
+    PROXY,
+    TOKEN,
+    VIEWER,
+    Clock,
+    Ctx,
+    FakeSocket,
+    Net,
+    Resp,
+    assert_no_secret,
+    page,
+    settings,
+)
 
 from relay_core.providers import Cooldown, Dead, Suspect
 from relay_core.testing.mutation import mutation
@@ -19,6 +33,7 @@ from relay_meta.spec import SPEC
 
 CHECK_FILE = "packages/provider-meta/src/relay_meta/engine/check.py"
 WEB_FILE = "packages/provider-meta/src/relay_meta/engine/web.py"
+WIRE_FILE = "packages/provider-meta/src/relay_meta/engine/wire.py"
 HOME = ("GET", SITE_URL + "/")
 GATEWAY = ("WS", GATEWAY_URL)
 ACCEPTED = frame(ESTAB, 0, b'{"code":200}')
@@ -168,6 +183,22 @@ def test_an_estab_answer_with_no_integer_code_is_code_none_and_never_its_text(ca
 @mutation(CHECK_FILE, '        return "frame_error"', '        return "other"', expect="the rest must name the cause")
 def test_a_frame_that_does_not_decode_is_a_frame_error(caplog):
     refused_with(caplog, FakeSocket([b"\x0f\x00\x00\x09\x00\x00{}"]), "frame_error")
+
+
+@mutation(WEB_FILE, "        if flags & _WS_CLOSE:", "        if False:", expect="the rest must name the cause")
+@mutation(CHECK_FILE, "        return closed.cause", '        return "frame_error"',
+          expect="the rest must name the cause")
+@mutation(WIRE_FILE, "        if self.code == CLOSE_UNAUTHORIZED:", "        if False:",
+          expect="the rest must name the cause")
+def test_a_socket_the_gateway_closes_is_its_close_code_never_a_frame_error(caplog):
+    # 06/11 live: the gateway closed the socket with 4003 right after the estab; read as a frame it was a FrameError
+    sessions = refused_with(caplog, FakeSocket([b"\x0a", CLOSE_4003]), "unauthorized")
+    assert sessions.token("acc-1", 1) is None, "a 4003 close is a 401: the token must be forgotten"
+    assert "frame_error" not in caplog.text and "Unauthorized...." not in caplog.text
+    for close, cause in (((1011).to_bytes(2, "big") + b"reason-PLANTED", "closed:1011"), (b"", "closed:none")):
+        caplog.clear()
+        sessions = refused_with(caplog, FakeSocket([(close, 8)]), cause)
+        assert sessions.token("acc-1", 1) is not None and "reason-PLANTED" not in caplog.text
 
 
 @mutation(CHECK_FILE, "                sessions.forget(account.id)", "                pass",

@@ -11,6 +11,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 from metakit import (
+    CLOSE_4003,
     NOW,
     PROXY,
     Clock,
@@ -457,6 +458,20 @@ def test_a_refused_estab_rereads_once_on_a_new_socket_and_never_twice():
     assert sessions.token(k.ctx.account.id, k.ctx.account.credential_gen) is None, "the dead token is forgotten"
 
 
+@mutation(SUBMIT_FILE, "            return sock, closed.cause", "            raise", expect="a 4003 close rereads once")
+def test_a_gateway_close_before_the_send_is_its_cause_and_a_4003_rereads_once():
+    # 06/11 live: a stale token's socket is closed with 4003 right after the estab (it was a FrameError, a lost try)
+    first = FakeSocket([b"\x0a", CLOSE_4003])
+    k = go(held=True, sockets=[first, gateway("t2i_n2")])
+    assert isinstance(k.result.job, Completed), "a 4003 close rereads once: %r" % (k.result.job,)
+    assert page_gets(k) == 1 and opened(k) == 2 and first.closed and len(data_frames(k)) == 1
+    k = go(held=True, sockets=[FakeSocket([((1011).to_bytes(2, "big") + b"reason-PLANTED", 8)])])
+    assert k.result.job == Retry("meta.http_error"), k.result.job
+    assert any("closed:1011" in e[0] for e in k.ctx.events) and "reason-PLANTED" not in repr(k.ctx.events)
+    assert page_gets(k) == 0 and k.socks[0].closed
+    unsent(k)
+
+
 @mutation(SUBMIT_FILE, "        except BaseException:\n            await quiet_close(sock)\n            raise\n", "",
           expect="the socket is closed")
 def test_a_socket_that_fails_during_the_estab_is_closed():
@@ -518,6 +533,7 @@ def test_an_unreadable_page_is_a_retry():
 
 
 # ---- after the send ----------------------------------------------------------------------------------------------
+@mutation(SUBMIT_FILE, "            cause = str(exc)", "            pass", expect="the close code is told")
 @mutation(SUBMIT_FILE, '        if self.sent:\n            return await self._unknown("the run failed after the send',
           '        if False:\n            return await self._unknown("the run failed after the send',
           expect="never a Retry after the send")
@@ -528,6 +544,7 @@ def test_whatever_breaks_after_the_send_is_ambiguous_and_never_a_second_frame():
     cases = {
         "socket closed": dict(sockets=[gateway(answer=[ConnectionError("closed")])]),
         "unreadable frame": dict(sockets=[gateway(answer=[bad])]),
+        "gateway close": dict(sockets=[gateway(answer=[CLOSE_4003])]),
         "end of data before the final chunk": dict(sockets=[gateway(answer=[wire.frame(wire.EOD, 0, b"")])]),
         "deadline": dict(sockets=[gateway(answer=[])], margin=59.9, image_submit_timeout_s=60),
     }
@@ -538,6 +555,8 @@ def test_whatever_breaks_after_the_send_is_ambiguous_and_never_a_second_frame():
         assert steps(k) == ["report_ref", "mark_sent"], what
         if what == "unreadable frame":
             assert any("unreadable gateway frame" in e[0] for e in k.ctx.events)
+        if what == "gateway close":
+            assert any("closed the socket (code 4003)" in e[0] for e in k.ctx.events), "the close code is told"
 
 
 @mutation(SUBMIT_FILE, "        bound = asyncio.timeout(max(0.0, self.deadline - self.deps.clock()))",

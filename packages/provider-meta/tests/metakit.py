@@ -45,6 +45,9 @@ VIEWER = re.search(r'\\"viewerId\\":\\"(\d+)\\"', _SIGNED_IN).group(1)
 NAME = re.search(r'\\"username\\":\\"([^"\\]+)\\"', _SIGNED_IN).group(1)
 SESSION = "ecto-PLANTED-session-0001"
 PROXY = Proxy("10.0.0.9", 3128, "user:PLANTED-pw")
+# the gateway closing the socket as seen live on 06/11 (curl flags 8 = CURLWS_CLOSE): close code 4003, then a
+# 16-byte reason (synthetic here). Read as a frame, its first 6 bytes look like an 18-byte 0x0f frame that lies.
+CLOSE_4003 = ((4003).to_bytes(2, "big") + b"Unauthorized....", 8)
 PLANTED: tuple[str, ...] = (TOKEN, VIEWER, SESSION, "PLANTED-pw")
 
 
@@ -185,9 +188,9 @@ class Cookies:
 
 
 class FakeSocket:
-    """The gateway's side of one WebSocket: `incoming` raw frames (an exception in it is raised by that `recv`; once
-    they run out `recv` never returns). It records each frame sent and fails the test on a second `0x0d` data frame
-    and on any send after the `0x0d`."""
+    """The gateway's side of one WebSocket: `incoming` raw frames (a `(bytes, curl flags)` tuple is received as it is,
+    as `CLOSE_4003`; an exception in it is raised by that `recv`; once they run out `recv` never returns). It records
+    each frame sent and fails the test on a second `0x0d` data frame and on any send after the `0x0d`."""
 
     def __init__(self, incoming=()):
         self.incoming = list(incoming)
@@ -205,7 +208,7 @@ class FakeSocket:
         item = self.incoming.pop(0)
         if isinstance(item, BaseException):
             raise item
-        return item, 2
+        return item if isinstance(item, tuple) else (item, 2)
 
     async def close(self) -> None:
         self.closed = True

@@ -5,8 +5,9 @@ Signed in and an accepted estab is `alive`; its identity is `viewer_hash(viewerI
 `provider_state["viewer"]`, which is what the cookie write-back compares). A signed-out page is never a verdict by
 itself: an `unknown` read with one spaced strike and a rest that asks for a recheck (`signed_out_effects`). A Vercel
 page is the proxy IP's problem, never the account's: the account rests (no strike) only when it has no token to
-check with. An estab the gateway refuses (a code other than 200, a frame that does not decode) is `unknown` with a rest
-and a recheck and no strike, its cause logged and in the rest's reason; a 401 also forgets the token. An estab with
+check with. An estab the gateway refuses (a code other than 200, a frame that does not decode, the socket closed) is
+`unknown` with a rest and a recheck and no strike, its cause logged and in the rest's reason; a 401 (or a close with
+`CLOSE_UNAUTHORIZED`) also forgets the token. An estab with
 no answer in time is a slow proxy: logged, `unknown` with no effect.
 """
 
@@ -20,7 +21,7 @@ from relay_core.providers import Cooldown, Health
 from relay_meta.constants import ESTAB_WAIT_S, SIGNED_OUT_REST_S
 from relay_meta.credential import viewer_hash
 from relay_meta.engine.web import GateClosed, NetError, Sessions, Web, quiet_close, real_session, signed_out_effects
-from relay_meta.engine.wire import ESTAB, FrameError, estab, estab_answer, estab_code, parse_frame
+from relay_meta.engine.wire import ESTAB, FrameError, GatewayClosed, estab, estab_answer, estab_code, parse_frame
 
 log = logging.getLogger("relay_meta.check")
 UNKNOWN = Health("unknown")
@@ -28,8 +29,8 @@ UNKNOWN = Health("unknown")
 
 async def _estab(web: Web, token: str) -> str:
     """The gateway's answer to one EstabStream: `ok`, `unauthorized`, `code:<n>` (any other code, `code:none` without
-    one; never the payload text), `timeout` (nothing in `ESTAB_WAIT_S`) or `frame_error` (a frame that does not
-    decode)."""
+    one; never the payload text), `timeout` (nothing in `ESTAB_WAIT_S`), `frame_error` (a frame that does not
+    decode), or the socket closed by the gateway: `unauthorized` (`CLOSE_UNAUTHORIZED`) or `closed:<code>`."""
     sock = await web.socket(token)
     try:
         await sock.send(estab(str(uuid.uuid4())))
@@ -42,6 +43,8 @@ async def _estab(web: Web, token: str) -> str:
                     return answer if answer != "other" else "code:%s" % ("none" if code is None else code)
     except TimeoutError:
         return "timeout"
+    except GatewayClosed as closed:
+        return closed.cause
     except FrameError:
         return "frame_error"
     finally:

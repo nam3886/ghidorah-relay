@@ -40,6 +40,26 @@ class FrameError(ValueError):
     """A frame, or a protobuf inside one, that does not decode."""
 
 
+# the gateway's close code for a token it refuses (06/11: its close reason starts "Unau"), the WebSocket form of a 401
+CLOSE_UNAUTHORIZED = 4003
+
+
+class GatewayClosed(Exception):
+    """The gateway closed the WebSocket: a close frame, never a gateway frame. Only its close code is kept (None
+    without one), never its reason text."""
+
+    def __init__(self, payload: bytes):
+        self.code = int.from_bytes(payload[:2], "big") if len(payload) >= 2 else None
+        super().__init__("the gateway closed the socket (code %s)" % self.code)
+
+    @property
+    def cause(self) -> str:
+        """`unauthorized` for `CLOSE_UNAUTHORIZED`, else `closed:<code>` (`closed:none` without one)."""
+        if self.code == CLOSE_UNAUTHORIZED:
+            return "unauthorized"
+        return "closed:%s" % ("none" if self.code is None else self.code)
+
+
 # ---- frames -------------------------------------------------------------------------------------------------------
 def frame(t: int, stream: int, payload: bytes) -> bytes:
     return bytes([t]) + struct.pack("<H", stream) + len(payload).to_bytes(3, "little") + payload

@@ -48,6 +48,7 @@ from relay_meta.constants import (
     VERCEL_MARK,
 )
 from relay_meta.credential import jar_of, on_site, renewable, viewer_hash, with_cookies
+from relay_meta.engine.wire import GatewayClosed
 
 log = logging.getLogger("relay_meta.web")
 RENEW_TIMEOUT_S = 5.0       # writing rotated cookies back: past it nothing is written
@@ -58,6 +59,7 @@ _NAME = re.compile(r'\\"socialProfile\\":\{\\"username\\":\\"([^"\\]+)\\"')
 _LOGGED_OUT = '\\"isLoggedIn\\":false'
 _RD_PATH = re.compile(r"fetch\('(/[^'/][^']*\?challenge=[^']*)'")
 _MEDIA_ID = re.compile(r"\d{1,32}")
+_WS_CLOSE = 8      # curl's CURLWS_CLOSE flag on a received message
 
 _CH_UA = '"Google Chrome";v="%s", "Not.A/Brand";v="8", "Chromium";v="%s"' % ((IMPERSONATE[len("chrome"):],) * 2)
 _LANG = LOCALE + ",en;q=0.9"
@@ -233,7 +235,11 @@ class Socket:
         await asyncio.wait_for(self.ws.send(data), self.timeout)
 
     async def recv(self) -> bytes:
-        data, _flags = await self.ws.recv()
+        """The next gateway frame. A close frame (curl hands it over as a message with `CURLWS_CLOSE`) raises
+        `GatewayClosed`: its bytes are a close code and a reason, never a frame."""
+        data, flags = await self.ws.recv()
+        if flags & _WS_CLOSE:
+            raise GatewayClosed(data)
         return data
 
     async def close(self) -> None:

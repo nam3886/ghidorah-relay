@@ -337,7 +337,8 @@ class _Run:
             return held
 
     async def _estab(self, web: Web, token: str):
-        """A socket with the stream open on `self.conversation`: (socket, "ok" | "unauthorized" | "other")."""
+        """A socket with the stream open on `self.conversation`: (socket, "ok" | "unauthorized" | "other" |
+        "closed:<code>"). A socket the gateway closed with `CLOSE_UNAUTHORIZED` is "unauthorized", as a 401."""
         sock = await web.socket(token)
         try:
             await sock.send(wire.estab(self.conversation))
@@ -350,6 +351,8 @@ class _Run:
                         return sock, wire.estab_answer(payload)
         except TimeoutError:
             return sock, "other"
+        except wire.GatewayClosed as closed:     # before the send: nothing was sent, the stream is not open
+            return sock, closed.cause
         except BaseException:
             await quiet_close(sock)
             raise
@@ -460,6 +463,8 @@ class _Run:
         cause = type(exc).__name__
         if isinstance(exc, wire.FrameError):
             cause = "unreadable gateway frame"
+        elif isinstance(exc, wire.GatewayClosed):
+            cause = str(exc)
         if self.sent:
             return await self._unknown("the run failed after the send: %s" % cause)
         if isinstance(exc, NetError) and exc.proxy:
