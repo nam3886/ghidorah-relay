@@ -205,7 +205,7 @@ describe("the list", () => {
     const w = await open();
     await chip(w, "All").trigger("click");
     expect(w.text()).toContain(PLANTED);
-    expect(w.find("img").exists()).toBe(false);
+    expect(w.find("img:not(.ptile)").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
     const table = rows(w);
     expect(table).toHaveLength(3);

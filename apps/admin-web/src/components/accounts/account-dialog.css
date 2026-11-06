@@ -41,8 +41,9 @@
   display: inline-flex;
   flex: none;
   align-items: center;
+  gap: 5px;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   background: var(--ps);
   color: var(--pi);

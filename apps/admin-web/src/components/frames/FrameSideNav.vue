@@ -4,6 +4,7 @@ import { providerClass } from "@/lib/providers";
 import { useProvidersStore } from "@/stores/providers";
 import { kindTitle, ownCount } from "./frames-model";
 import type { FramesController } from "./use-frames";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The left list of the desktop page (Frames.dc.html): a group per provider with its colour dot, its note and a chevron,
 // the open one listing its kinds (name and where the text comes from: "own 2" or "default"), the current kind on the
@@ -41,7 +42,7 @@ const current = computed(() => props.frames.shown?.kind ?? "");
         :data-testid="`provider-tab-${name}`"
         @click="pick(name)"
       >
-        <span class="fsn__dot" aria-hidden="true" />
+        <ProviderTile :provider="name" :size="16" />
         <span class="fsn__name">{{ name }}</span>
         <span class="fsn__note" :class="{ 'is-paused': paused(name) }">{{ note(name) }}</span>
         <svg
@@ -119,13 +120,6 @@ const current = computed(() => props.frames.shown?.kind ?? "");
 .fsn__kind:focus-visible {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
-}
-.fsn__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 .fsn__name {
   font-weight: 700;

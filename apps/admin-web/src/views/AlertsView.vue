@@ -53,6 +53,7 @@ import { providerClass } from "@/lib/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
 import { useUiStore } from "@/stores/ui";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // Alerts (Alerts, AlertsTablet, AlertsPhone, AlertsStates, AlertDetail): one card per severity (Critical, Warnings,
 // Info), each listing its stored groups (with an Acknowledge) and the live conditions the dashboard computes (no
@@ -490,10 +491,14 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
         >
           <span v-if="compact" class="av-item__top">
             <span class="sev" :class="`tone-${c.tone}`" :data-tone="c.tone">{{ c.word }}</span>
-            <span class="pchip">{{ providerOf(g.provider) }}</span>
+            <span class="pchip"
+              ><ProviderTile v-if="g.provider" :provider="g.provider" :size="14" />{{ providerOf(g.provider) }}</span
+            >
             <span class="av-item__right num">{{ rowRight(g) }}</span>
           </span>
-          <span v-else class="pchip pchip--wide">{{ providerOf(g.provider) }}</span>
+          <span v-else class="pchip pchip--wide"
+            ><ProviderTile v-if="g.provider" :provider="g.provider" :size="14" />{{ providerOf(g.provider) }}</span
+          >
           <div class="av-item__main">
             <button
               type="button"
@@ -556,10 +561,14 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
         >
           <span v-if="compact" class="av-item__top">
             <span class="sev" :class="`tone-${c.tone}`" :data-tone="c.tone">{{ c.word }}</span>
-            <span class="pchip">{{ providerOf(a.provider) }}</span>
+            <span class="pchip"
+              ><ProviderTile v-if="a.provider" :provider="a.provider" :size="14" />{{ providerOf(a.provider) }}</span
+            >
             <span class="av-item__right">live</span>
           </span>
-          <span v-else class="pchip pchip--wide">{{ providerOf(a.provider) }}</span>
+          <span v-else class="pchip pchip--wide"
+            ><ProviderTile v-if="a.provider" :provider="a.provider" :size="14" />{{ providerOf(a.provider) }}</span
+          >
           <div class="av-item__main">
             <span class="g-title">{{ liveWord(a.kind) }}: {{ a.message }}</span>
             <span class="g-kind"
@@ -652,7 +661,9 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
           data-testid="alert-resolved"
           @click="rowClick($event, r)"
         >
-          <span class="pchip pchip--wide">{{ providerOf(r.provider) }}</span>
+          <span class="pchip pchip--wide"
+            ><ProviderTile v-if="r.provider" :provider="r.provider" :size="14" />{{ providerOf(r.provider) }}</span
+          >
           <div class="av-item__main">
             <button type="button" class="g-title g-open-btn" aria-haspopup="dialog" @click="openGroup(r)">
               {{ alertTitle(r) }}
@@ -684,9 +695,11 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
           :data-tone="SEVERITY_CARD[severityOf(shownDetail.severity)].tone"
           >{{ SEVERITY_CARD[severityOf(shownDetail.severity)].word }}</span
         >
-        <span class="pchip" :class="providerClass(providerOf(shownDetail.provider))">{{
-          providerOf(shownDetail.provider)
-        }}</span>
+        <span class="pchip" :class="providerClass(providerOf(shownDetail.provider))"
+          ><ProviderTile v-if="shownDetail.provider" :provider="shownDetail.provider" :size="14" />{{
+            providerOf(shownDetail.provider)
+          }}</span
+        >
         <span class="ad-help num"
           >{{ shownDetail.open_count }} open of {{ shownDetail.count }} rows · since
           {{ dayClock(shownDetail.first_ms ?? 0) }}</span
@@ -1147,8 +1160,13 @@ const CHEVRON_ICON = ["m6 9 6 6 6-6"];
   white-space: nowrap;
 }
 .pchip {
+  gap: 5px;
   background: var(--ps);
   color: var(--pi);
+}
+/* a provider's pill starts with its icon, 5 px in; the relay's own pill has none */
+.pchip:has(> img) {
+  padding-left: 5px;
 }
 .pchip--wide {
   min-width: 64px;

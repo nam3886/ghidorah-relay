@@ -207,7 +207,7 @@ describe("the list", () => {
     ]);
     expect(row.find(".t-last").attributes("title")).toBe("1,912 jobs · 2 / unlimited unfinished");
     expect(row.find(".t-last").text()).toBe("never");
-    expect(w.find("img").exists()).toBe(false);
+    expect(w.find("img:not(.ptile)").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 

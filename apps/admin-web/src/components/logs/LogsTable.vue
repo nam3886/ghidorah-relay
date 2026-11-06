@@ -6,6 +6,7 @@ import PathIcon from "@/components/shared/icons/PathIcon.vue";
 import { useBreakpoint } from "@/composables/use-breakpoint";
 import { providerClass } from "@/lib/providers";
 import { clockMs, clockTime, durationText, errorTone, isSlow, logKey, splitRoute, statusTone } from "./log-window";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The request list, drawn as Logs.dc.html (a desktop: eight columns), LogsTablet (five columns; the job and the key
 // fold into the request line) and LogsPhone (a list of rows), with the states of LogsStates: a first read as flat bars,
@@ -141,7 +142,9 @@ const ICONS = {
       >
         <span class="p-row__top">
           <span class="pill num" :class="`tone-${statusTone(r.status_code)}`">{{ r.status_code }}</span>
-          <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>
+          <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)"
+            ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span
+          >
           <span class="p-row__right num">{{ clockTime(r.at_ms) }} · {{ durationText(r.duration_ms) }}</span>
         </span>
         <span class="p-row__route mono" :title="r.route">{{ r.route }}</span>
@@ -188,7 +191,8 @@ const ICONS = {
               >
             </td>
             <td>
-              <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span
+              <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)"
+                ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span
               ><span v-else class="faint mono">—</span>
             </td>
             <td class="r num" :class="{ slow: isSlow(r.duration_ms) }">{{ durationText(r.duration_ms) }}</td>
@@ -250,7 +254,8 @@ const ICONS = {
               <span v-else class="faint">—</span>
             </td>
             <td>
-              <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span
+              <span v-if="r.provider" class="pchip" :class="providerClass(r.provider)"
+                ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span
               ><span v-else class="faint">—</span>
             </td>
             <td class="body-cell t-key" :title="logKey(r)">{{ logKey(r) }}</td>
@@ -470,8 +475,9 @@ const ICONS = {
 .pchip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   background: var(--ps);
   color: var(--pi);

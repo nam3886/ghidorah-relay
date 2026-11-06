@@ -61,6 +61,7 @@ import {
 import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useAuthStore } from "@/stores/auth";
 import { useScopeStore } from "@/stores/scope";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 const auth = useAuthStore();
 const scope = useScopeStore();
@@ -456,7 +457,7 @@ onMounted(async () => {
           <p v-if="!models.length" class="models__empty" data-testid="test-models-empty">No models loaded.</p>
           <div v-for="r in rows" :key="r.provider" class="mrow" :class="providerClass(r.provider)">
             <span class="mrow__head" data-testid="test-provider"
-              ><span class="mrow__dot" aria-hidden="true" />{{ r.provider }}</span
+              ><ProviderTile :provider="r.provider" :size="16" />{{ r.provider }}</span
             >
             <ArrowScroller
               class="mrow__chips"
@@ -1043,19 +1044,12 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   flex: none;
-  width: 76px;
+  width: 96px;
   min-height: 34px;
   font-size: 13px;
   font-weight: 700;
   color: var(--pi);
   overflow-wrap: anywhere;
-}
-.mrow__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 .mrow__chips {
   flex: 1 1 0;

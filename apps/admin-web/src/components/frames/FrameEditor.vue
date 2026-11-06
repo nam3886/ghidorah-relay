@@ -20,6 +20,7 @@ import {
   versionTag,
 } from "./frames-model";
 import type { FramesController } from "./use-frames";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The editor of one frame, inline (Frames.dc.html): the card of the open kind and target. Head: the provider chip and
 // the kind, "Frame for" (which model's frame, or the default), and "unsaved" while the draft differs from the stored
@@ -148,7 +149,7 @@ const followWhy = computed(() => (own.value ? "" : "Works on a model that has it
       <div class="fed__head">
         <div class="fed__title">
           <h2 id="ed-title" class="fed__h2">
-            <span class="fed__chip">{{ frames.listed }}</span>
+            <span class="fed__chip"><ProviderTile :provider="frames.listed" :size="14" />{{ frames.listed }}</span>
             {{ kindName }}
           </h2>
           <span class="fed__help">{{ helpLine }}</span>
@@ -408,8 +409,9 @@ html.dark .fed {
 .fed__chip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;

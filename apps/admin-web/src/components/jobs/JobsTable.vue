@@ -9,6 +9,7 @@ import { isDayRow, type DayItem } from "@/lib/day-rows";
 import { providerClass } from "@/lib/providers";
 import { age, isSlow, pointsText, statusPill } from "./job-row";
 import { shortId } from "./job-text";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The job list, drawn as Ledger.dc.html (a desktop: tick box, Status, Job, Provider, Account, Age, Points and two
 // icon buttons), JobsTablet (Status, Job, Provider, Age, Points: the account folds into the job line) and JobsPhone
@@ -168,7 +169,9 @@ function rowClick(j: JobSummary, event: MouseEvent): void {
           </span>
           <span class="p-row__title" :title="r.title || '(untitled)'">{{ r.title || "(untitled)" }}</span>
           <span class="p-row__line">
-            <span class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>
+            <span class="pchip" :class="providerClass(r.provider)"
+              ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span
+            >
             <span class="mono p-row__model" :title="r.model">{{ r.model }}</span>
             <span class="num p-row__pts">{{ pointsText(r) }} <span class="p-row__unit">pts</span></span>
           </span>
@@ -239,7 +242,9 @@ function rowClick(j: JobSummary, event: MouseEvent): void {
                 >
               </td>
               <td>
-                <span class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>
+                <span class="pchip" :class="providerClass(r.provider)"
+                  ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span
+                >
               </td>
               <td v-if="!isTablet" class="mono c-account">{{ r.account_label || "—" }}</td>
               <td class="r num c-age" :class="{ slow: isSlow(r, now) }">{{ age(r.created_ms, now) }}</td>
@@ -479,8 +484,9 @@ function rowClick(j: JobSummary, event: MouseEvent): void {
   display: inline-flex;
   flex: none;
   align-items: center;
+  gap: 5px;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   background: var(--ps);
   color: var(--pi);

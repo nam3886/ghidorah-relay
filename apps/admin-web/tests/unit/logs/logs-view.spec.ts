@@ -192,7 +192,7 @@ describe("the list", () => {
     ]);
     expect(rowsOf(w)[0]!.findAll("td")[7]!.text()).toBe("42 ms");
     expect(text).toContain(PLANTED);
-    expect(w.find("img").exists()).toBe(false);
+    expect(w.find("img:not(.ptile)").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
@@ -888,7 +888,7 @@ describe("the detail", () => {
     expect(drawer.getAttribute("role")).toBe("dialog");
     expect(drawer.querySelector("h2")!.textContent).toBe(PLANTED);
     expect(drawer.textContent).toContain("planted");
-    expect(drawer.querySelector("img")).toBeNull();
+    expect(drawer.querySelector("img:not(.ptile)")).toBeNull();
     expect(drawer.textContent).toContain('"ok": true');
   });
 

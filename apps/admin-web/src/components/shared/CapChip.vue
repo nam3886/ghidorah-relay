@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { providerClass } from "@/lib/providers";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // A provider chip with an optional daily cap (JobsTablet `capChip`, ScrollerSpec notes): one pill in the provider's
 // fill and ink, no ring. A capped chip shows the figure after the name and a 2 px bar along its bottom edge (its track
@@ -39,7 +40,7 @@ const barWidth = computed(() => ({ width: `${Math.min(100, Math.round(share.valu
       :aria-label="tip"
       data-testid="cap-chip"
     >
-      {{ props.provider }}
+      <ProviderTile :provider="props.provider" :size="14" />{{ props.provider }}
       <span
         v-if="level !== 'ok'"
         class="cap__dot"
@@ -62,7 +63,7 @@ const barWidth = computed(() => ({ width: `${Math.min(100, Math.round(share.valu
   align-items: center;
   gap: 5px;
   height: 24px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;

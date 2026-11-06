@@ -25,6 +25,7 @@ import {
   rowMenu,
   tabletSub,
 } from "./account-model";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The account list (Accounts, AccountsTablet, AccountsPhone, AccountsStates): one row per account, what needs a look
 // first. A desktop draws five columns (the account with its provider chip, its health and why, its pools as meters,
@@ -166,7 +167,9 @@ const ICONS = {
       >
         <span class="p-row__top">
           <span class="acct-pill" :class="`tone-${r.h.tone}`">{{ r.h.label }}</span>
-          <span class="acct-pchip" :class="providerClass(r.a.provider)">{{ r.a.provider }}</span>
+          <span class="acct-pchip" :class="providerClass(r.a.provider)"
+            ><ProviderTile :provider="r.a.provider" :size="14" />{{ r.a.provider }}</span
+          >
         </span>
         <span class="p-row__who">
           <button type="button" class="at__open p-row__label" :title="r.a.label" @click="emit('open', r.a)">
@@ -278,7 +281,9 @@ const ICONS = {
               >
             </td>
             <td>
-              <span class="acct-pchip" :class="providerClass(r.a.provider)">{{ r.a.provider }}</span>
+              <span class="acct-pchip" :class="providerClass(r.a.provider)"
+                ><ProviderTile :provider="r.a.provider" :size="14" />{{ r.a.provider }}</span
+              >
             </td>
             <td class="r num t-pool" :class="{ 'tone-bad': firstPool(r.a)?.bad }">
               {{ firstPool(r.a)?.text ?? "—" }}
@@ -349,7 +354,9 @@ const ICONS = {
             </td>
             <td class="d-acct">
               <div class="d-acct__in">
-                <span class="acct-pchip" :class="providerClass(r.a.provider)">{{ r.a.provider }}</span>
+                <span class="acct-pchip" :class="providerClass(r.a.provider)"
+                  ><ProviderTile :provider="r.a.provider" :size="14" />{{ r.a.provider }}</span
+                >
                 <div class="d-acct__who">
                   <button type="button" class="at__open d-name" :title="r.a.label" @click="emit('open', r.a)">
                     {{ r.a.label }}

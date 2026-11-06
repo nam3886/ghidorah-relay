@@ -7,6 +7,7 @@ import { IB_ICONS } from "@/components/shared/icons/ledger-icons";
 import { providerClass } from "@/lib/providers";
 import AccountDialog from "./AccountDialog.vue";
 import { accountChanges, accountSub, type ChipState, healthOf, hhmm, proxyStatus, proxyText } from "./account-model";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // Edit one account (AccountEdit): label, proxy and Taking jobs. The dialog only asks; the view sends. `save` carries the
 // changed fields only (nothing changed just closes the dialog); `recheck` asks for the stored proxy to be probed again,
@@ -113,7 +114,9 @@ function recheck() {
     >
     <template v-if="props.account && health" #sub>
       <span class="acct-pill" :class="`tone-${health.tone}`">{{ health.label }}</span>
-      <span class="acct-pchip" :class="providerClass(props.account.provider)">{{ props.account.provider }}</span>
+      <span class="acct-pchip" :class="providerClass(props.account.provider)"
+        ><ProviderTile :provider="props.account.provider" :size="14" />{{ props.account.provider }}</span
+      >
       <span v-if="accountSub(props.account)" class="acct-field__help">{{ accountSub(props.account) }}</span>
     </template>
 

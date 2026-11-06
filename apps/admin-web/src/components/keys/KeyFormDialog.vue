@@ -25,6 +25,7 @@ import {
   scopeName,
   todayText,
 } from "./key-model";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // Create or edit a key, in the right drawer (KeyForm, KeyFormDark; a full screen on a phone, KeyCreatePhone). The form
 // only asks: it builds the body from what was typed and the view sends it. `dirty` (something typed since it opened)
@@ -230,7 +231,7 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
         >
           <div v-for="g in groups" :key="g.provider" class="kf__group">
             <span class="kf__ghead" :class="providerClass(g.provider)"
-              ><span class="kf__gdot" aria-hidden="true" />{{ g.provider }}</span
+              ><ProviderTile :provider="g.provider" :size="16" />{{ g.provider }}</span
             >
             <div class="kf__gmodels">
               <label
@@ -593,13 +594,6 @@ const typed = (e: Event): string => (e.target as HTMLInputElement).value;
   font-weight: 700;
   color: var(--pi);
   overflow-wrap: anywhere;
-}
-.kf__gdot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 .kf__gmodels {
   display: flex;

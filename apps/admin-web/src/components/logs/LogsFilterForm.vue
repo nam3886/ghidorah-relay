@@ -10,6 +10,7 @@ import LogsDatesField from "./LogsDatesField.vue";
 import LogsKeyField from "./LogsKeyField.vue";
 import { useLogsFilters } from "./logs-filters";
 import { STATUS_OPTIONS, thousands } from "./log-window";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The filters of the Request logs, drawn as Logs.dc.html draws them. A desktop: one row with the Status segments (each
 // with its count under the other filters), the Key select, the date range and the search field, and under it the
@@ -132,7 +133,7 @@ function typed(): void {
           :data-testid="`logs-provider-${p}`"
           @click="pickProvider(p)"
         >
-          <span class="chip__dot" aria-hidden="true" />{{ p }}
+          <ProviderTile :provider="p" :size="16" />{{ p }}
         </button>
       </ArrowScroller>
     </div>
@@ -166,12 +167,6 @@ function typed(): void {
 }
 .lf__provs {
   flex: 0 1 auto;
-}
-.chip__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 
 /* the Status segments: a track with the chosen one raised */

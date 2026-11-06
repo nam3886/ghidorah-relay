@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as shell from "@/api/shell";
 import ProviderStrip from "@/components/layout/ProviderStrip.vue";
 import ProviderTile from "@/components/shared/ProviderTile.vue";
-import { byProviderOrder, providerClass } from "@/lib/providers";
+import { byProviderOrder, PROVIDER_ORDER, providerClass } from "@/lib/providers";
 import { createAppRouter } from "@/router";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
@@ -42,8 +42,9 @@ describe("the provider strip", () => {
     await useProvidersStore().refresh();
     const w = mount(ProviderStrip);
     const tabs = w.findAll("button.ptab");
-    expect(tabs.map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "D dola", "V vibes", "F flow paused"]);
+    expect(tabs.map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "dola", "vibes", "flow paused"]);
     expect(tabs[3]!.get(".ptab__paused").text()).toBe("paused");
+    expect(tabs.map((t) => t.find("img.ptile").exists())).toEqual([false, true, true, true]);
     expect(tabs.map((t) => t.attributes("aria-label"))).toEqual(["All providers", "dola", "vibes", "flow, paused"]);
     expect(tabs[0]!.attributes("aria-pressed")).toBe("true");
   });
@@ -64,7 +65,7 @@ describe("the provider strip", () => {
     useScopeStore().models = [{ id: "m1", owned_by: "meta" }];
     const w = mount(ProviderStrip);
     await flushPromises();
-    expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "M meta"]);
+    expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual(["All", "meta"]);
   });
 
   it("is shown on Jobs alone (below the desktop); Keys and Alerts draw none, the other tabs their own chips", () => {
@@ -82,9 +83,9 @@ describe("the provider strip", () => {
     await flushPromises();
     expect(w.find('[data-testid="provider-tab-all"]').exists()).toBe(false);
     expect(w.findAll("button.ptab").map((t) => t.text().replace(/\s+/g, " "))).toEqual([
-      "D dola",
-      "V vibes",
-      "F flow paused",
+      "dola",
+      "vibes",
+      "flow paused",
     ]);
     await w.get('[data-testid="provider-tab-vibes"]').trigger("click");
     expect(scope.only).toBe("vibes");
@@ -104,10 +105,30 @@ describe("the provider strip", () => {
 });
 
 describe("provider marks", () => {
-  it("a provider is a tile with its first letter in its own tone; one with no tone is neutral", () => {
-    const w = mount(ProviderTile, { props: { provider: "meta" } });
-    expect(w.text()).toBe("M");
-    expect(w.classes()).toContain("p-meta");
+  it("a known provider is its bundled favicon, decorative, at the size asked", () => {
+    for (const name of PROVIDER_ORDER) {
+      const w = mount(ProviderTile, { props: { provider: name, size: 14 } });
+      const img = w.find("img");
+      expect(img.attributes("src"), name).toMatch(new RegExp(`${name}[^/]*\\.png$`));
+      expect(img.attributes("alt")).toBe("");
+      expect(img.attributes("aria-hidden")).toBe("true");
+      expect([img.attributes("width"), img.attributes("height")]).toEqual(["14", "14"]);
+      expect(img.classes()).toContain(`p-${name}`);
+      expect(w.text()).toBe("");
+    }
+    expect(
+      mount(ProviderTile, { props: { provider: "meta" } })
+        .find("img")
+        .attributes("width"),
+    ).toBe("20");
+  });
+
+  it("a provider with no icon is a tile with its first letter, neutral", () => {
+    const w = mount(ProviderTile, { props: { provider: "fake" } });
+    expect(w.find("img").exists()).toBe(false);
+    expect(w.text()).toBe("");
+    expect(w.attributes("data-letter")).toBe("F");
+    expect(w.classes()).toContain("p-other");
     expect(w.attributes("aria-hidden")).toBe("true");
     expect(providerClass("fake")).toBe("p-other");
   });

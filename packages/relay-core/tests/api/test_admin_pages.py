@@ -43,6 +43,27 @@ def test_a_brand_svg_is_served_as_an_svg_image_with_the_csp(db):
     run_app(db, scenario)
 
 
+PROVIDERS = ["dola", "meta", "vibes", "flow", "qwen", "gemini", "muse", "gpt", "grok"]
+
+
+@mutation(PAGES_PY, ', ".png": "image/png"}', "}", expect="provider icon")
+def test_each_provider_icon_of_the_bundle_is_served_as_a_png_image_with_the_csp_and_kept_for_good(db):
+    assets = Path(__file__).resolve().parents[2] / "src/relay_core/admin/static/app/assets"
+    icons = {p.name.split("-")[0]: p.name for p in assets.glob("*.png")}
+    assert sorted(icons) == sorted(PROVIDERS), icons
+
+    async def scenario(env):
+        for name in icons.values():
+            r = await env.client.get("/ui/app/assets/" + name)
+            assert r.status_code == 200, "provider icon " + name
+            assert r.headers["content-type"] == "image/png"
+            assert r.headers["content-security-policy"] == CSP
+            assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+            assert r.content.startswith(b"\x89PNG")
+
+    run_app(db, scenario)
+
+
 @mutation(PAGES_PY, "body = _FILES.get(name)", "body = (STATIC / name).read_bytes()", expect="outside static")
 def test_only_files_of_the_static_folder_are_served(db):
     async def scenario(env):

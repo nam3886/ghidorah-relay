@@ -363,7 +363,7 @@ describe("the editor", () => {
     expect(page().find('[data-testid="frame-preview"]').text()).toBe(PLANTED);
     expect(page().find('[data-testid="frame-warnings"]').text()).toBe(PLANTED);
     expect(page().find(".fed__mirror").text()).toContain(PLANTED);
-    expect(page().find("img").exists()).toBe(false);
+    expect(page().find("img:not(.ptile)").exists()).toBe(false);
     expect(page().find("b").exists()).toBe(false);
   });
 

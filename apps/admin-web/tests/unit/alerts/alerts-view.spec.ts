@@ -249,7 +249,7 @@ describe("the lists", () => {
     expect(rows[1]).toContain("API read failure: no reply text was read");
     expect(rows[1]).not.toContain("One customer only");
     expect(rows[2]).not.toContain("One customer only");
-    expect(w.find("img").exists()).toBe(false);
+    expect(w.find("img:not(.ptile)").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 
@@ -468,7 +468,7 @@ describe("the detail", () => {
     const panel = dr();
     expect(db().find('[data-testid="alert-detail-title"]').text()).toBe(`Fake replied “${PLANTED}”`);
     expect(panel.find('[data-testid="alert-outcomes"]').text()).toBe("1 delivered after the reply, 2 refunded.");
-    expect(panel.find("img").exists()).toBe(false);
+    expect(panel.find("img:not(.ptile)").exists()).toBe(false);
     await panel
       .findAll("button")
       .find((b) => b.text() === "A title")!
@@ -1064,7 +1064,7 @@ describe("job titles and key labels in the detail", () => {
   it("a job title is text", async () => {
     const planted = await openDetail([unclearItem({ job_title: PLANTED })]);
     expect(planted.find(".ad-job").text()).toBe(PLANTED);
-    expect(planted.find("img").exists()).toBe(false);
+    expect(planted.find("img:not(.ptile)").exists()).toBe(false);
   });
 });
 

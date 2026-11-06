@@ -38,6 +38,7 @@ import { useLatest } from "@/composables/use-latest";
 import { notify } from "@/lib/notify";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // Settings (B Ledger): a row of tabs picks General or one provider (the shared provider filter: "" is General). A
 // provider's tab holds its sections (Taking jobs, Send path, Models and prices, Pools and budgets, Advanced) and its
@@ -292,7 +293,7 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
           :data-testid="`settings-tab-${g === 'core' ? 'general' : g}`"
           @click="choose(g)"
         >
-          <span v-if="g !== 'core'" class="stab__dot" aria-hidden="true"></span>{{ g === "core" ? "General" : g }}
+          <ProviderTile v-if="g !== 'core'" :provider="g" :size="16" />{{ g === "core" ? "General" : g }}
         </button>
       </ArrowScroller>
     </nav>
@@ -555,12 +556,6 @@ const EMPTY_ICON = ["M3 13h5l1.5 3h5L16 13h5", "M5 5h14l2 8v6H3v-6z"];
   outline: 2px solid var(--rl-focus);
   outline-offset: -2px;
   border-radius: 6px;
-}
-.stab__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 .stabs--chips :deep(.asc__row) {
   padding-bottom: 4px;

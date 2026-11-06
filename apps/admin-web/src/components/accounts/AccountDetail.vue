@@ -26,6 +26,7 @@ import {
   proxyText,
   type RowAction,
 } from "./account-model";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // One account in the right-hand drawer (AccountDetail): the label in mono, its health pill, provider chip and who it is;
 // a banner that says why it needs a look; four facts (tier, cycle start, jobs today, added); its health history (the
@@ -254,7 +255,9 @@ const act = (name: RowAction): void => {
   >
     <template v-if="a && health" #sub>
       <span class="acct-pill" :class="`tone-${health.tone}`">{{ health.label }}</span>
-      <span class="acct-pchip" :class="providerClass(a.provider)">{{ a.provider }}</span>
+      <span class="acct-pchip" :class="providerClass(a.provider)"
+        ><ProviderTile :provider="a.provider" :size="14" />{{ a.provider }}</span
+      >
       <span v-if="accountSub(a)" class="ad__help">{{ accountSub(a) }}</span>
     </template>
     <template v-if="a">

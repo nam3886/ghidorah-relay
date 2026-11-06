@@ -201,7 +201,7 @@ describe("opening", () => {
     const planted = `<img src=x onerror="window.__pwned=1">`;
     await show(detail({ title: planted }));
     expect(body().find(".rl-drawer__title").text()).toBe(planted);
-    expect(body().find(".rl-drawer__title img").exists()).toBe(false);
+    expect(body().find(".rl-drawer__title img:not(.ptile)").exists()).toBe(false);
   });
 
   it("the head says the status, the provider, what it is and a copy chip with the short id", async () => {
@@ -646,7 +646,7 @@ describe("server text is text", () => {
     expect(section("sent").find("pre").text()).toBe(planted);
     expect(section("technical").text()).toContain(JSON.stringify({ x: planted }));
     expect((body().find("[data-section=title] input").element as HTMLInputElement).value).toBe(planted);
-    expect(body().find("[role=dialog] img").exists()).toBe(false);
+    expect(body().find("[role=dialog] img:not(.ptile)").exists()).toBe(false);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 });

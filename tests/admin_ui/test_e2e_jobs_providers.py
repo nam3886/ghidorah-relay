@@ -152,7 +152,7 @@ def test_the_provider_cards_or_the_strip_filter_the_list_by_provider(app, app_pa
     expect(strip.get_by_test_id("provider-tab-all")).to_have_attribute("aria-pressed", "true")
     expect(strip.get_by_test_id("provider-tab-flow")).to_contain_text("paused")
     expect(strip.get_by_test_id("provider-tab-flow")).to_have_attribute("aria-label", "flow, paused")
-    expect(strip.get_by_test_id("provider-tab-vibes")).to_have_text(re.compile(r"^V\s*vibes\s*$"))  # no count
+    expect(strip.get_by_test_id("provider-tab-vibes")).to_have_text(re.compile(r"^\s*vibes\s*$"))  # no count, no letter
     expect(page.get_by_test_id("provider-card-dola")).to_have_count(0)
     no_cut_text(page)
     shot(page, "%d-all" % width)

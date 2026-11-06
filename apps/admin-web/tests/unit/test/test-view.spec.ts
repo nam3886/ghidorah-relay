@@ -360,7 +360,7 @@ describe("images", () => {
     expect(send).not.toHaveBeenCalled();
     expect(attached()).toHaveLength(1);
     expect(attached()[0]!.text()).toMatch(/a\.png\s*1 KiB/);
-    expect(attached()[0]!.find("img").exists()).toBe(false);
+    expect(attached()[0]!.find("img:not(.ptile)").exists()).toBe(false);
     expect(wrapper!.html()).not.toContain("blob:");
     send.mockRestore();
   });
@@ -969,7 +969,7 @@ describe("media", () => {
     await wrapper!.find('.result__frame button[aria-label="Play video"]').trigger("click");
     expect(wrapper!.find(".test-result__media video").attributes("src")).toBe("/m/v.mp4");
     expect(wrapper!.find('button[aria-label="Play video"]').exists()).toBe(false);
-    expect(wrapper!.find(".test-result__media img").exists()).toBe(false);
+    expect(wrapper!.find(".test-result__media img:not(.ptile)").exists()).toBe(false);
   });
 });
 

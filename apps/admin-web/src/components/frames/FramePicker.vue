@@ -5,6 +5,7 @@ import { providerClass } from "@/lib/providers";
 import { useProvidersStore } from "@/stores/providers";
 import { kindTitle, ownCount } from "./frames-model";
 import type { FramesController } from "./use-frames";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The picker of a tablet and a phone (FramesTablet, FramesPhone): the provider chips on one scrolling line (a phone
 // set of 5 or fewer would wrap), and under them the kinds as a segmented control. The desktop's left list becomes these
@@ -36,7 +37,7 @@ const pickProvider = (name: string): void => {
         :data-testid="`provider-tab-${name}`"
         @click="pickProvider(name)"
       >
-        <span class="fpk__dot" aria-hidden="true" />{{ paused(name) ? `${name} · paused` : name }}
+        <ProviderTile :provider="name" :size="16" />{{ paused(name) ? `${name} · paused` : name }}
       </button>
     </ArrowScroller>
     <div v-if="frames.data" class="fpk__field">
@@ -91,13 +92,6 @@ const pickProvider = (name: string): void => {
 .fpk__opt:focus-visible {
   outline: 2px solid var(--rl-focus);
   outline-offset: 2px;
-}
-.fpk__dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 .fpk__field {
   display: flex;

@@ -13,6 +13,7 @@ import { type Card, fieldLabel } from "./settings-cards";
 import { useStacked } from "./settings-media";
 import { valueText } from "./settings-value";
 import { useBreakpoint } from "@/composables/use-breakpoint";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // One provider's tab of the Settings page (B Ledger): its line (how it sends, its accounts, today's jobs), then the
 // sections: Taking jobs (`<p>.claims_enabled` and the provider's basic settings), Send path (`<p>.send_path`), Models
@@ -113,7 +114,7 @@ const advNames = computed(() => {
   <div class="ptab-body" :class="providerClass(p)" :data-testid="`settings-card-${p}`">
     <p v-if="stacked && !isPhone && line" class="pline pline--text num">{{ p }} · {{ line }}</p>
     <div v-else-if="!stacked" class="pline">
-      <span class="pchip">{{ p }}</span>
+      <span class="pchip"><ProviderTile :provider="p" :size="14" />{{ p }}</span>
       <span v-if="line" class="pline__text num">{{ line }}</span>
       <a href="#/accounts" class="pline__link" @click.prevent="emit('accounts')">Open {{ p }} accounts</a>
     </div>
@@ -371,8 +372,9 @@ const advNames = computed(() => {
 .pchip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   height: 24px;
-  padding: 0 10px;
+  padding: 0 10px 0 5px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;

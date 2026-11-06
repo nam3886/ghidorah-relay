@@ -1286,7 +1286,7 @@ describe("server text", () => {
       next_cursor: null,
     });
     const { w } = await open();
-    expect(w.find("tbody img").exists()).toBe(false);
+    expect(w.find("tbody img:not(.ptile)").exists()).toBe(false);
     expect(rows(w)[0]!.text()).toContain(planted);
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });

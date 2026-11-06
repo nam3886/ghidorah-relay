@@ -18,6 +18,7 @@ import {
   totalsOf,
   usableShare,
 } from "./today";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The Today section of Jobs, from the provider summary: Ledger.dc.html on a desktop (the jobs finished today as an
 // hourly chart stacked by provider, three figures beside it, then one card per provider, a card picks its provider
@@ -129,7 +130,10 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
             </div>
             <span class="jt-legend">
               <span v-for="p in rows" :key="p.provider" class="jt-legend__item"
-                ><span class="jt-legend__dot" :class="providerClass(p.provider)" />{{ p.provider }}</span
+                ><span class="jt-legend__dot" :class="providerClass(p.provider)" /><ProviderTile
+                  :provider="p.provider"
+                  :size="14"
+                />{{ p.provider }}</span
               >
             </span>
           </div>
@@ -197,7 +201,7 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
           @click="pick(p.provider)"
         >
           <span class="jt-card__head">
-            <span class="jt-chip">{{ p.provider }}</span>
+            <span class="jt-chip"><ProviderTile :provider="p.provider" :size="14" />{{ p.provider }}</span>
             <span class="jt-card__path">{{ pathLabel(p) }}</span>
           </span>
           <span class="jt-card__done">
@@ -467,8 +471,9 @@ const pick = (name: string): void => emit("pick", props.selected === name ? "" :
 .jt-chip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   height: 24px;
-  padding: 0 10px;
+  padding: 0 10px 0 5px;
   border-radius: 999px;
   background: var(--ps);
   color: var(--pi);

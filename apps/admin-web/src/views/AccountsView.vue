@@ -56,6 +56,7 @@ import { byProviderOrder, providerClass } from "@/lib/providers";
 import { useProvidersStore } from "@/stores/providers";
 import { useScopeStore } from "@/stores/scope";
 import { useStatsStore } from "@/stores/stats";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // Accounts (B · Ledger: Accounts, AccountsTablet, AccountsPhone, AccountsStates). One list, what needs a look first,
 // filtered by two chip rows: Show (the issue) and Provider (the shared provider filter; a phone picks it in a sheet).
@@ -598,7 +599,7 @@ function move(to: number): void {
               :aria-pressed="scope.provider === p ? 'true' : 'false'"
               @click="pickProvider(p)"
             >
-              <span class="av-chip__dot" aria-hidden="true" />{{ p }}
+              <ProviderTile :provider="p" :size="16" />{{ p }}
             </button>
           </ArrowScroller>
         </template>
@@ -711,7 +712,7 @@ function move(to: number): void {
           :aria-pressed="scope.provider === p ? 'true' : 'false'"
           @click="pickProvider(p)"
         >
-          <span class="av-chip__dot" aria-hidden="true" />{{ p }}
+          <ProviderTile :provider="p" :size="16" />{{ p }}
         </button>
       </div>
       <template #footer>
@@ -817,12 +818,6 @@ function move(to: number): void {
 }
 .av-chip__n {
   opacity: 0.7;
-}
-.av-chip__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--pc);
 }
 /* a tablet's chips are 40 px, a phone's 44 px and 14 px (JobsTablet, AccountsPhone) */
 .accounts-view--tablet .av-chip {

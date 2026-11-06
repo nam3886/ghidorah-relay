@@ -37,6 +37,7 @@ import { notify } from "@/lib/notify";
 import { providerClass } from "@/lib/providers";
 import { safeMediaUrl } from "@/lib/safe-media-url";
 import { useUiStore } from "@/stores/ui";
+import ProviderTile from "@/components/shared/ProviderTile.vue";
 
 // The job detail (JobDetail.dc.html, JobDetailTabs, JobDetailTablet, JobDetailPhone), mounted once in the shell; Jobs
 // and Alerts open it through ui.openJob(id). A right-hand drawer on a desktop, the width less a 48 px gutter on a
@@ -377,7 +378,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
       <span v-if="isPhone" class="jd-phone-sub">{{ phoneSub }}</span>
       <template v-else>
         <span class="jd-pill" :class="`tone-${pill.tone}`">{{ pill.text }}</span>
-        <span class="jd-chip" :class="providerClass(job.provider)">{{ job.provider }}</span>
+        <span class="jd-chip" :class="providerClass(job.provider)"
+          ><ProviderTile :provider="job.provider" :size="14" />{{ job.provider }}</span
+        >
         <span class="mono jd-help">{{ context }}</span>
         <JobCopy :text="shortId(job.id)" :label="`Copy job id ${shortId(job.id)}`" />
       </template>
@@ -680,8 +683,9 @@ onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
 .jd-chip {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   height: 22px;
-  padding: 0 9px;
+  padding: 0 9px 0 5px;
   border-radius: 999px;
   background: var(--ps);
   color: var(--pi);
