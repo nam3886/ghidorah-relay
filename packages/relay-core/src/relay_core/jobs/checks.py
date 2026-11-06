@@ -428,8 +428,10 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
         await leases.release(conn, lease_id)
         await history.record_health(conn, account_id)
         if health.state == "unknown":
-            # a check that read nothing for certain but whose strike ended the account tells the admin so
-            why = next((e.reason for e in health.effects if isinstance(e, Suspect)), "")
+            # a check that read nothing for certain but whose strike ended the account tells the admin so; without a
+            # strike, the reason of its rest says why
+            why = next((e.reason for e in health.effects if isinstance(e, Suspect)), "") or next(
+                (e.reason for e in health.effects if isinstance(e, Cooldown)), "")
             return CheckResult("signed_out" if now == "dead" and was != "dead" else "unknown", why), []
         return CheckResult("checked"), []
 

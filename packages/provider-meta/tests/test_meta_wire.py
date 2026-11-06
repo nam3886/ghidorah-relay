@@ -21,6 +21,7 @@ from relay_meta.engine.wire import (
     enc,
     estab,
     estab_answer,
+    estab_code,
     frame,
     is_final,
     link_class,
@@ -164,6 +165,15 @@ def test_estab_answers_200_ok_401_unauthorized_anything_else_other():
     assert estab_answer(b'{"code":401}') == "unauthorized"
     for other in (b'{"code":500}', b"nope", b"[]", b""):
         assert estab_answer(other) == "other"
+    # the meaning is the submit path's, as before the cause was read: a 200 that JSON reads as a float is still ok
+    assert estab_answer(b'{"code":200.0}') == "ok" and estab_answer(b'{"code":401.0}') == "unauthorized"
+    assert estab_answer(b'{"code":"200"}') == "other"
+
+
+def test_estab_code_is_the_integer_code_or_none_never_the_text():
+    assert estab_code(b'{"code":403,"msg":"x"}') == 403 and estab_code(b'{"code":200}') == 200
+    for none in (b'{"code":"403 x"}', b'{"code":true}', b'{"code":403.5}', b'{"msg":"x"}', b"[]", b"nope", b""):
+        assert estab_code(none) is None, none
 
 
 # ---- reading ------------------------------------------------------------------------------------------------------

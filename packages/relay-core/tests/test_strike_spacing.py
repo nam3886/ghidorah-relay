@@ -339,6 +339,34 @@ def test_the_check_command_returns_a_signed_out_result_to_the_admin(db):
         "the admin's check command failed for a signed_out result: %r" % (got,)
 
 
+@mutation(COMMANDS, '            out["detail"] = redact_log(result.detail)', "            pass",
+          expect="the check command result must say why")
+@mutation(CHECKS, '"") or next(\n                (e.reason for e in health.effects if isinstance(e, Cooldown)), "")',
+          '"")', expect="the check command result must say why")
+def test_the_check_command_result_says_why_an_unknown_check_rested_the_account(db):
+    a = new_account(db, checked=True, due_s=-1)
+    plain = new_account(db, checked=True, due_s=-1)
+    cid = new_command(db, "check", args={"account_id": str(a)})
+    cid_plain = new_command(db, "check", args={"account_id": str(plain)})
+    until = datetime.now(UTC) + timedelta(seconds=GAP)
+
+    async def scenario(p):
+        engine = KitEngine()
+        engine.health_by_account = {
+            str(a): Health("unknown", effects=(Cooldown("gateway refused the session (code:403), to be checked again",
+                                                        until, recheck=True),)),
+            str(plain): Health("unknown")}
+        env = make_env(p, engine)
+        await run_one(env)
+        await run_one(env)
+
+    run_as(db.worker_dsn, scenario)
+    got = command(db, cid)["result"]
+    assert got["outcome"] == "unknown" and "code:403" in got.get("detail", ""), \
+        "the check command result must say why: %r" % (got,)
+    assert "detail" not in command(db, cid_plain)["result"], "an empty detail is left out"
+
+
 SHOT_RULE = 'health.screenshot and result.outcome in ("checked", "merged", "signed_out")'
 
 

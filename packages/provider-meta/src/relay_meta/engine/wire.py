@@ -162,6 +162,16 @@ def estab_answer(payload: bytes) -> Literal["ok", "unauthorized", "other"]:
     return "ok" if code == 200 else "unauthorized" if code == 401 else "other"
 
 
+def estab_code(payload: bytes) -> int | None:
+    """The integer `code` of an EstabStream answer, for a log; None without one (never the payload text). What the
+    answer means is `estab_answer`'s."""
+    try:
+        code = json.loads(payload).get("code")
+    except (ValueError, AttributeError):
+        return None
+    return code if type(code) is int else None
+
+
 def otid(now_ms: int, rand22: int) -> int:
     return (now_ms << 22) | rand22
 

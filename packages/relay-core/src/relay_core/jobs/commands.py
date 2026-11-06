@@ -245,7 +245,10 @@ async def _check_all(env: Env, c: Claimed) -> dict:
 async def _check_one(env: Env, c: Claimed) -> dict:
     result = await check_account(env, _target(c.account_id, c.args), command_id=c.id)
     if result.outcome in ("checked", "unknown", "merged", "proxy_bad", "signed_out", "superseded"):
-        return {"outcome": result.outcome, "account_id": str(result.account_id) if result.account_id else None}
+        out = {"outcome": result.outcome, "account_id": str(result.account_id) if result.account_id else None}
+        if result.detail:
+            out["detail"] = redact_log(result.detail)
+        return out
     raise CommandError("the check did not run: %s%s" % (result.outcome, " - " + result.detail if result.detail else ""))
 
 
