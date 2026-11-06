@@ -460,7 +460,7 @@ def test_proxy_recheck_of_a_provider_without_a_probe_reads_the_exit_through_the_
 
     worker(db, scenario)
     assert engine.probed == []
-    assert command(db, c_stale)["status"] == "done"
+    assert command(db, c_stale)["status"] == "done", "the exit read clears the flag: %r" % (command(db, c_stale),)
     good = account_row(db, stale)
     assert good["proxy_ok"] is True, "the exit read clears the flag"
     assert good["last_error"] is None, "the proxy error is cleared"
