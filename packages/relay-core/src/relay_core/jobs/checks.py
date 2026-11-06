@@ -58,12 +58,27 @@ MAX_TASKS = 4               # account checks one worker runs at once
 TIMEOUT_SHARE = 0.8          # the task timeout is this share of the lease bound: the failure is still recorded
 SHOT_NAME = "debug/0.png"
 TIME_LIMIT = "the check ran past its time limit"
-# A proxy found working again (`%(px)s`) clears the account's `last_error` only while it is still the one the bad
-# verdict (`ProxyBad`) wrote: the proxy is marked bad (the row before this update) and no error was recorded after that
-# verdict's stamp (every write of `last_error` records the error first). An error any later result wrote stays.
+# A proxy found working (`%(px)s`) by evidence gathered from `%(at)s` (database time, taken before the probe or the
+# exit read, which run with no lock held) counts only when no verdict was stamped since: a job's `ProxyBad` that
+# landed while the read ran is newer and stays.
+PROXY_WORKS = "(%(px)s AND (proxy_checked_at IS NULL OR proxy_checked_at < %(at)s::timestamptz))"
+# Such a proxy clears the account's `last_error` only while it is still the one the bad verdict (`ProxyBad`) wrote: the
+# proxy is marked bad (the row before this update), no error was recorded after that verdict's stamp (every write of
+# `last_error` records an error first), and `last_error` is the newest recorded one (a result with a strike beside its
+# `ProxyBad` records one reason and leaves the other as `last_error`: that one stays). Any later error stays.
 PROXY_ERROR_CLEARED = (
-    "last_error = CASE WHEN %(px)s AND proxy_ok IS FALSE AND NOT EXISTS (SELECT 1 FROM account_errors e "
-    "WHERE e.account_id = accounts.id AND e.at > accounts.proxy_checked_at) THEN NULL ELSE last_error END, ")
+    "last_error = CASE WHEN " + PROXY_WORKS + " AND proxy_ok IS FALSE AND last_error = (SELECT e.code "
+    "FROM account_errors e WHERE e.account_id = accounts.id ORDER BY e.id DESC LIMIT 1) AND NOT EXISTS (SELECT 1 "
+    "FROM account_errors e WHERE e.account_id = accounts.id AND e.at > accounts.proxy_checked_at) "
+    "THEN NULL ELSE last_error END, ")
+PROXY_OK_SET = ("proxy_ok = CASE WHEN " + PROXY_WORKS + " THEN true ELSE proxy_ok END, "
+                "proxy_checked_at = CASE WHEN " + PROXY_WORKS + " THEN clock_timestamp() ELSE proxy_checked_at END, ")
+
+
+async def db_now(db: AsyncConnectionPool) -> datetime:
+    """The database's clock: what a proxy verdict's stamp is compared with (the worker's clock may drift)."""
+    async with tx(db) as conn:
+        return (await (await conn.execute("SELECT clock_timestamp()")).fetchone())[0]
 
 
 def shot_key(account_id) -> str:
@@ -211,6 +226,7 @@ class _Report:
     error: str | None = None
     credential_gen: int | None = None    # the credential the engine read; None when it never got that far
     exit: tuple[str | None, int | None] = (None, None)   # the proxy's exit address and latency (ms); none without one
+    read_at: datetime | None = None      # database time before the proxy was probed or read (`PROXY_WORKS`)
 
 
 async def check_account(env: Env, account_id, *, command_id=None) -> CheckResult:
@@ -284,6 +300,8 @@ async def _run(env: Env, account_id, lease_id: int, token: Token | None) -> _Rep
         async with asyncio.timeout(env.check_hard_s * TIMEOUT_SHARE):
             view = await env.load_account(account_id)
             report.credential_gen = view.credential_gen
+            if view.proxy is not None:
+                report.read_at = await db_now(env.db)
             if env.caps.has_probe_proxy and view.proxy is not None:
                 report.proxy = await env.engine.probe_proxy(view.proxy)
             if report.proxy is None or report.proxy.ok:
@@ -429,7 +447,7 @@ async def _apply(env: Env, account_id, lease_id: int, report: _Report, command_i
             return CheckResult("merged", account_id=twin), dropped
         await pool.ensure_rows(conn, account_id, env.pools())
         was = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
-        await _record(conn, env, account_id, health, report.proxy, report.exit)
+        await _record(conn, env, account_id, health, report.proxy, report.exit, report.read_at)
         now = (await (await conn.execute("SELECT state FROM accounts WHERE id = %s", (account_id,))).fetchone())[0]
         await leases.release(conn, lease_id)
         await history.record_health(conn, account_id)
@@ -457,7 +475,7 @@ async def _fail(conn: AsyncConnection, env: Env, account_id, error: str | None) 
 
 
 async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, proxy: ProxyVerdict | None,
-                  exit_: tuple[str | None, int | None] = (None, None)) -> None:
+                  exit_: tuple[str | None, int | None] = (None, None), read_at: datetime | None = None) -> None:
     base: list = []
     if health.state == "alive":
         base = [Revive("the check found the account alive"), Success()]
@@ -470,9 +488,10 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
     # instead, so a dead jar is not opened every few minutes, nor every few hours.
     recheck = [e.until for e in health.effects if isinstance(e, Cooldown) and e.recheck]
     # The proxy works when its probe said so, or when this check read the exit address through it (a provider with no
-    # probe has nothing else) and the check itself did not find the proxy bad. A failed read proves nothing.
-    works = (proxy is not None and proxy.ok) or (
-        exit_[0] is not None and not any(isinstance(e, ProxyBad) for e in health.effects))
+    # probe has nothing else), and in both cases only when the check itself did not find the proxy bad (its reason
+    # stays). A failed read proves nothing.
+    works = ((proxy is not None and proxy.ok) or exit_[0] is not None) and not any(
+        isinstance(e, ProxyBad) for e in health.effects)
     await conn.execute(
         "UPDATE accounts SET identity = COALESCE(%(i)s, identity), display_name = COALESCE(%(d)s, display_name), "
         "provider_state = provider_state || %(p)s::jsonb, "
@@ -480,9 +499,7 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         "check_due_at = CASE WHEN state = 'dead' THEN clock_timestamp() + make_interval(secs => %(dead)s) "
         "WHEN %(ru)s::timestamptz IS NOT NULL THEN %(ru)s::timestamptz "
         "ELSE clock_timestamp() + make_interval(secs => %(due)s) END, "
-        + PROXY_ERROR_CLEARED +
-        "proxy_ok = CASE WHEN %(px)s THEN true ELSE proxy_ok END, "
-        "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
+        + PROXY_ERROR_CLEARED + PROXY_OK_SET +
         "proxy_exit_ip = %(ip)s, proxy_latency_ms = %(ms)s, "
         "proxy_exit_at = CASE WHEN proxy_host IS NULL THEN NULL ELSE clock_timestamp() END, check_failed_at = NULL, "
         "last_used_at = CASE WHEN %(gap)s THEN clock_timestamp() ELSE last_used_at END, "
@@ -490,7 +507,7 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         {"gap": send_gap_s(env.settings, env.provider) > 0,
          "i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
          "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s, "dead": env.dead_interval_s(),
-         "px": works, "ip": exit_[0], "ms": exit_[1],
+         "px": works, "at": read_at, "ip": exit_[0], "ms": exit_[1],
          "ru": max(recheck) if recheck else None, "a": account_id})
 
 

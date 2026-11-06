@@ -34,13 +34,15 @@ from psycopg.types.json import Jsonb
 from relay_core import failpoints, leases, pool
 from relay_core.budget import Purpose, Token
 from relay_core.db import AccountInUse, AccountNotFound, delete_unused_account, tx
-from relay_core.db.accounts import account_in_use
+from relay_core.db.accounts import account_in_use, lock_account
 from relay_core.jobs import titles
 from relay_core.jobs.checks import (
     PROXY_ERROR_CLEARED,
+    PROXY_OK_SET,
     Checks,
     Env,
     check_account,
+    db_now,
     engine_call,
     error_text,
     proxy_bad_effects,
@@ -261,20 +263,23 @@ async def _probe(env: Env, ctx) -> dict:
     down): the command fails and the account is left as it was."""
     if ctx.account.proxy is None:
         raise CommandError("the account has no proxy")
+    read_at = await db_now(env.db)          # before the probe: a verdict stamped after it is newer (`PROXY_WORKS`)
     if env.caps.has_probe_proxy:
         verdict = await env.engine.probe_proxy(ctx.account.proxy)
-        return {"ok": verdict.ok, "reason": verdict.reason}
+        return {"ok": verdict.ok, "reason": verdict.reason, "read_at": read_at}
     ip, _ = await env.exit_probe(ctx.account.proxy)
     if ip is None:
         raise CommandError("the exit IP could not be read through the proxy")
-    return {"ok": True, "reason": ""}
+    return {"ok": True, "reason": "", "read_at": read_at}
 
 
 async def _apply_probe(conn, env: Env, c: Claimed, verdict: Mapping[str, Any]) -> dict:
     if verdict["ok"]:
-        await conn.execute("UPDATE accounts SET " + PROXY_ERROR_CLEARED + "proxy_ok = true, "
-                           "proxy_checked_at = clock_timestamp(), updated_at = clock_timestamp() WHERE id = %(a)s",
-                           {"px": True, "a": c.account_id})
+        # the account row first (as apply_effects does): the update's error check then sees every committed error
+        await lock_account(conn, c.account_id)
+        await conn.execute("UPDATE accounts SET " + PROXY_ERROR_CLEARED + PROXY_OK_SET +
+                           "updated_at = clock_timestamp() WHERE id = %(a)s",
+                           {"px": True, "at": verdict["read_at"], "a": c.account_id})
     else:
         await pool.apply_effects(conn, c.account_id, proxy_bad_effects(env, verdict["reason"]), env.caps, env.pools())
     await conn.execute("UPDATE accounts SET check_due_at = clock_timestamp() WHERE id = %s", (c.account_id,))

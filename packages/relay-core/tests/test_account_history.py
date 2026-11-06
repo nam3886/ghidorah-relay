@@ -181,31 +181,41 @@ def proxy_state(db, account_id) -> tuple:
     return db.one("SELECT proxy_ok, proxy_checked_at, last_error FROM accounts WHERE id = %s", account_id)
 
 
-@mutation(CHECKS, "        exit_[0] is not None and not any(isinstance(e, ProxyBad) for e in health.effects))",
-          "        False)", expect="an exit read through the proxy proves it works")
-@mutation(CHECKS, "exit_[0] is not None and not any(", "not any(", expect="a failed exit read never clears the flag")
-@mutation(CHECKS, " and not any(isinstance(e, ProxyBad) for e in health.effects))", ")",
-          expect="a check that found the proxy bad keeps the flag")
-@mutation(CHECKS, "        + PROXY_ERROR_CLEARED +\n", "", expect="the proxy error is cleared")
+@mutation(CHECKS, "or exit_[0] is not None) and not any(", ") and not any(",
+          expect="an exit read through the proxy proves it works")
+@mutation(CHECKS, "or exit_[0] is not None) and not any(", "or True) and not any(",
+          expect="a failed exit read never clears the flag")
+@mutation(CHECKS, "        + PROXY_ERROR_CLEARED + PROXY_OK_SET +\n", "        + PROXY_OK_SET +\n",
+          expect="the proxy error is cleared")
 @mutation(CHECKS, "e.at > accounts.proxy_checked_at", "false", expect="a later error stays")
-@mutation(CHECKS, "WHEN %(px)s AND proxy_ok IS FALSE AND NOT EXISTS", "WHEN %(px)s AND NOT EXISTS",
+@mutation(CHECKS, '" AND proxy_ok IS FALSE AND last_error = (SELECT e.code "', '" AND last_error = (SELECT e.code "',
           expect="the error of a proxy never marked bad stays")
+@mutation(CHECKS, "proxy_checked_at < %(at)s::timestamptz", "true", expect="a ProxyBad newer than the read stays")
+@mutation(CHECKS, 'AND last_error = (SELECT e.code "\n    "FROM account_errors e WHERE e.account_id = accounts.id '
+          'ORDER BY e.id DESC LIMIT 1) AND NOT EXISTS', "AND NOT EXISTS",
+          expect="a strike's reason beside a ProxyBad stays")
 def test_a_check_that_reads_the_exit_through_the_proxy_clears_a_stale_bad_proxy_flag_of_a_provider_without_a_probe(db):
     stale = new_account(db, checked=True, proxy=("10.0.1.1", 8080))       # a job's ProxyBad, then nothing else
     later = new_account(db, checked=True, proxy=("10.0.1.2", 8080))       # a job's ProxyBad, then another error
     unread = new_account(db, checked=True, proxy=("10.0.1.3", 8080))      # the exit cannot be read
     found = new_account(db, checked=True, proxy=("10.0.1.4", 8080))       # the check itself finds the proxy bad
     fresh = new_account(db, checked=True, proxy=("10.0.1.5", 8080))       # never marked bad, an error of its own
+    raced = new_account(db, checked=True, proxy=("10.0.1.6", 8080))       # a job's ProxyBad lands during the read
+    mixed = new_account(db, checked=True, proxy=("10.0.1.7", 8080))       # a strike beside a ProxyBad
     plain = new_account(db, checked=True)                                 # no proxy
     until = datetime.now(UTC) + timedelta(hours=1)
 
-    async def exits(proxy):
-        return (None, None) if proxy.host == "10.0.1.3" else accountkit.EXIT
-
     async def scenario(p):
+        async def exits(proxy):
+            if proxy.host == "10.0.1.6":        # a job records its ProxyBad while the read is out (no lock held)
+                async with tx(p) as conn:
+                    await pool.apply_effects(conn, raced, [ProxyBad("a job found the proxy dead")], CAPS, POOLS)
+            return (None, None) if proxy.host == "10.0.1.3" else accountkit.EXIT
+
         async with tx(p) as conn:
             for a in (stale, later, unread, found):
                 await pool.apply_effects(conn, a, [ProxyBad("the proxy could not reach the upstream")], CAPS, POOLS)
+            await pool.apply_effects(conn, mixed, [ProxyBad("the proxy timed out"), Suspect("a strike")], CAPS, POOLS)
         async with tx(p) as conn:
             for a in (later, fresh):
                 await pool.apply_effects(conn, a, [Cooldown("rate limited", until)], CAPS, POOLS)
@@ -214,7 +224,7 @@ def test_a_check_that_reads_the_exit_through_the_proxy_clears_a_stale_bad_proxy_
         engine.health = Health("unknown")
         engine.health_by_account[str(found)] = Health("unknown", effects=(ProxyBad("the proxy failed (reset)"),))
         env = make_env(p, engine, spec=KitSpec(probe=False), exit_probe=exits)
-        for a in (stale, later, unread, found, fresh, plain):
+        for a in (stale, later, unread, found, fresh, raced, mixed, plain):
             await check_account(env, a)
         return before
 
@@ -228,6 +238,10 @@ def test_a_check_that_reads_the_exit_through_the_proxy_clears_a_stale_bad_proxy_
     assert proxy_state(db, unread)[2] == "the proxy could not reach the upstream"
     assert proxy_state(db, found)[0] is False, "a check that found the proxy bad keeps the flag"
     assert proxy_state(db, fresh)[2] == "rate limited", "the error of a proxy never marked bad stays"
+    got = proxy_state(db, raced)
+    assert (got[0], got[2]) == (False, "a job found the proxy dead"), "a ProxyBad newer than the read stays: %r" % (
+        got,)
+    assert proxy_state(db, mixed)[2] == "a strike", "a strike's reason beside a ProxyBad stays"
     assert proxy_state(db, plain)[:2] == (None, None), "an account without a proxy has no verdict"
 
 

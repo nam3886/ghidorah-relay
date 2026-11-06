@@ -6,6 +6,7 @@ import dataclasses
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import jobkit
@@ -30,7 +31,7 @@ from accountkit import (
 from relay_core import failpoints, pool
 from relay_core.db import tx
 from relay_core.jobs.commands import run_one
-from relay_core.providers import Health, ProxyBad, ProxyVerdict
+from relay_core.providers import Cooldown, Health, ProxyBad, ProxyVerdict
 from relay_core.testing.mutation import mutation
 
 COMMANDS = "packages/relay-core/src/relay_core/jobs/commands.py"
@@ -430,8 +431,8 @@ def test_proxy_recheck_fails_without_a_proxy(db):
 
 @mutation(COMMANDS, "    ip, _ = await env.exit_probe(ctx.account.proxy)\n", "    ip = None\n",
           expect="the exit read clears the flag")
-@mutation(COMMANDS, '"UPDATE accounts SET " + PROXY_ERROR_CLEARED + "proxy_ok = true, "',
-          '"UPDATE accounts SET proxy_ok = true, "', expect="the proxy error is cleared")
+@mutation(COMMANDS, '"UPDATE accounts SET " + PROXY_ERROR_CLEARED + PROXY_OK_SET +',
+          '"UPDATE accounts SET " + PROXY_OK_SET +', expect="the proxy error is cleared")
 @mutation(COMMANDS, '    if ip is None:\n        raise CommandError("the exit IP could not be read through the proxy")\n',
           "", expect="a failed exit read changes nothing")
 @mutation(COMMANDS, '        raise CommandError("the exit IP could not be read through the proxy")\n',
@@ -473,3 +474,55 @@ def test_proxy_recheck_of_a_provider_without_a_probe_reads_the_exit_through_the_
                   unread)[0], "a failed exit read changes nothing (the account was made due)"
     assert db.all("SELECT pool FROM account_pools WHERE account_id = %s AND rest_until IS NOT NULL", unread) == [], (
         "a failed exit read changes nothing (the account rests)")
+
+
+PROXY_REASON = "the proxy could not reach the upstream"
+
+
+@mutation(COMMANDS, '{"ok": True, "reason": "", "read_at": read_at}',
+          '{"ok": True, "reason": "", "read_at": await db_now(env.db)}', expect="a ProxyBad newer than the read stays")
+@mutation(COMMANDS, "        await lock_account(conn, c.account_id)\n", "",
+          expect="an error recorded while the recheck waited stays")
+def test_proxy_recheck_never_undoes_a_newer_proxybad_nor_clears_an_error_committed_while_it_waited(db):
+    raced = new_account(db, checked=True, proxy=("10.0.2.3", 8080))     # a job's ProxyBad lands during the read
+    waited = new_account(db, checked=True, proxy=("10.0.2.4", 8080))    # a job holds the row as the result applies
+    c_raced = new_command(db, "proxy_recheck", account_id=raced)
+    c_waited = new_command(db, "proxy_recheck", account_id=waited)
+    until = datetime.now(UTC) + timedelta(hours=1)
+
+    async def scenario(p):
+        held = asyncio.Event()
+        jobs = []
+
+        async def job():
+            # a job's cooldown with the same text as the old proxy error, committed while the recheck's update waits on
+            # the account row: the newer error must be seen, so it stays
+            async with tx(p) as conn:
+                await pool.apply_effects(conn, waited, [Cooldown(PROXY_REASON, until)], jobkit.CAPS, jobkit.POOLS)
+                held.set()
+                await asyncio.sleep(1.0)
+
+        async def exits(proxy):
+            if proxy.host == "10.0.2.3":
+                async with tx(p) as conn:
+                    await pool.apply_effects(conn, raced, [ProxyBad("a job found the proxy dead")], jobkit.CAPS,
+                                             jobkit.POOLS)
+            else:
+                jobs.append(asyncio.create_task(job()))
+                await held.wait()
+            return ("203.0.113.9", 42)
+
+        async with tx(p) as conn:
+            for a in (raced, waited):
+                await pool.apply_effects(conn, a, [ProxyBad(PROXY_REASON)], jobkit.CAPS, jobkit.POOLS)
+        env = make_env(p, KitEngine(), spec=KitSpec(probe=False), exit_probe=exits)
+        await run_one(env)
+        await run_one(env)
+        await asyncio.gather(*jobs)
+
+    worker(db, scenario)
+    assert command(db, c_raced)["status"] == "done" and command(db, c_waited)["status"] == "done"
+    got = account_row(db, raced)
+    assert (got["proxy_ok"], got["last_error"]) == (False, "a job found the proxy dead"), (
+        "a ProxyBad newer than the read stays: %r" % ((got["proxy_ok"], got["last_error"]),))
+    assert account_row(db, waited)["last_error"] == PROXY_REASON, "an error recorded while the recheck waited stays"
