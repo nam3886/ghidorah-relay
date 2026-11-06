@@ -14,6 +14,7 @@ failure's type name or a refusal kind only.
 """
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
@@ -192,12 +193,18 @@ class Web:
         self.proxies = {"http": url, "https": url} if url else None
         self.s = make_session(self.proxies)
         self.sso_told = False
+        self.browser = contextlib.AsyncExitStack()      # the Chrome of a text to image sent from a page
 
     async def __aenter__(self) -> "Web":
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await _quiet_close(self.s)
+        try:
+            await self.browser.aclose()
+        except Exception as e:      # noqa: BLE001 - the kit has released or quarantined the profile: the run stands
+            log.warning("grok account %s: the browser did not close cleanly (%s)", self.account.id, type(e).__name__)
+        finally:
+            await _quiet_close(self.s)
 
     # ---- the wire ----------------------------------------------------------------------------------------------
     def _cookies(self, url: str) -> dict[str, str] | None:
@@ -226,11 +233,15 @@ class Web:
         return resp
 
     async def _watch_sso(self) -> None:
-        """grok re-set `sso` / `sso-rw` (a value other than the account's): one event per run, names only."""
+        await self.tell_sso([(c.name, c.value) for c in self.s.cookies.jar])
+
+    async def tell_sso(self, cookies) -> None:
+        """grok re-set `sso` / `sso-rw` (a value other than the account's) in `cookies` ((name, value) pairs): one event
+        per run, names only."""
         if self.sso_told:
             return
-        names = sorted({c.name for c in self.s.cookies.jar
-                        if c.name in ROTATING and c.value and c.value != self.jar.get(c.name)})
+        names = sorted({name for name, value in cookies
+                        if name in ROTATING and value and value != self.jar.get(name)})
         if not names:
             return
         self.sso_told = True
@@ -345,9 +356,13 @@ class Web:
         finally:
             await _quiet_close(resp, "aclose")
 
-    async def socket(self) -> Socket:
-        """The Imagine WebSocket on this run's session, through the same proxy. A 401 handshake -> SignedOut("ws"),
-        any other refused handshake -> Refused; no answer -> NetError."""
+    async def socket(self):
+        """The Imagine WebSocket, through the account's proxy: from a Chrome page when `grok.t2i_transport` is
+        `browser` (engine/browser.py; the browser closes with this `Web`), else on this run's curl session. A 401
+        handshake -> SignedOut("ws"), any other refused handshake -> Refused; no answer -> NetError."""
+        if self.settings.get("grok.t2i_transport") == "browser":
+            from relay_grok.engine.browser import open_imagine  # late: only a page send needs the browser kit
+            return await self.browser.enter_async_context(open_imagine(self))
         try:
             ws = await self.s.ws_connect(IMAGINE_WS, headers={"Origin": SITE_URL, "User-Agent": UA,
                                                               "Accept-Language": "en-US,en;q=0.9"},

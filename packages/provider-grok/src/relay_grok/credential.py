@@ -115,9 +115,15 @@ def parse_credential(raw: bytes) -> ParsedCredential:
     return ParsedCredential(blob=blob, hint="grok")
 
 
-def jar_of(blob: bytes) -> dict[str, str]:
-    """name -> value of the sealed jar (the last one wins). ValueError (no value in it) when the blob is not one."""
+def cookies_of(blob: bytes) -> list[dict]:
+    """The sealed jar's cookies ({name, value, domain, path}), grok.com's only. ValueError (no value in it) when the
+    blob is not one."""
     try:
-        return {c["name"]: c["value"] for c in _kept(_listed(json.loads(blob)))}
+        return _kept(_listed(json.loads(blob)))
     except (ValueError, TypeError, KeyError):
         raise ValueError("the sealed grok credential is not readable") from None
+
+
+def jar_of(blob: bytes) -> dict[str, str]:
+    """name -> value of the sealed jar (the last one wins). ValueError (no value in it) when the blob is not one."""
+    return {c["name"]: c["value"] for c in cookies_of(blob)}

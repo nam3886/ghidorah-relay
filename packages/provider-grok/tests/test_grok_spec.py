@@ -127,7 +127,8 @@ SETTINGS = [
     ("decoy_min_s", int, 15, 0, 120), ("decoy_rest_s", int, 86400, 0, 604800),
     ("signed_out_rest_s", int, 600, 60, 86400), ("signed_out_gap_s", int, 540, 0, 86400),
     ("cf_rest_s", int, 600, 60, 86400), ("antibot_rest_s", int, 1800, 60, 86400),
-    ("statsig_mode", str, "off", None, None),
+    ("statsig_mode", str, "off", None, None), ("t2i_transport", str, "browser", None, None),
+    ("browsers", int, 2, 1, 4),
     ("alert_antibot_rate", float, 0.1, 0.0, 1.0), ("alert_decoy_rate", float, 0.2, 0.0, 1.0)]
 
 

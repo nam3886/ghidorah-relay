@@ -57,11 +57,14 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 
 STATSIG_MODES = ("off", "generate")
+T2I_TRANSPORTS = ("browser", "curl")
 
 
-def _statsig_mode(value: Any) -> None:
-    if value not in STATSIG_MODES:
-        raise ValueError("must be one of %s" % ", ".join(STATSIG_MODES))
+def _one_of(choices: tuple[str, ...]):
+    def check(value: Any) -> None:
+        if value not in choices:
+            raise ValueError("must be one of %s" % ", ".join(choices))
+    return check
 
 
 def _rolling(hours: int, free: int) -> dict[str, Any]:
@@ -142,7 +145,17 @@ _SETTINGS = dict((
         PROVIDER + ".statsig_mode", str, "off",
         "off: send no x-statsig-id header (what works today). generate: send one made from the seed on grok.com's "
         "page; with no seed found it sends none and logs it.",
-        rule=Rule("off or generate", _statsig_mode, STATSIG_MODES))),
+        rule=Rule("off or generate", _one_of(STATSIG_MODES), STATSIG_MODES))),
+    (PROVIDER + ".t2i_transport", Spec(
+        PROVIDER + ".t2i_transport", str, "browser",
+        "How a text to image is sent. browser: from a Chrome page on the account's proxy (grok.com refused the plain "
+        "socket of most accounts with its rate limit on 06/11). curl: the plain socket, no browser. Everything else "
+        "(quota, read-back, downloads, edit, video) is plain HTTP either way.",
+        rule=Rule("browser or curl", _one_of(T2I_TRANSPORTS), T2I_TRANSPORTS))),
+    _setting("browsers", int, 2,
+             "How many Chromes one grok worker opens at once for text to image (grok.t2i_transport = browser). A job "
+             "that finds none free waits, inside its submit timeout. Each is a Chrome: more at once, more memory.",
+             min=1, max=4),
     _setting("alert_antibot_rate", float, 0.1,
              "Drift alert: share of the last 24 h grok jobs that ended on grok's anti-bot layer (a Cloudflare page or "
              "403 code 7). A jump means the anti-bot layer is back.", min=0.0, max=1.0),

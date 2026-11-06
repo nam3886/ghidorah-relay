@@ -1457,10 +1457,14 @@ Fixed in code: one job at a time per account, 3 attempts, 3 strikes, a 4000-char
 
 ## The grok provider (`relay worker --provider grok`)
 
-Grok Imagine (grok.com) over plain HTTP and one WebSocket, no browser: curl_cffi with Chrome's fingerprint
-(`chrome150` and its Linux user agent), every call through the account's proxy (direct only for an account with none,
-never a direct fallback). The `http` image (`worker-grok`, 1 CPU, 1 GB, 256 pids, no volume). Two models, free
-accounts only:
+Grok Imagine (grok.com) over plain HTTP and one WebSocket: curl_cffi with Chrome's fingerprint (`chrome150` and its
+Linux user agent), every call through the account's proxy (direct only for an account with none, never a direct
+fallback). A text to image is sent from a Chrome page instead while `grok.t2i_transport` is `browser` (the default; 06/11
+grok.com refused the curl socket of 11 of 14 accounts with its rate limit, the page's own socket delivered): the
+account's profile, its proxy through the local forwarder, its grok.com cookies, grok.com/imagine loaded and the same
+frames sent from the page (`relay_grok/engine/browser.py`), at most `grok.browsers` Chromes at once. `curl` sends it
+without a browser again, no deploy needed. The `browser` image (`worker-grok`, 2 CPU, 3 GB, 1024 pids, shm 1 GB,
+volume `profiles-grok`). Two models, free accounts only:
 - `grok-image`: 1 to 4 images (`n`, priced per image) from a text prompt over the Imagine WebSocket, ratios `1:1`
   (default), `2:3`, `3:2`, `9:16`, `16:9`; or one image edited from 1 to 3 input images (`image_to_image`, n 1, no
   ratio: it keeps the input's shape). 2 images took 4.5 s, an edit 6.2 s.
@@ -1472,7 +1476,7 @@ one-line change before claims if the live smoke disproves them. The protocol is 
 design in `plans/grok-design-261106/design.md`; the package is `packages/provider-grok/` (`relay_grok`). grok ships
 drained: `grok.claims_enabled` is false until the owner turns it on, and `scripts/deploy.sh` keeps it so.
 
-**What the worker needs.** The http image and `deploy/worker-grok.env` with the usual worker variables. No key of
+**What the worker needs.** The browser image and `deploy/worker-grok.env` with the usual worker variables. No key of
 its own.
 
 **Free quota, two pools.** grok's own count (`POST /rest/media/imagine/quota_info {}`, spends nothing) wins over the

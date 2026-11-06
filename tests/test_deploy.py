@@ -58,7 +58,7 @@ def test_images_are_named_per_commit_and_every_worker_gets_a_stop_grace():
     for name in ("worker-dola", "worker-meta", "worker-vibes", "worker-flow", "worker-gemini", "worker-qwen",
                  "worker-muse", "worker-gpt", "worker-grok"):
         assert int(COMPOSE[name]["stop_grace_period"].rstrip("s")) >= 720, name
-    for name in ("worker-dola", "worker-qwen"):
+    for name in ("worker-dola", "worker-qwen", "worker-grok"):
         assert COMPOSE[name]["shm_size"] == "1g"
     assert "healthcheck" in COMPOSE["minio"]
 
@@ -69,7 +69,7 @@ LIMIT_DEFAULTS = {"worker-dola": (8, "12g", 2048), "postgres": (4, "4g", 512), "
 NOT_STARTED = {"worker-meta": (1, "1g", 256), "worker-vibes": (1, "1g", 256),
                "worker-flow": (1, "1g", 256), "worker-gemini": (1, "1g", 256),
                "worker-qwen": (2, "3g", 1024), "worker-muse": (1, "1g", 256),
-               "worker-gpt": (1, "1g", 256), "worker-grok": (1, "1g", 256)}      # their profiles are off for now
+               "worker-gpt": (1, "1g", 256), "worker-grok": (2, "3g", 1024)}      # their profiles are off for now
 SIDECARS = {"tunnel": (1, "256m", 256)}      # not counted in the half of the box: a connector, idle but for traffic
 
 
@@ -133,7 +133,7 @@ def test_worker_meta_is_an_http_container_with_no_volume_and_no_shm():
 def test_the_browser_workers_keep_warm_profiles_on_their_volume_and_no_service_names_a_slot_ceiling():
     from relay_browser.session import PROFILE_ROOT
 
-    for p in ("dola", "qwen"):
+    for p in ("dola", "qwen", "grok"):
         assert "profiles-%s:%s" % (p, PROFILE_ROOT) in COMPOSE["worker-" + p]["volumes"], "profile root of %s" % p
     # the number of browser slots is the live setting dola.browser_slots: no variable sets or caps it
     named = [n for svc in COMPOSE.values() for n in guards._service_env_names(svc) if n.endswith("_BROWSER_SLOTS_MAX")]

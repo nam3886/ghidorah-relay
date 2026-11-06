@@ -1,5 +1,5 @@
 """grok ProviderEngine: worker only. Plain HTTP and the Imagine WebSocket over curl_cffi, through each account's proxy;
-no browser.
+a text to image is sent from a Chrome page instead while `grok.t2i_transport` is `browser` (engine/browser.py).
 
 Each method is a thin delegate to the module that owns the behaviour, bound once at build time to the settings view.
 `poll` hands a reconcile's found outputs to the fetcher (core moves a `Found` job to `waiting`; only a poll delivers

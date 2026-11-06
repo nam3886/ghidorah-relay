@@ -1068,12 +1068,14 @@ version = "0.0.0"
 source = { editable = "packages/provider-grok" }
 dependencies = [
     { name = "curl-cffi" },
+    { name = "relay-browser" },
     { name = "relay-core" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "curl-cffi" },
+    { name = "relay-browser", editable = "packages/relay-browser" },
     { name = "relay-core", editable = "packages/relay-core" },
 ]
 
