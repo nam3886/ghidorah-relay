@@ -23,6 +23,7 @@ from relay_grok.engine import submit as S
 
 BROWSER_FILE = "packages/provider-grok/src/relay_grok/engine/browser.py"
 WEB_FILE = "packages/provider-grok/src/relay_grok/engine/web.py"
+SPEC_FILE = "packages/provider-grok/src/relay_grok/spec.py"
 QUOTA = ("POST", QUOTA_PATH)
 SPIKE_REQUEST = "00000000-0000-0000-0000-000000000001"      # -> img_000...01, the capture's request_id
 SEND_TEXT = re.compile(r"^window\.__relayImagine\.send\((\".*\")\)$")
@@ -272,10 +273,24 @@ def test_a_sso_the_page_was_given_anew_is_told_by_name_only(monkeypatch):
 def test_the_transport_setting_defaults_to_the_browser_and_takes_only_its_two_values():
     from relay_grok.spec import SPEC
     spec = SPEC.settings()["grok.t2i_transport"]
-    assert spec.default == "browser" and spec.rule.choices == ("browser", "curl")
-    assert spec.validate("curl") == "curl"
-    with pytest.raises(ValueError):
-        spec.validate("chrome")
+    assert spec.default == "browser" and spec.rule.choices == ("browser", "http")
+    assert spec.validate("http") == "http"
+    for bad in ("chrome", "curl"):
+        with pytest.raises(ValueError):
+            spec.validate(bad)
+
+
+@mutation(SPEC_FILE, '    execution_setting = PROVIDER + ".t2i_transport"', '    execution_setting = None',
+          expect="the admin reads grok.t2i_transport")
+@pytest.mark.parametrize("transport", ["browser", "http"])
+def test_the_admin_shows_the_live_transport_as_grok_s_execution(transport):
+    """The Today card shows `settings.get(spec.execution_setting)`: Browser or HTTP as the transport is set now. The
+    registry accepts it (its rule lists only http and browser)."""
+    from relay_core.providers import ProviderRegistry
+    from relay_grok.spec import SPEC
+    assert SPEC.execution_setting == "grok.t2i_transport", "the admin reads grok.t2i_transport"
+    ProviderRegistry().register(SPEC)
+    assert settings(t2i_transport=transport).get(SPEC.execution_setting) == transport
 
 
 def test_the_curl_transport_opens_no_browser(monkeypatch):

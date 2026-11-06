@@ -67,8 +67,8 @@ BLOB = parse_credential(json.dumps(export()).encode()).blob
 
 def settings(**over) -> FakeSettings:
     """The spec's defaults (and the core's), with `grok.<key>` overridden by `key=value`; a text to image goes over the
-    fake curl socket unless `t2i_transport="browser"` (test_grok_browser.py drives the page)."""
-    over.setdefault("t2i_transport", "curl")
+    fake curl socket (`http`) unless `t2i_transport="browser"` (test_grok_browser.py drives the page)."""
+    over.setdefault("t2i_transport", "http")
     return FakeSettings(SPEC, **{"grok__" + k: v for k, v in over.items()})
 
 

@@ -57,7 +57,7 @@ def _setting(key: str, kind: type, default: Any, description: str, **bounds: Any
 
 
 STATSIG_MODES = ("off", "generate")
-T2I_TRANSPORTS = ("browser", "curl")
+T2I_TRANSPORTS = ("browser", "http")   # the choices: as an execution_setting, all http or browser
 
 
 def _one_of(choices: tuple[str, ...]):
@@ -149,9 +149,9 @@ _SETTINGS = dict((
     (PROVIDER + ".t2i_transport", Spec(
         PROVIDER + ".t2i_transport", str, "browser",
         "How a text to image is sent. browser: from a Chrome page on the account's proxy (grok.com refused the plain "
-        "socket of most accounts with its rate limit on 06/11). curl: the plain socket, no browser. Everything else "
-        "(quota, read-back, downloads, edit, video) is plain HTTP either way.",
-        rule=Rule("browser or curl", _one_of(T2I_TRANSPORTS), T2I_TRANSPORTS))),
+        "socket of most accounts with its rate limit on 06/11). http: the plain socket (curl_cffi), no browser. "
+        "Everything else (quota, read-back, downloads, edit, video) is plain HTTP either way.",
+        rule=Rule("browser or http", _one_of(T2I_TRANSPORTS), T2I_TRANSPORTS))),
     _setting("browsers", int, 2,
              "How many Chromes one grok worker opens at once for text to image (grok.t2i_transport = browser). A job "
              "that finds none free waits, inside its submit timeout. Each is a Chrome: more at once, more memory.",
@@ -183,6 +183,7 @@ class GrokSpec:
     name = PROVIDER
     frames = FRAMES
     max_prompt_chars = PROMPT_MAX_CHARS
+    execution_setting = PROVIDER + ".t2i_transport"    # the admin shows the live t2i transport, not caps.execution
     caps = Caps(
         execution="http", pools=POOLS,
         account_slots=1, max_attempts=MAX_ATTEMPTS, suspect_threshold=SUSPECT_THRESHOLD,

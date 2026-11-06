@@ -1464,8 +1464,8 @@ Linux user agent), every call through the account's proxy (direct only for an ac
 fallback). A text to image is sent from a Chrome page instead while `grok.t2i_transport` is `browser` (the default; 06/11
 grok.com refused the curl socket of 11 of 14 accounts with its rate limit, the page's own socket delivered): the
 account's profile, its proxy through the local forwarder, its grok.com cookies, grok.com/imagine loaded and the same
-frames sent from the page (`relay_grok/engine/browser.py`), at most `grok.browsers` Chromes at once. `curl` sends it
-without a browser again, no deploy needed. The `browser` image (`worker-grok`, 2 CPU, 3 GB, 1024 pids, shm 1 GB,
+frames sent from the page (`relay_grok/engine/browser.py`), at most `grok.browsers` Chromes at once. `http` sends it
+over the curl socket again, no deploy needed. The `browser` image (`worker-grok`, 2 CPU, 3 GB, 1024 pids, shm 1 GB,
 volume `profiles-grok`). Two models, free accounts only:
 - `grok-image`: 1 to 4 images (`n`, priced per image) from a text prompt over the Imagine WebSocket, ratios `1:1`
   (default), `2:3`, `3:2`, `9:16`, `16:9`; or one image edited from 1 to 3 input images (`image_to_image`, n 1, no
