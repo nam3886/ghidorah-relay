@@ -218,6 +218,10 @@ REGISTRY = Registry(
     Spec("media_orphan_age_h", int, 6, "Hours before an uploaded file nobody owns is swept.", min=1),
     Spec("media_orphan_sweep", bool, True, "Sweep uploaded files nobody owns. Off while a restore is checked."),
     Spec("unsent_deadline_s", int, 10_800, "Seconds a job may wait unsent before it fails.", min=60),
+    Spec("refusal_wait_s", int, 60,
+         "A job an account refused with proof nothing was made fails at once with its refund when no other account "
+         "of the provider can take it within this many seconds (all resting, cooling, out of balance, dead or "
+         "already refused). 0: only an account free right now counts.", min=0),
     Spec("session_ttl_s", int, 86_400, "Admin session lifetime in seconds.", min=60),
     Spec("max_unfinished_default", int, 20, "Unfinished jobs a key may hold when it has no limit of its own.", min=0),
     Spec("alert_disk_free_gb", int, 10, "Alert when the media disk has less free space than this (GB).", min=0),

@@ -27,7 +27,10 @@ allows. The refusal that reaches it fails the job with `final` (a terminal rule 
 the key gets back exactly what it paid, once); so does any refusal of a pinned job (`JobView.source`: no other account
 may run it). The claim never gives a job to an account in its `REFUSED_BY` list (`jobs.claim._PICK`), so the move
 really goes elsewhere even when the account's rest ends first; with no other account free the job waits in the queue
-until one is, or until `unsent_deadline_s` ends it with its refund.
+until one is, or until `unsent_deadline_s` ends it with its refund. Unless none can: when no other account of the
+provider is usable for the job's pool within `refusal_wait_s` (available and checked, no cooldown or pool rest past
+the wait, balance left for the job, not in the list), the apply fails the job at once with `final` and its refund
+(`NotTaken.final`), instead of a wait in the queue that only ends in that same failure.
 
 The setting. Every provider that uses this declares `refusal_max_accounts_setting(provider, description)` in its
 `settings()`: `<provider>.refusal_max_accounts`, a live whole number from 1 (the first refusal ends the job) to
@@ -38,11 +41,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from relay_core.providers import REFUSED_BY, Fail, JobView, NotTaken
-from relay_core.settings import SettingsError, Spec
+from relay_core.settings import REGISTRY, SettingsError, Spec
 
 MAX_ACCOUNTS = "refusal_max_accounts"     # the setting's name under the provider: `<provider>.refusal_max_accounts`
 DEFAULT_MAX_ACCOUNTS = 2                  # owner's ruling 25/10: a second account, then fail with the refund
 MAX_ACCOUNTS_CEILING = 9
+WAIT_KEY = "refusal_wait_s"               # the core setting: how soon another account must be free (`jobs.apply`)
 
 
 def max_accounts_key(provider: str) -> str:
@@ -66,6 +70,15 @@ def max_accounts(settings: Any, provider: str) -> int:
     return cap if type(cap) is int else DEFAULT_MAX_ACCOUNTS
 
 
+def _wait_s(settings: Any) -> int:
+    """`refusal_wait_s`, else (no settings view) the registry's default."""
+    try:
+        wait = settings.get(WAIT_KEY) if settings is not None else None
+    except (KeyError, SettingsError):
+        wait = None
+    return wait if type(wait) is int else REGISTRY.specs[WAIT_KEY].default
+
+
 def refused_accounts(job: JobView, account_id: str) -> list[str]:
     """The job's `REFUSED_BY` list with this account added (once: a list counts distinct accounts), oldest first."""
     before = job.provider_state.get(REFUSED_BY)
@@ -85,6 +98,7 @@ def account_refused(job: JobView, account_id: str, settings: Any, *, not_taken: 
     if job.source is not None:
         return Fail(final, "%s (a pinned job runs only on its source's account)" % detail, state)
     if len(refused) < max_accounts(settings, job.provider):
-        return NotTaken(not_taken, state)
+        return NotTaken(not_taken, state, final=Fail(final, "%s (no other account can take it)" % detail),
+                        wait_s=_wait_s(settings))
     return Fail(final, "%s (refused on %d account(s), the most %s allows)"
                 % (detail, len(refused), max_accounts_key(job.provider)), state)

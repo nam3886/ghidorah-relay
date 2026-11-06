@@ -16,6 +16,11 @@ from relay_core.testing.mutation import mutation
 
 R = "packages/relay-core/src/relay_core/refusals.py"
 K = "packages/relay-core/src/relay_core/jobs/claim.py"
+A = "packages/relay-core/src/relay_core/jobs/apply.py"
+ALONE = "        case NotTaken(final=Fail() as final) if not await _another_account(conn, job, outcome, pools):\n"
+AFFORD = "    return any(pool.can_afford(states[(a, job.pool)].standing.left, 0, job.account_cost) for a, _ in rows)\n"
+REST_WAIT = "           AND c.rest_until > clock_timestamp() + make_interval(secs => %(wait)s)))\n"
+NOT_REFUSED = "   AND NOT a.id::text = ANY(%(refused)s::text[])\n"
 BELOW = "    if len(refused) < max_accounts(settings, job.provider):\n"
 DISTINCT = "    return before if account_id in before else [*before, account_id]\n"
 PINNED = "    if job.source is not None:\n"
@@ -100,11 +105,11 @@ def test_every_provider_declares_the_setting_the_same_way():
 
 
 # ---- through the store and the claim ----------------------------------------------------------------------------
-async def refused_by_its_account(p, got) -> str:
+async def refused_by_its_account(p, got, settings=None) -> str:
     """One submit on the claimed account that ends in its refusal; returns the job's new status."""
     view = await store.job_view(p, got.job_id)
     engine = FakeEngine()
-    engine.script_submit("*", unsent(SubmitResult(refuse(view, got.account_id))))
+    engine.script_submit("*", unsent(SubmitResult(refuse(view, got.account_id, settings))))
     return await submit(p, got, engine)
 
 
@@ -115,7 +120,7 @@ def ledger(db, job_id):
 @mutation(K, SKIP_REFUSED, "jsonb_build_array(%(account)s::text) AND false, false)",
           expect="the account that refused the job was given it again")
 def test_a_refused_job_goes_to_another_account_uses_no_attempt_and_fails_refunded_at_the_bound(db):
-    k, first = key(db), account(db)
+    k, first, second = key(db), account(db), account(db, cooldown_s=30)    # second: free within the wait
 
     async def scenario(p):
         made = await create(p, k, "refused everywhere", price=7)
@@ -126,7 +131,7 @@ def test_a_refused_job_goes_to_another_account_uses_no_attempt_and_fails_refunde
         assert again is None, "the account that refused the job was given it again: %r" % (again,)
         newer = await create(p, k, "a newer job", price=7)
         behind = await claim(p)       # a refused head never holds back the jobs behind it from that account
-        second = account(db)
+        db.run("UPDATE accounts SET cooldown_until = NULL WHERE id = %s", second)
         moved = await claim(p)
         assert await refused_by_its_account(p, moved) == "failed"
         return made, newer, behind, second, moved
@@ -139,3 +144,84 @@ def test_a_refused_job_goes_to_another_account_uses_no_attempt_and_fails_refunde
     assert row[3][REFUSED_BY] == [str(first), str(second)]
     assert ledger(db, made.job_id) == [("charge", 7), ("refund", 7)], "the key was not refunded exactly once"
     assert ledger(db, newer.job_id) == [("charge", 7)] and status(db, newer.job_id) == "submitting"
+
+
+# ---- no other account can take it: the refusal ends the job at once ---------------------------------------------
+def rest(db, account_id, seconds, pool_name="video"):
+    db.run("INSERT INTO account_pools (account_id, pool, rest_until) "
+           "VALUES (%s, %s, clock_timestamp() + make_interval(secs => %s))", account_id, pool_name, seconds)
+
+
+def refused_once(db, settings=None):
+    """A job claimed by a fresh account (the least recently used one) and refused there: (job id, new status)."""
+    k, first = key(db), account(db, used_ago_s=None)
+
+    async def scenario(p):
+        made = await create(p, k, "refused", price=7)
+        got = await claim(p)
+        assert got.account_id == first, "premise: the fresh account took the job"
+        return made.job_id, await refused_by_its_account(p, got, settings)
+
+    return run(db, scenario)
+
+
+@mutation(A, ALONE, "        case NotTaken(final=Fail() as final) if False:\n",
+          expect="the job waited in the queue with no other account to take it")
+def test_a_refusal_with_no_other_usable_account_fails_the_job_at_once_refunded(db):
+    account(db, state="dead", used_ago_s=60)
+    account(db, state="disabled", used_ago_s=60)
+    account(db, checked=False, used_ago_s=60)
+    account(db, cooldown_s=3600, used_ago_s=60)
+    account(db, left=0, used_ago_s=60)                  # no balance left for the job until its refill
+    rest(db, account(db, used_ago_s=60), 3600)          # its pool rests an hour (the 06/11 grok rate limit)
+    job_id, got = refused_once(db)
+    assert got == "failed", "the job waited in the queue with no other account to take it: %s" % got
+    row = db.one("SELECT error_code, attempts, error FROM jobs WHERE id = %s", job_id)
+    assert row[:2] == (FINAL, 0) and "no other account can take it" in row[2], row
+    assert ledger(db, job_id) == [("charge", 7), ("refund", 7)], "the key was not refunded exactly once"
+
+
+@mutation(A, AFFORD, "    return False\n", expect="the job failed though another account could take it")
+def test_a_refusal_with_another_usable_account_requeues_the_job(db):
+    account(db, used_ago_s=60)                          # free, its pool's balance from the budget
+    job_id, got = refused_once(db)
+    assert got == "queued", "the job failed though another account could take it: %s" % got
+    assert ledger(db, job_id) == [("charge", 7)]
+
+
+@mutation(A, REST_WAIT, "           AND c.rest_until > clock_timestamp()))\n",
+          expect="an account resting less than the wait did not count")
+def test_an_account_resting_less_than_the_wait_still_counts(db):
+    rest(db, account(db, used_ago_s=60), 30)            # rests 30 s, refusal_wait_s is 60
+    job_id, got = refused_once(db)
+    assert got == "queued", "an account resting less than the wait did not count: %s" % got
+    assert status(db, job_id) == "queued"
+
+
+def test_with_no_wait_only_an_account_free_now_counts(db):
+    rest(db, account(db, used_ago_s=60), 30)
+    settings = cap()
+    settings.set(refusals.WAIT_KEY, 0)
+    assert refused_once(db, settings)[1] == "failed"
+
+
+@mutation(A, NOT_REFUSED, "   AND true\n", expect="an account that already refused the job counted")
+def test_an_account_that_already_refused_the_job_does_not_count(db):
+    k, first, second = key(db), account(db), account(db, cooldown_s=30)
+    three = cap(3)
+
+    async def scenario(p):
+        made = await create(p, k, "refused twice", price=7)
+        got = await claim(p)
+        assert got.account_id == first
+        assert await refused_by_its_account(p, got, three) == "queued"     # second: free within the wait
+        db.run("UPDATE accounts SET cooldown_until = NULL WHERE id = %s", second)
+        moved = await claim(p)
+        assert moved.account_id == second
+        return made.job_id, await refused_by_its_account(p, moved, three)
+
+    job_id, got = run(db, scenario)
+    # first is free and has balance, but refused this job: the claim never gives it back, so it does not count
+    assert got == "failed", "an account that already refused the job counted: %s" % got
+    assert db.one("SELECT error_code FROM jobs WHERE id = %s", job_id)[0] == FINAL
+    assert ledger(db, job_id) == [("charge", 7), ("refund", 7)]

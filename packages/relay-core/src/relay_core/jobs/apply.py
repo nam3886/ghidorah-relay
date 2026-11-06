@@ -297,6 +297,34 @@ async def _requeue(conn: AsyncConnection, job: _Job, code: str, note: str, caps:
     return "queued"
 
 
+# Another account of the job's provider that could take it within `wait` seconds: the claim's own account rules
+# (`claim._CANDIDATES`), with a cooldown or a pool rest that ends within the wait counted as over. Slots, the send gap
+# and jobs in flight are not looked at: they free themselves.
+_USABLE = """
+SELECT a.id, a.tier FROM accounts a JOIN jobs j ON j.id = %(job)s AND a.provider = j.provider
+ WHERE a.state = 'available' AND a.last_checked_at IS NOT NULL
+   AND NOT a.id::text = ANY(%(refused)s::text[])
+   AND (a.cooldown_until IS NULL OR a.cooldown_until <= clock_timestamp() + make_interval(secs => %(wait)s))
+   AND (%(pool)s::text IS NULL OR NOT EXISTS (
+        SELECT 1 FROM account_pools c
+         WHERE c.account_id = a.id AND c.pool = %(pool)s
+           AND c.rest_until > clock_timestamp() + make_interval(secs => %(wait)s)))
+"""
+
+
+async def _another_account(conn: AsyncConnection, job: _Job, outcome: NotTaken, pools) -> bool:
+    """A refused job (`NotTaken.final`): is any account it was not refused on usable for its pool within the wait,
+    with balance left for it (unknown counts)? A plain read: the claim decides who takes it."""
+    refused = [str(a) for a in outcome.state_patch.get(REFUSED_BY) or ()] + [str(job.account_id)]
+    rows = await (await conn.execute(_USABLE, {"job": job.id, "refused": refused, "wait": outcome.wait_s,
+                                               "pool": job.pool})).fetchall()
+    if job.pool is None or not rows:
+        return bool(rows)
+    cfgs = {job.pool: pools[job.pool]}
+    _now, states = await pool.pool_states(conn, {a: (tier, cfgs) for a, tier in rows})
+    return any(pool.can_afford(states[(a, job.pool)].standing.left, 0, job.account_cost) for a, _ in rows)
+
+
 async def _unknown(conn: AsyncConnection, job: _Job, note: str, pools) -> str:
     """A sent job whose outcome is unclear: `unknown`, to be reconciled, or, for a mode whose upstream leaves nothing
     to read back (`after_sent = fail_refund`), failed at once with its refund (`render.unclear_send`). Never re-sent."""
@@ -351,6 +379,8 @@ async def _submit_outcome(conn: AsyncConnection, job: _Job, outcome: SubmitOutco
                        provider_state=_merge_outputs(outcome.outputs), **await _facts(conn, job, outcome.facts))
             await add_event(conn, job.id, "system", "completed", "%d output(s) ready to fetch" % len(outcome.outputs))
             return "fetching"
+        case NotTaken(final=Fail() as final) if not await _another_account(conn, job, outcome, pools):
+            return await _submit_outcome(conn, job, Fail(final.code, final.detail, outcome.state_patch), caps, pools)
         case NotTaken():
             return await _requeue(conn, job, outcome.code, "upstream did not take the order", caps, pools,
                                   patch=outcome.state_patch)

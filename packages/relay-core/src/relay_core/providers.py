@@ -219,9 +219,16 @@ REFUSED_BY = "refused_by"
 
 @dataclass(frozen=True)
 class NotTaken:
-    """Sent, and upstream certainly did not take it. A re-send is allowed (the job goes back to queued)."""
+    """Sent, and upstream certainly did not take it. A re-send is allowed (the job goes back to queued).
+
+    `final` (set by `relay_core.refusals.account_refused` only): the job fails with it instead when no other account
+    of the provider can take it within `wait_s` (`jobs.apply`; its code and detail, with this `state_patch`), so a
+    refused job never waits in the queue for nothing.
+    Neither field takes part in equality: they are the outcome's fallback, not the outcome."""
     code: str
     state_patch: Mapping[str, Any] = field(default_factory=dict)
+    final: "Fail | None" = field(default=None, compare=False)
+    wait_s: float = field(default=0, compare=False)
 
     def __post_init__(self):
         _code(self.code)

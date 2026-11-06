@@ -821,6 +821,10 @@ Rules an operator must know:
   in between resets the count. Before the last allowed account the job goes back to the queue (no attempt is used:
   the setting alone decides); the refusal on the last one ends it failed with the full refund:
   `dola.refused_710022002` for 710022002, `dola.refused_on_accounts` otherwise. At 1 the first refusal ends the job.
+  Every provider (06/11): a refusal before the last account also ends the job that way at once when no other account
+  of the provider can take it within the core setting `refusal_wait_s` (default 60 s; 0 = only one free now): all
+  the others resting, cooling, out of balance for the job, dead, disabled or already refused. A customer never waits
+  in the queue for a failure.
   A 710022002 that came after dola made a conversation (the browser's receipt, an HTTP acknowledgement, a gated
   re-send) ends the job on any account: dola may still deliver there, and another account would be a second upstream
   order. Not refusals, so not counted: a proxy failure, a login doubt or signed-out page, a page fault, out of credit,
@@ -1517,7 +1521,7 @@ How an order is judged:
 | before the send | an upload refused an input image | failed `grok.input_unusable`, refunded |
 | before the send | any other step error | tried again (`grok.http_error`, one of 3 attempts) |
 | the send | 429 `code 8` ("Too many requests", the out-of-quota send: no conversation is made, the quota does not move), another 4xx with grok's limit words, or an Imagine limit frame, before any progress (a 5xx with those words is unknown) | **not taken**: the job goes to another account (`pool.account_out_of_points`), the pool reads 0 until grok's refill or `grok.limit_rest_s`; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
-| the send | the Imagine frame `{"type":"error","err_code":"rate_limit_exceeded","err_msg":"Image rate limit exceeded"}` (or `concurrency_limit`; `usage_limit_reached` / `usage_pool_exhausted` are a limit, as above) before any `session` frame and any job (06/11 live: no conversation is made, the quota does not move; after a `session` frame it is unknown) | **not taken**: the job goes to another account (`pool.account_throttled`), the image pool rests `grok.rate_limit_rest_s` with its uses kept; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
+| the send | the Imagine frame `{"type":"error","err_code":"rate_limit_exceeded","err_msg":"Image rate limit exceeded"}` (or `concurrency_limit`; `usage_limit_reached` / `usage_pool_exhausted` are a limit, as above) before any `session` frame and any job (06/11 live: no conversation is made, the quota does not move; after a `session` frame it is unknown) | **not taken**: the job goes to another account (`pool.account_throttled`), the image pool rests `grok.rate_limit_rest_s` with its uses kept; on the `grok.refusal_max_accounts`-th account, or at once when no other grok account can take it within `refusal_wait_s`, failed `grok.limit`, refunded |
 | the send | 401 `code 16`, Cloudflare's page or 403 `code 7` before any line | not taken, as before the send |
 | the send | 400 `code 3` (our own body was wrong) | failed `grok.http_error`, refunded |
 | after the send | images (text to image): k of n deliverable | done with the first n; fewer than n but at least one: delivered at the full charge with a timeline note |

@@ -126,7 +126,7 @@ def test_an_environment_twin_of_a_setting_is_ignored(db, monkeypatch):
 def test_the_cut_back_global_keys_are_registered_with_their_defaults():
     assert {k: s.default for k, s in REGISTRY.specs.items()} == {
         "log_retention_days": 30, "media_orphan_age_h": 6, "media_orphan_sweep": True,
-        "unsent_deadline_s": 10_800, "session_ttl_s": 86_400,
+        "unsent_deadline_s": 10_800, "refusal_wait_s": 60, "session_ttl_s": 86_400,
         "max_unfinished_default": 20, "alert_disk_free_gb": 10, "alert_accounts_low": 3, "dead_check_interval_h": 24,
         "alert_pool_drift": 5,
         "filename_pattern": "{prompt}_{duration}", "dashboard_tz": "Asia/Ho_Chi_Minh", "public_address": "",
@@ -291,7 +291,8 @@ def test_allowed_is_the_text_of_the_same_bounds():
 def test_every_core_setting_states_what_it_allows():
     assert {k: s.allowed for k, s in REGISTRY.specs.items()} == {
         "log_retention_days": "at least 1", "media_orphan_age_h": "at least 1", "media_orphan_sweep": "true or false",
-        "unsent_deadline_s": "at least 60", "session_ttl_s": "at least 60", "max_unfinished_default": "at least 0",
+        "unsent_deadline_s": "at least 60", "refusal_wait_s": "at least 0", "session_ttl_s": "at least 60",
+        "max_unfinished_default": "at least 0",
         "alert_disk_free_gb": "at least 0", "alert_accounts_low": "at least 0", "filename_pattern": "not empty",
         "dead_check_interval_h": "at least 1", "alert_pool_drift": "at least 0",
         "dashboard_tz": "an IANA time zone, such as Asia/Ho_Chi_Minh",
