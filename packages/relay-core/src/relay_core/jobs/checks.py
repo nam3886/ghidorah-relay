@@ -58,6 +58,12 @@ MAX_TASKS = 4               # account checks one worker runs at once
 TIMEOUT_SHARE = 0.8          # the task timeout is this share of the lease bound: the failure is still recorded
 SHOT_NAME = "debug/0.png"
 TIME_LIMIT = "the check ran past its time limit"
+# A proxy found working again (`%(px)s`) clears the account's `last_error` only while it is still the one the bad
+# verdict (`ProxyBad`) wrote: the proxy is marked bad (the row before this update) and no error was recorded after that
+# verdict's stamp (every write of `last_error` records the error first). An error any later result wrote stays.
+PROXY_ERROR_CLEARED = (
+    "last_error = CASE WHEN %(px)s AND proxy_ok IS FALSE AND NOT EXISTS (SELECT 1 FROM account_errors e "
+    "WHERE e.account_id = accounts.id AND e.at > accounts.proxy_checked_at) THEN NULL ELSE last_error END, ")
 
 
 def shot_key(account_id) -> str:
@@ -463,6 +469,10 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
     # cooldown's end, not at the retry time. A dead account (this check's effects applied) waits its dead interval
     # instead, so a dead jar is not opened every few minutes, nor every few hours.
     recheck = [e.until for e in health.effects if isinstance(e, Cooldown) and e.recheck]
+    # The proxy works when its probe said so, or when this check read the exit address through it (a provider with no
+    # probe has nothing else) and the check itself did not find the proxy bad. A failed read proves nothing.
+    works = (proxy is not None and proxy.ok) or (
+        exit_[0] is not None and not any(isinstance(e, ProxyBad) for e in health.effects))
     await conn.execute(
         "UPDATE accounts SET identity = COALESCE(%(i)s, identity), display_name = COALESCE(%(d)s, display_name), "
         "provider_state = provider_state || %(p)s::jsonb, "
@@ -470,6 +480,7 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         "check_due_at = CASE WHEN state = 'dead' THEN clock_timestamp() + make_interval(secs => %(dead)s) "
         "WHEN %(ru)s::timestamptz IS NOT NULL THEN %(ru)s::timestamptz "
         "ELSE clock_timestamp() + make_interval(secs => %(due)s) END, "
+        + PROXY_ERROR_CLEARED +
         "proxy_ok = CASE WHEN %(px)s THEN true ELSE proxy_ok END, "
         "proxy_checked_at = CASE WHEN %(px)s THEN clock_timestamp() ELSE proxy_checked_at END, "
         "proxy_exit_ip = %(ip)s, proxy_latency_ms = %(ms)s, "
@@ -479,7 +490,7 @@ async def _record(conn: AsyncConnection, env: Env, account_id, health: Health, p
         {"gap": send_gap_s(env.settings, env.provider) > 0,
          "i": health.identity, "d": health.display_name, "p": Jsonb(redact(dict(health.state_patch))),
          "read": read, "due": env.check_interval_s() if read or recheck else env.retry_s, "dead": env.dead_interval_s(),
-         "px": proxy is not None and proxy.ok, "ip": exit_[0], "ms": exit_[1],
+         "px": works, "ip": exit_[0], "ms": exit_[1],
          "ru": max(recheck) if recheck else None, "a": account_id})
 
 

@@ -10,7 +10,8 @@ Kinds the core runs itself, all as the worker role (the api only inserts the row
     wake             args {"account_id"}: clear the cooldown and every pool rest
     check            args {"account_id"} (or the row's account_id): one check now, under its own check lease
     check_all        every account of the provider (not `disabled`) becomes due now; the scheduler runs them
-    proxy_recheck    args {"account_id"}: probe the proxy, store the verdict, make the account due
+    proxy_recheck    args {"account_id"}: probe the proxy (without a probe: read its exit address), store
+                     the verdict, make the account due
 Kinds the engine runs (`run_command`): recover, list_conversations, refresh_catalog, titles, ...
 
 Delete (R3, R4). The command takes no account lease and its own row has `account_id` NULL, so it neither blocks on
@@ -36,6 +37,7 @@ from relay_core.db import AccountInUse, AccountNotFound, delete_unused_account, 
 from relay_core.db.accounts import account_in_use
 from relay_core.jobs import titles
 from relay_core.jobs.checks import (
+    PROXY_ERROR_CLEARED,
     Checks,
     Env,
     check_account,
@@ -254,18 +256,22 @@ async def _check_one(env: Env, c: Claimed) -> dict:
 
 # ---- leased kinds -----------------------------------------------------------------------------------------------
 async def _probe(env: Env, ctx) -> dict:
-    if not env.caps.has_probe_proxy:
-        raise CommandError("this provider has no proxy probe")
+    """The provider's own probe; a provider without one reads the exit address through the proxy, as a check does:
+    an address read is a working proxy, none a bad one."""
     if ctx.account.proxy is None:
         raise CommandError("the account has no proxy")
-    verdict = await env.engine.probe_proxy(ctx.account.proxy)
-    return {"ok": verdict.ok, "reason": verdict.reason}
+    if env.caps.has_probe_proxy:
+        verdict = await env.engine.probe_proxy(ctx.account.proxy)
+        return {"ok": verdict.ok, "reason": verdict.reason}
+    ip, _ = await env.exit_probe(ctx.account.proxy)
+    return {"ok": ip is not None, "reason": "" if ip else "the exit address could not be read through the proxy"}
 
 
 async def _apply_probe(conn, env: Env, c: Claimed, verdict: Mapping[str, Any]) -> dict:
     if verdict["ok"]:
-        await conn.execute("UPDATE accounts SET proxy_ok = true, proxy_checked_at = clock_timestamp(), "
-                           "updated_at = clock_timestamp() WHERE id = %s", (c.account_id,))
+        await conn.execute("UPDATE accounts SET " + PROXY_ERROR_CLEARED + "proxy_ok = true, "
+                           "proxy_checked_at = clock_timestamp(), updated_at = clock_timestamp() WHERE id = %(a)s",
+                           {"px": True, "a": c.account_id})
     else:
         await pool.apply_effects(conn, c.account_id, proxy_bad_effects(env, verdict["reason"]), env.caps, env.pools())
     await conn.execute("UPDATE accounts SET check_due_at = clock_timestamp() WHERE id = %s", (c.account_id,))

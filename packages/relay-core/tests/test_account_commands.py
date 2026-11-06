@@ -27,9 +27,10 @@ from accountkit import (
     run_as,
 )
 
-from relay_core import failpoints
+from relay_core import failpoints, pool
+from relay_core.db import tx
 from relay_core.jobs.commands import run_one
-from relay_core.providers import Health, ProxyVerdict
+from relay_core.providers import Health, ProxyBad, ProxyVerdict
 from relay_core.testing.mutation import mutation
 
 COMMANDS = "packages/relay-core/src/relay_core/jobs/commands.py"
@@ -414,11 +415,9 @@ def test_a_failed_proxy_recheck_rests_the_account_on_every_pool(db):
                   "+ interval '800 s' ORDER BY pool", a) == [("image",), ("video",)]
 
 
-def test_proxy_recheck_fails_without_a_proxy_or_without_a_probe(db):
+def test_proxy_recheck_fails_without_a_proxy(db):
     plain = new_account(db, checked=True)
-    proxied = new_account(db, checked=True, proxy=("10.0.0.1", 1))
     c_plain = new_command(db, "proxy_recheck", account_id=plain)
-    c_noprobe = new_command(db, "proxy_recheck", account_id=proxied)
 
     async def scenario(p):
         await run_one(make_env(p, KitEngine()))
@@ -426,4 +425,39 @@ def test_proxy_recheck_fails_without_a_proxy_or_without_a_probe(db):
 
     worker(db, scenario)
     assert "no proxy" in command(db, c_plain)["result"]["error"]
-    assert "no proxy probe" in command(db, c_noprobe)["result"]["error"]
+    assert account_row(db, plain)["proxy_ok"] is None
+
+
+@mutation(COMMANDS, "    ip, _ = await env.exit_probe(ctx.account.proxy)\n", "    ip = None\n",
+          expect="the exit read clears the flag")
+@mutation(COMMANDS, '"UPDATE accounts SET " + PROXY_ERROR_CLEARED + "proxy_ok = true, "',
+          '"UPDATE accounts SET proxy_ok = true, "', expect="the proxy error is cleared")
+@mutation(COMMANDS, "return {\"ok\": ip is not None,", "return {\"ok\": True,",
+          expect="a failed exit read is a bad verdict")
+def test_proxy_recheck_of_a_provider_without_a_probe_reads_the_exit_through_the_proxy(db):
+    stale = new_account(db, checked=True, due_s=3600, proxy=("10.0.2.1", 8080))
+    dead = new_account(db, checked=True, due_s=3600, proxy=("10.0.2.2", 8080))
+    c_stale = new_command(db, "proxy_recheck", account_id=stale)
+    c_dead = new_command(db, "proxy_recheck", account_id=dead)
+    engine = KitEngine()
+
+    async def exits(proxy):
+        return (None, None) if proxy.host == "10.0.2.2" else ("203.0.113.9", 42)
+
+    async def scenario(p):
+        async with tx(p) as conn:
+            await pool.apply_effects(conn, stale, [ProxyBad("the proxy could not reach the upstream")], jobkit.CAPS,
+                                     jobkit.POOLS)
+        env = make_env(p, engine, spec=KitSpec(probe=False), exit_probe=exits)
+        await run_one(env)
+        await run_one(env)
+
+    worker(db, scenario)
+    assert engine.probed == []
+    assert command(db, c_stale)["status"] == "done" and command(db, c_dead)["status"] == "done"
+    good, bad = account_row(db, stale), account_row(db, dead)
+    assert good["proxy_ok"] is True, "the exit read clears the flag"
+    assert good["last_error"] is None, "the proxy error is cleared"
+    assert bad["proxy_ok"] is False, "a failed exit read is a bad verdict"
+    for acct in (stale, dead):
+        assert db.one("SELECT check_due_at <= clock_timestamp() FROM accounts WHERE id = %s", acct)[0]

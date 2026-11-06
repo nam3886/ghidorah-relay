@@ -10,7 +10,7 @@ import accountkit
 import httpx
 import jobkit
 import pytest
-from accountkit import KitEngine, make_env, new_account, run_as
+from accountkit import KitEngine, KitSpec, make_env, new_account, run_as
 from jobkit import CAPS, POOLS
 
 from relay_core import history, net, pool
@@ -25,6 +25,7 @@ from relay_core.providers import (
     Pending,
     PollResult,
     Proxy,
+    ProxyBad,
     Rest,
     SubmitResult,
     Suspect,
@@ -174,6 +175,60 @@ def test_the_exit_probe_goes_through_the_proxy_url_and_answers_none_for_a_failur
     monkeypatch.setattr(net.httpx, "AsyncClient", Client)
     assert asyncio.run(net.exit_address(Proxy("10.0.0.2", 80, "u:p")))[0] == "203.0.113.1"
     assert seen["proxy"] == "http://u:p@10.0.0.2:80" and seen["trust_env"] is False, "the probe did not use the proxy"
+
+
+def proxy_state(db, account_id) -> tuple:
+    return db.one("SELECT proxy_ok, proxy_checked_at, last_error FROM accounts WHERE id = %s", account_id)
+
+
+@mutation(CHECKS, "        exit_[0] is not None and not any(isinstance(e, ProxyBad) for e in health.effects))",
+          "        False)", expect="an exit read through the proxy proves it works")
+@mutation(CHECKS, "exit_[0] is not None and not any(", "not any(", expect="a failed exit read never clears the flag")
+@mutation(CHECKS, " and not any(isinstance(e, ProxyBad) for e in health.effects))", ")",
+          expect="a check that found the proxy bad keeps the flag")
+@mutation(CHECKS, "        + PROXY_ERROR_CLEARED +\n", "", expect="the proxy error is cleared")
+@mutation(CHECKS, "e.at > accounts.proxy_checked_at", "false", expect="a later error stays")
+@mutation(CHECKS, "WHEN %(px)s AND proxy_ok IS FALSE AND NOT EXISTS", "WHEN %(px)s AND NOT EXISTS",
+          expect="the error of a proxy never marked bad stays")
+def test_a_check_that_reads_the_exit_through_the_proxy_clears_a_stale_bad_proxy_flag_of_a_provider_without_a_probe(db):
+    stale = new_account(db, checked=True, proxy=("10.0.1.1", 8080))       # a job's ProxyBad, then nothing else
+    later = new_account(db, checked=True, proxy=("10.0.1.2", 8080))       # a job's ProxyBad, then another error
+    unread = new_account(db, checked=True, proxy=("10.0.1.3", 8080))      # the exit cannot be read
+    found = new_account(db, checked=True, proxy=("10.0.1.4", 8080))       # the check itself finds the proxy bad
+    fresh = new_account(db, checked=True, proxy=("10.0.1.5", 8080))       # never marked bad, an error of its own
+    plain = new_account(db, checked=True)                                 # no proxy
+    until = datetime.now(UTC) + timedelta(hours=1)
+
+    async def exits(proxy):
+        return (None, None) if proxy.host == "10.0.1.3" else accountkit.EXIT
+
+    async def scenario(p):
+        async with tx(p) as conn:
+            for a in (stale, later, unread, found):
+                await pool.apply_effects(conn, a, [ProxyBad("the proxy could not reach the upstream")], CAPS, POOLS)
+        async with tx(p) as conn:
+            for a in (later, fresh):
+                await pool.apply_effects(conn, a, [Cooldown("rate limited", until)], CAPS, POOLS)
+        before = {a: proxy_state(db, a)[1] for a in (stale, later)}
+        engine = KitEngine()
+        engine.health = Health("unknown")
+        engine.health_by_account[str(found)] = Health("unknown", effects=(ProxyBad("the proxy failed (reset)"),))
+        env = make_env(p, engine, spec=KitSpec(probe=False), exit_probe=exits)
+        for a in (stale, later, unread, found, fresh, plain):
+            await check_account(env, a)
+        return before
+
+    before = worker(db, scenario)
+    ok, at, err = proxy_state(db, stale)
+    assert ok is True and at > before[stale], "an exit read through the proxy proves it works: %r" % (ok,)
+    assert err is None, "the proxy error is cleared"
+    assert proxy_state(db, later)[0] is True and proxy_state(db, later)[1] > before[later]
+    assert proxy_state(db, later)[2] == "rate limited", "a later error stays"
+    assert proxy_state(db, unread)[0] is False, "a failed exit read never clears the flag"
+    assert proxy_state(db, unread)[2] == "the proxy could not reach the upstream"
+    assert proxy_state(db, found)[0] is False, "a check that found the proxy bad keeps the flag"
+    assert proxy_state(db, fresh)[2] == "rate limited", "the error of a proxy never marked bad stays"
+    assert proxy_state(db, plain)[:2] == (None, None), "an account without a proxy has no verdict"
 
 
 def test_a_switched_off_account_records_no_health(db):
