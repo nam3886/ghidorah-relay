@@ -108,7 +108,7 @@ pull fails.
 
 - Every compose command needs `GIT_SHA` (and, for postgres and minio, their two passwords) in the environment or in
   `deploy/.env`: compose interpolates the services of inactive profiles too. `export GIT_SHA=$(git rev-parse --short HEAD)`.
-- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt` = the provider workers;
+- Profiles: `app` = `migrate` and `api`; `dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt`, `grok` = the provider workers;
   `tunnel` = the Cloudflare Tunnel (see "Internet access" in the box runbook). A bare `docker compose up`
   starts only Postgres and MinIO. `docker compose --profile app --profile dola up -d` starts the api and the dola
   worker; enabling a provider later changes no file.
@@ -551,7 +551,7 @@ fails when any other page or `/ui/` file carries the looser one.
 
 ## The worker (`relay worker --provider X`)
 
-One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt`; the compose services `worker-<provider>`). It loads
+One process per provider (`dola`, `vibes`, `meta`, `flow`, `gemini`, `qwen`, `muse`, `gpt`, `grok`; the compose services `worker-<provider>`). It loads
 `relay_<p>.spec.SPEC` and `relay_<p>.engine.build_engine`, then runs these loops as tasks of one process:
 
 | Loop | Does |
@@ -1450,6 +1450,151 @@ does not. When the alert fires:
 | `gpt.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
 
 Fixed in code: one job at a time per account, 3 attempts, 3 strikes, a 4000-character prompt.
+
+## The grok provider (`relay worker --provider grok`)
+
+Grok Imagine (grok.com) over plain HTTP and one WebSocket, no browser: curl_cffi with Chrome's fingerprint
+(`chrome150` and its Linux user agent), every call through the account's proxy (direct only for an account with none,
+never a direct fallback). The `http` image (`worker-grok`, 1 CPU, 1 GB, 256 pids, no volume). Two models, free
+accounts only:
+- `grok-image`: 1 to 4 images (`n`, priced per image) from a text prompt over the Imagine WebSocket, ratios `1:1`
+  (default), `2:3`, `3:2`, `9:16`, `16:9`; or one image edited from 1 to 3 input images (`image_to_image`, n 1, no
+  ratio: it keeps the input's shape). 2 images took 4.5 s, an edit 6.2 s.
+- `grok-video`: one 6 s 720p video with sound from text only, ratios `16:9` (default), `9:16`, `1:1`. It took 34.5 s.
+  **Image to video is not supported yet** (its own spike, see the backlog).
+
+Only 1:1 images, a one-input edit and a 16:9 video were measured; the other ratios and the 3-input edit are cut by a
+one-line change before claims if the live smoke disproves them. The protocol is in `fixtures/grok/FINDINGS.md`, the
+design in `plans/grok-design-261106/design.md`; the package is `packages/provider-grok/` (`relay_grok`). grok ships
+drained: `grok.claims_enabled` is false until the owner turns it on, and `scripts/deploy.sh` keeps it so.
+
+**What the worker needs.** The http image and `deploy/worker-grok.env` with the usual worker variables. No key of
+its own.
+
+**Free quota, two pools.** grok's own count (`POST /rest/media/imagine/quota_info {}`, spends nothing) wins over the
+budgets of `grok.pools`:
+
+| Pool | grok's field | Budget (`grok.pools`) | Spent by |
+|---|---|---|---|
+| `image` | `imagePro` | free 8, rolling 24 h | one use per image drawn, one per edit |
+| `video` | `video720p` | free 1, rolling 25 h | one use per video; the next one comes 25 h after the send (`nextAvailableAt`) |
+
+The quota is read by the check, before every send (too few uses left sends nothing: the job goes back to the queue,
+no attempt used, the pool reads what grok said until its refill) and after a finished job (best effort; the
+difference becomes the job's `balance_delta` fact, so a `cost_mismatch` shows a wrong `grok.costs`). That delta is
+clean only on an account **dedicated to the relay**.
+
+**Account.** A Cookie-Editor JSON export of grok.com (the cookie list, or `{url, cookies}`), or a `Cookie:` header.
+Only the cookies of `grok.com` / `.grok.com` are kept; `sso` must be there. One account per proxy (one IP each), used
+by the relay only. The cookies are sent to `grok.com` and `assets.grok.com` only. Nothing is written back: a
+`Set-Cookie` of `sso` or `sso-rw` during a run is told once as the event "grok set sso" (names only), so the soak
+shows whether grok rotates it.
+
+**The check** (every hour, spends nothing): `GET /api/auth/session`, then `quota_info`. Signed in gives the identity
+(the session's `userId`, so a re-import of the same user merges), the email as the display name, `Tier free` (a paid
+subscription still runs as free; its name is logged) and the two balances. A signed-out answer (session
+`unauthenticated`, 401 `code 16`) or a blocked account is one spaced strike (540 s) and a 600 s rest with a recheck;
+three strikes end the account (`signed_out`). Cloudflare's page or the anti-bot refusal rests the account with a
+recheck and no strike; a failed proxy rests it 300 s.
+
+**Send.** The free steps first: the quota read, the upload of every input image of an edit
+(`/http/upload-file-v2/direct`), the Imagine socket's `reset` frame for a text-to-image. Then a fresh request id and
+the exact text sent go to the job, `mark_sent`, and the ONE send: one `conversation.item.create` frame (text to
+image), or one streamed `POST /rest/app-chat/conversations/new` (edit; video, its message ending `--mode=custom`). The
+conversation id (and a video's ids) are written to the job the moment they appear (`provider_state.conversation_id`,
+the key the job drawer shows). The answer is held until done, at most the operation's submit timeout less 15 s.
+Nothing is ever sent again for the job.
+
+How an order is judged:
+
+| When | What grok answered | Verdict |
+|---|---|---|
+| before the send | signed out (session, quota 401, socket 401) or blocked | tried again (`pool.account_logged_out`), one spaced strike, a rest and a recheck |
+| before the send | the proxy failed | tried again (`pool.proxy_failed`), the proxy marked bad, a 300 s rest |
+| before the send | fewer uses left than the job costs | tried again (`pool.account_out_of_points`), no attempt used, the pool at grok's count until its refill |
+| before the send | Cloudflare's page / 403 `code 7` | not taken (`grok.cloudflare` / `grok.antibot`), no attempt used (twice), the account rests `grok.cf_rest_s` / `grok.antibot_rest_s` |
+| before the send | an upload refused an input image | failed `grok.input_unusable`, refunded |
+| before the send | any other step error | tried again (`grok.http_error`, one of 3 attempts) |
+| the send | 429 `code 8` ("Too many requests", the out-of-quota send: no conversation is made, the quota does not move), grok's limit words, or an Imagine limit frame, before any progress | **not taken**: the job goes to another account (`pool.account_out_of_points`), the pool reads 0 until grok's refill or `grok.limit_rest_s`; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
+| the send | 401 `code 16`, Cloudflare's page or 403 `code 7` before any line | not taken, as before the send |
+| the send | 400 `code 3` (our own body was wrong) | failed `grok.http_error`, refunded |
+| after the send | images (text to image): k of n deliverable | done with the first n; fewer than n but at least one: delivered at the full charge with a timeline note |
+| after the send | an edit's image / a video, not moderated | done |
+| after the send | everything moderated, or grok's safety words | failed `grok.content_refused`, refunded |
+| after the send | the answer ended with nothing and no reason | failed `grok.no_image` / `grok.no_video`, refunded |
+| after the send | a video that is a decoy (below) | failed `grok.decoy_video`, refunded; the account's video pool rests `grok.decoy_rest_s`; never sent again |
+| after the send | anything else (a cut stream or socket, a timeout, an unknown frame, an error after progress) | unknown: the reconciler |
+| any | no result `grok.render_deadline_s` after the send | failed `render.deadline`, refunded |
+
+A refusal of the send counts as "not taken" only on those exact shapes before any answer line; once grok has answered
+anything, a failure is unknown, never a re-send.
+
+**Reconcile** (all three operations, `after_sent` RECONCILE; step 0, `plans/grok-design-261106/step0.md`): every
+operation, text to image included, makes a conversation, read by `GET /rest/app-chat/conversations/{id}/responses`.
+With the conversation id the stream named, that one is read. With only the request id (the run broke before the
+first line), the account's recent conversations are listed twice (no kind: the edits; `CONVERSATION_KIND_IMAGINE`:
+text to image and video), those made from 60 s before the send to `grok.render_deadline_s` after it are read, and the
+one whose human turn is exactly the sent text is the job's; two such (a twin prompt) is no match. A read-back has no
+progress: a job still running is not there yet. Deliverable outputs are `Found` and fetched; anything else stays
+unknown, never "not sent" (a re-send would charge twice), and the render deadline fails it with its refund. Reads
+only: the reconciler never sends, uploads or opens the socket.
+
+**Decoy video.** grok sometimes answers a video order with a stock clip. A finished video with no `rRated` key, or done
+faster than `grok.decoy_min_s` after the send, is a decoy: failed `grok.decoy_video`, refunded, the account's video
+pool rests `grok.decoy_rest_s`. A reconcile applies only the `rRated` rule (a read-back has no stream timing). Above
+`grok.alert_decoy_rate` of the last 24 h jobs the drift alert fires.
+
+**Results.** A text-to-image result is public (`imagine-public.x.ai`) and fetched with no cookie; an edit's image and a
+video are on `assets.grok.com` and fetched with the account's cookie through its proxy. Any other place ends the
+fetch before a request. Images carry an EXIF `Signature` from grok; the relay delivers the file as is.
+
+**Anti-bot (`grok.statsig_mode`).** On 06/11 grok.com checked no `x-statsig-id` header and its page carried no seed,
+so the default `off` sends none. `generate` builds one from the page's `grok-site-verification` seed (the page is read
+again every hour per account); with no seed found it sends none and logs "statsig seed not found". No outside signer
+is ever called. `grok.cloudflare` and `grok.antibot` above `grok.alert_antibot_rate` of the last 24 h jobs fire the
+drift alert: the anti-bot layer is back. Then run the drift command (its statsig notes say whether a seed appeared)
+and try `generate`.
+
+**Drift check**: `docker compose -p relay --profile grok exec -T worker-grok python -m relay_grok.engine.drift
+--account <label>` prints `OK` (exit 0) or one line per pinned wire name (Imagine frame, media stream, send body,
+quota keys) that grok.com's scripts no longer hold (exit 1), after the statsig notes (never drift). Names only, never a
+value. It loads the `/imagine` page with the account's cookies (a page load: run it with grok drained or on a rested
+account) and sends nothing. Run it when jobs end unknown or `grok.http_error` in a burst.
+
+**Smoke.** `RELAY_E2E_SPEND=yes relay e2e --provider grok` draws one 1:1 image (n 1) through the running API with a
+temporary key and checks the JPEG; it spends one image use of an account.
+
+**What grok never does.** It never sends a job twice, never calls a refresh, rotate, logout or settings endpoint
+(only the session read the page itself makes), never sends the `sso` cookie beyond `grok.com` and `assets.grok.com`,
+never lets the customer pick grok's mode (a `--mode=` in the prompt is refused), never asks for a paid feature
+(`enable_pro` is false), and never logs a cookie, the user id, the email or an asset path.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `grok.claims_enabled` | false | drain mode: no new job; the checks go on |
+| `grok.render_deadline_s` | 900 | an undelivered job is given up then, refunded (min 60) |
+| `grok.image_submit_timeout_s` | 90 | bound on one text-to-image submit, 30-600 |
+| `grok.edit_submit_timeout_s` | 120 | bound on one edit submit, uploads included, 30-600 |
+| `grok.video_submit_timeout_s` | 240 | bound on one text-to-video submit, 60-720 |
+| `grok.send_gap_s` | 30 | least seconds between two jobs of one account (applied by the claim), 0-3600 |
+| `grok.limit_rest_s` | 86400 | a pool's rest at 0 when grok answers its limit without a refill time, 600-604800 |
+| `grok.refusal_max_accounts` | 2 | accounts one job may try on a limit answer before it fails refunded (`grok.limit`) |
+| `grok.decoy_min_s` | 15 | a video done faster than this is a decoy; 0 = only the `rRated` rule, 0-120 |
+| `grok.decoy_rest_s` | 86400 | the video pool's rest after a decoy, 0-604800 |
+| `grok.cf_rest_s` | 600 | the rest after Cloudflare's page, 60-86400 |
+| `grok.antibot_rest_s` | 1800 | the rest after 403 `code 7`, 60-86400 |
+| `grok.statsig_mode` | `off` | `off` or `generate` (above) |
+| `grok.alert_antibot_rate` | 0.1 | drift alert: share of the last 24 h jobs ended `grok.cloudflare` / `grok.antibot` (0 to 1) |
+| `grok.alert_decoy_rate` | 0.2 | drift alert: share of the last 24 h jobs ended `grok.decoy_video` (0 to 1) |
+| `grok.prices`, `grok.costs` | 1 per image, 1 per video | points per job by option (`grok-image`, `grok-image@n2`..`@n4`, `grok-video`); uses of the pool per job |
+| `grok.pools` | image: free 8 / 24 h; video: free 1 / 25 h | uses per account by tier (free only) |
+| `grok.disabled_models` | `[]` | model ids paused for every key (see "Paused models") |
+
+Fixed in code: one job at a time per account, 3 attempts, 3 strikes, a 4000-character prompt, n at most 4, at most 3
+input images, a 64 MiB result file.
+
+**Rollback.** `grok.claims_enabled` false (drain mode: open jobs still finish, reconcile and refund), or
+`scripts/rollback.sh --workers grok`.
 
 ## The box runbook
 
