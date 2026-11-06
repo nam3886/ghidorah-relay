@@ -121,6 +121,12 @@ _SETTINGS = dict((
              "frame without rRated is still one).", min=0, max=120),
     _setting("decoy_rest_s", int, 86400,
              "Seconds an account's video pool rests after it answered a stock clip.", min=0, max=7 * 86400),
+    _setting("signed_out_rest_s", int, 600,
+             "Seconds a grok account rests after a signed-out (or blocked) read, then it is checked again.",
+             min=60, max=86400),
+    _setting("signed_out_gap_s", int, 540,
+             "A signed-out (or blocked) read this soon after the last counted strike adds none (shorter than the "
+             "rest).", min=0, max=86400),
     _setting("cf_rest_s", int, 600,
              "Seconds a grok account rests after a Cloudflare challenge page (nothing sent, no attempt used).",
              min=60, max=86400),

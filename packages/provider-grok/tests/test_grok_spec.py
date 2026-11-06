@@ -124,6 +124,7 @@ SETTINGS = [
     ("video_submit_timeout_s", int, 240, 60, 720), ("send_gap_s", int, 30, 0, 3600),
     ("limit_rest_s", int, 86400, 600, 604800), ("refusal_max_accounts", int, 2, 1, 9),
     ("decoy_min_s", int, 15, 0, 120), ("decoy_rest_s", int, 86400, 0, 604800),
+    ("signed_out_rest_s", int, 600, 60, 86400), ("signed_out_gap_s", int, 540, 0, 86400),
     ("cf_rest_s", int, 600, 60, 86400), ("antibot_rest_s", int, 1800, 60, 86400),
     ("statsig_mode", str, "off", None, None),
     ("alert_antibot_rate", float, 0.1, 0.0, 1.0), ("alert_decoy_rate", float, 0.2, 0.0, 1.0)]

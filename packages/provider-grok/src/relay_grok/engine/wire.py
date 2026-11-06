@@ -47,12 +47,23 @@ _URL = re.compile(r"https?://[^\s\"'<>]+")
 _USER_PATH = re.compile(r"users/[^\s\"'<>]+")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 _HEX = re.compile(r"[0-9a-f]{24,}", re.I)
+# a Cookie / Authorization header's whole value; a cookie's or a JSON key's value named like a credential
+_HEADER = re.compile(r"\b((?:set-)?cookie|authorization)([\"']?\s*[:=]\s*[\"']?)[^\r\n\"']+", re.I)
+_PAIR = re.compile(r"\b(sso-rw|sso|x-userid|cf_clearance|[\w-]*(?:token|secret|password))([\"']?\s*[:=]\s*[\"']?)"
+                   r"[^\s;,&\"'}]+", re.I)
+_JWT = re.compile(r"\beyJ[\w-]*\.[\w-]+(?:\.[\w-]*)?")
+_TOKEN = re.compile(r"(?<![\w+/-])(?=[\w+/-]*\d)[\w+/-]{32,}={0,2}")     # long base64 / opaque, a digit in it
 
 
 def redact(text: str) -> str:
-    """An answer's text with no link (its host kept), no `users/<uid>/…` path, no id; at most ERROR_TEXT_MAX chars."""
+    """An answer's text with no link (its host kept), no `users/<uid>/…` path, no id, no credential (a Cookie or
+    Authorization value, an `sso=`-style pair, a JWT, a long opaque token); at most ERROR_TEXT_MAX chars."""
+    text = _HEADER.sub(r"\1\2<secret>", text)
+    text = _PAIR.sub(r"\1\2<secret>", text)
+    text = _JWT.sub("<secret>", text)
     text = _URL.sub(lambda m: "<%s>" % (urlsplit(m.group(0)).hostname or "link"), text)
     text = _HEX.sub("<id>", _UUID.sub("<id>", _USER_PATH.sub("<path>", text)))
+    text = _TOKEN.sub("<secret>", text)
     return text[:ERROR_TEXT_MAX]
 
 
@@ -281,7 +292,9 @@ Refusal = Literal["signed_out", "cloudflare", "antibot", "blocked", "limit", "ba
 
 def classify_refusal(status: int, content_type: str, body: str, server: str = "") -> Refusal:
     """A non-200 answer by exact shapes only. A blocked account may carry `code 7` too, so the blocked phrases are read
-    before the anti-bot code; a 429 (`code 8` "Too many requests", the out-of-quota send) is a limit."""
+    before the anti-bot code; a 429 (`code 8` "Too many requests", the out-of-quota send) is a limit, and so is another
+    4xx with grok's usage-limit words: a refusal proven before acceptance. A 5xx (or any other status) with those words
+    is `other`: it proves nothing was refused, so it never moves the job to another account."""
     d = _json(body)
     err = d.get("error") if isinstance(d, dict) else None
     code = (err if isinstance(err, dict) else d if isinstance(d, dict) else {}).get("code")
@@ -294,7 +307,7 @@ def classify_refusal(status: int, content_type: str, body: str, server: str = ""
         return "blocked"
     if status == 403 and code == ANTIBOT_CODE:
         return "antibot"
-    if status == 429 or is_limit(body):
+    if status == 429 or (400 <= status < 500 and is_limit(body)):
         return "limit"
     if status == 400 and code == BAD_BODY_CODE:
         return "bad_body"

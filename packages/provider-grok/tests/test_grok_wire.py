@@ -13,6 +13,7 @@ from relay_grok.engine.wire import (
     asset_url,
     classify_refusal,
     made_note,
+    redact,
     summary,
 )
 
@@ -196,6 +197,8 @@ _BLOCKED_7 = json.dumps({"error": {"code": 7, "message": "blocked-user: user is 
           'CF_MARKS = ("just a moment", "__cf_chl", "cf-chl-", "challenge-platform")',
           expect="a normal page read as a challenge")
 @mutation(CONSTANTS, "ANTIBOT_CODE = 7", "ANTIBOT_CODE = 8", expect="code 7 is the anti-bot answer")
+@mutation(WIRE, "    if status == 429 or (400 <= status < 500 and is_limit(body)):",
+          "    if status == 429 or is_limit(body):", expect="a 5xx with limit words is no proven refusal")
 @pytest.mark.parametrize("answer, kind, why", [
     (_fx("rest_401_no_credentials"), "signed_out", "no credentials is signed out"),
     (_fx("rest_401_bad_credentials"), "signed_out", "bad credentials is signed out"),
@@ -210,7 +213,12 @@ _BLOCKED_7 = json.dumps({"error": {"code": 7, "message": "blocked-user: user is 
     ((403, "application/json", _BLOCKED_7, ""), "blocked", "blocked phrases come before code 7"),
     (_fx("rest_429"), "limit", "a 429 is a limit"),
     (_fx("send_out_of_quota"), "limit", "the out-of-quota send is a limit"),
-    ((200, "application/json", '{"error":{"message":"usage limit reached"}}', ""), "limit", "a limit phrase"),
+    ((400, "application/json", '{"error":{"message":"usage limit reached"}}', ""), "limit", "a limit phrase"),
+    ((500, "application/json", '{"error":{"message":"usage limit during response processing"}}', ""), "other",
+     "a 5xx with limit words is no proven refusal"),
+    ((502, "text/plain", "usage quota", ""), "other", "a 5xx with limit words is no proven refusal"),
+    ((200, "application/json", '{"error":{"message":"usage limit reached"}}', ""), "other",
+     "only a 4xx refusal is a limit"),
     (_fx("rest_400_code3"), "bad_body", "code 3 is our own bad body"),
     ((500, "text/plain", "upstream error", ""), "other", "anything else is other"),
 ])
@@ -255,3 +263,35 @@ def test_the_summary_holds_no_id_blob_or_user_path():
     real = json.loads(summary(fixture("ndjson_t2v")["lines"]))
     assert len(real) == 20 and real[0]["type"] == "conversation"
     assert "d0000000" not in json.dumps(real) and "90000000" not in json.dumps(real)
+
+
+FAKE_SSO = "FAKEssoValue"
+FAKE_COOKIE = "FAKEcookieValue"
+FAKE_BEARER = "FAKEbearerValue"
+FAKE_JWT = "eyJFAKEhdr.eyJFAKEbody.FAKEsig"
+FAKE_OPAQUE = "FAKEopaque0123456789abcdefABCDEF+/xyz=="
+HEADER_LINE = '    text = _HEADER.sub(r"\\1\\2<secret>", text)\n'
+PAIR_LINE = '    text = _PAIR.sub(r"\\1\\2<secret>", text)\n'
+
+
+@mutation(WIRE, HEADER_LINE, "", expect="a Cookie or Authorization value leaked")
+@mutation(WIRE, PAIR_LINE, "", expect="an sso= value leaked")
+@mutation(WIRE, '    text = _JWT.sub("<secret>", text)\n', "", expect="a JWT leaked")
+@mutation(WIRE, '    text = _TOKEN.sub("<secret>", text)\n', "", expect="an opaque token leaked")
+def test_redact_drops_cookies_jwts_and_opaque_tokens():
+    echo = ("bad request: sso=%s; sso-rw=%s, header Cookie: a=%s\nAuthorization: Bearer %s\n"
+            'json {"sso":"%s"} jwt %s token %s' % (FAKE_SSO, FAKE_SSO, FAKE_COOKIE, FAKE_BEARER, FAKE_SSO, FAKE_JWT,
+                                                FAKE_OPAQUE))
+    out = redact(echo)
+    assert FAKE_COOKIE not in out and FAKE_BEARER not in out, "a Cookie or Authorization value leaked"
+    assert FAKE_SSO not in out, "an sso= value leaked"
+    assert "eyJFAKE" not in out and "FAKEsig" not in out, "a JWT leaked"
+    assert "FAKEopaque" not in out, "an opaque token leaked"
+    assert out.startswith("bad request: sso=<secret>; sso-rw=<secret>")
+    assert redact("You have reached your usage limit") == "You have reached your usage limit"
+
+    rows = json.loads(summary([json.dumps({"error": {"code": 3, "message": echo}})]))
+    assert "FAKE" not in rows[0]["error"], "an sso= value leaked"
+    r = NdjsonReader("video", Clock())
+    r.feed(json.dumps({"error": {"code": 8, "message": echo}}))
+    assert "FAKE" not in r.answer().error_text, "an sso= value leaked"

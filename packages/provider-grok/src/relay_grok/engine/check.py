@@ -18,14 +18,14 @@ from relay_grok.constants import PROXY_REST_S, QUOTA_WINDOW
 from relay_grok.engine.web import NetError, Quota, Refused, SignedOut, Web, real_session
 
 log = logging.getLogger("relay_grok.check")
-SIGNED_OUT_REST_S = 600         # a signed-out (or blocked) read rests the account this long, then it is checked again
-SIGNED_OUT_GAP_S = 540          # such a read this soon after the last counted strike adds none (meta's and qwen's)
 
 
 def doubt_effects(why: str, settings, now: datetime) -> tuple[Suspect, Cooldown]:
-    """A signed-out or blocked read: one spaced strike, and a rest after which the account is checked again."""
-    return (Suspect(why, min_gap_s=SIGNED_OUT_GAP_S),
-            Cooldown(why + ", to be checked again", now + timedelta(seconds=SIGNED_OUT_REST_S), recheck=True))
+    """A signed-out or blocked read: one strike (spaced by `grok.signed_out_gap_s`), and a rest of
+    `grok.signed_out_rest_s` after which the account is checked again."""
+    return (Suspect(why, min_gap_s=settings.get("grok.signed_out_gap_s")),
+            Cooldown(why + ", to be checked again", now + timedelta(seconds=settings.get("grok.signed_out_rest_s")),
+                     recheck=True))
 
 
 def balances(q: Quota, now: datetime, settings) -> tuple[Balance, ...]:

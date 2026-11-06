@@ -1493,7 +1493,8 @@ shows whether grok rotates it.
 **The check** (every hour, spends nothing): `GET /api/auth/session`, then `quota_info`. Signed in gives the identity
 (the session's `userId`, so a re-import of the same user merges), the email as the display name, `Tier free` (a paid
 subscription still runs as free; its name is logged) and the two balances. A signed-out answer (session
-`unauthenticated`, 401 `code 16`) or a blocked account is one spaced strike (540 s) and a 600 s rest with a recheck;
+`unauthenticated`, 401 `code 16`) or a blocked account is one strike spaced by `grok.signed_out_gap_s` and a
+`grok.signed_out_rest_s` rest with a recheck;
 three strikes end the account (`signed_out`). Cloudflare's page or the anti-bot refusal rests the account with a
 recheck and no strike; a failed proxy rests it 300 s.
 
@@ -1515,7 +1516,7 @@ How an order is judged:
 | before the send | Cloudflare's page / 403 `code 7` | not taken (`grok.cloudflare` / `grok.antibot`), no attempt used (twice), the account rests `grok.cf_rest_s` / `grok.antibot_rest_s` |
 | before the send | an upload refused an input image | failed `grok.input_unusable`, refunded |
 | before the send | any other step error | tried again (`grok.http_error`, one of 3 attempts) |
-| the send | 429 `code 8` ("Too many requests", the out-of-quota send: no conversation is made, the quota does not move), grok's limit words, or an Imagine limit frame, before any progress | **not taken**: the job goes to another account (`pool.account_out_of_points`), the pool reads 0 until grok's refill or `grok.limit_rest_s`; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
+| the send | 429 `code 8` ("Too many requests", the out-of-quota send: no conversation is made, the quota does not move), another 4xx with grok's limit words, or an Imagine limit frame, before any progress (a 5xx with those words is unknown) | **not taken**: the job goes to another account (`pool.account_out_of_points`), the pool reads 0 until grok's refill or `grok.limit_rest_s`; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
 | the send | 401 `code 16`, Cloudflare's page or 403 `code 7` before any line | not taken, as before the send |
 | the send | 400 `code 3` (our own body was wrong) | failed `grok.http_error`, refunded |
 | after the send | images (text to image): k of n deliverable | done with the first n; fewer than n but at least one: delivered at the full charge with a timeline note |
@@ -1534,14 +1535,16 @@ operation, text to image included, makes a conversation, read by `GET /rest/app-
 With the conversation id the stream named, that one is read. With only the request id (the run broke before the
 first line), the account's recent conversations are listed twice (no kind: the edits; `CONVERSATION_KIND_IMAGINE`:
 text to image and video), those made from 60 s before the send to `grok.render_deadline_s` after it are read, and the
-one whose human turn is exactly the sent text is the job's; two such (a twin prompt) is no match. A read-back has no
+one whose human turn is exactly the sent text is the job's; two such (a twin prompt) is no match, nor is one when
+another candidate could not be read. A read-back has no
 progress: a job still running is not there yet. Deliverable outputs are `Found` and fetched; anything else stays
 unknown, never "not sent" (a re-send would charge twice), and the render deadline fails it with its refund. Reads
 only: the reconciler never sends, uploads or opens the socket.
 
 **Decoy video.** grok sometimes answers a video order with a stock clip. A finished video with no `rRated` key, or done
 faster than `grok.decoy_min_s` after the send, is a decoy: failed `grok.decoy_video`, refunded, the account's video
-pool rests `grok.decoy_rest_s`. A reconcile applies only the `rRated` rule (a read-back has no stream timing). Above
+pool rests `grok.decoy_rest_s`. A reconcile judges it by the `rRated` key and the human-to-answer time of the
+read-back; a decoy there stays unknown (the deadline refunds it) and rests the video pool the same way. Above
 `grok.alert_decoy_rate` of the last 24 h jobs the drift alert fires.
 
 **Results.** A text-to-image result is public (`imagine-public.x.ai`) and fetched with no cookie; an edit's image and a
@@ -1581,6 +1584,8 @@ never lets the customer pick grok's mode (a `--mode=` in the prompt is refused),
 | `grok.refusal_max_accounts` | 2 | accounts one job may try on a limit answer before it fails refunded (`grok.limit`) |
 | `grok.decoy_min_s` | 15 | a video done faster than this is a decoy; 0 = only the `rRated` rule, 0-120 |
 | `grok.decoy_rest_s` | 86400 | the video pool's rest after a decoy, 0-604800 |
+| `grok.signed_out_rest_s` | 600 | the rest after a signed-out or blocked read, then a recheck, 60-86400 |
+| `grok.signed_out_gap_s` | 540 | such a read this soon after the last counted strike adds none, 0-86400 |
 | `grok.cf_rest_s` | 600 | the rest after Cloudflare's page, 60-86400 |
 | `grok.antibot_rest_s` | 1800 | the rest after 403 `code 7`, 60-86400 |
 | `grok.statsig_mode` | `off` | `off` or `generate` (above) |

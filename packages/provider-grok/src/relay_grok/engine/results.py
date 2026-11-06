@@ -8,12 +8,13 @@ so nothing here can spend a use or make a second order.
   the account's recent conversations are listed (an edit has no kind; a text-to-image or a video is
   `CONVERSATION_KIND_IMAGINE`), those made in `[sent_at - FIND_BEFORE_S, sent_at + grok.render_deadline_s]` are read,
   and the one whose human turn is exactly the sent text is the job's. Two such (a twin prompt) is no match: one of
-  them is another job's. A conversation a refused send made (400 `code 3`) has no human turn, so it never matches.
+  them is another job's; nor is one when another candidate could not be read (that one may be the job's). A
+  conversation a refused send made (400 `code 3`) has no human turn, so it never matches.
   The answer is judged like the stream: the model's generated assets of the job's kind, a moderated one
   (`auxKeys.moderated` is the string "true") never delivered; a video with no `rRated` key, or done (human turn to
-  answer) faster than `grok.decoy_min_s`, is a decoy. Something deliverable is `Found` (taken) with its outputs in
-  `provider_state.outputs`; anything else is `StillUnknown`, NEVER `NotSent`: a re-send would charge twice. The render
-  deadline fails such a job with its refund.
+  answer) faster than `grok.decoy_min_s`, is a decoy: the account's video pool rests `grok.decoy_rest_s`. Something
+  deliverable is `Found` (taken) with its outputs in `provider_state.outputs`; anything else is `StillUnknown`, NEVER
+  `NotSent`: a re-send would charge twice. The render deadline fails such a job with its refund.
 - Poll: the outputs a reconcile recorded, handed to the fetcher; it reads nothing upstream.
 - Fetch: a text-to-image result is public (`imagine-public.x.ai`): `net.stream_download` with no cookie. An edit's
   image and a video are on `assets.grok.com`: `Web.get_media` with the account's cookie. Any other place (another host,
@@ -29,7 +30,7 @@ from typing import Any
 from urllib.parse import quote, urlsplit
 
 from relay_core.net import stream_download
-from relay_core.providers import Done, Found, Output, OutputGone, Pending, PollResult, Reconciled, StillUnknown
+from relay_core.providers import Done, Found, Output, OutputGone, Pending, PollResult, Reconciled, Rest, StillUnknown
 from relay_grok.constants import (
     ASSETS_HOST,
     LIST_CONVERSATIONS_PATH,
@@ -105,16 +106,16 @@ def sent_here(body: Any, texts: tuple[str, ...], n: int | None) -> bool:
     return False
 
 
-def outputs_of(body: Any, kind: str, op: str, decoy_min_s: float) -> list[dict]:
+def outputs_of(body: Any, kind: str, op: str, decoy_min_s: float) -> tuple[list[dict], int]:
     """The deliverable outputs of a conversation read: the model's finished assets of `kind`, as output dicts (ref,
-    mime, upstream_id), in answer order. A moderated one is never an output, nor is a video with no `rRated` key or one
-    done faster than `decoy_min_s` (0 skips the time rule, never the key rule). None while grok still works on it
-    (`inflightResponses`)."""
+    mime, upstream_id), in answer order, and how many decoys it held. A moderated one is never an output, nor is a
+    video with no `rRated` key or one done faster than `decoy_min_s` (0 skips the time rule, never the key rule): that
+    is a decoy. None while grok still works on it (`inflightResponses`)."""
     turns = _turns(body)
     if turns is None or body.get("inflightResponses"):
-        return []
+        return [], 0
     asked = {t.get("responseId"): _when(t.get("createTime")) for t in turns if _human(t)}
-    outs = []
+    outs, decoys = [], 0
     for turn in turns:
         if _human(turn):
             continue
@@ -130,8 +131,10 @@ def outputs_of(body: Any, kind: str, op: str, decoy_min_s: float) -> list[dict]:
             if (asset.get("auxKeys") or {}).get("moderated") == "true":
                 continue
             if kind == "video" and "rRated" not in asset:
+                decoys += 1
                 continue
             if kind == "video" and decoy_min_s and (took is None or took < decoy_min_s):
+                decoys += 1
                 continue
             aid = _id(asset.get("assetId"))
             if op == "text_to_image":
@@ -140,7 +143,7 @@ def outputs_of(body: Any, kind: str, op: str, decoy_min_s: float) -> list[dict]:
                 ref = asset_url(asset.get("key"))
             if ref is not None:
                 outs.append({"ref": ref, "mime": _MIME[kind], "upstream_id": aid})
-    return outs
+    return outs, decoys
 
 
 # ---- reconcile -----------------------------------------------------------------------------------------------------
@@ -204,12 +207,15 @@ async def reconcile(ctx, job, settings, *, make_session: Callable[[Any], Any] = 
     except Exception as e:      # noqa: BLE001 - any failed read settles nothing; the type only (it may hold the proxy)
         log.warning("grok job %s: the reconcile read failed (%s)", job.id, type(e).__name__)
         return StillUnknown()
+    if not read_ok:             # a candidate went unread: it may be the job's, so no other one is taken for it
+        return StillUnknown(answered=False)
     if len(found) != 1:         # none, or a twin prompt: another job's conversation is never taken for this one
         return StillUnknown(answered=read_ok)
     cid, body = next(iter(found.items()))
-    outs = outputs_of(body, kind, job.operation, int(settings.get("grok.decoy_min_s")))
-    if not outs:
-        return StillUnknown(answered=read_ok)
+    outs, decoys = outputs_of(body, kind, job.operation, int(settings.get("grok.decoy_min_s")))
+    if not outs:                # a decoy rests the video pool as the stream's does (submit.py)
+        rest = Rest("video", now() + timedelta(seconds=int(settings.get("grok.decoy_rest_s"))), "decoy")
+        return StillUnknown(answered=read_ok, effects=(rest,) if decoys else ())
     note = made_note(len(outs), n, kind) if n else None
     if note is not None:
         log.warning("grok job %s: %s", job.id, note)

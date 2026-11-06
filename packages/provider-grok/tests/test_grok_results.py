@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from grokkit import PROXY, Ctx, FakeSession, Resp, assert_no_secret, fixture, job, settings
 
-from relay_core.providers import Done, Found, Output, OutputGone, Pending, StillUnknown, Suspect
+from relay_core.providers import Done, Found, Output, OutputGone, Pending, Rest, StillUnknown, Suspect
 from relay_core.testing.mutation import mutation
 from relay_grok.constants import (
     LIST_CONVERSATIONS_PATH,
@@ -40,6 +40,8 @@ T2I_REFS = ["https://imagine-public.x.ai/imagine-public/images/%s.jpg" % a
             for a in ("af000000-0000-4000-8000-000000000003", "a1000000-0000-4000-8000-000000000002")]
 T2V_SENT = datetime(2026, 11, 6, 4, 30, 9, 900000, tzinfo=UTC)
 EDIT_SENT = datetime(2026, 11, 6, 4, 27, 20, tzinfo=UTC)    # early, so the four empty probe conversations are read too
+DECOY = StillUnknown(answered=True, effects=(Rest("video", datetime(2026, 11, 7, 5, tzinfo=UTC), "decoy"),))
+DECOY_REST = "        return StillUnknown(answered=read_ok, effects=(rest,) if decoys else ())"
 
 
 def body(name: str) -> dict:
@@ -112,7 +114,7 @@ def test_a_read_back_without_rrated_is_not_found():
     decoy = body("readback_t2v")
     del assets(decoy)[0]["rRated"]
     got, _, _ = run(by_id("t2v", T2V), {("GET", responses(T2V)): ok(decoy)})
-    assert got == StillUnknown(answered=True), "a video without rRated was found"
+    assert got == DECOY, "a video without rRated was found"
 
 
 @mutation(FILE, "            if kind == \"video\" and decoy_min_s and (took is None or took < decoy_min_s):",
@@ -120,13 +122,25 @@ def test_a_read_back_without_rrated_is_not_found():
 def test_a_video_done_faster_than_decoy_min_s_is_not_found_and_zero_turns_the_time_rule_off():
     route = {("GET", responses(T2V)): ok(body("readback_t2v"))}       # 33.6 s from the ask to the answer
     got, _, _ = run(by_id("t2v", T2V), route, decoy_min_s=60)
-    assert got == StillUnknown(answered=True), "a decoy too fast was found"
+    assert got == DECOY, "a decoy too fast was found"
     got, _, _ = run(by_id("t2v", T2V), {("GET", responses(T2V)): ok(body("readback_t2v"))}, decoy_min_s=30)
     assert isinstance(got, Found)
     decoy = body("readback_t2v")
     del assets(decoy)[0]["rRated"]
     got, _, _ = run(by_id("t2v", T2V), {("GET", responses(T2V)): ok(decoy)}, decoy_min_s=0)
-    assert got == StillUnknown(answered=True), "decoy_min_s 0 still checks rRated"
+    assert got == DECOY, "decoy_min_s 0 still checks rRated"
+
+
+@mutation(FILE, DECOY_REST, "        return StillUnknown(answered=read_ok)",
+          expect="a decoy read back must rest the video pool")
+def test_a_decoy_read_back_rests_the_video_pool_like_the_stream():
+    decoy = body("readback_t2v")
+    del assets(decoy)[0]["rRated"]
+    got, _, _ = run(by_id("t2v", T2V), {("GET", responses(T2V)): ok(decoy)}, decoy_rest_s=3600)
+    assert got == StillUnknown(answered=True, effects=(
+        Rest("video", datetime(2026, 11, 6, 6, tzinfo=UTC), "decoy"),)), "a decoy read back must rest the video pool"
+    got, _, _ = run(by_id("t2v", T2V), {("GET", responses(T2V)): ok(body("readback_empty"))})
+    assert got == StillUnknown(answered=True), "no video at all is no decoy: nothing rests"
 
 
 @mutation(FILE, '            if (asset.get("auxKeys") or {}).get("moderated") == "true":',
@@ -212,6 +226,16 @@ def test_a_twin_prompt_outside_the_window_or_already_claimed_never_matches():
 
     got, _, _ = run(by_text("t2v", "another prompt", T2V_SENT), routes)
     assert got == StillUnknown(answered=True), "another text matched"
+
+
+@mutation(FILE, "    if not read_ok:", "    if False:", expect="a match was taken beside an unread candidate")
+def test_a_match_beside_an_unread_candidate_is_still_unknown():
+    twin = body("list_conversations_imagine")         # two conversations in the window: one matches, one is unread
+    twin["conversations"][1]["createTime"] = twin["conversations"][0]["createTime"]
+    got, _, _ = run(by_text("t2v", T2V_PROMPT, T2V_SENT), {
+        ("GET", LIST_CONVERSATIONS_PATH): lists(imagine=twin),
+        ("GET", responses(T2V)): ok(body("readback_t2v")), ("GET", responses(T2I)): Resp(500, text="oops")})
+    assert got == StillUnknown(answered=False), "a match was taken beside an unread candidate"
 
 
 @mutation(FILE, "    if len(found) != 1:         # none, or a twin prompt: another job's conversation is never taken "

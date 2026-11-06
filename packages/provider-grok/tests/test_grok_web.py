@@ -19,6 +19,7 @@ from grokkit import (
     assert_no_secret,
     fixture,
     names,
+    settings,
 )
 
 from relay_core.providers import Balance, Cooldown, Dead, Health, ProxyBad, Success, Suspect, Tier
@@ -355,8 +356,8 @@ def test_a_check_without_email_shows_the_given_name():
     assert check(fake({("GET", SESSION_PATH): signed_in(email="")})).display_name == "Test"
 
 
-@mutation(CHECK_FILE, "    return (Suspect(why, min_gap_s=SIGNED_OUT_GAP_S),", "    return (Suspect(why),",
-          expect="a signed-out read must be a spaced strike")
+@mutation(CHECK_FILE, '    return (Suspect(why, min_gap_s=settings.get("grok.signed_out_gap_s")),',
+          "    return (Suspect(why),", expect="a signed-out read must be a spaced strike")
 def test_a_signed_out_check_is_a_spaced_strike_never_dead_at_once():
     for routes in ({("GET", SESSION_PATH): reply("session_signed_out")},
                    {("POST", QUOTA_PATH): reply("rest_401_bad_credentials")}):
@@ -365,6 +366,19 @@ def test_a_signed_out_check_is_a_spaced_strike_never_dead_at_once():
         strike, rest = health.effects
         assert isinstance(strike, Suspect) and strike.min_gap_s > 0, "a signed-out read must be a spaced strike"
         assert isinstance(rest, Cooldown) and rest.recheck and rest.until > NOW
+
+
+@mutation(CHECK_FILE, '    return (Suspect(why, min_gap_s=settings.get("grok.signed_out_gap_s")),',
+          "    return (Suspect(why, min_gap_s=540),", expect="the strike spacing is grok.signed_out_gap_s")
+@mutation(CHECK_FILE, 'now + timedelta(seconds=settings.get("grok.signed_out_rest_s"))',
+          "now + timedelta(seconds=600)", expect="the rest is grok.signed_out_rest_s")
+def test_the_signed_out_rest_and_strike_spacing_are_settings():
+    ctx = Ctx(settings_=settings(signed_out_rest_s=1200, signed_out_gap_s=100))
+    strike, rest = check(fake({("GET", SESSION_PATH): reply("session_signed_out")}), ctx).effects
+    assert strike.min_gap_s == 100, "the strike spacing is grok.signed_out_gap_s"
+    assert rest.until == NOW + timedelta(seconds=1200), "the rest is grok.signed_out_rest_s"
+    strike, rest = check(fake({("GET", SESSION_PATH): reply("session_signed_out")})).effects
+    assert (strike.min_gap_s, rest.until) == (540, NOW + timedelta(seconds=600)), "the defaults are 540 s and 600 s"
 
 
 def test_a_blocked_account_is_a_strike_named_blocked():

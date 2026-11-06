@@ -454,6 +454,20 @@ def test_a_refusal_after_the_first_line_is_never_not_taken():
     assert isinstance(result.job, Ambiguous)
 
 
+@mutation("packages/provider-grok/src/relay_grok/engine/wire.py",
+          "    if status == 429 or (400 <= status < 500 and is_limit(body)):",
+          "    if status == 429 or is_limit(body):", expect="a 5xx with limit words must be ambiguous")
+def test_a_5xx_with_limit_words_is_ambiguous_never_another_account():
+    ctx = Ctx()
+    answer = Resp(500, {"content-type": "application/json"},
+                  json_body={"error": {"code": 13, "message": "usage limit during response processing"}})
+    session = media_session(ctx, answer)
+    result = run(ctx, job("t2v"), session)
+    assert isinstance(result.job, Ambiguous), "a 5xx with limit words must be ambiguous"
+    assert not any(isinstance(e, Balance) for e in result.account)
+    assert len(sends(session)) == 1
+
+
 @mutation(SUBMIT_FILE, "    if a.limit and not a.jobs:\n", "    if a.limit:\n",
           expect="a limit after a job started must be ambiguous")
 def test_an_imagine_limit_after_a_job_started_is_ambiguous():
