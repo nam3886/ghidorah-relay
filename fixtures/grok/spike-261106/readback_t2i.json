@@ -1,0 +1,244 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations/c0000000-0000-4000-8000-000000000008/responses",
+  "query": {
+   "includeThreads": "true",
+   "conversationKind": "CONVERSATION_KIND_IMAGINE"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "responses": [
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000010",
+    "message": "a red apple on a wooden table, soft daylight, photo",
+    "sender": "human",
+    "createTime": "2026-11-06T04:28:34.917Z",
+    "parentResponseId": "20000000-0000-4000-8000-000000000001",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [],
+    "cardAttachmentsJson": [],
+    "fileUris": [],
+    "fileAttachmentsMetadata": [],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {},
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "",
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "textToImage": {
+      "prompt": "a red apple on a wooden table, soft daylight, photo",
+      "numOfImages": 2,
+      "aspectRatio": "1:1",
+      "modelName": "imagine-image-gen",
+      "mode": "fast"
+     }
+    },
+    "fileAttachmentAssetMetadata": [],
+    "fileIds": []
+   },
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000002",
+    "message": "",
+    "sender": "assistant",
+    "createTime": "2026-11-06T04:28:38.405Z",
+    "parentResponseId": "e0000000-0000-4000-8000-000000000010",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [
+     "af000000-0000-4000-8000-000000000003",
+     "a1000000-0000-4000-8000-000000000002"
+    ],
+    "cardAttachmentsJson": [],
+    "fileUris": [
+     "af000000-0000-4000-8000-000000000003",
+     "a1000000-0000-4000-8000-000000000002"
+    ],
+    "fileAttachmentsMetadata": [
+     {
+      "fileMetadataId": "af000000-0000-4000-8000-000000000003",
+      "fileMimeType": "image/jpeg",
+      "fileName": "image.jpg",
+      "fileUri": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000003/image.jpg",
+      "parsedFileUri": "",
+      "createTime": "2026-11-06T04:28:38.294Z",
+      "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+     },
+     {
+      "fileMetadataId": "a1000000-0000-4000-8000-000000000002",
+      "fileMimeType": "image/jpeg",
+      "fileName": "image.jpg",
+      "fileUri": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000002/image.jpg",
+      "parsedFileUri": "",
+      "createTime": "2026-11-06T04:28:38.394Z",
+      "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+     }
+    ],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {
+     "generated_image_height": 960,
+     "generated_image_width": 960
+    },
+    "generatedImageHeight": 960,
+    "generatedImageWidth": 960,
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "imagine-image-gen",
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "textToImage": {
+      "prompt": "a red apple on a wooden table, soft daylight, photo",
+      "numOfImages": 2,
+      "aspectRatio": "1:1",
+      "modelName": "imagine-image-gen",
+      "mode": "fast"
+     }
+    },
+    "fileAttachmentAssetMetadata": [
+     {
+      "assetId": "af000000-0000-4000-8000-000000000003",
+      "mimeType": "image/jpeg",
+      "name": "image.jpg",
+      "sizeBytes": 171124,
+      "createTime": "2026-11-06T04:28:38.294Z",
+      "lastUseTime": "2026-11-06T04:28:38.294Z",
+      "summary": "",
+      "previewImageKey": "",
+      "key": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000003/image.jpg",
+      "auxKeys": {
+       "image_edit_is_root_user_uploaded": "false",
+       "is_root_celebrity": "false",
+       "moderated": "false",
+       "original-image": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000003/original_image.jpg",
+       "thumbhash": "W1kKJwiXeZf0VYh8VJh1h2hmdgeZN4AF"
+      },
+      "responseId": "e0000000-0000-4000-8000-000000000002",
+      "isDeleted": false,
+      "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+      "currentConversationId": "c0000000-0000-4000-8000-000000000008",
+      "sourceConversationId": "c0000000-0000-4000-8000-000000000008",
+      "isModelGenerated": true,
+      "updateTime": "2026-11-06T04:28:38.294Z",
+      "isLatest": true,
+      "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+      "isRootAssetCreatedByModel": true,
+      "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000008",
+      "sharedWithTeam": false,
+      "sharedWithUserIds": [],
+      "width": 960,
+      "height": 960,
+      "rRated": false,
+      "thumbhash": "W1kKJwiXeZf0VYh8VJh1h2hmdgeZN4AF",
+      "mediaGenInput": {
+       "textToImage": {
+        "prompt": "a red apple on a wooden table, soft daylight, photo",
+        "numOfImages": 2,
+        "aspectRatio": "1:1",
+        "modelName": "imagine-image-gen",
+        "mode": "fast"
+       }
+      },
+      "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+     },
+     {
+      "assetId": "a1000000-0000-4000-8000-000000000002",
+      "mimeType": "image/jpeg",
+      "name": "image.jpg",
+      "sizeBytes": 200590,
+      "createTime": "2026-11-06T04:28:38.394Z",
+      "lastUseTime": "2026-11-06T04:28:38.394Z",
+      "summary": "",
+      "previewImageKey": "",
+      "key": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000002/image.jpg",
+      "auxKeys": {
+       "image_edit_is_root_user_uploaded": "false",
+       "is_root_celebrity": "false",
+       "moderated": "false",
+       "original-image": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000002/original_image.jpg",
+       "thumbhash": "YSgOFwbAZ3end3iKhCiGiIl3hkAoFYUA"
+      },
+      "responseId": "e0000000-0000-4000-8000-000000000002",
+      "isDeleted": false,
+      "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+      "currentConversationId": "c0000000-0000-4000-8000-000000000008",
+      "sourceConversationId": "c0000000-0000-4000-8000-000000000008",
+      "isModelGenerated": true,
+      "updateTime": "2026-11-06T04:28:38.394Z",
+      "isLatest": true,
+      "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+      "isRootAssetCreatedByModel": true,
+      "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000008",
+      "sharedWithTeam": false,
+      "sharedWithUserIds": [],
+      "width": 960,
+      "height": 960,
+      "rRated": false,
+      "thumbhash": "YSgOFwbAZ3end3iKhCiGiIl3hkAoFYUA",
+      "mediaGenInput": {
+       "textToImage": {
+        "prompt": "a red apple on a wooden table, soft daylight, photo",
+        "numOfImages": 2,
+        "aspectRatio": "1:1",
+        "modelName": "imagine-image-gen",
+        "mode": "fast"
+       }
+      },
+      "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+     }
+    ],
+    "fileIds": []
+   }
+  ],
+  "inflightResponses": []
+ }
+}

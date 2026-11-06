@@ -1,0 +1,70 @@
+{
+ "synthetic": "synthetic: built by hand, not captured; shape from chenyme grok2api (error frame with err_code/err_msg); the real limit frame is unseen",
+ "status": 101,
+ "headers": {},
+ "frames": [
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314000,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "type": "reset"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314001,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "requestId": "img_00000000000000000000000000000001",
+       "text": "a red apple on a wooden table, soft daylight, photo",
+       "type": "input_text",
+       "properties": {
+        "section_count": 0,
+        "is_kids_mode": false,
+        "enable_nsfw": false,
+        "skip_upsampler": false,
+        "enable_side_by_side": true,
+        "is_initial": false,
+        "aspect_ratio": "1:1",
+        "enable_pro": false,
+        "num_generations": 2
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 650,
+   "data": {
+    "type": "session",
+    "conversation_id": "c0000000-0000-4000-8000-000000000090"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 900,
+   "data": {
+    "type": "error",
+    "err_code": "rate_limit_exceeded",
+    "err_msg": "You have reached your usage limit. Please try again later.",
+    "request_id": "img_00000000000000000000000000000001"
+   }
+  }
+ ]
+}

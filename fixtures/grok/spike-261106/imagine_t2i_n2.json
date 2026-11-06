@@ -1,0 +1,310 @@
+{
+ "status": 101,
+ "headers": {},
+ "frames": [
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314000,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "type": "reset"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314001,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "requestId": "img_00000000000000000000000000000001",
+       "text": "a red apple on a wooden table, soft daylight, photo",
+       "type": "input_text",
+       "properties": {
+        "section_count": 0,
+        "is_kids_mode": false,
+        "enable_nsfw": false,
+        "skip_upsampler": false,
+        "enable_side_by_side": true,
+        "is_initial": false,
+        "aspect_ratio": "1:1",
+        "enable_pro": false,
+        "num_generations": 2
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 650,
+   "data": {
+    "type": "session",
+    "conversation_id": "c0000000-0000-4000-8000-000000000008"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3150,
+   "data": {
+    "type": "json",
+    "current_status": "start_stage",
+    "percentage_complete": 0.0,
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": null,
+    "r_rated": null,
+    "order": 0,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000001",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3460,
+   "data": {
+    "type": "image",
+    "blob": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAIklEQVR4nGPcp6HBQApgIkk1w6gG4gATkergYFQDMYBkDQBtlwEu7a8sowAAAABJRU5ErkJggg==",
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "grid_index": 0,
+    "is_alteration": false,
+    "order": 0,
+    "section_id": 0,
+    "request_id": "img_00000000000000000000000000000001",
+    "url": "https://imagine-public.x.ai/imagine-public/images/70000000-0000-4000-8000-000000000001.png",
+    "id": "70000000-0000-4000-8000-000000000001",
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "percentage_complete": 50.0,
+    "model_name": "imagine-x-1",
+    "r_rated": null,
+    "moderated": null,
+    "side_by_side_index": null,
+    "confirmation": null,
+    "width": 960,
+    "height": 960,
+    "has_watermark": null,
+    "is_jurisdiction_restricted": null,
+    "is_pro": null
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3460,
+   "data": {
+    "type": "json",
+    "current_status": "start_stage",
+    "percentage_complete": 0.0,
+    "job_id": "a1000000-0000-4000-8000-000000000002",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": null,
+    "r_rated": null,
+    "order": 1,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000002",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3580,
+   "data": {
+    "type": "image",
+    "blob": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAIklEQVR4nGPcp6HBQApgIkk1w6gG4gATkergYFQDMYBkDQBtlwEu7a8sowAAAABJRU5ErkJggg==",
+    "job_id": "a1000000-0000-4000-8000-000000000002",
+    "grid_index": 0,
+    "is_alteration": false,
+    "order": 1,
+    "section_id": 0,
+    "request_id": "img_00000000000000000000000000000001",
+    "url": "https://imagine-public.x.ai/imagine-public/images/70000000-0000-4000-8000-000000000002.png",
+    "id": "70000000-0000-4000-8000-000000000002",
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "percentage_complete": 50.0,
+    "model_name": "imagine-x-1",
+    "r_rated": null,
+    "moderated": null,
+    "side_by_side_index": null,
+    "confirmation": null,
+    "width": 960,
+    "height": 960,
+    "has_watermark": null,
+    "is_jurisdiction_restricted": null,
+    "is_pro": null
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 4310,
+   "data": {
+    "type": "image",
+    "blob": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAQABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDCooorzj7E/9k=",
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "grid_index": 0,
+    "is_alteration": false,
+    "order": 0,
+    "section_id": 0,
+    "request_id": "img_00000000000000000000000000000001",
+    "url": "https://imagine-public.x.ai/imagine-public/images/af000000-0000-4000-8000-000000000003.jpg",
+    "id": "af000000-0000-4000-8000-000000000003",
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "percentage_complete": 100.0,
+    "model_name": "imagine-x-1",
+    "r_rated": false,
+    "moderated": false,
+    "side_by_side_index": null,
+    "confirmation": null,
+    "width": 960,
+    "height": 960,
+    "has_watermark": null,
+    "is_jurisdiction_restricted": null,
+    "is_pro": null,
+    "mode": "fast"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 4500,
+   "data": {
+    "type": "image",
+    "blob": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAQABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDCooorzj7E/9k=",
+    "job_id": "a1000000-0000-4000-8000-000000000002",
+    "grid_index": 0,
+    "is_alteration": false,
+    "order": 1,
+    "section_id": 0,
+    "request_id": "img_00000000000000000000000000000001",
+    "url": "https://imagine-public.x.ai/imagine-public/images/a1000000-0000-4000-8000-000000000002.jpg",
+    "id": "a1000000-0000-4000-8000-000000000002",
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "percentage_complete": 100.0,
+    "model_name": "imagine-x-1",
+    "r_rated": false,
+    "moderated": false,
+    "side_by_side_index": null,
+    "confirmation": null,
+    "width": 960,
+    "height": 960,
+    "has_watermark": null,
+    "is_jurisdiction_restricted": null,
+    "is_pro": null,
+    "mode": "fast"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 4500,
+   "data": {
+    "type": "json",
+    "current_status": "completed",
+    "percentage_complete": 100.0,
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": false,
+    "r_rated": false,
+    "order": 0,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000001",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960,
+    "is_root_user_uploaded": false,
+    "mode": "fast"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 4500,
+   "data": {
+    "type": "json",
+    "current_status": "completed",
+    "percentage_complete": 100.0,
+    "job_id": "a1000000-0000-4000-8000-000000000002",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": false,
+    "r_rated": false,
+    "order": 1,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000002",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960,
+    "is_root_user_uploaded": false,
+    "mode": "fast"
+   }
+  }
+ ],
+ "note": "11:28:34 GMT+7 06/11, n=2 1:1 non-pro. Sent frames rebuilt from s5_image.py (the spike logged received frames only). Every blob is a 16x16 sample (PNG for a .png preview, JPEG for a .jpg final); the real ones were 24-31 KB / 171-200 KB."
+}

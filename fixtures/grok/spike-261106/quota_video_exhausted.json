@@ -1,0 +1,23 @@
+{
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "image": null,
+  "imagePro": {
+   "available": true,
+   "remainingQueries": 1,
+   "windowSizeSeconds": 86400
+  },
+  "imageEdit": null,
+  "video": null,
+  "video720p": {
+   "available": true,
+   "remainingQueries": 0,
+   "windowSizeSeconds": 86400,
+   "nextAvailableAt": "2026-11-07T05:30:10.874748205Z"
+  }
+ },
+ "note": "11:55:21 GMT+7, right before the out-of-quota send (step 0 Q4)"
+}

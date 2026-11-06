@@ -1,0 +1,13 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/image-generations"
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "generations": []
+ }
+}

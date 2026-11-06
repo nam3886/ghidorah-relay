@@ -1,0 +1,21 @@
+{
+ "request": {
+  "method": "POST",
+  "path": "/rest/media/post/list",
+  "body": {
+   "limit": 40,
+   "filter": {
+    "source": "MEDIA_POST_SOURCE_OWNED"
+   }
+  }
+ },
+ "status": 400,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "code": 9,
+  "message": "MongoDB-backed media post listing has been removed",
+  "details": []
+ }
+}

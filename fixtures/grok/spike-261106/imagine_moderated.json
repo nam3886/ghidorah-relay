@@ -1,0 +1,155 @@
+{
+ "synthetic": "synthetic: built by hand, not captured; shape from the n2 capture (job 0 only, its final removed, completed.moderated true); grok's real moderated frames unseen",
+ "status": 101,
+ "headers": {},
+ "frames": [
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314000,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "type": "reset"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793939314001,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "requestId": "img_00000000000000000000000000000001",
+       "text": "a red apple on a wooden table, soft daylight, photo",
+       "type": "input_text",
+       "properties": {
+        "section_count": 0,
+        "is_kids_mode": false,
+        "enable_nsfw": false,
+        "skip_upsampler": false,
+        "enable_side_by_side": true,
+        "is_initial": false,
+        "aspect_ratio": "1:1",
+        "enable_pro": false,
+        "num_generations": 1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 650,
+   "data": {
+    "type": "session",
+    "conversation_id": "c0000000-0000-4000-8000-000000000008"
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3150,
+   "data": {
+    "type": "json",
+    "current_status": "start_stage",
+    "percentage_complete": 0.0,
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": null,
+    "r_rated": null,
+    "order": 0,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000001",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 3460,
+   "data": {
+    "type": "image",
+    "blob": "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAIklEQVR4nGPcp6HBQApgIkk1w6gG4gATkergYFQDMYBkDQBtlwEu7a8sowAAAABJRU5ErkJggg==",
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "grid_index": 0,
+    "is_alteration": false,
+    "order": 0,
+    "section_id": 0,
+    "request_id": "img_00000000000000000000000000000001",
+    "url": "https://imagine-public.x.ai/imagine-public/images/70000000-0000-4000-8000-000000000001.png",
+    "id": "70000000-0000-4000-8000-000000000001",
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "percentage_complete": 50.0,
+    "model_name": "imagine-x-1",
+    "r_rated": null,
+    "moderated": null,
+    "side_by_side_index": null,
+    "confirmation": null,
+    "width": 960,
+    "height": 960,
+    "has_watermark": null,
+    "is_jurisdiction_restricted": null,
+    "is_pro": null
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 4500,
+   "data": {
+    "type": "json",
+    "current_status": "completed",
+    "percentage_complete": 100.0,
+    "job_id": "af000000-0000-4000-8000-000000000003",
+    "elapsed": null,
+    "prompt": "a red apple on a wooden table, soft daylight, photo",
+    "confirmation": null,
+    "full_prompt": "a red apple on a wooden table, soft daylight, photo",
+    "flags": null,
+    "is_alteration": false,
+    "section_id": 0,
+    "input_type": "text",
+    "request_id": "img_00000000000000000000000000000001",
+    "asr_transcript": null,
+    "asr_accepted": null,
+    "seed": null,
+    "image_reference": null,
+    "is_image_edit": null,
+    "moderated": true,
+    "r_rated": false,
+    "order": 0,
+    "model_name": "imagine-x-1",
+    "image_id": "60000000-0000-4000-8000-000000000001",
+    "side_by_side_index": null,
+    "width": 960,
+    "height": 960,
+    "is_root_user_uploaded": false,
+    "mode": "fast"
+   }
+  }
+ ]
+}

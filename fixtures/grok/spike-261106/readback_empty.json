@@ -1,0 +1,60 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations/c0000000-0000-4000-8000-000000000002/responses",
+  "query": {
+   "includeThreads": "true",
+   "conversationKind": "CONVERSATION_KIND_IMAGINE"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "responses": [
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000005",
+    "message": "",
+    "sender": "assistant",
+    "createTime": "2026-11-06T04:27:24.718Z",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [],
+    "cardAttachmentsJson": [],
+    "fileUris": [],
+    "fileAttachmentsMetadata": [],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "",
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "fileAttachmentAssetMetadata": [],
+    "fileIds": []
+   }
+  ],
+  "inflightResponses": []
+ }
+}

@@ -44,6 +44,19 @@ What the captures do not hold.
   `f/conversation/prepare`, `files`, `files/{id}/uploaded`, the attachment download and the deleted-conversation 404
   were not saved by the spike: `gpt/spike-261104/{conv_prepare,files_create,files_uploaded,attachment_download,
   conversation_deleted_404}.json` are synthetic (key names as printed, placeholder values, a `synthetic` field).
+- grok (grok.com, 06/11): never seen, so synthetic (a `synthetic` field in the JSON, a leading comment in the HTML):
+  `grok/spike-261106/imagine_moderated.json` (a job that completes `moderated:true` with no final),
+  `ndjson_edit_moderated.json` (the edit's progress-100 line with `moderated:true`), `ndjson_t2v_decoy.json`
+  (muhrifqie's decoy: progress 20/45/70/90/100, 100 at 5 s, no `rRated`), `rest_403_code7.json` (chenyme's anti-bot
+  body), `rest_403_cloudflare.html` (a "Just a moment" challenge page), `rest_403_blocked.json` (chenyme's
+  `blocked-user` phrases; the real code and wording are unknown and might be `code 7`), `rest_429.json` (the real
+  429 body of the send, as a REST read's answer), `imagine_limit_frame.json` (chenyme's `error` frame with
+  `err_code`/`err_msg`; the real Imagine limit frame is unseen), `imagine_stray_request.json` (the n2 capture plus a
+  final and a `completed` frame of another `request_id`). `page_home.html` is synthetic too: the raw 191 KB page holds
+  account values and is not copied; it keeps only the facts the spike measured. Also not captured: a separate
+  `quota_info` read after the edit alone (`quota_after_t2v.json` is one read after the edit and the t2v), an upload
+  `terminalError`, a read-back of a job still running (`inflightResponses` was only seen empty), an Imagine history
+  (there is none: `image_generations_empty.json`).
 
 ## meta.ai live run (23/10/2026)
 
@@ -628,3 +641,45 @@ Redacted frames, pages and schema from the HTTP spike and Task 0 of the HTTP pla
 - `meta/http-261105/prompt_page_edit.html` — `GET /prompt/<cid>` of the HTTP edit job (input, preview and final links).
 - `meta/http-261105/schema_261105.json` — the two base64 FileDescriptorProtos of the gateway schema (public JS).
 - `meta/http-261105/gateway_constants.txt` — bundle excerpts holding `x-dgw-appid` and the `product_context` strings (public JS).
+
+## grok.com spike and step-0 probe (06/11/2026)
+
+One free account over plain HTTP/WS through its own proxy (`plans/grok-spike-261106.md`,
+`plans/grok-design-261106/step0.md`); `fixtures/grok/FINDINGS.md` (F1–F9) sums them up. Each JSON file is
+`{status, headers, body | lines + t_ms | frames: [{dir, t_ms, data}]}`, plus a `note`; read-backs add the `request`
+they answer. The box saved its evidence already redacted (ids as `<UUID>` / step-0 labels, the user id as `<SECRET>`,
+email, names); a throwaway script outside the repo turned every placeholder into a fixed UUID-shaped fake, the same
+across files (the id table is at the top of FINDINGS), cut every `blob` to a 16×16 sample image, dropped `cf-ray` /
+`date`, faked the account's creation time, and rebuilt the sent Imagine frames from the spike script. `evidence/run.log`
+(whose chat frames still hold partly cut conversation ids) and `secrets/` were not copied; the bodies taken from
+run.log carry no id. Checked: `scripts/redact-fixtures.py check` → 0 leaks; `scripts/secret-scan.py` over every
+`~/relay-secrets` file (the test jar, the spike proxy, the user id and email) → 0; the proxy host, user and password,
+the user id (with and without dashes), the email and its local part, `sso` / `sso-rw` / `x-userid` → 0 hits each.
+
+- `grok/spike-261106/session_signed_in.json` — `GET /api/auth/session` signed in (free, `xSubscriptionType` "").
+- `grok/spike-261106/session_signed_out.json` — the same with no cookie / a made-up `sso`.
+- `grok/spike-261106/quota_before.json` — `quota_info` before any generation (`imagePro` 4, `video720p` 1).
+- `grok/spike-261106/quota_after_t2i.json` — after the n=2 t2i (`imagePro` 2).
+- `grok/spike-261106/quota_after_t2v.json` — after the edit and the t2v (`imagePro` 1, `video720p` 0 + `nextAvailableAt`).
+- `grok/spike-261106/quota_video_exhausted.json` — right before the out-of-quota send (11:55).
+- `grok/spike-261106/rest_401_no_credentials.json` — REST 401 `code 16`, no cookie.
+- `grok/spike-261106/rest_401_bad_credentials.json` — REST 401 `code 16`, a made-up `sso`.
+- `grok/spike-261106/ws_401.json` — the Imagine WS handshake refused 401.
+- `grok/spike-261106/rest_400_code3.json` — `conversations/new` with body `{}`.
+- `grok/spike-261106/imagine_t2i_n2.json` — Imagine WS t2i, n=2: sent frames (rebuilt) and every received frame.
+- `grok/spike-261106/upload_v2.json` — `POST /http/upload-file-v2/direct` answer.
+- `grok/spike-261106/ndjson_edit.json` — the edit's NDJSON lines with their times.
+- `grok/spike-261106/ndjson_t2v.json` — the t2v's NDJSON lines with their times (`videoId` at 0.97 s, 100 at 34.5 s).
+- `grok/spike-261106/send_out_of_quota.json` — the t2v send with `video720p` 0: 429 `code 8`, one line.
+- `grok/spike-261106/readback_edit.json` — `GET /rest/app-chat/conversations/{id}/responses` of the edit.
+- `grok/spike-261106/readback_t2v.json` — the same for the t2v.
+- `grok/spike-261106/readback_t2i.json` — the same for the t2i (two assets = the two finals).
+- `grok/spike-261106/readback_empty.json` — the same for an empty-body probe conversation (no asset).
+- `grok/spike-261106/list_conversations.json` — `GET /rest/app-chat/conversations` (edit and probes).
+- `grok/spike-261106/list_conversations_imagine.json` — the same with `kind=CONVERSATION_KIND_IMAGINE` (t2v, t2i).
+- `grok/spike-261106/post_list_removed.json` — `POST /rest/media/post/list`: 400 `code 9`, removed.
+- `grok/spike-261106/image_generations_empty.json` — `GET /rest/app-chat/image-generations`: empty.
+- `grok/spike-261106/page_home.html` — synthetic signed-in home page (see Gaps).
+- `grok/spike-261106/imagine_moderated.json`, `imagine_stray_request.json`, `imagine_limit_frame.json`,
+  `ndjson_edit_moderated.json`, `ndjson_t2v_decoy.json`, `rest_403_code7.json`, `rest_403_cloudflare.html`,
+  `rest_403_blocked.json`, `rest_429.json` — synthetic (see Gaps).

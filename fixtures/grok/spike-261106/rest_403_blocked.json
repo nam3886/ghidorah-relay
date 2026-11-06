@@ -1,0 +1,14 @@
+{
+ "synthetic": "synthetic: built by hand, not captured; shape from chenyme grok2api phrases blocked-user / user is blocked; the real code and wording are unseen",
+ "status": 403,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "error": {
+   "code": 13,
+   "message": "blocked-user: user is blocked",
+   "details": []
+  }
+ }
+}

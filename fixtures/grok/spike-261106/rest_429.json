@@ -1,0 +1,14 @@
+{
+ "synthetic": "synthetic: built by hand, not captured; shape from send_out_of_quota (the real 429 body of the send), as the answer of a REST read",
+ "status": 429,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "error": {
+   "code": 8,
+   "message": "Too many requests",
+   "details": []
+  }
+ }
+}

@@ -1,0 +1,19 @@
+{
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "uploadId": "50000000-0000-4000-8000-000000000001",
+  "fileMetadata": {
+   "fileMetadataId": "af000000-0000-4000-8000-000000000001",
+   "fileMimeType": "image/jpeg",
+   "fileName": "apple.jpg",
+   "fileUri": "users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content",
+   "parsedFileUri": "",
+   "createTime": "2026-11-06T04:29:42.504524358Z",
+   "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+  }
+ },
+ "note": "POST /http/upload-file-v2/direct (multipart file + file_source=IMAGINE_SELF_UPLOAD_FILE_SOURCE), 3.0 s; fileMetadataId is the edit's inputAssets[0]"
+}

@@ -1,0 +1,14 @@
+{
+ "synthetic": "synthetic: built by hand, not captured; shape from chenyme grok2api (403 code 7 anti-bot); never seen in the spike",
+ "status": 403,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "error": {
+   "code": 7,
+   "message": "Request rejected by anti-bot rules.",
+   "details": []
+  }
+ }
+}

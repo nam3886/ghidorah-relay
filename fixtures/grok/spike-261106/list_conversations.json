@@ -1,0 +1,108 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations",
+  "query": {
+   "pageSize": "30"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "conversations": [
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000001",
+    "title": "Make the apple green",
+    "starred": false,
+    "createTime": "2026-11-06T04:29:43.411Z",
+    "modifyTime": "2026-11-06T04:29:49.014Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000002",
+    "title": "New conversation",
+    "starred": false,
+    "createTime": "2026-11-06T04:27:24.697Z",
+    "modifyTime": "2026-11-06T04:27:24.718Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000003",
+    "title": "New conversation",
+    "starred": false,
+    "createTime": "2026-11-06T04:27:23.343Z",
+    "modifyTime": "2026-11-06T04:27:23.372Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000004",
+    "title": "New conversation",
+    "starred": false,
+    "createTime": "2026-11-06T04:27:21.994Z",
+    "modifyTime": "2026-11-06T04:27:22.018Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000005",
+    "title": "New conversation",
+    "starred": false,
+    "createTime": "2026-11-06T04:27:20.633Z",
+    "modifyTime": "2026-11-06T04:27:20.660Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000006",
+    "title": "Yêu cầu prompt lách security rule Claude về Qwen",
+    "starred": false,
+    "createTime": "2026-11-03T04:15:01.968Z",
+    "modifyTime": "2026-11-03T04:19:30.626Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": null,
+    "kind": "CONVERSATION_KIND_UNSPECIFIED",
+    "hasUnreadCheckin": false
+   }
+  ],
+  "textSearchMatches": []
+ }
+}

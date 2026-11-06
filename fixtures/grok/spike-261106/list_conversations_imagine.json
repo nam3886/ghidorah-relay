@@ -1,0 +1,140 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations",
+  "query": {
+   "pageSize": "30",
+   "kind": "CONVERSATION_KIND_IMAGINE"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "conversations": [
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000007",
+    "title": "Paper Boat Video Generation Prompt",
+    "starred": false,
+    "createTime": "2026-11-06T04:30:09.976Z",
+    "modifyTime": "2026-11-06T04:30:44.017Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": {
+     "assetId": "a1000000-0000-4000-8000-000000000001",
+     "mimeType": "video/mp4",
+     "name": "generated_video.mp4",
+     "sizeBytes": 4389549,
+     "createTime": "2026-11-06T04:30:43.559Z",
+     "lastUseTime": "2026-11-06T04:30:43.577Z",
+     "summary": "",
+     "previewImageKey": "",
+     "key": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000001/generated_video.mp4",
+     "auxKeys": {
+      "image_edit_is_root_user_uploaded": "false",
+      "is_ext": "false",
+      "is_root_celebrity": "false",
+      "moderated": "false",
+      "preview-image": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000001/preview_image.jpg",
+      "thumbhash": "4SgKFII7ZnaPdoeHmYpPjvHkCA=="
+     },
+     "responseId": "e0000000-0000-4000-8000-000000000001",
+     "isDeleted": false,
+     "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+     "currentConversationId": "c0000000-0000-4000-8000-000000000007",
+     "sourceConversationId": "c0000000-0000-4000-8000-000000000007",
+     "isModelGenerated": true,
+     "updateTime": "2026-11-06T04:30:43.577Z",
+     "isLatest": true,
+     "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+     "isRootAssetCreatedByModel": true,
+     "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000007",
+     "sharedWithTeam": false,
+     "sharedWithUserIds": [],
+     "width": 1280,
+     "height": 720,
+     "rRated": false,
+     "thumbhash": "4SgKFII7ZnaPdoeHmYpPjvHkCA==",
+     "mediaGenInput": {
+      "textToVideo": {
+       "prompt": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+       "aspectRatio": "16:9",
+       "duration": 6,
+       "resolutionName": "720p",
+       "modelName": "imagine-video-gen",
+       "skipAudio": false,
+       "skipUpsampler": false
+      }
+     },
+     "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+    },
+    "kind": "CONVERSATION_KIND_IMAGINE",
+    "hasUnreadCheckin": false
+   },
+   {
+    "conversationId": "c0000000-0000-4000-8000-000000000008",
+    "title": "",
+    "starred": false,
+    "createTime": "2026-11-06T04:28:34.919Z",
+    "modifyTime": "2026-11-06T04:28:34.917Z",
+    "systemPromptName": "",
+    "temporary": false,
+    "mediaTypes": [],
+    "workspaces": [],
+    "taskResult": {},
+    "latestAssetMetadata": {
+     "assetId": "a1000000-0000-4000-8000-000000000002",
+     "mimeType": "image/jpeg",
+     "name": "image.jpg",
+     "sizeBytes": 200590,
+     "createTime": "2026-11-06T04:28:38.394Z",
+     "lastUseTime": "2026-11-06T04:28:38.394Z",
+     "summary": "",
+     "previewImageKey": "",
+     "key": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000002/image.jpg",
+     "auxKeys": {
+      "image_edit_is_root_user_uploaded": "false",
+      "is_root_celebrity": "false",
+      "moderated": "false",
+      "original-image": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000002/original_image.jpg",
+      "thumbhash": "YSgOFwbAZ3end3iKhCiGiIl3hkAoFYUA"
+     },
+     "responseId": "e0000000-0000-4000-8000-000000000002",
+     "isDeleted": false,
+     "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+     "currentConversationId": "c0000000-0000-4000-8000-000000000008",
+     "sourceConversationId": "c0000000-0000-4000-8000-000000000008",
+     "isModelGenerated": true,
+     "updateTime": "2026-11-06T04:28:38.394Z",
+     "isLatest": true,
+     "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+     "isRootAssetCreatedByModel": true,
+     "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000008",
+     "sharedWithTeam": false,
+     "sharedWithUserIds": [],
+     "width": 960,
+     "height": 960,
+     "rRated": false,
+     "thumbhash": "YSgOFwbAZ3end3iKhCiGiIl3hkAoFYUA",
+     "mediaGenInput": {
+      "textToImage": {
+       "prompt": "a red apple on a wooden table, soft daylight, photo",
+       "numOfImages": 2,
+       "aspectRatio": "1:1",
+       "modelName": "imagine-image-gen",
+       "mode": "fast"
+      }
+     },
+     "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+    },
+    "kind": "CONVERSATION_KIND_IMAGINE",
+    "hasUnreadCheckin": false
+   }
+  ],
+  "textSearchMatches": []
+ }
+}

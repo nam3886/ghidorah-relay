@@ -1,0 +1,216 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations/c0000000-0000-4000-8000-000000000007/responses",
+  "query": {
+   "includeThreads": "true",
+   "conversationKind": "CONVERSATION_KIND_IMAGINE"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "responses": [
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000009",
+    "message": "a paper boat drifting on a calm lake at sunrise, gentle ripples --mode=custom",
+    "sender": "human",
+    "createTime": "2026-11-06T04:30:09.974Z",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [],
+    "cardAttachmentsJson": [],
+    "fileUris": [],
+    "fileAttachmentsMetadata": [],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {
+     "experiments": [],
+     "modelConfigOverride": {
+      "modelMap": {
+       "videoGenModelConfig": {
+        "aspectRatio": "16:9",
+        "isVideoExtension": false,
+        "isVideoRemix": false,
+        "parentPostId": null,
+        "resolutionName": "720p",
+        "videoLength": 6
+       }
+      }
+     }
+    },
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "imagine-video-gen",
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "textToVideo": {
+      "prompt": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+      "aspectRatio": "16:9",
+      "duration": 6,
+      "resolutionName": "720p",
+      "modelName": "imagine-video-gen",
+      "skipAudio": false,
+      "skipUpsampler": false
+     }
+    },
+    "fileAttachmentAssetMetadata": [],
+    "fileIds": []
+   },
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000001",
+    "message": "I generated a video with the prompt: 'a paper boat drifting on a calm lake at sunrise, gentle ripples'",
+    "sender": "ASSISTANT",
+    "createTime": "2026-11-06T04:30:43.588Z",
+    "parentResponseId": "e0000000-0000-4000-8000-000000000009",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "imagine",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [
+     "a1000000-0000-4000-8000-000000000001"
+    ],
+    "cardAttachmentsJson": [],
+    "fileUris": [
+     "a1000000-0000-4000-8000-000000000001"
+    ],
+    "fileAttachmentsMetadata": [
+     {
+      "fileMetadataId": "a1000000-0000-4000-8000-000000000001",
+      "fileMimeType": "video/mp4",
+      "fileName": "generated_video.mp4",
+      "fileUri": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000001/generated_video.mp4",
+      "parsedFileUri": "",
+      "createTime": "2026-11-06T04:30:43.559Z",
+      "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+     }
+    ],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {
+     "deepsearchPreset": "",
+     "request_metadata": {
+      "effort": "high",
+      "mode": "imagine",
+      "model": "imagine-video-gen"
+     },
+     "request_trace_id": "b01bf7d24bc2e29010a477b24379c3fe"
+    },
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "imagine-video-gen",
+    "requestMetadata": {
+     "model": "imagine-video-gen",
+     "mode": "MODEL_MODE_UNKNOWN",
+     "effort": "HIGH"
+    },
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "textToVideo": {
+      "prompt": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+      "aspectRatio": "16:9",
+      "duration": 6,
+      "resolutionName": "720p",
+      "modelName": "imagine-video-gen",
+      "skipAudio": false,
+      "skipUpsampler": false
+     }
+    },
+    "fileAttachmentAssetMetadata": [
+     {
+      "assetId": "a1000000-0000-4000-8000-000000000001",
+      "mimeType": "video/mp4",
+      "name": "generated_video.mp4",
+      "sizeBytes": 4389549,
+      "createTime": "2026-11-06T04:30:43.559Z",
+      "lastUseTime": "2026-11-06T04:30:43.577Z",
+      "summary": "",
+      "previewImageKey": "",
+      "key": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000001/generated_video.mp4",
+      "auxKeys": {
+       "image_edit_is_root_user_uploaded": "false",
+       "is_ext": "false",
+       "is_root_celebrity": "false",
+       "moderated": "false",
+       "preview-image": "users/d0000000-0000-4000-8000-000000000001/generated/a1000000-0000-4000-8000-000000000001/preview_image.jpg",
+       "thumbhash": "4SgKFII7ZnaPdoeHmYpPjvHkCA=="
+      },
+      "responseId": "e0000000-0000-4000-8000-000000000001",
+      "isDeleted": false,
+      "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+      "currentConversationId": "c0000000-0000-4000-8000-000000000007",
+      "sourceConversationId": "c0000000-0000-4000-8000-000000000007",
+      "isModelGenerated": true,
+      "updateTime": "2026-11-06T04:30:43.577Z",
+      "isLatest": true,
+      "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+      "isRootAssetCreatedByModel": true,
+      "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000007",
+      "sharedWithTeam": false,
+      "sharedWithUserIds": [],
+      "width": 1280,
+      "height": 720,
+      "rRated": false,
+      "thumbhash": "4SgKFII7ZnaPdoeHmYpPjvHkCA==",
+      "mediaGenInput": {
+       "textToVideo": {
+        "prompt": "a paper boat drifting on a calm lake at sunrise, gentle ripples",
+        "aspectRatio": "16:9",
+        "duration": 6,
+        "resolutionName": "720p",
+        "modelName": "imagine-video-gen",
+        "skipAudio": false,
+        "skipUpsampler": false
+       }
+      },
+      "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+     }
+    ],
+    "fileIds": []
+   }
+  ],
+  "inflightResponses": []
+ }
+}

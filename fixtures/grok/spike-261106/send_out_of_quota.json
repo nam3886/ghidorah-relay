@@ -1,0 +1,18 @@
+{
+ "status": 429,
+ "headers": {
+  "content-type": "application/json",
+  "vary": "Origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "cf-cache-status": "DYNAMIC",
+  "server": "cloudflare",
+  "alt-svc": "h3=\":443\"; ma=86400"
+ },
+ "lines": [
+  "{\"error\":{\"code\":8,\"message\":\"Too many requests\",\"details\":[]}}"
+ ],
+ "t_ms": [
+  870
+ ],
+ "note": "the one t2v send with video720p.remainingQueries == 0 (11:55 GMT+7 06/11): 429 in 0.87 s, one line, no Retry-After; quota unchanged, no conversation"
+}

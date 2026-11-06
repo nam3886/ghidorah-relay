@@ -1,0 +1,6 @@
+{
+ "status": 401,
+ "headers": {},
+ "frames": [],
+ "note": "wss://grok.com/ws/imagine/listen handshake with no cookie or a made-up sso: curl_cffi raises CurlError 'curl: (22) Refused WebSocket upgrade: 401'; no frame"
+}

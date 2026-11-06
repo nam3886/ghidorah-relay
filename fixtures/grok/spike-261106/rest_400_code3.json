@@ -1,0 +1,14 @@
+{
+ "status": 400,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "error": {
+   "code": 3,
+   "message": "Cannot generate response to empty conversation.",
+   "details": []
+  }
+ },
+ "note": "POST /rest/app-chat/conversations/new with body {} (any x-statsig-id); it still creates an empty conversation (step 0)"
+}

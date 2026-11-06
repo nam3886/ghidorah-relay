@@ -1,0 +1,278 @@
+{
+ "request": {
+  "method": "GET",
+  "path": "/rest/app-chat/conversations/c0000000-0000-4000-8000-000000000001/responses",
+  "query": {
+   "includeThreads": "true",
+   "conversationKind": "CONVERSATION_KIND_IMAGINE"
+  }
+ },
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "responses": [
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000003",
+    "message": "make the apple green",
+    "sender": "human",
+    "createTime": "2026-11-06T04:29:43.409Z",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [],
+    "imageAttachments": [],
+    "fileAttachments": [
+     "af000000-0000-4000-8000-000000000001"
+    ],
+    "cardAttachmentsJson": [],
+    "fileUris": [
+     "af000000-0000-4000-8000-000000000001"
+    ],
+    "fileAttachmentsMetadata": [
+     {
+      "fileMetadataId": "af000000-0000-4000-8000-000000000001",
+      "fileMimeType": "image/jpeg",
+      "fileName": "apple.jpg",
+      "fileUri": "users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content",
+      "parsedFileUri": "",
+      "createTime": "2026-11-06T04:29:42.504Z",
+      "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+     }
+    ],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {
+     "modelConfigOverride": {
+      "modelMap": {
+       "imageEditModelConfig": {
+        "appliedModerationRule": "MODERATION_RULE_UPLOADED",
+        "imageReferences": [
+         "https://assets.grok.com/users/_/af000000-0000-4000-8000-000000000001/content"
+        ],
+        "isRootCelebrity": false,
+        "isRootUserUploaded": false,
+        "resolvedImageReferences": [
+         "https://assets.grok.com/users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content"
+        ]
+       }
+      }
+     }
+    },
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "imagine-image-edit",
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "imageToImage": {
+      "prompt": "make the apple green",
+      "inputAssets": [
+       "af000000-0000-4000-8000-000000000001"
+      ],
+      "modelName": "imagine-image-edit",
+      "selectionRegions": [],
+      "mediaReferences": [],
+      "multiRegionEdits": []
+     }
+    },
+    "fileAttachmentAssetMetadata": [
+     {
+      "assetId": "af000000-0000-4000-8000-000000000001",
+      "mimeType": "image/jpeg",
+      "name": "apple.jpg",
+      "sizeBytes": 171125,
+      "createTime": "2026-11-06T04:29:42.504Z",
+      "lastUseTime": "2026-11-06T04:29:43.463Z",
+      "summary": "",
+      "previewImageKey": "",
+      "key": "users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content",
+      "auxKeys": {
+       "image_edit_is_root_user_uploaded": "false",
+       "is_root_celebrity": "false",
+       "r_rated": "false",
+       "thumbhash": "W1kKJwiXeZf0VYh8VJh1h2hmdgeZN4AF"
+      },
+      "isDeleted": false,
+      "fileSource": "IMAGINE_SELF_UPLOAD_FILE_SOURCE",
+      "currentConversationId": "c0000000-0000-4000-8000-000000000001",
+      "rootAssetId": "af000000-0000-4000-8000-000000000001",
+      "sourceConversationId": "c0000000-0000-4000-8000-000000000001",
+      "isModelGenerated": false,
+      "updateTime": "2026-11-06T04:29:43.463Z",
+      "isLatest": true,
+      "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+      "isRootAssetCreatedByModel": false,
+      "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000001",
+      "sharedWithTeam": false,
+      "sharedWithUserIds": [],
+      "thumbhash": "W1kKJwiXeZf0VYh8VJh1h2hmdgeZN4AF",
+      "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+     }
+    ],
+    "fileIds": []
+   },
+   {
+    "responseId": "e0000000-0000-4000-8000-000000000004",
+    "message": "I edited the image with the prompt: 'make the apple green'",
+    "sender": "ASSISTANT",
+    "createTime": "2026-11-06T04:29:48.769Z",
+    "parentResponseId": "e0000000-0000-4000-8000-000000000003",
+    "manual": false,
+    "partial": false,
+    "shared": false,
+    "query": "",
+    "queryType": "imagine",
+    "webSearchResults": [],
+    "xpostIds": [],
+    "xposts": [],
+    "generatedImageUrls": [
+     "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/image.jpg"
+    ],
+    "imageAttachments": [],
+    "fileAttachments": [
+     "af000000-0000-4000-8000-000000000002"
+    ],
+    "cardAttachmentsJson": [],
+    "fileUris": [
+     "af000000-0000-4000-8000-000000000002"
+    ],
+    "fileAttachmentsMetadata": [
+     {
+      "fileMetadataId": "af000000-0000-4000-8000-000000000002",
+      "fileMimeType": "image/jpeg",
+      "fileName": "edited-image.jpg",
+      "fileUri": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/image.jpg",
+      "parsedFileUri": "",
+      "createTime": "2026-11-06T04:29:48.755Z",
+      "fileSource": "SELF_UPLOAD_FILE_SOURCE"
+     }
+    ],
+    "isControl": false,
+    "steps": [],
+    "imageEditUris": [],
+    "mediaTypes": [],
+    "webpageUrls": [],
+    "metadata": {
+     "deepsearchPreset": "",
+     "generated_image_height": 1024,
+     "generated_image_width": 1024,
+     "request_metadata": {
+      "effort": "high",
+      "mode": "imagine",
+      "model": "imagine-image-edit"
+     },
+     "request_trace_id": "1586157afccc20992ec34163685fb40a"
+    },
+    "generatedImageHeight": 1024,
+    "generatedImageWidth": 1024,
+    "thinkingStartTime": "2026-11-06T04:29:43.542Z",
+    "thinkingEndTime": "2026-11-06T04:29:48.763Z",
+    "citedWebSearchResults": [],
+    "toolResponses": [],
+    "model": "imagine-image-edit",
+    "requestMetadata": {
+     "model": "imagine-image-edit",
+     "mode": "MODEL_MODE_UNKNOWN",
+     "effort": "HIGH"
+    },
+    "ragResults": [],
+    "citedRagResults": [],
+    "searchProductResults": [],
+    "connectorSearchResults": [],
+    "collectionSearchResults": [],
+    "streamErrors": [],
+    "citedXposts": [],
+    "citedConnectorSearchResults": [],
+    "citedCollectionSearchResults": [],
+    "inputChunks": [],
+    "outputChunks": [],
+    "mediaGenInput": {
+     "imageToImage": {
+      "prompt": "make the apple green",
+      "inputAssets": [
+       "af000000-0000-4000-8000-000000000001"
+      ],
+      "modelName": "imagine-image-edit",
+      "selectionRegions": [],
+      "mediaReferences": [],
+      "multiRegionEdits": []
+     }
+    },
+    "fileAttachmentAssetMetadata": [
+     {
+      "assetId": "af000000-0000-4000-8000-000000000002",
+      "mimeType": "image/jpeg",
+      "name": "edited-image.jpg",
+      "sizeBytes": 194112,
+      "createTime": "2026-11-06T04:29:48.755Z",
+      "lastUseTime": "2026-11-06T04:29:48.755Z",
+      "summary": "",
+      "previewImageKey": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/preview_image.jpg",
+      "key": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/image.jpg",
+      "auxKeys": {
+       "image_edit_is_root_user_uploaded": "false",
+       "image_reference": "https://assets.grok.com/users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content",
+       "image_references": "[\"https://assets.grok.com/users/d0000000-0000-4000-8000-000000000001/af000000-0000-4000-8000-000000000001/content\"]",
+       "is_root_celebrity": "false",
+       "moderated": "false",
+       "preview-image": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/preview_image.jpg",
+       "preview-image-256": "users/d0000000-0000-4000-8000-000000000001/generated/af000000-0000-4000-8000-000000000002/preview_image_256.jpg",
+       "thumbhash": "WzkKJwaXeYf0VYh7VZd1h2h2dgaJuIAN"
+      },
+      "responseId": "e0000000-0000-4000-8000-000000000004",
+      "isDeleted": false,
+      "fileSource": "IMAGINE_GENERATED_FILE_SOURCE",
+      "currentConversationId": "c0000000-0000-4000-8000-000000000001",
+      "sourceConversationId": "c0000000-0000-4000-8000-000000000001",
+      "isModelGenerated": true,
+      "updateTime": "2026-11-06T04:29:48.755Z",
+      "isLatest": true,
+      "inlineStatus": "DEFAULT_ARTIFACT_INLINE_STATUS",
+      "isRootAssetCreatedByModel": true,
+      "rootAssetSourceConversationId": "c0000000-0000-4000-8000-000000000001",
+      "sharedWithTeam": false,
+      "sharedWithUserIds": [],
+      "width": 1024,
+      "height": 1024,
+      "rRated": false,
+      "thumbhash": "WzkKJwaXeYf0VYh7VZd1h2h2dgaJuIAN",
+      "mediaGenInput": {
+       "imageToImage": {
+        "prompt": "make the apple green",
+        "inputAssets": [
+         "af000000-0000-4000-8000-000000000001"
+        ],
+        "modelName": "imagine-image-edit",
+        "selectionRegions": [],
+        "mediaReferences": [],
+        "multiRegionEdits": []
+       }
+      },
+      "ownerUserId": "d0000000-0000-4000-8000-000000000001"
+     }
+    ],
+    "fileIds": []
+   }
+  ],
+  "inflightResponses": []
+ }
+}

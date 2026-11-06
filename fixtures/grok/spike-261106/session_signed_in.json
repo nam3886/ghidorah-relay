@@ -1,0 +1,33 @@
+{
+ "status": 200,
+ "headers": {
+  "content-type": "application/json"
+ },
+ "body": {
+  "status": "authenticated",
+  "session": {
+   "userId": "d0000000-0000-4000-8000-000000000001",
+   "email": "grok.test@example.invalid",
+   "emailDomain": "gmail.com",
+   "givenName": "Test",
+   "familyName": "Account",
+   "profileImage": "https://example.invalid/avatar.png",
+   "xUserId": "",
+   "xUsername": "",
+   "organizationId": "",
+   "organizationRole": 0,
+   "organizationType": 0,
+   "organizationKind": 0,
+   "isOrgAdmin": false,
+   "hasPassword": false,
+   "emailConfirmed": true,
+   "googleEmail": "grok.test@example.invalid",
+   "xSubscriptionType": "",
+   "createTime": 1740000000000,
+   "sessionId": "30000000-0000-4000-8000-000000000001",
+   "signInMethod": 2,
+   "isIntegrationSession": false,
+   "cursorMerged": false
+  }
+ }
+}
