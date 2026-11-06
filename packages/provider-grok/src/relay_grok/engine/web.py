@@ -254,8 +254,8 @@ class Web:
         """What a non-200 read answer raises: a 401 is signed out, anything else a refusal of its kind."""
         if resp.status_code == 401:
             return SignedOut(where)
-        return Refused(classify_refusal(resp.status_code, resp.headers.get("content-type", ""), resp.text or ""),
-                       resp.status_code)
+        return Refused(classify_refusal(resp.status_code, resp.headers.get("content-type", ""), resp.text or "",
+                                        resp.headers.get("server", "")), resp.status_code)
 
     # ---- reads ---------------------------------------------------------------------------------------------------
     async def session(self) -> dict:
@@ -335,8 +335,8 @@ class Web:
                             break
                 except Exception:      # noqa: BLE001 - a refusal whose body breaks is still that refusal
                     pass
-                raise Refused(classify_refusal(resp.status_code, resp.headers.get("content-type", ""), text),
-                              resp.status_code)
+                raise Refused(classify_refusal(resp.status_code, resp.headers.get("content-type", ""), text,
+                                               resp.headers.get("server", "")), resp.status_code)
             try:
                 async for line in resp.aiter_lines():
                     yield line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line
