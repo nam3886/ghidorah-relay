@@ -17,7 +17,9 @@ Money rules (each has a test and a mutation):
 - `NotTaken` after `mark_sent` only on an exact refusal of the send itself before any answer: a 401 (`code 16`), a 429
   (grok's limit: `code 8`, the out-of-quota send, makes no conversation), a Cloudflare page or a 403 `code 7`; or an
   Imagine limit frame before any job started. A limit moves the job to another account (`account_refused`) up to
-  `grok.refusal_max_accounts`, the pool at 0 until `grok.limit_rest_s`;
+  `grok.refusal_max_accounts`, the pool at 0 until `grok.limit_rest_s`; grok's image rate limit frame before any
+  `session` frame and any job (06/11 live: no conversation made, `quota_info` unchanged) moves it the same way, the pool
+  resting `grok.rate_limit_rest_s` with its uses kept;
 - at most n images, the first in order; fewer (but at least one) are delivered at the full charge with a timeline
   note; none, moderated or grok's safety words: `Fail` refunded;
 - a video with no `rRated` key, or done faster than `grok.decoy_min_s`, is a stock clip: `Fail(grok.decoy_video)`
@@ -84,6 +86,7 @@ log = logging.getLogger("relay_grok.submit")
 POOL_LOGGED_OUT = "pool.account_logged_out"
 POOL_PROXY_FAILED = "pool.proxy_failed"
 POOL_OUT_OF_POINTS = "pool.account_out_of_points"
+POOL_THROTTLED = "pool.account_throttled"
 
 EVIDENCE_WAIT_S = 5.0
 CLOSE_WAIT_S = 2.0        # the socket's close after the verdict, so a hung close cannot eat the hold margin
@@ -92,18 +95,21 @@ _TIMEOUT = {"t2i": "grok.image_submit_timeout_s", "edit": "grok.edit_submit_time
             "t2v": "grok.video_submit_timeout_s"}
 _EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
-Verdict = Literal["done", "refused", "empty", "limit", "decoy", "unknown"]
+Verdict = Literal["done", "refused", "empty", "limit", "throttled", "decoy", "unknown"]
 
 
 # ---- pure verdicts -----------------------------------------------------------------------------------------------
 def judge_imagine(a: wire.ImagineAnswer) -> Verdict:
     """An Imagine answer so far. Settled (every started job completed): `done` with a deliverable final, else
-    `refused` (moderated, or the safety words) or `empty`. Not settled: `limit` only for a limit frame before any job
-    started, `refused` for the safety words with nothing to deliver, else `unknown` (read on)."""
+    `refused` (moderated, or the safety words) or `empty`. Not settled: `throttled` only for the rate limit frame before
+    any `session` frame and any job (nothing made), `limit` only for a limit frame before any job started, `refused`
+    for the safety words with nothing to deliver, else `unknown` (read on)."""
     if a.jobs and set(a.jobs) <= a.completed:
         if a.deliverable():
             return "done"
         return "refused" if a.moderated or a.safety else "empty"
+    if a.rate_limit and a.conversation_id is None and not a.jobs:
+        return "throttled"
     if a.limit and not a.jobs:
         return "limit"
     if a.safety and not a.deliverable():
@@ -245,6 +251,14 @@ class _Run:
                                   final=errors.LIMIT, detail=why)
         return _result(outcome, Balance(self.pool, 0, self._later("grok.limit_rest_s"), window=QUOTA_WINDOW))
 
+    def _throttled(self) -> SubmitResult:
+        """grok's rate limit on this account before anything was made (no conversation, no job): the job goes to another
+        account like a limit, the pool rests `grok.rate_limit_rest_s` and keeps the uses grok counts."""
+        why = "grok answered its image rate limit before anything was made"
+        outcome = account_refused(self.job, self.ctx.account.id, self.settings, not_taken=POOL_THROTTLED,
+                                  final=errors.LIMIT, detail=why)
+        return _result(outcome, Rest(self.pool, self._later("grok.rate_limit_rest_s"), "grok's image rate limit"))
+
     def _refusal(self, kind: str) -> SubmitResult:
         """An exact refusal of a call (`Refused.kind`), before the send or of the send itself before any answer."""
         if kind == "cloudflare":
@@ -376,6 +390,9 @@ class _Run:
         if verdict == "limit":
             return await self._keep(self._limit("grok answered its limit before any image started"),
                                     "grok's limit on this account; the job goes to another account")
+        if verdict == "throttled":
+            return await self._keep(self._throttled(), "grok's image rate limit on this account before anything was "
+                                                       "made; the job goes to another account")
         return await self._unknown("grok's Imagine answer is not settled: %d job(s), %d completed, error %s" % (
             len(a.jobs), len(a.completed), a.error_text))
 

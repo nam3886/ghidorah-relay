@@ -110,11 +110,16 @@ _SETTINGS = dict((
              "Seconds an account's image or video pool reads 0 (and rests) when grok answers its limit without "
              "naming when the uses come back. The job goes to another account (see grok.refusal_max_accounts).",
              min=600, max=7 * 86400),
+    _setting("rate_limit_rest_s", int, 3600,
+             "Seconds an account's image pool rests when grok answers its image rate limit before anything is made "
+             "(its uses stay as grok counts them). The job goes to another account (see grok.refusal_max_accounts).",
+             min=60, max=86400),
     refusal_max_accounts_setting(
         PROVIDER, "How many accounts one job may try when grok answers its limit to the send before anything is made "
-        "(HTTP 429, or its usage-limit words before any progress). Each such answer empties that account's pool until "
-        "its refill and sends the job to another account; the answer on the last one ends the job failed "
-        "(grok.limit), with its full refund. 1 ends it at the first."),
+        "(HTTP 429, its usage-limit words before any progress, or its image rate limit before any conversation). Each "
+        "such answer empties that account's pool until its refill (a rate limit rests it grok.rate_limit_rest_s) and "
+        "sends the job to another account; the answer on the last one ends the job failed (grok.limit), with its full "
+        "refund. 1 ends it at the first."),
     _setting("decoy_min_s", int, 15,
              "A video finished faster than this many seconds after the send is a stock clip, not the one asked for: "
              "the job fails refunded and the account's video pool rests grok.decoy_rest_s. 0 = no time check (a final "

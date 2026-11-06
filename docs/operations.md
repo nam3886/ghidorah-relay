@@ -1517,6 +1517,7 @@ How an order is judged:
 | before the send | an upload refused an input image | failed `grok.input_unusable`, refunded |
 | before the send | any other step error | tried again (`grok.http_error`, one of 3 attempts) |
 | the send | 429 `code 8` ("Too many requests", the out-of-quota send: no conversation is made, the quota does not move), another 4xx with grok's limit words, or an Imagine limit frame, before any progress (a 5xx with those words is unknown) | **not taken**: the job goes to another account (`pool.account_out_of_points`), the pool reads 0 until grok's refill or `grok.limit_rest_s`; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
+| the send | the Imagine frame `{"type":"error","err_code":"rate_limit_exceeded","err_msg":"Image rate limit exceeded"}` before any `session` frame and any job (06/11 live: no conversation is made, the quota does not move; after a `session` frame it is unknown) | **not taken**: the job goes to another account (`pool.account_throttled`), the image pool rests `grok.rate_limit_rest_s` with its uses kept; on the `grok.refusal_max_accounts`-th account failed `grok.limit`, refunded |
 | the send | 401 `code 16`, Cloudflare's page or 403 `code 7` before any line | not taken, as before the send |
 | the send | 400 `code 3` (our own body was wrong) | failed `grok.http_error`, refunded |
 | after the send | images (text to image): k of n deliverable | done with the first n; fewer than n but at least one: delivered at the full charge with a timeline note |
@@ -1581,6 +1582,7 @@ never lets the customer pick grok's mode (a `--mode=` in the prompt is refused),
 | `grok.video_submit_timeout_s` | 240 | bound on one text-to-video submit, 60-720 |
 | `grok.send_gap_s` | 30 | least seconds between two jobs of one account (applied by the claim), 0-3600 |
 | `grok.limit_rest_s` | 86400 | a pool's rest at 0 when grok answers its limit without a refill time, 600-604800 |
+| `grok.rate_limit_rest_s` | 3600 | the image pool's rest (its uses kept) when grok answers its image rate limit before anything is made, 60-86400 |
 | `grok.refusal_max_accounts` | 2 | accounts one job may try on a limit answer before it fails refunded (`grok.limit`) |
 | `grok.decoy_min_s` | 15 | a video done faster than this is a decoy; 0 = only the `rRated` rule, 0-120 |
 | `grok.decoy_rest_s` | 86400 | the video pool's rest after a decoy, 0-604800 |

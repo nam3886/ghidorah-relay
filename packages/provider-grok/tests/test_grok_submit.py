@@ -479,6 +479,48 @@ def test_an_imagine_limit_after_a_job_started_is_ambiguous():
     assert len(sock.generations()) == 1
 
 
+@mutation(SUBMIT_FILE, '        if verdict == "throttled":\n', '        if verdict == "throttled-x":\n',
+          expect="grok's image rate limit before anything was made must move the job to another account")
+def test_the_real_imagine_rate_limit_moves_the_job_and_rests_the_image_pool():
+    # 06/11 live: one error frame, no session frame, quota unchanged, no conversation made
+    ctx = Ctx()
+    session, sock = t2i_session(ctx, frames_in("imagine_rate_limit_frame"))
+    result = run(ctx, job("t2i"), session)
+    assert isinstance(result.job, NotTaken) and result.job.code == S.POOL_THROTTLED, \
+        "grok's image rate limit before anything was made must move the job to another account"
+    assert result.job.state_patch[REFUSED_BY] == ["acc-1"]
+    rests = [e for e in result.account if isinstance(e, Rest)]
+    assert [(r.pool, r.until) for r in rests] == [("image", NOW + timedelta(seconds=3600))]
+    assert not any(isinstance(e, Balance) and e.left_n == 0 for e in result.account), "uses are left: no empty pool"
+    assert len(sock.generations()) == 1
+
+    ctx = Ctx(settings_=settings(rate_limit_rest_s=120))
+    session, _ = t2i_session(ctx, frames_in("imagine_rate_limit_frame"))
+    result = run(ctx, job("t2i"), session)
+    rests = [(e.pool, e.until) for e in result.account if isinstance(e, Rest)]
+    assert rests == [("image", NOW + timedelta(seconds=120))]
+
+    ctx = Ctx(settings_=settings(refusal_max_accounts=2))
+    session, _ = t2i_session(ctx, frames_in("imagine_rate_limit_frame"))
+    result = run(ctx, job("t2i", state={REFUSED_BY: ["acc-0"]}), session)
+    assert isinstance(result.job, Fail) and result.job.code == errors.LIMIT
+    assert result.job.state_patch[REFUSED_BY] == ["acc-0", "acc-1"]
+
+
+@mutation(SUBMIT_FILE, "    if a.rate_limit and a.conversation_id is None and not a.jobs:\n",
+          "    if a.rate_limit and not a.jobs:\n", expect="a rate limit after the session frame must be ambiguous")
+def test_a_rate_limit_after_the_session_frame_or_a_job_is_ambiguous():
+    rate = frames_in("imagine_rate_limit_frame")[-1]
+    session_frame = frames_in("imagine_t2i_n2")[0]
+    for frames in ([session_frame, rate], frames_in("imagine_t2i_n2")[:2] + [rate]):
+        ctx = Ctx()
+        session, sock = t2i_session(ctx, frames)
+        result = run(ctx, job("t2i", n=2), session)
+        assert isinstance(result.job, Ambiguous), "a rate limit after the session frame must be ambiguous"
+        assert not any(isinstance(e, Rest) for e in result.account)
+        assert len(sock.generations()) == 1
+
+
 def test_t2i_breaking_after_the_send_is_ambiguous_and_never_a_second_frame():
     head = frames_in("imagine_t2i_n2")[:3]
     odd = {"type": "error", "err_code": "x", "err_msg": "something odd"}

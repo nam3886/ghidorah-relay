@@ -116,6 +116,19 @@ def test_a_limit_frame_bad_json_and_an_unknown_type():
     assert s.safety and not s.limit
 
 
+@mutation(WIRE, "            self._rate_limit = self._rate_limit or is_rate_limit(msg)\n",
+          "            self._rate_limit = self._rate_limit\n", expect="the real rate limit frame is a rate limit")
+def test_the_real_rate_limit_frame_is_a_rate_limit_not_a_usage_limit():
+    r = read_frames(frames_in("imagine_rate_limit_frame"))
+    a = r.answer()
+    assert a.rate_limit, "the real rate limit frame is a rate limit"
+    assert not a.limit and not a.safety and a.jobs == () and a.conversation_id is None and not r.settled()
+    assert a.error_text == "Image rate limit exceeded"
+    assert not read_frames(frames_in("imagine_limit_frame")).answer().rate_limit
+    stray = dict(frames_in("imagine_rate_limit_frame")[-1], request_id="img_" + "f" * 32)
+    assert not read_frames([stray]).answer().rate_limit, "another run's frame is never ours"
+
+
 # ---- NDJSON (F5, F6) -------------------------------------------------------------------------------------------------
 def test_the_edit_lines_read_one_final_with_its_ids():
     r = read_lines("ndjson_edit", "image", upto=1)

@@ -19,6 +19,7 @@ from relay_grok.constants import (
     BLOCKED_PHRASES,
     CF_MARKS,
     LIMIT_PHRASES,
+    RATE_LIMIT_PHRASES,
     SAFETY_PHRASES,
     SIGNED_OUT_CODE,
     STATE_CONVERSATION,
@@ -37,6 +38,10 @@ def _has(text: str, phrases: Iterable[str]) -> bool:
 
 def is_limit(text: str) -> bool:
     return _has(text, LIMIT_PHRASES)
+
+
+def is_rate_limit(text: str) -> bool:
+    return _has(text, RATE_LIMIT_PHRASES)
 
 
 def is_safety(text: str) -> bool:
@@ -112,6 +117,7 @@ class ImagineAnswer(NamedTuple):
     moderated: frozenset[str]
     previews: int
     limit: bool
+    rate_limit: bool                    # grok's image rate limit (a throttle, uses still left)
     safety: bool
     error_text: str | None
     unknown_frames: int
@@ -140,7 +146,7 @@ class ImagineReader:
         self._completed: set[str] = set()
         self._moderated: set[str] = set()
         self._previews = 0
-        self._limit = self._safety = False
+        self._limit = self._rate_limit = self._safety = False
         self._error: str | None = None
         self._unknown = 0
 
@@ -172,6 +178,7 @@ class ImagineReader:
         elif kind == "error" or "err_code" in frame or "error" in frame:
             msg = _error_message(frame.get("error", frame))
             self._limit = self._limit or is_limit(msg)
+            self._rate_limit = self._rate_limit or is_rate_limit(msg)
             self._safety = self._safety or is_safety(msg)
             self._error = self._error or redact(msg)
         else:
@@ -180,8 +187,8 @@ class ImagineReader:
     def answer(self) -> ImagineAnswer:
         finals = tuple(Final(j, u, j in self._moderated) for j, u in self._finals.items())
         return ImagineAnswer(self._conversation, tuple(self._jobs), finals, frozenset(self._completed),
-                             frozenset(self._moderated), self._previews, self._limit, self._safety, self._error,
-                             self._unknown)
+                             frozenset(self._moderated), self._previews, self._limit, self._rate_limit, self._safety,
+                             self._error, self._unknown)
 
     def settled(self) -> bool:
         """Every started job is completed (and at least one started)."""

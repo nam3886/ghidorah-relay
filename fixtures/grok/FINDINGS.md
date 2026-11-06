@@ -150,3 +150,15 @@ asset created first (04:28:38.294Z), order 1 → the second (.394Z, also the lis
 - Every stream names its conversation first: edit/t2v line 1 (0.95–0.98 s), t2i `session` frame (0.65 s), before any
   progress. Step-0 decision: `after_sent = RECONCILE` for t2i, edit and t2v (t2i overrides the design's Q5 default
   `FAIL_REFUND` only if the owner confirms).
+
+## F10. The Imagine image rate limit (live, 06/11 15:50 GMT+7)
+- 14 t2i n=1 jobs on 9 accounts (7 freshly registered free accounts, 2 jobs each, 30 s apart per account by
+  `send_gap_s`; one in flight per account): 7 accounts answered every send with **one** frame, 0.28 s after the send,
+  **no `session` frame**: `{"type":"error","err_code":"rate_limit_exceeded","err_msg":"Image rate limit exceeded",
+  "request_id":null}`. Fixture `imagine_rate_limit_frame` (real; `request_id` null is deduced, see its note).
+- Not taken: `quota_info` unchanged on all 7 (4 or 8 `imagePro` before and after, and 4 → 4 around a probe), and
+  `conversations?kind=CONVERSATION_KIND_IMAGINE` lists **no** conversation on any of them. The two accounts that
+  delivered spent one use each (8 → 7) and show one IMAGINE conversation.
+- Still refused 12–13 min later (one probe each on two of the accounts, 40 min after one was created). Not the daily
+  quota (uses left), not two jobs at once (one slot, 30 s gap), not the cookie set (same names on all), not account age
+  alone (a 33 min old one delivered, a 40 min old one was refused). Per account or per proxy IP: unknown.

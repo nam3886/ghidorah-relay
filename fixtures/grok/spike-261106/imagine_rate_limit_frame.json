@@ -1,0 +1,62 @@
+{
+ "note": "real, 06/11 15:50 GMT+7 (12 relay jobs on 7 fresh free accounts) and again 16:02 / 16:03 (one probe each on two of them), through each account's proxy: the only frame after the send, 0.28 s after it, no session frame before it. The out frames are the relay's own (reset, then item_create n=1). Keys and err_code/err_msg verbatim; request_id is not the sent requestId: null, deduced (the relay's reader kept the frame, so it was null or ours; the probe saw it is not ours). quota_info unchanged (4 -> 4) and no CONVERSATION_KIND_IMAGINE conversation made: a refusal before acceptance, with uses left.",
+ "status": 101,
+ "headers": {},
+ "frames": [
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793955014000,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "type": "reset"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "t_ms": 0,
+   "data": {
+    "type": "conversation.item.create",
+    "timestamp": 1793955014001,
+    "item": {
+     "type": "message",
+     "content": [
+      {
+       "requestId": "img_00000000000000000000000000000002",
+       "text": "a red apple on a wooden table, soft daylight, photo",
+       "type": "input_text",
+       "properties": {
+        "section_count": 0,
+        "is_kids_mode": false,
+        "enable_nsfw": false,
+        "skip_upsampler": false,
+        "enable_side_by_side": true,
+        "is_initial": false,
+        "aspect_ratio": "1:1",
+        "enable_pro": false,
+        "num_generations": 1
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "t_ms": 280,
+   "data": {
+    "type": "error",
+    "err_code": "rate_limit_exceeded",
+    "err_msg": "Image rate limit exceeded",
+    "request_id": null
+   }
+  }
+ ]
+}
