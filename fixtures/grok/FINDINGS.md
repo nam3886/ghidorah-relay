@@ -162,3 +162,17 @@ asset created first (04:28:38.294Z), order 1 → the second (.394Z, also the lis
 - Still refused 12–13 min later (one probe each on two of the accounts, 40 min after one was created). Not the daily
   quota (uses left), not two jobs at once (one slot, 30 s gap), not the cookie set (same names on all), not account age
   alone (a 33 min old one delivered, a 40 min old one was refused). Per account or per proxy IP: unknown.
+- Page bundle at 16:40 GMT+7 (459 scripts, read through an account's proxy, no generation), compared with the spike's
+  139: the same `/rest/…` and `/ws/…` paths (411 each, none new or gone), the same `wss://<host>/ws/imagine/listen`,
+  the same frames (`reset`, `input_text`, `update_session` on a context switch) and the same properties builder. The
+  page's Imagine error handling (unchanged since the spike) names the codes: `rate_limit_exceeded` (the page shows
+  "rate limited" for 4 s, no countdown; it may carry `peak_hours_start` / `peak_hours_end`), `concurrency_limit`,
+  `usage_limit_reached`, `usage_pool_exhausted`, and `image_query_rejected` with a `rejection_reason`
+  (`age_verification_required`, `ip` = copyright). A message with "is under heavy usage right now" / "under heavy
+  load" is the page's server-wide limit; "Image rate limit exceeded" is not that one. The "(AI Agent)" placeholder
+  suffix is an EU disclosure (`eu-ai-agent-disclosure`, by the viewer's country), not a new mode.
+- The owner made images on one of the 7 accounts in Chrome through its proxy at about 16:20 (last relay refusal on it
+  15:51). Its relay-path probe at 16:32 got `rate_limit_exceeded` again, but `quota_info` then read **0 image, 0 video**
+  (the browser had spent them): at 0 uses Imagine answers the same frame. The relay reads the quota before the send
+  and never sends at 0, so this does not change the verdict; it does mean the frame alone cannot say "throttle" versus
+  "spent".

@@ -17,10 +17,10 @@ from relay_grok.engine.web import proxy_url
 DRIFT_FILE = "packages/provider-grok/src/relay_grok/engine/drift.py"
 PINNED_CHECK = "                    for where, names in PINNED.items() for name in names if name not in js]"
 EXIT_CHECK = "    return 1 if any(not line.startswith(STATSIG) for line in lines) else 0"
-BARE_COOKIES = "                status, text = await bare.get_text(SITE_URL + name, cookies=False)"
+BARE_COOKIES = "                status, text = await bare.get_text(name, cookies=False)"
 SALT_CHECK = "    if SALT not in js:"
 PINNED_GONE = "                    for where, names in PINNED.items() for name in names if False]"
-BARE_WITH_COOKIES = "                status, text = await bare.get_text(SITE_URL + name)"
+BARE_WITH_COOKIES = "                status, text = await bare.get_text(name)"
 ALL = [n for names in drift.PINNED.values() for n in names]
 JS = "var a={" + ",".join('"%s":1' % n for n in ALL) + "};"
 STATSIG_NOTES = ["statsig grok-site-verification: not on the page", "statsig curves: not on the page or its scripts",
@@ -73,8 +73,25 @@ def test_the_output_holds_no_value_from_the_page():
 
 def test_the_page_names_its_scripts_once_in_order():
     page = fixture("page_home.html")
-    assert drift.scripts_of(page) == ["/_next/static/chunks/webpack-0000000000000000.js"]
+    assert drift.scripts_of(page) == [SITE_URL + "/_next/static/chunks/webpack-0000000000000000.js"]
     assert drift.scripts_of(page + page) == drift.scripts_of(page)
+
+
+CDN_PAGE = ('<script src="https://cdn.grok.com/_next/static/chunks/0aaaaaaaaaaaa.js" async=""></script>'
+            '<script src="https://static.cloudflareinsights.com/beacon.min.js"></script>'
+            '<script src="https://evil.example/_next/static/chunks/x.js"></script>')
+
+
+@mutation(DRIFT_FILE, "(host or SITE_URL) + path for host", "SITE_URL + path for host",
+          expect="the page's cdn.grok.com scripts are read")
+def test_the_live_page_names_its_scripts_on_the_cdn():
+    # the real page (the spike's and 16:40 GMT+7's) names every script on https://cdn.grok.com; no other host is read
+    assert drift.scripts_of(CDN_PAGE) == ["https://cdn.grok.com/_next/static/chunks/0aaaaaaaaaaaa.js"], \
+        "the page's cdn.grok.com scripts are read"
+    (page_s, bare_s), (_, chunks) = run_fetch(Resp(200, text=CDN_PAGE))
+    (script_call,) = bare_s.requests
+    assert script_call.url == "https://cdn.grok.com/_next/static/chunks/0aaaaaaaaaaaa.js" and chunks == [JS]
+    assert not script_call.has_cookie
 
 
 def test_main_needs_an_account_label():

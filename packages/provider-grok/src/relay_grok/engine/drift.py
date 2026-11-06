@@ -35,7 +35,10 @@ PINNED: dict[str, tuple[str, ...]] = {
     "media send": ("mediaGenInput", "imageToImage", "inputAssets", "textToVideo", "resolutionName"),
     "quota": (QUOTA_IMAGE_KEY, QUOTA_VIDEO_KEY, "remainingQueries", "nextAvailableAt"),
 }
-_SCRIPT = re.compile(r'(?:src|href)="(/_next/static/[^"?#]+\.js)')
+# The page names its scripts on grok's CDN (`https://cdn.grok.com/_next/static/…`, seen 06/11 on the spike's page and
+# again at 16:40 GMT+7); a path alone is read from grok.com.
+CDN_URL = "https://cdn.grok.com"
+_SCRIPT = re.compile(r'(?:src|href)="(%s)?(/_next/static/[^"?#]+\.js)' % re.escape(CDN_URL))
 
 
 def check_page(html: str, chunks: list[str]) -> list[str]:
@@ -57,8 +60,9 @@ def exit_code(lines: list[str]) -> int:
 
 
 def scripts_of(html: str) -> list[str]:
-    """The `/_next/static/…js` paths a page names, once each, in order."""
-    return list(dict.fromkeys(_SCRIPT.findall(html)))
+    """The URLs of the `/_next/static/…js` scripts a page names (on cdn.grok.com, or a path on grok.com), once each,
+    in order."""
+    return list(dict.fromkeys((host or SITE_URL) + path for host, path in _SCRIPT.findall(html)))
 
 
 class Unreadable(Exception):
@@ -83,7 +87,7 @@ async def fetch_page(account, settings, **web_kw) -> tuple[str, list[str]]:
         # a fresh session: the page's Set-Cookie (a rotated sso) sits in the first one's jar and must not follow
         async with Web(account, settings, **web_kw) as bare:
             for name in names:
-                status, text = await bare.get_text(SITE_URL + name, cookies=False)
+                status, text = await bare.get_text(name, cookies=False)
                 if status == 200:
                     chunks.append(text)
     except Unreadable:

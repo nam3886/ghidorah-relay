@@ -18,6 +18,8 @@ from relay_grok.constants import (
     BAD_BODY_CODE,
     BLOCKED_PHRASES,
     CF_MARKS,
+    IMAGINE_LIMIT_CODES,
+    IMAGINE_RATE_CODES,
     LIMIT_PHRASES,
     RATE_LIMIT_PHRASES,
     SAFETY_PHRASES,
@@ -177,8 +179,9 @@ class ImagineReader:
                 self._previews += 1
         elif kind == "error" or "err_code" in frame or "error" in frame:
             msg = _error_message(frame.get("error", frame))
-            self._limit = self._limit or is_limit(msg)
-            self._rate_limit = self._rate_limit or is_rate_limit(msg)
+            code = frame.get("err_code")
+            self._limit = self._limit or is_limit(msg) or code in IMAGINE_LIMIT_CODES
+            self._rate_limit = self._rate_limit or is_rate_limit(msg) or code in IMAGINE_RATE_CODES
             self._safety = self._safety or is_safety(msg)
             self._error = self._error or redact(msg)
         else:

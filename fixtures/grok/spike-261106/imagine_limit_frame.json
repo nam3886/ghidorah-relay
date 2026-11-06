@@ -1,5 +1,5 @@
 {
- "synthetic": "synthetic: built by hand, not captured; shape from chenyme grok2api (error frame with err_code/err_msg); the real limit frame is unseen",
+ "synthetic": "synthetic: built by hand, not captured; shape from chenyme grok2api (error frame with err_code/err_msg); the real limit frame is unseen; err_code usage_limit_reached is a code the 06/11 page bundle handles (rate_limit_exceeded is the throttle, fixture imagine_rate_limit_frame)",
  "status": 101,
  "headers": {},
  "frames": [
@@ -61,7 +61,7 @@
    "t_ms": 900,
    "data": {
     "type": "error",
-    "err_code": "rate_limit_exceeded",
+    "err_code": "usage_limit_reached",
     "err_msg": "You have reached your usage limit. Please try again later.",
     "request_id": "img_00000000000000000000000000000001"
    }

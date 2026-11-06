@@ -48,6 +48,11 @@ LIMIT_PHRASES = ("usage limit", "usage quota", "usage_limit")
 # Seen live 06/11 (fixture imagine_rate_limit_frame): an Imagine `error` frame "Image rate limit exceeded", with uses
 # still left in `quota_info`: a throttle of the account, not its daily quota.
 RATE_LIMIT_PHRASES = ("rate limit",)
+# The Imagine socket's error codes, as the 06/11 page bundle handles them (its imagine-websocket onError): a throttle of
+# the account (`rate_limit_exceeded`, seen live; `concurrency_limit`), and its use pools spent (`usage_limit_reached`,
+# `usage_pool_exhausted`). `image_query_rejected` is a refusal of the prompt (age verification, copyright), not listed.
+IMAGINE_RATE_CODES = ("rate_limit_exceeded", "concurrency_limit")
+IMAGINE_LIMIT_CODES = ("usage_limit_reached", "usage_pool_exhausted")
 SAFETY_PHRASES = ("content violates usage guidelines", "safety_check_type_", "content policy", "content moderation")
 # A Cloudflare challenge page. Never `/cdn-cgi/challenge-platform/` alone: every normal grok.com page loads that script.
 CF_MARKS = ("just a moment", "__cf_chl", "cf-chl-")

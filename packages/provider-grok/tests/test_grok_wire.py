@@ -116,7 +116,7 @@ def test_a_limit_frame_bad_json_and_an_unknown_type():
     assert s.safety and not s.limit
 
 
-@mutation(WIRE, "            self._rate_limit = self._rate_limit or is_rate_limit(msg)\n",
+@mutation(WIRE, "            self._rate_limit = self._rate_limit or is_rate_limit(msg) or code in IMAGINE_RATE_CODES\n",
           "            self._rate_limit = self._rate_limit\n", expect="the real rate limit frame is a rate limit")
 def test_the_real_rate_limit_frame_is_a_rate_limit_not_a_usage_limit():
     r = read_frames(frames_in("imagine_rate_limit_frame"))
@@ -127,6 +127,22 @@ def test_the_real_rate_limit_frame_is_a_rate_limit_not_a_usage_limit():
     assert not read_frames(frames_in("imagine_limit_frame")).answer().rate_limit
     stray = dict(frames_in("imagine_rate_limit_frame")[-1], request_id="img_" + "f" * 32)
     assert not read_frames([stray]).answer().rate_limit, "another run's frame is never ours"
+
+
+@mutation(WIRE, "            self._limit = self._limit or is_limit(msg) or code in IMAGINE_LIMIT_CODES\n",
+          "            self._limit = self._limit or is_limit(msg)\n",
+          expect="the page bundle's usage codes are a limit")
+def test_the_page_bundles_error_codes_are_read_whatever_the_words():
+    def frame(code):
+        return [{"type": "error", "err_code": code, "err_msg": "words grok may change", "request_id": None}]
+    for code in ("usage_limit_reached", "usage_pool_exhausted"):
+        a = read_frames(frame(code)).answer()
+        assert a.limit and not a.rate_limit, "the page bundle's usage codes are a limit"
+    for code in ("rate_limit_exceeded", "concurrency_limit"):
+        a = read_frames(frame(code)).answer()
+        assert a.rate_limit and not a.limit
+    a = read_frames(frame("image_query_rejected")).answer()
+    assert not a.limit and not a.rate_limit and a.error_text == "words grok may change"
 
 
 # ---- NDJSON (F5, F6) -------------------------------------------------------------------------------------------------
