@@ -53,8 +53,12 @@ def test_the_keys_page_by_provider():
 
 
 @mutation(LOGS_TABLE,
-          '<span v-if="r.provider" class="pchip" :class="providerClass(r.provider)">{{ r.provider }}</span>',
-          '<span class="pchip" :class="providerClass(r.provider ?? \'\')">{{ r.provider }}</span>',
+          '<span v-if="r.provider" class="pchip" :class="providerClass(r.provider)"\n'
+          '            ><ProviderTile :provider="r.provider" :size="14" />{{ r.provider }}</span\n'
+          '          >\n          <span class="p-row__right',
+          '<span class="pchip" :class="providerClass(r.provider ?? \'\')"\n'
+          '            ><ProviderTile :provider="r.provider ?? \'\'" :size="14" />{{ r.provider }}</span\n'
+          '          >\n          <span class="p-row__right',
           expect=LOGS_PROVIDER + "a phone row has the chip too, and none when there is no provider")
 @pytest.mark.web_unit
 def test_the_logs_page_by_provider():
