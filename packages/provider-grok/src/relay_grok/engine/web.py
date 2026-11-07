@@ -1,5 +1,7 @@
-"""One run's HTTP and WebSocket to grok.com over curl_cffi (Chrome's fingerprint), bound to one account's cookies and
-proxy.
+"""One run's HTTP to grok.com over curl_cffi (Chrome's fingerprint) and its Imagine WebSocket over aiohttp, bound to
+one account's cookies and proxy. The socket is aiohttp's (plain Python TLS, no impersonation) because since 06/11 grok
+answers every text to image sent on libcurl's WebSocket with a fake `rate_limit_exceeded` frame; everything else
+stays on curl_cffi.
 
 Every call goes through the account's proxy; with no proxy on the account it goes direct, and a failed proxy is a failed
 call, never a direct retry. No call follows a redirect. The account's cookies are passed with each call, and only to
@@ -53,7 +55,9 @@ from relay_grok.engine.wire import classify_refusal
 log = logging.getLogger("relay_grok.web")
 ROTATING = (SSO_COOKIE, "sso-rw")         # a Set-Cookie of these is told (names only), never written back
 ERROR_BODY_MAX = 65536                    # a refused send's body read for its kind, no more
-_WS_STATUS = re.compile(r"WebSocket upgrade: (\d{3})")
+WS_MAX_MSG = 64 * 1024 * 1024             # one Imagine frame carries base64 images: aiohttp's 4 MB default is too small
+_REDIRECTS = (301, 302, 303, 307, 308)
+_PROXY_ERRORS = ("ProxyError", "ClientProxyConnectionError", "ClientHttpProxyError")
 _ID = "[A-Za-z0-9-]{1,64}"
 _READ = re.compile("|".join(re.escape(p).replace("%s", _ID) for p in READ_PATHS))
 
@@ -107,6 +111,25 @@ def real_session(proxies: dict[str, str] | None):
     return AsyncSession(impersonate=IMPERSONATE, proxies=proxies)
 
 
+async def _no_redirect(req, handler):
+    """aiohttp's `ws_connect` always follows redirects: a 3xx handshake is a refused one instead."""
+    import aiohttp
+    resp = await handler(req)
+    if resp.status in _REDIRECTS:
+        resp.close()
+        raise aiohttp.WSServerHandshakeError(resp.request_info, (), status=resp.status, message="redirect")
+    return resp
+
+
+def real_ws_session():
+    """The aiohttp session of the Imagine socket: a jar that keeps nothing (no cookie is ever written back), no
+    redirect, no time cap of its own (`socket` cuts the open, the submit cuts the reads), no proxy from the
+    environment."""
+    import aiohttp  # imported on first real use, like curl_cffi
+    return aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar(), timeout=aiohttp.ClientTimeout(total=None),
+                                 middlewares=(_no_redirect,), trust_env=False)
+
+
 def cookie_host(url: str) -> bool:
     """May the account's cookies go to `url`? Only grok.com and assets.grok.com, https (wss), default port, no login."""
     try:
@@ -118,7 +141,9 @@ def cookie_host(url: str) -> bool:
 
 
 def _proxy_failure(exc: BaseException) -> bool:
-    return any(c.__name__ == "ProxyError" for c in type(exc).__mro__)
+    """The proxy failed: curl_cffi's ProxyError, aiohttp's ClientProxyConnectionError (no connection to the proxy) or
+    ClientHttpProxyError (the proxy refused the CONNECT: 407, 502...). Matched by name: no import here."""
+    return any(c.__name__ in _PROXY_ERRORS for c in type(exc).__mro__)
 
 
 def _json(text: str) -> Any:
@@ -154,11 +179,12 @@ async def _quiet_close(thing, method: str = "close") -> None:
 
 
 class Socket:
-    """The Imagine WebSocket: `send_json` cut at `WS_OPEN_S`, `recv_text` uncut (the submit cuts its read), `close`.
-    A broken socket raises NetError."""
+    """The Imagine WebSocket (aiohttp's): `send_json` cut at `WS_OPEN_S`, `recv_text` uncut (the submit cuts its read;
+    a binary frame is decoded), `close` (the socket, then its aiohttp session; never raises). A broken socket, a close
+    or an error frame raises NetError."""
 
-    def __init__(self, ws):
-        self.ws = ws
+    def __init__(self, ws, session=None):
+        self.ws, self.session = ws, session
 
     async def send_json(self, obj: Any) -> None:
         try:
@@ -167,17 +193,26 @@ class Socket:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
 
     async def recv_text(self) -> str:
+        from aiohttp import WSMsgType
         try:
-            data, _flags = await self.ws.recv()
+            msg = await self.ws.receive()
         except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
-        return data.decode("utf-8", errors="replace") if isinstance(data, bytes | bytearray) else str(data)
+        if msg.type == WSMsgType.TEXT:
+            return msg.data
+        if msg.type == WSMsgType.BINARY:
+            return msg.data.decode("utf-8", errors="replace")
+        if msg.type == WSMsgType.ERROR and isinstance(msg.data, BaseException):
+            raise NetError(type(msg.data).__name__, _proxy_failure(msg.data))
+        raise NetError("WebSocket" + msg.type.name.title(), False)      # closed, closing, close
 
     async def close(self) -> None:
         try:
             await asyncio.wait_for(self.ws.close(), WS_OPEN_S)
         except Exception:      # noqa: BLE001 - a socket that will not close is dropped
             pass
+        if self.session is not None:
+            await _quiet_close(self.session)
 
 
 class Web:
@@ -185,13 +220,15 @@ class Web:
     none; without it no header is sent. `clock` is the run's monotonic clock (kept for the caller's timings)."""
 
     def __init__(self, account, settings, ctx=None, *, make_session: Callable[[Any], Any] = real_session,
-                 statsig: Callable[[str, str], Any] | None = None, clock: Callable[[], float] = time.monotonic):
+                 make_ws_session: Callable[[], Any] = real_ws_session, statsig: Callable[[str, str], Any] | None = None,
+                 clock: Callable[[], float] = time.monotonic):
         self.account, self.settings, self.ctx = account, settings, ctx
         self.statsig, self.clock = statsig, clock
         self.jar = jar_of(account.credential)
         url = proxy_url(account.proxy)
         self.proxies = {"http": url, "https": url} if url else None
         self.s = make_session(self.proxies)
+        self.make_ws_session, self.ws_session = make_ws_session, None
         self.sso_told = False
         self.browser = contextlib.AsyncExitStack()      # the Chrome of a text to image sent from a page
 
@@ -205,6 +242,8 @@ class Web:
             log.warning("grok account %s: the browser did not close cleanly (%s)", self.account.id, type(e).__name__)
         finally:
             await _quiet_close(self.s)
+            if self.ws_session is not None:
+                await _quiet_close(self.ws_session)
 
     # ---- the wire ----------------------------------------------------------------------------------------------
     def _cookies(self, url: str) -> dict[str, str] | None:
@@ -358,25 +397,30 @@ class Web:
 
     async def socket(self):
         """The Imagine WebSocket, through the account's proxy: from a Chrome page when `grok.t2i_transport` is
-        `browser` (engine/browser.py; the browser closes with this `Web`), else on this run's curl session. A 401
-        handshake -> SignedOut("ws"), any other refused handshake -> Refused; no answer -> NetError."""
+        `browser` (engine/browser.py; the browser closes with this `Web`), else over aiohttp (`make_ws_session`; grok
+        refuses libcurl's WebSocket since 06/11), its open cut at `WS_OPEN_S`. The cookies go as one `Cookie` header,
+        never into aiohttp's jar; no redirect. A 401 handshake -> SignedOut("ws"), any other refused handshake ->
+        Refused; no answer -> NetError."""
         if self.settings.get("grok.t2i_transport") == "browser":
             from relay_grok.engine.browser import open_imagine  # late: only a page send needs the browser kit
             return await self.browser.enter_async_context(open_imagine(self))
+        from aiohttp import WSServerHandshakeError
+        headers = {"Origin": SITE_URL, "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"}
+        cookies = self._cookies(IMAGINE_WS)
+        if cookies:
+            headers["Cookie"] = "; ".join("%s=%s" % kv for kv in cookies.items())
+        self.ws_session = self.make_ws_session()
         try:
-            ws = await self.s.ws_connect(IMAGINE_WS, headers={"Origin": SITE_URL, "User-Agent": UA,
-                                                              "Accept-Language": "en-US,en;q=0.9"},
-                                         cookies=self._cookies(IMAGINE_WS), timeout=WS_OPEN_S, proxies=self.proxies,
-                                         allow_redirects=False)
-        except Exception as e:
-            status = _WS_STATUS.search(str(e))
-            if status and status.group(1) == "401":
+            ws = await asyncio.wait_for(self.ws_session.ws_connect(
+                IMAGINE_WS, headers=headers, proxy=self.proxies["https"] if self.proxies else None,
+                max_msg_size=WS_MAX_MSG), WS_OPEN_S)
+        except WSServerHandshakeError as e:
+            if e.status == 401:
                 raise SignedOut("ws") from None
-            if status:
-                raise Refused(classify_refusal(int(status.group(1)), "", ""), int(status.group(1))) from None
+            raise Refused(classify_refusal(e.status, "", ""), e.status) from None
+        except Exception as e:
             raise NetError(type(e).__name__, _proxy_failure(e)) from None
-        await self._watch_sso()
-        return Socket(ws)
+        return Socket(ws, self.ws_session)
 
     async def get_media(self, url: str, max_bytes: int, deadline_s: float) -> AsyncIterator[bytes]:
         """A result file from `https://assets.grok.com/...` with the account's cookies. Any other place -> ValueError

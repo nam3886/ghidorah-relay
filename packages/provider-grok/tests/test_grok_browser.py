@@ -150,8 +150,8 @@ def run_browser(monkeypatch, ctx, j, page: Page, *, q="quota_before", cap_s=10.0
     session = FakeSession({QUOTA: [quota(q), quota("quota_after_t2i")]}, calls=ctx.calls)
     clock = Clock()
     ids = itertools.repeat(SPIKE_REQUEST)
-    deps = S.Deps(make_session=session, clock=clock, now=clock.now, uuid4=lambda: next(ids),
-                  hold_margin_s=hold_margin_s)
+    deps = S.Deps(make_session=session, make_ws_session=session.ws_session, clock=clock, now=clock.now,
+                  uuid4=lambda: next(ids), hold_margin_s=hold_margin_s)
 
     async def go():
         return await asyncio.wait_for(S.submit(ctx, j, ctx.settings, deps=deps), cap_s)
@@ -301,7 +301,8 @@ def test_the_curl_transport_opens_no_browser(monkeypatch):
     session = FakeSession({QUOTA: [quota("quota_before"), quota("quota_after_t2i")], ("WS", IMAGINE_WS): sock},
                           calls=ctx.calls)
     clock = Clock()
-    deps = S.Deps(make_session=session, clock=clock, now=clock.now, uuid4=lambda: SPIKE_REQUEST)
+    deps = S.Deps(make_session=session, make_ws_session=session.ws_session, clock=clock, now=clock.now,
+                  uuid4=lambda: SPIKE_REQUEST)
     result = asyncio.run(asyncio.wait_for(S.submit(ctx, job("t2i", n=2), ctx.settings, deps=deps), 10))
     assert isinstance(result.job, Completed) and not opened and "ws open" in names(ctx.calls)
 

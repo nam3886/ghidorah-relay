@@ -1,6 +1,7 @@
 """Test kit for grok: planted secrets, a Cookie-Editor export of grok.com, the settings, planned jobs, a fake curl_cffi
-`AsyncSession` (and its WebSocket) fed from a route table, a recording `RunCtx`, a fake clock and the 06/11 captures
-(fixtures/grok/spike-261106, read at call time, so a test that needs none runs before they exist).
+`AsyncSession` (and, through `ws_session`, a fake aiohttp session for the Imagine WebSocket) fed from a route table, a
+recording `RunCtx`, a fake clock and the 06/11 captures (fixtures/grok/spike-261106, read at call time, so a test that
+needs none runs before they exist).
 
 Every platform step the ctx takes and every request or WebSocket frame a fake sends go, in order, into one shared
 `calls` list (pass `ctx.calls` to the fakes), so a test reads the whole run as one sequence; `names(calls)` turns it
@@ -13,6 +14,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
+
+from aiohttp import WSMessage, WSMsgType, WSServerHandshakeError
 
 from relay_core.providers import AccountView, CreateRequest, JobView, MediaIn, MediaRef, Proxy
 from relay_core.testing.fake_provider import FakeSettings
@@ -261,14 +264,16 @@ def _sent_by_jar(cookie, host: str) -> bool:
 
 class FakeSession:
     """A curl_cffi `AsyncSession` stand-in answering from `routes`: `{(METHOD, prefix): answer}`, METHOD "WS" for
-    `ws_connect`. The prefix is matched against the URL's path, `host + path` and the whole URL; the longest prefix
-    wins. An answer is a `Resp` (a `FakeSocket` for "WS"), an exception (raised), a callable of the call, or a list
-    taken in order (the last repeats). No route: 404 (a WebSocket: ConnectionError).
+    `ws_connect` (aiohttp's, through `ws_session`). The prefix is matched against the URL's path, `host + path` and
+    the whole URL; the longest prefix wins. An answer is a `Resp` (a `FakeSocket` for "WS"), an exception (raised), a
+    callable of the call, or a list taken in order (the last repeats). No route: 404 (a WebSocket: ConnectionError).
 
     The instance is the engine's `make_session` seam too: `FakeSession(...)(proxies)` records `proxies` and returns
     itself (one jar for the test). Every request is a `Call` in `requests` (method, url, host, path, headers, data,
     json, kw, cookies sent, `has_cookie`, `proxies`, `allow_redirects`, `stream`, `timeout`) and ("http", METHOD, url)
-    in `calls`; a WebSocket open is ("ws_open", url) and its socket logs into the same `calls`."""
+    in `calls`; a WebSocket open is ("ws_open", url) and its socket logs into the same `calls`. A WebSocket's `Call`
+    has `proxies` = the `proxy` aiohttp got (a URL or None) and aiohttp's other arguments in `kw`; `ws_closed` counts
+    the closes of the sessions `ws_session` made."""
 
     def __init__(self, routes: dict | None = None, calls: list | None = None):
         self.routes = dict(routes or {})
@@ -278,6 +283,7 @@ class FakeSession:
         self.proxies = None
         self.made: list = []
         self.closed = False
+        self.ws_closed = 0
 
     def __call__(self, proxies=None, **kw):
         self.proxies = proxies
@@ -345,8 +351,21 @@ class FakeSession:
                 await self.resp.aclose()
         return _Stream()
 
-    async def ws_connect(self, url, **kw):
+    def ws_session(self):
+        """The engine's `make_ws_session` seam: an aiohttp `ClientSession` stand-in on this fake's routes."""
+        fake = self
+
+        class _WsSession:
+            async def ws_connect(self, url, **kw):
+                return await fake.ws_connect(url, **kw)
+
+            async def close(self):
+                fake.ws_closed += 1
+        return _WsSession()
+
+    async def ws_connect(self, url, *, proxy=None, **kw):
         call = self._record("WS", url, **kw)
+        call.proxies = proxy
         self.calls.append(("ws_open", url))
         answer = self._route("WS", url, call)
         if isinstance(answer, BaseException):
@@ -360,12 +379,18 @@ class FakeSession:
         self.closed = True
 
 
+def ws_refused(status: int) -> WSServerHandshakeError:
+    """What aiohttp's `ws_connect` raises for a handshake answered `status`."""
+    return WSServerHandshakeError(None, (), status=status, message="Invalid response status")
+
+
 class FakeSocket:
-    """grok's side of the Imagine WebSocket (curl_cffi's `AsyncWebSocket`): `incoming` frames in order (a dict is sent
-    as its JSON, a str or bytes as is, an exception is raised by that `recv`). Once they run out `recv` raises `then`,
-    or never returns. Every frame the engine sends is parsed and logged as ("ws_send", frame) in `calls` and kept in
-    `sent`; the test fails on a second generating frame (`conversation.item.create` with an `input_text`) and on any
-    frame sent after the generating one."""
+    """grok's side of the Imagine WebSocket (aiohttp's `ClientWebSocketResponse`, and the `recv` the page kit reads):
+    `incoming` frames in order (a dict is sent as its JSON, a str or bytes as is, an exception is raised by that read,
+    a `WSMessage` is what `receive` returns as is). Once they run out a read raises `then`, or never returns. Every
+    frame the engine sends is parsed and logged as ("ws_send", frame) in `calls` and kept in `sent`; the test fails on
+    a second generating frame (`conversation.item.create` with an `input_text`) and on any frame sent after the
+    generating one."""
 
     def __init__(self, incoming=(), *, then: BaseException | None = None, calls: list | None = None):
         self.incoming = list(incoming)
@@ -431,6 +456,12 @@ class FakeSocket:
         if isinstance(item, dict | list):
             item = json.dumps(item)
         return (item.encode() if isinstance(item, str) else item), 1
+
+    async def receive(self) -> WSMessage:
+        if self.incoming and isinstance(self.incoming[0], WSMessage):
+            return self.incoming.pop(0)
+        data, _flags = await self.recv()
+        return WSMessage(WSMsgType.TEXT, data.decode("utf-8", errors="replace"), None)
 
     async def recv_str(self) -> str:
         data, _flags = await self.recv()

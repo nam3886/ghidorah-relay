@@ -78,7 +78,7 @@ from relay_grok.constants import (
 )
 from relay_grok.engine import wire
 from relay_grok.engine.check import balances, doubt_effects
-from relay_grok.engine.web import NetError, Refused, SignedOut, Web, real_session
+from relay_grok.engine.web import NetError, Refused, SignedOut, Web, real_session, real_ws_session
 
 log = logging.getLogger("relay_grok.submit")
 
@@ -177,6 +177,7 @@ async def read_input_media(ref) -> bytes:
 class Deps:
     """What a run needs from outside; every field has the real default."""
     make_session: Callable = real_session
+    make_ws_session: Callable = real_ws_session
     read_media: Callable[..., Awaitable[bytes]] = read_input_media
     statsig: Callable | None = None
     clock: Callable[[], float] = time.monotonic
@@ -491,8 +492,8 @@ async def submit(ctx, job, settings, *, deps: Deps | None = None) -> SubmitResul
     deps = deps or Deps()
     run = _Run(ctx, job, settings, deps)
     try:
-        async with Web(ctx.account, settings, ctx, make_session=deps.make_session, statsig=deps.statsig,
-                       clock=deps.clock) as web:
+        async with Web(ctx.account, settings, ctx, make_session=deps.make_session, make_ws_session=deps.make_ws_session,
+                       statsig=deps.statsig, clock=deps.clock) as web:
             try:
                 outcome = await run.bounded(web)
             except _CoreVerdict:

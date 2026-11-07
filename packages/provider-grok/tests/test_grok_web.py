@@ -1,10 +1,15 @@
 """grok.com over the account's proxy (`engine/web.py`) and the account check (`engine/check.py`)."""
 
 import asyncio
+import base64
+import contextlib
 import logging
+import socket
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from aiohttp import WSMessage, WSMsgType
+from aiohttp import web as aiohttp_web
 from grokkit import (
     EMAIL,
     NOW,
@@ -20,9 +25,10 @@ from grokkit import (
     fixture,
     names,
     settings,
+    ws_refused,
 )
 
-from relay_core.providers import Balance, Cooldown, Dead, Health, ProxyBad, Success, Suspect, Tier
+from relay_core.providers import Balance, Cooldown, Dead, Health, Proxy, ProxyBad, Success, Suspect, Tier
 from relay_core.testing.mutation import mutation
 from relay_grok.constants import (
     IMAGINE_WS,
@@ -33,11 +39,12 @@ from relay_grok.constants import (
     RESPONSES_PATH,
     SESSION_PATH,
     SITE_URL,
+    UA,
     UPLOAD_PATH,
     UPLOAD_SOURCE,
 )
 from relay_grok.engine.check import check_account
-from relay_grok.engine.web import NetError, Quota, Refused, SignedOut, Web, proxy_url
+from relay_grok.engine.web import NetError, Quota, Refused, SignedOut, Web, proxy_url, real_ws_session
 
 WEB_FILE = "packages/provider-grok/src/relay_grok/engine/web.py"
 CHECK_FILE = "packages/provider-grok/src/relay_grok/engine/check.py"
@@ -77,7 +84,7 @@ def fake(routes: dict | None = None, ctx: Ctx | None = None) -> FakeSession:
 
 def web(session: FakeSession, ctx: Ctx | None = None, **kw) -> Web:
     ctx = ctx or Ctx()
-    return Web(ctx.account, ctx.settings, ctx, make_session=session, **kw)
+    return Web(ctx.account, ctx.settings, ctx, make_session=session, make_ws_session=session.ws_session, **kw)
 
 
 async def drain(agen) -> tuple[list, BaseException | None]:
@@ -103,6 +110,8 @@ PROXIES_LINE = '        self.proxies = {"http": url, "https": url} if url else N
           expect="the session must use the account proxy")
 @mutation(WEB_FILE, "timeout=timeout, allow_redirects=False,", "timeout=timeout, allow_redirects=True,",
           expect="a call followed a redirect")
+@mutation(WEB_FILE, 'proxy=self.proxies["https"] if self.proxies else None,', "proxy=None,",
+          expect="the socket must use the account proxy")
 def test_every_call_goes_through_the_account_proxy_and_follows_no_redirect():
     s = fake({("POST", UPLOAD_PATH): reply("upload_v2"), ("POST", NEW_CONVERSATION_PATH): Resp(200, lines=["{}"]),
               ("WS", IMAGINE_WS): FakeSocket(), ("GET", LIST_CONVERSATIONS_PATH): Resp(200, json_body={}),
@@ -122,6 +131,9 @@ def test_every_call_goes_through_the_account_proxy_and_follows_no_redirect():
     assert len(s.requests) == 8
     assert s.made == [PROXIES], "the session must use the account proxy"
     for call in s.requests:
+        if call.method == "WS":     # aiohttp's: one proxy URL; real_ws_session refuses its redirects
+            assert call.proxies == PROXIES["https"], "the socket must use the account proxy"
+            continue
         assert call.proxies == PROXIES, "the session must use the account proxy"
         assert call.allow_redirects is False, "a call followed a redirect"
 
@@ -130,6 +142,9 @@ def test_no_proxy_means_direct_and_never_a_fallback():
     s = fake()
     asyncio.run(web(s, Ctx(proxy=None)).session())
     assert s.made == [None] and s.requests[0].proxies is None
+    s = fake({("WS", IMAGINE_WS): FakeSocket()})
+    asyncio.run(web(s, Ctx(proxy=None)).socket())
+    assert s.requests[0].proxies is None
 
     s = fake({("GET", SESSION_PATH): ProxyError("CONNECT to %s failed" % proxy_url(PROXY))})
     with pytest.raises(NetError) as e:
@@ -205,12 +220,12 @@ def test_signed_out_shapes():
             ({("GET", SESSION_PATH): reply("rest_401_no_credentials")}, "session"),
             ({("POST", QUOTA_PATH): reply("rest_401_no_credentials")}, "quota"),
             ({("POST", QUOTA_PATH): reply("rest_401_bad_credentials")}, "quota"),
-            ({("WS", IMAGINE_WS): Exception("curl: (22) Refused WebSocket upgrade: 401")}, "socket")):
+            ({("WS", IMAGINE_WS): ws_refused(401)}, "socket")):
         with pytest.raises(SignedOut):
             asyncio.run(getattr(web(fake(routes)), call)())
     with pytest.raises(Refused) as e:
-        asyncio.run(web(fake({("WS", IMAGINE_WS): Exception("curl: (22) Refused WebSocket upgrade: 403")})).socket())
-    assert e.value.status == 403
+        asyncio.run(web(fake({("WS", IMAGINE_WS): ws_refused(403)})).socket())
+    assert (e.value.kind, e.value.status) == ("other", 403)
 
 
 def test_a_refused_read_names_its_kind():
@@ -269,22 +284,222 @@ def test_the_upload_returns_the_file_id_and_a_terminal_error_is_input():
         asyncio.run(web(fake({("POST", UPLOAD_PATH): reply("rest_401_no_credentials")})).upload(b"x", "image/png", "a"))
 
 
+@mutation(WEB_FILE, "        if cookies:\n", "        if False:\n", expect="the socket sent no cookie")
+@mutation(WEB_FILE, "        if msg.type == WSMsgType.BINARY:\n", "        if False:\n",
+          expect="a binary frame was lost")
+@mutation(WEB_FILE, "            await _quiet_close(self.session)\n", "            pass\n",
+          expect="the socket's aiohttp session was left open")
 def test_the_socket_opens_with_the_cookie_and_wraps_the_frames():
-    sock = FakeSocket([{"type": "session"}], then=ConnectionError("gone"))
+    sock = FakeSocket([{"type": "session"}, WSMessage(WSMsgType.BINARY, b'{"type": "bin"}', None),
+                       WSMessage(WSMsgType.CLOSE, 1000, "")])
     s = fake({("WS", IMAGINE_WS): sock})
 
     async def run():
         ws = await web(s).socket()
         await ws.send_json({"type": "conversation.item.create", "item": {"content": [{"type": "reset"}]}})
-        first = await ws.recv_text()
-        with pytest.raises(NetError):
+        got = [await ws.recv_text()]
+        try:
+            got.append(await ws.recv_text())
+        except NetError:
+            pytest.fail("a binary frame was lost")
+        with pytest.raises(NetError) as e:
             await ws.recv_text()
         await ws.close()
-        return first
-    assert asyncio.run(run()) == '{"type": "session"}'
+        return got, e.value
+    got, closed = asyncio.run(run())
+    assert got == ['{"type": "session"}', '{"type": "bin"}'], "a binary frame was lost"
+    assert (str(closed), closed.proxy) == ("WebSocketClose", False)
     call = s.requests[0]
-    assert call.url == IMAGINE_WS and call.has_cookie and call.headers["Origin"] == SITE_URL
-    assert sock.closed and names(s.calls) == ["ws open", "reset"]
+    assert call.url == IMAGINE_WS and "sso=" + SSO in call.headers.get("Cookie", ""), "the socket sent no cookie"
+    assert call.headers["Origin"] == SITE_URL and call.headers["User-Agent"] == UA
+    assert call.headers["Accept-Language"] == "en-US,en;q=0.9"
+    assert call.cookies == {}, "a cookie went to aiohttp's jar"
+    assert call.kw["max_msg_size"] >= 64 * 1024 * 1024
+    assert sock.closed and s.ws_closed == 1, "the socket's aiohttp session was left open"
+    assert names(s.calls) == ["ws open", "reset"]
+
+
+def test_a_broken_socket_or_an_error_frame_is_a_net_error():
+    for frame, kind, proxy in ((ConnectionResetError("gone"), "ConnectionResetError", False),
+                               (WSMessage(WSMsgType.ERROR, ProxyError("p"), None), "ProxyError", True),
+                               (WSMessage(WSMsgType.CLOSED, None, None), "WebSocketClosed", False)):
+        async def run(frame):
+            ws = await web(fake({("WS", IMAGINE_WS): FakeSocket([frame])})).socket()
+            with pytest.raises(NetError) as e:
+                await ws.recv_text()
+            return e.value
+        err = asyncio.run(run(frame))
+        assert (err.kind, err.proxy) == (kind, proxy)
+
+
+@mutation(WEB_FILE, "                await _quiet_close(self.ws_session)\n", "                pass\n",
+          expect="the run left the socket's aiohttp session open")
+def test_the_run_closes_the_socket_session_whatever_happened(monkeypatch):
+    monkeypatch.setattr("relay_grok.engine.web.WS_OPEN_S", 0.05)
+    for answer in (FakeSocket(), ws_refused(500), ConnectionError("no")):
+        s = fake({("WS", IMAGINE_WS): answer})
+
+        async def run(s):
+            async with web(s) as w:
+                with contextlib.suppress(Refused, NetError):
+                    await w.socket()       # opened and never closed by the caller, or refused, or no answer
+        asyncio.run(run(s))
+        assert s.ws_closed >= 1, "the run left the socket's aiohttp session open"
+
+
+@mutation(WEB_FILE, "max_msg_size=WS_MAX_MSG), WS_OPEN_S)", "max_msg_size=WS_MAX_MSG), None)",
+          expect="the socket's open was not cut")
+def test_the_socket_open_is_cut_at_ws_open_s(monkeypatch):
+    monkeypatch.setattr("relay_grok.engine.web.WS_OPEN_S", 0.05)
+    s = fake()
+
+    async def hang(url, **kw):
+        await asyncio.Event().wait()
+    s.ws_connect = hang
+
+    async def run():
+        async with asyncio.timeout(2):
+            await web(s).socket()
+    try:
+        with pytest.raises(NetError) as e:
+            asyncio.run(run())
+    except TimeoutError:
+        pytest.fail("the socket's open was not cut")
+    assert (e.value.kind, e.value.proxy) == ("TimeoutError", False)
+
+
+# ---- the socket on the real aiohttp session (local servers only) ----------------------------------------------------
+class LocalWs:
+    """`real_ws_session` (its jar, its redirect rule) with the Imagine URL turned to a local server: the cookies and
+    headers the engine built for grok.com go there as they are."""
+
+    def __init__(self, url: str):
+        self.url, self.s = url, None
+
+    def __call__(self):
+        self.s = real_ws_session()
+        return self
+
+    async def ws_connect(self, url, **kw):
+        assert url == IMAGINE_WS
+        return await self.s.ws_connect(self.url, **kw)
+
+    async def close(self):
+        await self.s.close()
+
+    def web(self) -> Web:
+        return Web(Ctx(proxy=None).account, settings(), make_session=FakeSession(), make_ws_session=self)
+
+
+@contextlib.asynccontextmanager
+async def local_server(routes):
+    app = aiohttp_web.Application()
+    app.add_routes(routes)
+    runner = aiohttp_web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp_web.TCPSite(runner, "127.0.0.1", 0)
+    await site.start()
+    try:
+        yield runner.addresses[0][1]
+    finally:
+        await runner.cleanup()
+
+
+BIG = "x" * (5 * 1024 * 1024)       # more than aiohttp's 4 MB default frame cap
+
+
+@mutation(WEB_FILE, "                max_msg_size=WS_MAX_MSG), WS_OPEN_S)", "                ), WS_OPEN_S)",
+          expect="a big frame was refused")
+@mutation(WEB_FILE, "cookie_jar=aiohttp.DummyCookieJar(), ", "", expect="aiohttp kept a cookie")
+@mutation(WEB_FILE, "middlewares=(_no_redirect,), ", "", expect="the socket followed a redirect")
+def test_the_real_session_takes_big_frames_keeps_no_cookie_and_follows_no_redirect():
+    seen = {}
+
+    async def imagine(request):
+        seen["cookie"] = request.headers.get("Cookie", "")
+        ws = aiohttp_web.WebSocketResponse(max_msg_size=0)
+        ws.cookies["sso"] = "rotated"
+        await ws.prepare(request)
+        await ws.send_str(BIG)
+        await ws.receive()
+        return ws
+
+    async def moved(request):
+        raise aiohttp_web.HTTPFound("/ws/imagine/listen")
+
+    async def signed_out(request):
+        return aiohttp_web.Response(status=401)
+
+    async def run():
+        async with local_server([aiohttp_web.get("/ws/imagine/listen", imagine),
+                                 aiohttp_web.get("/moved", moved), aiohttp_web.get("/out", signed_out)]) as port:
+            local = LocalWs("ws://localhost:%d/ws/imagine/listen" % port)
+            async with local.web() as w:
+                ws = await w.socket()
+                try:
+                    got = await ws.recv_text()
+                except NetError:
+                    pytest.fail("a big frame was refused")
+                kept = len(local.s.cookie_jar)
+                await ws.close()
+            assert local.s.closed
+            out = []
+            for path in ("/moved", "/out"):
+                local = LocalWs("ws://localhost:%d%s" % (port, path))
+                async with local.web() as w:
+                    try:
+                        await w.socket()
+                        out.append("opened")
+                    except (Refused, SignedOut) as e:
+                        out.append(e)
+            return got, kept, out
+    got, kept, (moved_, out) = asyncio.run(run())
+    assert len(got) == len(BIG), "a big frame was refused"
+    assert "sso=" + SSO in seen["cookie"]
+    assert kept == 0, "aiohttp kept a cookie"
+    assert isinstance(moved_, Refused) and moved_.status == 302, "the socket followed a redirect"
+    assert isinstance(out, SignedOut)
+
+
+@mutation(WEB_FILE, '_PROXY_ERRORS = ("ProxyError", "ClientProxyConnectionError", "ClientHttpProxyError")',
+          '_PROXY_ERRORS = ("ProxyError",)', expect="a failed proxy must be told as the proxy's")
+def test_the_real_socket_goes_through_the_account_proxy_with_its_login_and_a_failed_proxy_is_told(caplog):
+    connects = []
+
+    async def proxy(reader, writer):
+        connects.append((await reader.readuntil(b"\r\n\r\n")).decode())
+        writer.write(b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    async def run():
+        server = await asyncio.start_server(proxy, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        free = socket.socket()
+        free.bind(("127.0.0.1", 0))
+        closed_port = free.getsockname()[1]
+        free.close()                                            # nothing listens there
+        errors = []
+        try:
+            for p in (port, closed_port):
+                ctx = Ctx(proxy=Proxy("127.0.0.1", p, PROXY.auth))
+                async with Web(ctx.account, settings(), ctx, make_session=FakeSession()) as w:     # the real WS session
+                    with pytest.raises(NetError) as e:
+                        await w.socket()
+                    errors.append(e.value)
+        finally:
+            server.close()
+            await server.wait_closed()
+        return errors
+    errors = asyncio.run(run())
+    assert len(connects) == 1, "a failed proxy was retried or went direct"
+    assert connects[0].startswith("CONNECT grok.com:443 ")
+    login = base64.b64encode(PROXY.auth.encode()).decode()
+    assert "Proxy-Authorization: Basic " + login in connects[0]
+    assert [(e.kind, e.proxy) for e in errors] == [("ClientHttpProxyError", True),
+                                                   ("ClientProxyConnectionError", True)], \
+        "a failed proxy must be told as the proxy's"
+    assert_no_secret(caplog.text, *(str(e) for e in errors))
 
 
 def test_get_media_refuses_a_foreign_host_before_any_request():

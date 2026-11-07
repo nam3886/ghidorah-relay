@@ -24,6 +24,7 @@ from grokkit import (
     job,
     names,
     settings,
+    ws_refused,
 )
 
 from relay_core.providers import (
@@ -122,7 +123,8 @@ def deps(session, clock=None, *, uuids=None, hold_margin_s=15.0, read_media=None
 
     async def media(ref):
         return b"\x89PNG-input-%d" % ref.idx
-    return S.Deps(make_session=session, read_media=read_media or media, clock=clock, now=clock.now,
+    return S.Deps(make_session=session, make_ws_session=session.ws_session, read_media=read_media or media, clock=clock,
+                  now=clock.now,
                   uuid4=lambda: next(ids), hold_margin_s=hold_margin_s)
 
 
@@ -558,7 +560,7 @@ def test_signed_out_before_the_send_is_a_strike_and_sends_nothing():
     cases = (
         {QUOTA: refused("rest_401_no_credentials")},
         {QUOTA: refused("rest_401_bad_credentials")},
-        {QUOTA: quota(), WS: RuntimeError("curl: (22) Refused WebSocket upgrade: 401")},
+        {QUOTA: quota(), WS: ws_refused(401)},
     )
     for routes in cases:
         ctx = Ctx()

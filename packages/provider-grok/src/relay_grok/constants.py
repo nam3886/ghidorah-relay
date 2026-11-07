@@ -1,9 +1,9 @@
 """grok spec constants: the site facts and the numbers that are not live settings.
 
-Grok Imagine (grok.com) is reached over plain HTTP and one WebSocket with Chrome's TLS fingerprint (curl_cffi), through
-the account's proxy. The account is a cookie jar whose `sso` cookie is all the site needs; nothing here refreshes it
-(plans/grok-spike-261106.md). Pure: imported by the spec, the credential reader and the engine alike, and it imports
-no curl_cffi.
+Grok Imagine (grok.com) is reached over plain HTTP with Chrome's TLS fingerprint (curl_cffi) and one WebSocket
+(aiohttp), through the account's proxy. The account is a cookie jar whose `sso` cookie is all the site needs; nothing
+here refreshes it (plans/grok-spike-261106.md). Pure: imported by the spec, the credential reader and the engine
+alike, and it imports no curl_cffi.
 """
 
 from relay_core.providers import FixedLimit
